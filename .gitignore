@@ -1,0 +1,4 @@
+.env
+google-key.json
+__pycache__/
+*.pyc
