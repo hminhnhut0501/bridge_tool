@@ -197,7 +197,7 @@ async def cmd_support(event):
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="💬 Nhắn tin cho Admin", url="https://t.me/thamtucu"))
     kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
-    await smart_display(event, support_text, kb.as_markup())
+    await smart_display(event, support_text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
 
 @router.callback_query(F.data.startswith("group_"))
 async def view_group_detail(callback: CallbackQuery):
@@ -249,10 +249,10 @@ async def process_buy_request(callback: CallbackQuery):
         
         qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
         
-        # --- ĐÂY LÀ DÒNG BỊ THIẾU CẦN THÊM VÀO ---
-        amount_fmt = format_currency(amount) 
+        # --- TẠO BIẾN AMOUNT_FMT Ở ĐÂY ĐỂ TRÁNH LỖI NAMEERROR ---
+        amount_fmt = format_currency(amount)
         
-        # 1. Khử ký tự đặc biệt trong tên tài khoản để chống lỗi HTML
+        # Khử ký tự đặc biệt trong tên tài khoản để chống lỗi HTML
         safe_account_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
         
         caption = (
@@ -273,7 +273,7 @@ async def process_buy_request(callback: CallbackQuery):
         kb.row(InlineKeyboardButton(text="🔄 Tôi đã chuyển khoản", callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text="❌ Hủy đơn này", callback_data=f"cancel_order_{order_id}"))
         
-        # 2. VÒNG AN TOÀN TRÁNH TREO BOT
+        # VÒNG AN TOÀN TRÁNH TREO BOT KHI QR LỖI
         try:
             # Thử gửi bằng ảnh QR
             await bot.send_photo(
@@ -295,7 +295,7 @@ async def process_buy_request(callback: CallbackQuery):
                 disable_web_page_preview=True
             )
             
-        # 3. Dọn dẹp tin nhắn chờ
+        # Dọn dẹp tin nhắn chờ
         try: await msg_wait.delete()
         except: pass
         try: await callback.message.delete()
@@ -305,26 +305,20 @@ async def process_buy_request(callback: CallbackQuery):
     else:
         await msg_wait.edit_text("❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
 
-# --- HÀM XỬ LÝ NÚT KIỂM TRA THANH TOÁN (TÔI ĐÃ CHUYỂN KHOẢN) ---
 @router.callback_query(F.data.startswith("check_"))
 async def manual_check_payment(callback: CallbackQuery):
     if not await check_protection(callback): return
     
     order_id = callback.data.split("_")[1]
     
-    # Báo cho Telegram biết đã nhận phản hồi (ẩn vòng xoay loading)
-    # Ping trực tiếp PayOS để kiểm tra trạng thái
     status = payos_manager.get_payment_status(order_id)
     
     if status == "PAID":
         await callback.answer("✅ Giao dịch thành công! Đang lấy link nhóm cho bạn...", show_alert=True)
-        # Gọi hàm giao hàng ngay lập tức
         await process_successful_payment(order_id)
-        # Xóa tin nhắn QR code
         try: await callback.message.delete()
         except: pass
     else:
-        # Nếu chưa nhận được tiền, hiện thông báo Pop-up
         alert_msg = "⏳ Hệ thống chưa nhận được tiền.\n\nNếu bạn vừa chuyển khoản thành công, xin vui lòng đợi thêm 1-2 phút để ngân hàng xử lý nhé!"
         await callback.answer(alert_msg, show_alert=True)
 
@@ -351,7 +345,7 @@ async def cmd_me(event):
     else:
         for p in my_plans: text += f"🎁 Gói: <b>{p[3]}</b>\n📅 Hạn: <code>{p[7]}</code>\n────────────────────\n"
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main")).as_markup()
-    await smart_display(event, text, kb)
+    await smart_display(event, text, kb, img=db.get_config("IMG_ME"))
 
 @router.callback_query(F.data == "policy")
 async def view_policy(callback: CallbackQuery):
@@ -360,7 +354,7 @@ async def view_policy(callback: CallbackQuery):
     
     text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main")).as_markup()
-    await smart_display(callback, text, kb)
+    await smart_display(callback, text, kb, img=db.get_config("IMG_POLICY"))
 
 @router.message(F.photo)
 async def get_file_id(message: Message):
