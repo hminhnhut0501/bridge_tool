@@ -61,7 +61,7 @@ async def check_expirations_professional():
                     msg = (
                         f"⏰ <b>TÀI KHOẢN CỦA BẠN SẮP HẾT HẠN!</b> ⏰\n"
                         f"────────────────────\n"
-                        f"Prive+ báo nhỏ nè, gói <b>{plan_name}</b> của bạn sẽ kết thúc vào lúc:\n"
+                        f"Prive+ VIP báo nhỏ nè, gói <b>{plan_name}</b> của bạn sẽ kết thúc vào lúc:\n"
                         f"⏳ <code>{expire_str}</code> (Chỉ còn chưa đầy 24h nữa).\n\n"
                         f"🔥 Rất nhiều siêu phẩm mới vừa được update lên nhóm hôm nay. Để không bị gián đoạn trải nghiệm VIP và bỏ lỡ nội dung hot, hãy gia hạn ngay nhé!\n\n"
                         f"👉 Gõ /start để nhận mã QR gia hạn tự động (Mất đúng 5 giây)."
@@ -114,6 +114,11 @@ async def check_expirations_professional():
 
 async def main():
     print("🚀 [PRIVE+] Hệ thống Scheduler vận hành chính thức đã khởi động!")
+    
+    # THÊM 2 DÒNG NÀY: Bắt Scheduler đợi 10 giây để nhường đường cho Bot chính chạy trước
+    logging.info("⏳ Đang nhường ưu tiên cho Bot chính khởi động. Sẽ bắt đầu quét sau 10 giây...")
+    await asyncio.sleep(10) 
+    
     while True:
         await check_expirations_professional()
         
