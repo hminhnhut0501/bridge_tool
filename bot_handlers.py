@@ -247,9 +247,10 @@ async def process_buy_request(callback: CallbackQuery):
         bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
         actual_stk = pay_data.get('accountNumber', 'N/A')
         
-        # Định dạng tiền tệ hiển thị cho khách
-        
         qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
+        
+        # --- ĐÂY LÀ DÒNG BỊ THIẾU CẦN THÊM VÀO ---
+        amount_fmt = format_currency(amount) 
         
         # 1. Khử ký tự đặc biệt trong tên tài khoản để chống lỗi HTML
         safe_account_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
@@ -294,13 +295,12 @@ async def process_buy_request(callback: CallbackQuery):
                 disable_web_page_preview=True
             )
             
-        # 3. Dọn dẹp tin nhắn chờ (Chỉ xóa khi tin nhắn trên ĐÃ ĐƯỢC GỬI)
+        # 3. Dọn dẹp tin nhắn chờ
         try: await msg_wait.delete()
         except: pass
         try: await callback.message.delete()
         except: pass
             
-        # Bật vòng lặp check tiền
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else:
         await msg_wait.edit_text("❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
