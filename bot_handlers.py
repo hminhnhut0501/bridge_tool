@@ -92,7 +92,7 @@ async def smart_display(event, text, reply_markup, img=None):
     
     final_img = str(img).strip() if img else ""
     if not final_img or len(final_img) < 10:
-        final_img = "AgACAgUAAxkBAAMNaf3xkPP5Pr9JZtCsKMI4b1G0fC0AAmwRaxsHpelX2z3c8IQ6Xh8BAAMCAAN5AAM7BA"
+        final_img = "AgACAgUAAxkBAAIBNmn-9LFS5hvH-CaHRDmbB4nkwwb3AAIbEGsbTyj4V8xDVvbbF-TTAQADAgADeQADOwQ"
 
     try:
         if isinstance(event, Message):
