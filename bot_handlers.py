@@ -43,13 +43,27 @@ async def check_protection(event):
         return False
     return True
 
+# --- HÀM PHỤ TRỢ ĐỊNH DẠNG TIỀN TỀ ---
+def format_currency(amount):
+    """Biến 30000 thành 30.000Đ"""
+    try:
+        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
+    except:
+        return f"{amount}Đ"
+
 def get_main_menu_keyboard():
     kb = InlineKeyboardBuilder()
-    p_1m = db.get_config('PRICE_1_MONTH', '999')
-    p_life = db.get_config('PRICE_LIFETIME', '999')
     
-    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {p_life}Đ 🔥", callback_data="view_full_life"))
-    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ VIP 1 THÁNG • {p_1m}Đ 💎", callback_data="view_full_1m"))
+    # Lấy giá trị thô từ Sheets
+    p_1m_raw = db.get_config('PRICE_1_MONTH', '999')
+    p_life_raw = db.get_config('PRICE_LIFETIME', '999')
+    
+    # Định dạng hiển thị đẹp
+    p_1m_fmt = format_currency(p_1m_raw)
+    p_life_fmt = format_currency(p_life_raw)
+    
+    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {p_life_fmt} 🔥", callback_data="view_full_life"))
+    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ VIP 1 THÁNG • {p_1m_fmt} 💎", callback_data="view_full_1m"))
     
     kb.row(
         InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G1', 'G1')}", callback_data="group_1")
@@ -195,13 +209,14 @@ async def view_group_detail(callback: CallbackQuery):
     desc = db.get_config(f"DESC_G{num}", "Đang cập nhật...")
     img = db.get_config(f"IMG_G{num}")
     
-    p_1m = db.get_config(f"PRICE_G{num}_1M", "50000")
-    p_life = db.get_config(f"PRICE_G{num}_LIFE", "149000")
+    p_1m_raw = db.get_config(f"PRICE_G{num}_1M", "50000")
+    p_life_raw = db.get_config(f"PRICE_G{num}_LIFE", "149000")
+    p_full_life_raw = db.get_config("PRICE_LIFETIME", "999")
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ 1 THÁNG • {int(p_1m)}Đ 💎", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"👑 TRỌN ĐỜI • {int(p_life)}Đ 👑", callback_data=f"buy_G{num}_life"))
-    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {p_life}Đ 🔥", callback_data="view_full_life"))
+    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ 1 THÁNG • {format_currency(p_1m_raw)} 💎", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"👑 TRỌN ĐỜI • {format_currency(p_life_raw)} 👑", callback_data=f"buy_G{num}_life"))
+    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {format_currency(p_full_life_raw)} 🔥", callback_data="view_full_life"))
     kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
     await smart_display(callback, desc, kb.as_markup(), img)
 
@@ -232,13 +247,16 @@ async def process_buy_request(callback: CallbackQuery):
         bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
         actual_stk = pay_data.get('accountNumber', 'N/A')
         
+        # Định dạng tiền tệ hiển thị cho khách
+        amount_fmt = format_currency(amount)
+        
         qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
         
         caption = (
             f"🏦 <b>XÁC NHẬN THANH TOÁN (DUYỆT TỰ ĐỘNG)</b>\n"
             f"────────────────────\n"
             f"📦 Đặc quyền: <b>{plan_name}</b>\n"
-            f"💰 Số tiền: <code>{amount}</code> VNĐ\n\n"
+            f"💰 Số tiền: <b>{amount_fmt}</b>\n\n"
             f"🏛 Ngân hàng: <b>{bank_display}</b>\n"
             f"👤 Chủ TK: <b>{pay_data['accountName']}</b>\n"
             f"💳 Số TK: <code>{actual_stk}</code>\n"
