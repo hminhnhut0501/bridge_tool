@@ -187,16 +187,16 @@ async def cmd_support(event):
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
     
-    support_text = (
-        "👨‍💻 <b>HỖ TRỢ</b>\n"
-        "────────────────────\n"
-        "Nếu bạn gặp vấn đề/ lỗi thanh toán, vui lòng liên hệ Admin:\n\n"
-        "👉 <b>Telegram:</b> @thamtucu\n"
-        "<i>Admin sẽ phản hồi sớm nhất có thể!</i>"
-    )
+    # --- SỬA DÒNG NÀY ĐỂ LẤY TỪ SHEET ---
+    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 <b>HỖ TRỢ</b>\n\nNội dung hỗ trợ chưa được cấu hình trên Sheet.")
+    
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="💬 Nhắn tin cho Admin", url="https://t.me/thamtucu"))
+    # Bạn cũng có thể lấy link Telegram Admin từ Sheet nếu muốn
+    admin_url = db.get_config("URL_ADMIN", "https://t.me/thamtucu")
+    
+    kb.row(InlineKeyboardButton(text="💬 Nhắn tin cho Admin", url=admin_url))
     kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+    
     await smart_display(event, support_text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
 
 @router.callback_query(F.data.startswith("group_"))
