@@ -270,11 +270,15 @@ async def process_buy_request(callback: CallbackQuery):
         kb.row(InlineKeyboardButton(text="🔄 Tôi đã chuyển khoản", callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text="❌ Hủy đơn này", callback_data=f"cancel_order_{order_id}"))
         
-        await msg_wait.delete()
+        # Code mới: Gửi ảnh trước, xóa tin cũ sau
+        await callback.message.answer_photo(photo=qr_url, caption=caption, reply_markup=kb.as_markup())
+        
+        # Lúc này ảnh QR đã hiện lên, ta mới xóa chữ "Đang tạo mã..."
+        try: await msg_wait.delete()
+        except: pass
         try: await callback.message.delete()
         except: pass
             
-        await callback.message.answer_photo(photo=qr_url, caption=caption, reply_markup=kb.as_markup())
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else:
         await msg_wait.edit_text("❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
