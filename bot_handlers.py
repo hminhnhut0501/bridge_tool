@@ -215,7 +215,7 @@ async def view_group_detail(callback: CallbackQuery):
     
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ 1 THÁNG • {format_currency(p_1m_raw)} 💎", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"👑 TRỌN ĐỜI • {format_currency(p_life_raw)} 👑", callback_data=f"buy_G{num}_life"))
+    kb.row(InlineKeyboardButton(text=f"👑 VIP TRỌN ĐỜI • {format_currency(p_life_raw)} 👑", callback_data=f"buy_G{num}_life"))
     kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {format_currency(p_full_life_raw)} 🔥", callback_data="view_full_life"))
     kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
     await smart_display(callback, desc, kb.as_markup(), img)
