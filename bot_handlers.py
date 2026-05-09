@@ -45,11 +45,11 @@ async def check_protection(event):
 
 def get_main_menu_keyboard():
     kb = InlineKeyboardBuilder()
-    p_1m = db.get_config('PRICE_1_MONTH', '999999')
-    p_life = db.get_config('PRICE_LIFETIME', '999999')
+    p_1m = db.get_config('PRICE_1_MONTH', '999')
+    p_life = db.get_config('PRICE_LIFETIME', '999')
     
     kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {p_life}Đ 🔥", callback_data="view_full_life"))
-    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ 1 THÁNG • {p_1m}Đ 💎", callback_data="view_full_1m"))
+    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ VIP 1 THÁNG • {p_1m}Đ 💎", callback_data="view_full_1m"))
     
     kb.row(
         InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G1', 'G1')}", callback_data="group_1")
