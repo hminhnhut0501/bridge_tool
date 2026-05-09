@@ -248,9 +248,11 @@ async def process_buy_request(callback: CallbackQuery):
         actual_stk = pay_data.get('accountNumber', 'N/A')
         
         # Định dạng tiền tệ hiển thị cho khách
-        amount_fmt = format_currency(amount)
         
         qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
+        
+        # 1. Khử ký tự đặc biệt trong tên tài khoản để chống lỗi HTML
+        safe_account_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
         
         caption = (
             f"🏦 <b>XÁC NHẬN THANH TOÁN (DUYỆT TỰ ĐỘNG)</b>\n"
@@ -258,27 +260,47 @@ async def process_buy_request(callback: CallbackQuery):
             f"📦 Đặc quyền: <b>{plan_name}</b>\n"
             f"💰 Số tiền: <b>{amount_fmt}</b>\n\n"
             f"🏛 Ngân hàng: <b>{bank_display}</b>\n"
-            f"👤 Chủ TK: <b>{pay_data['accountName']}</b>\n"
+            f"👤 Chủ TK: <b>{safe_account_name}</b>\n"
             f"💳 Số TK: <code>{actual_stk}</code>\n"
             f"📝 Nội dung: <code>{description}</code>\n"
             f"────────────────────\n"
-            f"⚡️ <i>Hệ thống tự động phát link mời trong 3-5 giây sau khi nhận được tiền.</i>\n"
-            f"👉 Nhấp vào <b>Số tiền</b>, <b>Số TK</b> và <b>Nội dung</b> để Copy chính xác 100%!"
+            f"⚡️ <i>Hệ thống tự động phát link mời sau khi nhận được tiền.</i>\n"
+            f"👉 Nhấp vào <b>Số TK</b> và <b>Nội dung</b> để Copy!"
         )
         
         kb = InlineKeyboardBuilder()
         kb.row(InlineKeyboardButton(text="🔄 Tôi đã chuyển khoản", callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text="❌ Hủy đơn này", callback_data=f"cancel_order_{order_id}"))
         
-        # Code mới: Gửi ảnh trước, xóa tin cũ sau
-        await callback.message.answer_photo(photo=qr_url, caption=caption, reply_markup=kb.as_markup())
-        
-        # Lúc này ảnh QR đã hiện lên, ta mới xóa chữ "Đang tạo mã..."
+        # 2. VÒNG AN TOÀN TRÁNH TREO BOT
+        try:
+            # Thử gửi bằng ảnh QR
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=qr_url, 
+                caption=caption, 
+                reply_markup=kb.as_markup(),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"⚠️ Lỗi tải ảnh QR từ VietQR: {e} -> Chuyển sang gửi dạng Text")
+            # Nếu Telegram từ chối tải ảnh, thêm nút "Xem mã QR" và gửi bằng Text
+            kb.row(InlineKeyboardButton(text="🖼 Bấm vào đây để xem mã QR", url=qr_url))
+            await bot.send_message(
+                chat_id=callback.message.chat.id,
+                text=caption,
+                reply_markup=kb.as_markup(),
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
+            
+        # 3. Dọn dẹp tin nhắn chờ (Chỉ xóa khi tin nhắn trên ĐÃ ĐƯỢC GỬI)
         try: await msg_wait.delete()
         except: pass
         try: await callback.message.delete()
         except: pass
             
+        # Bật vòng lặp check tiền
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else:
         await msg_wait.edit_text("❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
