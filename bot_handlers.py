@@ -33,14 +33,27 @@ async def cleanup_welcome(user_id, chat_id):
 
 async def check_protection(event):
     user_id = event.from_user.id
-    if MAINTENANCE_MODE and user_id != ADMIN_ID:
-        msg = "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nVui lòng quay lại sau ít phút!"
-        if isinstance(event, Message): await event.answer(msg)
-        else: await event.answer("Bot đang bảo trì...", show_alert=True)
+    
+    # 1. Đọc trạng thái bảo trì từ Google Sheets (Mặc định là OFF)
+    maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
+    
+    # Kích hoạt nếu Sheet điền ON, TRUE hoặc CÓ (ngoại trừ Admin)
+    if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and user_id != ADMIN_ID:
+        # Đọc lời nhắn bảo trì từ Sheet, nếu không có thì dùng mặc định
+        msg = db.get_config("MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!")
+        
+        if isinstance(event, Message): 
+            await event.answer(msg, parse_mode="HTML")
+        else: 
+            await event.answer("🛠 Bot đang bảo trì, vui lòng quay lại sau...", show_alert=True)
         return False
+        
+    # 2. Xử lý chống Spam (như cũ)
     if is_spamming(user_id) and user_id != ADMIN_ID:
-        if isinstance(event, CallbackQuery): await event.answer("⚠️ Thao tác quá nhanh!", show_alert=True)
+        if isinstance(event, CallbackQuery): 
+            await event.answer("⚠️ Thao tác quá nhanh! Vui lòng chậm lại.", show_alert=True)
         return False
+        
     return True
 
 # --- HÀM PHỤ TRỢ ĐỊNH DẠNG TIỀN TỀ ---
@@ -62,8 +75,15 @@ def get_main_menu_keyboard():
     p_1m_fmt = format_currency(p_1m_raw)
     p_life_fmt = format_currency(p_life_raw)
     
-    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {p_life_fmt} 🔥", callback_data="view_full_life"))
-    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ VIP 1 THÁNG • {p_1m_fmt} 💎", callback_data="view_full_1m"))
+    # Lấy text nút từ Sheets
+    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 ALL ACCESS VIP TRỌN ĐỜI")
+    btn_full_1m = db.get_config("BTN_FULL_1M", "💎 DÙNG THỬ VIP 1 THÁNG")
+    btn_me = db.get_config("BTN_ME", "👤 Tài Khoản")
+    btn_policy = db.get_config("BTN_POLICY", "📜 Quy Định")
+    btn_support = db.get_config("BTN_SUPPORT", "💬 Hỗ Trợ")
+    
+    kb.row(InlineKeyboardButton(text=f"{btn_full_life} • {p_life_fmt}", callback_data="view_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_full_1m} • {p_1m_fmt}", callback_data="view_full_1m"))
     
     kb.row(
         InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G1', 'G1')}", callback_data="group_1")
@@ -78,9 +98,9 @@ def get_main_menu_keyboard():
         InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G4', 'G4')}", callback_data="group_4")
     )
     kb.row(
-        InlineKeyboardButton(text="👤 Tài Khoản", callback_data="my_info"),
-        InlineKeyboardButton(text="📜 Quy Định", callback_data="policy"),
-        InlineKeyboardButton(text="💬 Hỗ Trợ", callback_data="support_info")
+        InlineKeyboardButton(text=btn_me, callback_data="my_info"),
+        InlineKeyboardButton(text=btn_policy, callback_data="policy"),
+        InlineKeyboardButton(text=btn_support, callback_data="support_info")
     )
     return kb.as_markup()
 
@@ -187,15 +207,14 @@ async def cmd_support(event):
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
     
-    # --- SỬA DÒNG NÀY ĐỂ LẤY TỪ SHEET ---
-    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 <b>HỖ TRỢ</b>\n\nNội dung hỗ trợ chưa được cấu hình trên Sheet.")
-    
-    kb = InlineKeyboardBuilder()
-    # Bạn cũng có thể lấy link Telegram Admin từ Sheet nếu muốn
+    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 <b>HỖ TRỢ</b>\n────────────────────\nNếu bạn gặp vấn đề/ lỗi thanh toán, vui lòng liên hệ Admin:\n\n👉 <b>Telegram:</b> @thamtucu\n<i>Admin sẽ phản hồi sớm nhất có thể!</i>")
+    btn_contact = db.get_config("BTN_CONTACT_ADMIN", "💬 Nhắn tin cho Admin")
+    btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
     admin_url = db.get_config("URL_ADMIN", "https://t.me/thamtucu")
     
-    kb.row(InlineKeyboardButton(text="💬 Nhắn tin cho Admin", url=admin_url))
-    kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=btn_contact, url=admin_url))
+    kb.row(InlineKeyboardButton(text=btn_back, callback_data="back_main"))
     
     await smart_display(event, support_text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
 
@@ -213,11 +232,16 @@ async def view_group_detail(callback: CallbackQuery):
     p_life_raw = db.get_config(f"PRICE_G{num}_LIFE", "149000")
     p_full_life_raw = db.get_config("PRICE_LIFETIME", "999")
     
+    btn_buy_1m = db.get_config("BTN_BUY_1M", "💎 DÙNG THỬ 1 THÁNG")
+    btn_buy_life = db.get_config("BTN_BUY_LIFE", "👑 TRỌN ĐỜI")
+    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 ALL ACCESS VIP TRỌN ĐỜI")
+    btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
+    
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"💎 DÙNG THỬ 1 THÁNG • {format_currency(p_1m_raw)} 💎", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"👑 VIP TRỌN ĐỜI • {format_currency(p_life_raw)} 👑", callback_data=f"buy_G{num}_life"))
-    kb.row(InlineKeyboardButton(text=f"🔥 ALL ACCESS VIP TRỌN ĐỜI • {format_currency(p_full_life_raw)} 🔥", callback_data="view_full_life"))
-    kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=f"{btn_buy_1m} • {format_currency(p_1m_raw)}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{btn_buy_life} • {format_currency(p_life_raw)}", callback_data=f"buy_G{num}_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_full_life} • {format_currency(p_full_life_raw)}", callback_data="view_full_life"))
+    kb.row(InlineKeyboardButton(text=btn_back, callback_data="back_main"))
     await smart_display(callback, desc, kb.as_markup(), img)
 
 @router.callback_query(F.data.startswith("buy_") | F.data.startswith("view_full_"))
@@ -269,9 +293,13 @@ async def process_buy_request(callback: CallbackQuery):
             f"👉 Nhấp vào <b>Số TK</b> và <b>Nội dung</b> để Copy!"
         )
         
+        btn_check = db.get_config("BTN_CHECK_PAYMENT", "🔄 Tôi đã chuyển khoản")
+        btn_cancel = db.get_config("BTN_CANCEL_ORDER", "❌ Hủy đơn này")
+        btn_view_qr = db.get_config("BTN_VIEW_QR", "🖼 Bấm vào đây để xem mã QR")
+        
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text="🔄 Tôi đã chuyển khoản", callback_data=f"check_{order_id}"))
-        kb.row(InlineKeyboardButton(text="❌ Hủy đơn này", callback_data=f"cancel_order_{order_id}"))
+        kb.row(InlineKeyboardButton(text=btn_check, callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=btn_cancel, callback_data=f"cancel_order_{order_id}"))
         
         # VÒNG AN TOÀN TRÁNH TREO BOT KHI QR LỖI
         try:
@@ -286,7 +314,7 @@ async def process_buy_request(callback: CallbackQuery):
         except Exception as e:
             print(f"⚠️ Lỗi tải ảnh QR từ VietQR: {e} -> Chuyển sang gửi dạng Text")
             # Nếu Telegram từ chối tải ảnh, thêm nút "Xem mã QR" và gửi bằng Text
-            kb.row(InlineKeyboardButton(text="🖼 Bấm vào đây để xem mã QR", url=qr_url))
+            kb.row(InlineKeyboardButton(text=btn_view_qr, url=qr_url))
             await bot.send_message(
                 chat_id=callback.message.chat.id,
                 text=caption,
@@ -344,7 +372,9 @@ async def cmd_me(event):
     if not my_plans: text += "❌ Bạn chưa có gói VIP nào."
     else:
         for p in my_plans: text += f"🎁 Gói: <b>{p[3]}</b>\n📅 Hạn: <code>{p[7]}</code>\n────────────────────\n"
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main")).as_markup()
+        
+    btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=btn_back, callback_data="back_main")).as_markup()
     await smart_display(event, text, kb, img=db.get_config("IMG_ME"))
 
 @router.callback_query(F.data == "policy")
@@ -353,7 +383,8 @@ async def view_policy(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main")).as_markup()
+    btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=btn_back, callback_data="back_main")).as_markup()
     await smart_display(callback, text, kb, img=db.get_config("IMG_POLICY"))
 
 @router.message(F.photo)
