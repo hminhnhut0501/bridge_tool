@@ -58,14 +58,19 @@ async def check_expirations_professional():
             # --- 1. NHẮC NHỞ TINH TẾ TRƯỚC 1 NGÀY (Khoảng 23-24 tiếng) ---
             if timedelta(hours=23) < time_left <= timedelta(hours=24):
                 if user_id not in notified_users:
-                    msg = (
-                        f"⏰ <b>TÀI KHOẢN CỦA BẠN SẮP HẾT HẠN!</b> ⏰\n"
-                        f"────────────────────\n"
-                        f"Prive+ VIP báo nhỏ nè, gói <b>{plan_name}</b> của bạn sẽ kết thúc vào lúc:\n"
-                        f"⏳ <code>{expire_str}</code> (Chỉ còn chưa đầy 24h nữa).\n\n"
-                        f"🔥 Rất nhiều siêu phẩm mới vừa được update lên nhóm hôm nay. Để không bị gián đoạn trải nghiệm VIP và bỏ lỡ nội dung hot, hãy gia hạn ngay nhé!\n\n"
-                        f"👉 Gõ /start để nhận mã QR gia hạn tự động (Mất đúng 5 giây)."
-                    )
+                    # Lấy mẫu tin nhắn nhắc nhở từ Google Sheets
+                    msg_template = db.get_config("MSG_REMINDER", (
+                        "⏰ <b>TÀI KHOẢN CỦA BẠN SẮP HẾT HẠN!</b> ⏰\n"
+                        "────────────────────\n"
+                        "Prive+ VIP báo nhỏ nè, gói <b>{plan}</b> của bạn sẽ kết thúc vào lúc:\n"
+                        "⏳ <code>{date}</code> (Chỉ còn chưa đầy 24h nữa).\n\n"
+                        "🔥 Rất nhiều siêu phẩm mới vừa được update lên nhóm hôm nay. Để không bị gián đoạn trải nghiệm VIP và bỏ lỡ nội dung hot, hãy gia hạn ngay nhé!\n\n"
+                        "👉 Gõ /start để nhận mã QR gia hạn tự động (Mất đúng 5 giây)."
+                    )).replace("\\n", "\n")
+                    
+                    # Lắp ráp dữ liệu thực tế vào form
+                    msg = msg_template.replace("{plan}", str(plan_name)).replace("{date}", str(expire_str))
+                    
                     try:
                         await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
                         notified_users.add(user_id)
@@ -80,15 +85,19 @@ async def check_expirations_professional():
                 # Cập nhật trạng thái trên Google Sheets trước
                 db.users_sheet.update(f"F{i}", [["EXPIRED"]])
                 
-                # Gửi lời cảm ơn và thông báo hết hạn
-                farewell_msg = (
-                    f"✨ <b>THÔNG BÁO HẾT HẠN GÓI VIP</b> ✨\n"
-                    f"────────────────────\n"
-                    f"Gói dịch vụ <b>{plan_name}</b> của bạn đã chính thức khép lại.\n\n"
-                    f"🙏 <b>Prive+</b> xin gửi lời cảm ơn chân thành vì bạn đã đồng hành cùng chúng mình thời gian qua. "
-                    f"Hệ thống đã tạm thời mời bạn rời khỏi nhóm VIP.\n\n"
-                    f"🔥 Rất hy vọng được sớm gặp lại bạn trong tương lai gần! Chúc bạn một ngày tốt lành! ❤️"
-                )
+                # Lấy mẫu tin nhắn hết hạn từ Google Sheets
+                farewell_template = db.get_config("MSG_EXPIRED", (
+                    "✨ <b>THÔNG BÁO HẾT HẠN GÓI VIP</b> ✨\n"
+                    "────────────────────\n"
+                    "Gói dịch vụ <b>{plan}</b> của bạn đã chính thức khép lại.\n\n"
+                    "🙏 <b>Prive+</b> xin gửi lời cảm ơn chân thành vì bạn đã đồng hành cùng chúng mình thời gian qua. "
+                    "Hệ thống đã tạm thời mời bạn rời khỏi nhóm VIP.\n\n"
+                    "🔥 Rất hy vọng được sớm gặp lại bạn trong tương lai gần! Chúc bạn một ngày tốt lành! ❤️"
+                )).replace("\\n", "\n")
+                
+                # Lắp ráp dữ liệu thực tế vào form
+                farewell_msg = farewell_template.replace("{plan}", str(plan_name))
+                
                 try:
                     await bot.send_message(chat_id=user_id, text=farewell_msg, parse_mode="HTML")
                 except: pass
@@ -115,7 +124,7 @@ async def check_expirations_professional():
 async def main():
     print("🚀 [PRIVE+] Hệ thống Scheduler vận hành chính thức đã khởi động!")
     
-    # THÊM 2 DÒNG NÀY: Bắt Scheduler đợi 10 giây để nhường đường cho Bot chính chạy trước
+    # Bắt Scheduler đợi 10 giây để nhường đường cho Bot chính chạy trước
     logging.info("⏳ Đang nhường ưu tiên cho Bot chính khởi động. Sẽ bắt đầu quét sau 10 giây...")
     await asyncio.sleep(10) 
     
