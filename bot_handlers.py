@@ -20,11 +20,9 @@ BANK_NAMES = {
     "970432": "VPBank", "970416": "ACB", "970405": "Agribank"
 }
 
-# BỘ NHỚ LƯU TRỮ ID TIN NHẮN SỐ 1 ĐỂ DỌN DẸP
 user_welcome_msgs = {}
 
 async def cleanup_welcome(user_id, chat_id):
-    """Hàm dọn dẹp tin nhắn MSG_START mồ côi"""
     if user_id in user_welcome_msgs:
         try:
             await bot.delete_message(chat_id, user_welcome_msgs[user_id])
@@ -33,32 +31,26 @@ async def cleanup_welcome(user_id, chat_id):
 
 async def check_protection(event):
     user_id = event.from_user.id
-    
-    # 1. Đọc trạng thái bảo trì từ Google Sheets (Mặc định là OFF)
     maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
     
-    # Kích hoạt nếu Sheet điền ON, TRUE hoặc CÓ (ngoại trừ Admin)
     if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and user_id != ADMIN_ID:
-        # Đọc lời nhắn bảo trì từ Sheet, nếu không có thì dùng mặc định
-        msg = db.get_config("MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!")
-        
+        msg = db.get_config("MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
+        alert_main = db.get_config("ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
         if isinstance(event, Message): 
             await event.answer(msg, parse_mode="HTML")
         else: 
-            await event.answer("🛠 Bot đang bảo trì, vui lòng quay lại sau...", show_alert=True)
+            await event.answer(alert_main, show_alert=True)
         return False
         
-    # 2. Xử lý chống Spam (như cũ)
     if is_spamming(user_id) and user_id != ADMIN_ID:
+        alert_spam = db.get_config("ALERT_SPAM", "⚠️ Thao tác quá nhanh! Vui lòng chậm lại.")
         if isinstance(event, CallbackQuery): 
-            await event.answer("⚠️ Thao tác quá nhanh! Vui lòng chậm lại.", show_alert=True)
+            await event.answer(alert_spam, show_alert=True)
         return False
         
     return True
 
-# --- HÀM PHỤ TRỢ ĐỊNH DẠNG TIỀN TỀ ---
 def format_currency(amount):
-    """Biến 30000 thành 30.000Đ"""
     try:
         return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
     except:
@@ -67,17 +59,13 @@ def format_currency(amount):
 def get_main_menu_keyboard():
     kb = InlineKeyboardBuilder()
     
-    # Lấy giá trị thô từ Sheets
     p_1m_raw = db.get_config('PRICE_1_MONTH', '999')
     p_life_raw = db.get_config('PRICE_LIFETIME', '999')
-    
-    # Định dạng hiển thị đẹp
     p_1m_fmt = format_currency(p_1m_raw)
     p_life_fmt = format_currency(p_life_raw)
     
-    # Lấy text nút từ Sheets
-    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 ALL ACCESS VIP TRỌN ĐỜI")
-    btn_full_1m = db.get_config("BTN_FULL_1M", "💎 DÙNG THỬ VIP 1 THÁNG")
+    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 SVIP+ TRỌN ĐỜI (FULL NHÓM)")
+    btn_full_1m = db.get_config("BTN_FULL_1M", "💎 SVIP+ 1 THÁNG (FULL NHÓM)")
     btn_me = db.get_config("BTN_ME", "👤 Tài Khoản")
     btn_policy = db.get_config("BTN_POLICY", "📜 Quy Định")
     btn_support = db.get_config("BTN_SUPPORT", "💬 Hỗ Trợ")
@@ -85,18 +73,11 @@ def get_main_menu_keyboard():
     kb.row(InlineKeyboardButton(text=f"{btn_full_life} • {p_life_fmt}", callback_data="view_full_life"))
     kb.row(InlineKeyboardButton(text=f"{btn_full_1m} • {p_1m_fmt}", callback_data="view_full_1m"))
     
-    kb.row(
-        InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G1', 'G1')}", callback_data="group_1")
-    )
-    kb.row(
-        InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G2', 'G2')}", callback_data="group_2")
-    )
-    kb.row(
-        InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G3', 'G3')}", callback_data="group_3")
-    )
-    kb.row(
-        InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G4', 'G4')}", callback_data="group_4")
-    )
+    kb.row(InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G1', 'G1')}", callback_data="group_1"))
+    kb.row(InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G2', 'G2')}", callback_data="group_2"))
+    kb.row(InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G3', 'G3')}", callback_data="group_3"))
+    kb.row(InlineKeyboardButton(text=f"📂 {db.get_config('BTN_G4', 'G4')}", callback_data="group_4"))
+    
     kb.row(
         InlineKeyboardButton(text=btn_me, callback_data="my_info"),
         InlineKeyboardButton(text=btn_policy, callback_data="policy"),
@@ -104,12 +85,9 @@ def get_main_menu_keyboard():
     )
     return kb.as_markup()
 
-# --- HÀM HIỂN THỊ SMART (CÓ CƠ CHẾ CỨU HỘ HTML) ---
 async def smart_display(event, text, reply_markup, img=None):
-    final_text = str(text).strip() if text else ""
-    if not final_text:
-        final_text = "🌟 <b>ĐANG CẬP NHẬT DỮ LIỆU...</b>"
-    
+    msg_updating = db.get_config("MSG_UPDATING", "🌟 <b>ĐANG CẬP NHẬT DỮ LIỆU...</b>")
+    final_text = str(text).strip() if text else msg_updating
     final_img = str(img).strip() if img else ""
     if not final_img or len(final_img) < 10:
         final_img = "AgACAgUAAxkBAAIBNmn-9LFS5hvH-CaHRDmbB4nkwwb3AAIbEGsbTyj4V8xDVvbbF-TTAQADAgADeQADOwQ"
@@ -125,17 +103,14 @@ async def smart_display(event, text, reply_markup, img=None):
                 await message.delete()
                 await message.answer_photo(photo=final_img, caption=final_text, reply_markup=reply_markup, parse_mode="HTML")
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Error Display: {error_msg}")
-        if "parse entities" in error_msg.lower() or "tag" in error_msg.lower():
-            # CỨU HỘ: Gửi chữ thô (bỏ HTML) và cảnh báo
-            fallback_text = f"⚠️ Lỗi định dạng thẻ HTML trên Sheet (quên đóng thẻ <b> hoặc <i>).\n\nNội dung gốc:\n{final_text}"
+        if "parse entities" in str(e).lower() or "tag" in str(e).lower():
+            msg_err = db.get_config("MSG_HTML_ERROR", "⚠️ Lỗi định dạng thẻ HTML trên Sheet (quên đóng thẻ <b> hoặc <i>).\n\nNội dung gốc:\n")
+            fallback_text = f"{msg_err}{final_text}"
             if isinstance(event, Message):
                 await event.answer_photo(photo=final_img, caption=fallback_text, reply_markup=reply_markup, parse_mode=None)
             else:
                 await event.message.answer_photo(photo=final_img, caption=fallback_text, reply_markup=reply_markup, parse_mode=None)
 
-# --- HÀM GỬI 2 TIN NHẮN TÁCH BIỆT (CÓ CỨU HỘ HTML) ---
 async def send_welcome_messages(event):
     db.reload_config(force=True)
     user_id = event.from_user.id
@@ -143,19 +118,11 @@ async def send_welcome_messages(event):
 
     await cleanup_welcome(user_id, chat_id)
 
-    welcome_text = db.get_config("MSG_START", "👑 CHÀO MỪNG BẠN ĐẾN VỚI PRIVE+ VIP!")
+    welcome_text = db.get_config("MSG_START", "👑 CHÀO MỪNG BẠN ĐẾN VỚI PRIVE+ VIP!").replace("\\n", "\n")
     img_start = db.get_config("IMG_START", "AgACAgUAAxkBAAMNaf3xkPP5Pr9JZtCsKMI4b1G0fC0AAmwRaxsHpelX2z3c8IQ6Xh8BAAMCAAN5AAM7BA")
-    privilege_text = db.get_config(
-        "MSG_PRIVILEGE", 
-        "💎 <b>ĐẶC QUYỀN HỘI VIÊN VIP:</b>\n"
-        "• Update nội dung siêu tốc mỗi ngày.\n"
-        "• Tự động duyệt vào nhóm sau 5 giây.\n"
-        "• Bảo mật, ẩn danh tuyệt đối.\n\n"
-        "👇 <b>Chọn gói dịch vụ của bạn ở menu bên dưới:</b>"
-    )
+    privilege_text = db.get_config("MSG_PRIVILEGE", "💎 <b>ĐẶC QUYỀN HỘI VIÊN VIP:</b>\n👇 <b>Chọn gói dịch vụ của bạn ở menu bên dưới:</b>").replace("\\n", "\n")
 
     try:
-        # Gửi tin 1
         if img_start and len(str(img_start)) > 10:
             msg1 = await bot.send_photo(chat_id=chat_id, photo=img_start, caption=welcome_text, parse_mode="HTML")
         else:
@@ -164,29 +131,22 @@ async def send_welcome_messages(event):
         user_welcome_msgs[user_id] = msg1.message_id
         await asyncio.sleep(0.5)
         
-        # Gửi tin 2
         if isinstance(event, Message):
             await event.answer(text=privilege_text, reply_markup=get_main_menu_keyboard(), parse_mode="HTML")
         else:
             await event.message.answer(text=privilege_text, reply_markup=get_main_menu_keyboard(), parse_mode="HTML")
             
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Lỗi gửi tin nhắn chào mừng: {error_msg}")
-        if "parse entities" in error_msg.lower() or "tag" in error_msg.lower():
-            # CỨU HỘ: Báo lỗi trực tiếp cho Admin dễ sửa
-            warning = (
-                "⚠️ <b>HỆ THỐNG PHÁT HIỆN LỖI ĐÁNH MÁY:</b>\n"
-                "Bạn đang mở một thẻ HTML (như <code>&lt;b&gt;</code>) trên Google Sheets nhưng quên viết thẻ đóng <code>&lt;/b&gt;</code>.\n\n"
-                "<i>Vui lòng lên Google Sheets kiểm tra lại các cột MSG_START và MSG_PRIVILEGE nhé!</i>"
-            )
+        if "parse entities" in str(e).lower() or "tag" in str(e).lower():
+            warning = db.get_config("MSG_ADMIN_HTML_ERR", "⚠️ <b>HỆ THỐNG PHÁT HIỆN LỖI ĐÁNH MÁY:</b>\nLỗi thẻ HTML trên Sheet MSG_START hoặc MSG_PRIVILEGE.").replace("\\n", "\n")
             await bot.send_message(chat_id=chat_id, text=warning, parse_mode="HTML")
             
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
     if message.from_user.id == ADMIN_ID:
         db.reload_config(force=True)
-        await message.reply("🔄 Đã ép tải lại toàn bộ nội dung mới nhất từ Google Sheets!")
+        msg = db.get_config("MSG_RELOAD_DONE", "🔄 Đã ép tải lại toàn bộ nội dung mới nhất từ Google Sheets!")
+        await message.reply(msg)
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -207,7 +167,7 @@ async def cmd_support(event):
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
     
-    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 <b>HỖ TRỢ</b>\n────────────────────\nNếu bạn gặp vấn đề/ lỗi thanh toán, vui lòng liên hệ Admin:\n\n👉 <b>Telegram:</b> @thamtucu\n<i>Admin sẽ phản hồi sớm nhất có thể!</i>")
+    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 <b>HỖ TRỢ</b>\n────────────────────\nNếu bạn gặp vấn đề, vui lòng liên hệ Admin.").replace("\\n", "\n")
     btn_contact = db.get_config("BTN_CONTACT_ADMIN", "💬 Nhắn tin cho Admin")
     btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
     admin_url = db.get_config("URL_ADMIN", "https://t.me/thamtucu")
@@ -224,17 +184,16 @@ async def view_group_detail(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     num = callback.data.split("_")[1]
-    name = db.get_config(f"BTN_G{num}", f"Nhóm {num}")
-    desc = db.get_config(f"DESC_G{num}", "Đang cập nhật...")
+    desc = db.get_config(f"DESC_G{num}", "Đang cập nhật...").replace("\\n", "\n")
     img = db.get_config(f"IMG_G{num}")
     
     p_1m_raw = db.get_config(f"PRICE_G{num}_1M", "50000")
     p_life_raw = db.get_config(f"PRICE_G{num}_LIFE", "149000")
     p_full_life_raw = db.get_config("PRICE_LIFETIME", "999")
     
-    btn_buy_1m = db.get_config("BTN_BUY_1M", "💎 DÙNG THỬ 1 THÁNG")
-    btn_buy_life = db.get_config("BTN_BUY_LIFE", "👑 TRỌN ĐỜI")
-    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 ALL ACCESS VIP TRỌN ĐỜI")
+    btn_buy_1m = db.get_config("BTN_BUY_1M", "💎 VIP 1 THÁNG")
+    btn_buy_life = db.get_config("BTN_BUY_LIFE", "👑 VIP TRỌN ĐỜI")
+    btn_full_life = db.get_config("BTN_FULL_LIFE", "🔥 SVIP+ TRỌN ĐỜI (FULL NHÓM)")
     btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
     
     kb = InlineKeyboardBuilder()
@@ -250,15 +209,29 @@ async def process_buy_request(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     if "full" in callback.data:
-        plan_name = "Trọn bộ 4 Nhóm (1 Tháng)" if "1m" in callback.data else "Trọn bộ 4 Nhóm (Vĩnh viễn)"
-        amount = int(db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME"))
+        if "1m" in callback.data:
+            plan_name = db.get_config("PLAN_FULL_1M", "SVIP+ 1 Tháng (Full Nhóm)")
+            amount = int(db.get_config("PRICE_1_MONTH", "999"))
+        else:
+            plan_name = db.get_config("PLAN_FULL_LIFE", "SVIP+ Trọn Đời (Full Nhóm)")
+            amount = int(db.get_config("PRICE_LIFETIME", "999"))
     else:
         parts = callback.data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
-        plan_name = f"Lẻ {db.get_config(f'BTN_G{num}')} ({'1 Tháng' if '1m' in callback.data else 'Vĩnh viễn'})"
-        amount = int(db.get_config(f'PRICE_G{num}_{type_p}', 50000 if type_p == "1M" else 149000))
+        group_name = db.get_config(f"BTN_G{num}", f"Nhóm {num}")
+        
+        if type_p == "1M":
+            prefix = db.get_config("PLAN_G_1M", "VIP 1 Tháng")
+            amount = int(db.get_config(f'PRICE_G{num}_1M', "50000"))
+        else:
+            prefix = db.get_config("PLAN_G_LIFE", "VIP Trọn Đời")
+            amount = int(db.get_config(f'PRICE_G{num}_LIFE', "149000"))
+            
+        plan_name = f"{prefix} - {group_name}"
 
-    msg_wait = await callback.message.answer("⏳ Đang tạo mã QR...")
+    msg_wait_qr = db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
+    msg_wait = await callback.message.answer(msg_wait_qr)
+    
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     
@@ -273,25 +246,31 @@ async def process_buy_request(callback: CallbackQuery):
         
         qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
         
-        # --- TẠO BIẾN AMOUNT_FMT Ở ĐÂY ĐỂ TRÁNH LỖI NAMEERROR ---
         amount_fmt = format_currency(amount)
-        
-        # Khử ký tự đặc biệt trong tên tài khoản để chống lỗi HTML
         safe_account_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
         
-        caption = (
-            f"🏦 <b>XÁC NHẬN THANH TOÁN (DUYỆT TỰ ĐỘNG)</b>\n"
-            f"────────────────────\n"
-            f"📦 Đặc quyền: <b>{plan_name}</b>\n"
-            f"💰 Số tiền: <b>{amount_fmt}</b>\n\n"
-            f"🏛 Ngân hàng: <b>{bank_display}</b>\n"
-            f"👤 Chủ TK: <b>{safe_account_name}</b>\n"
-            f"💳 Số TK: <code>{actual_stk}</code>\n"
-            f"📝 Nội dung: <code>{description}</code>\n"
-            f"────────────────────\n"
-            f"⚡️ <i>Hệ thống tự động phát link mời sau khi nhận được tiền.</i>\n"
-            f"👉 Nhấp vào <b>Số TK</b> và <b>Nội dung</b> để Copy!"
-        )
+        # --- TEMPLATE BILL THANH TOÁN TÙY CHỈNH TỪ SHEET ---
+        bill_template = db.get_config("MSG_BILL_TEMPLATE", (
+            "🏦 <b>XÁC NHẬN THANH TOÁN (DUYỆT TỰ ĐỘNG)</b>\n"
+            "────────────────────\n"
+            "📦 Đặc quyền: <b>{plan}</b>\n"
+            "💰 Số tiền: <b>{amount}</b>\n\n"
+            "🏛 Ngân hàng: <b>{bank}</b>\n"
+            "👤 Chủ TK: <b>{name}</b>\n"
+            "💳 Số TK: <code>{stk}</code>\n"
+            "📝 Nội dung: <code>{desc}</code>\n"
+            "────────────────────\n"
+            "⚡️ <i>Hệ thống tự động phát link mời sau khi nhận được tiền.</i>\n"
+            "👉 Nhấp vào <b>Số TK</b> và <b>Nội dung</b> để Copy!"
+        )).replace("\\n", "\n")
+        
+        # Lắp ráp dữ liệu vào Template
+        caption = bill_template.replace("{plan}", str(plan_name))
+        caption = caption.replace("{amount}", str(amount_fmt))
+        caption = caption.replace("{bank}", str(bank_display))
+        caption = caption.replace("{name}", str(safe_account_name))
+        caption = caption.replace("{stk}", str(actual_stk))
+        caption = caption.replace("{desc}", str(description))
         
         btn_check = db.get_config("BTN_CHECK_PAYMENT", "🔄 Tôi đã chuyển khoản")
         btn_cancel = db.get_config("BTN_CANCEL_ORDER", "❌ Hủy đơn này")
@@ -301,9 +280,7 @@ async def process_buy_request(callback: CallbackQuery):
         kb.row(InlineKeyboardButton(text=btn_check, callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=btn_cancel, callback_data=f"cancel_order_{order_id}"))
         
-        # VÒNG AN TOÀN TRÁNH TREO BOT KHI QR LỖI
         try:
-            # Thử gửi bằng ảnh QR
             await bot.send_photo(
                 chat_id=callback.message.chat.id,
                 photo=qr_url, 
@@ -312,8 +289,7 @@ async def process_buy_request(callback: CallbackQuery):
                 parse_mode="HTML"
             )
         except Exception as e:
-            print(f"⚠️ Lỗi tải ảnh QR từ VietQR: {e} -> Chuyển sang gửi dạng Text")
-            # Nếu Telegram từ chối tải ảnh, thêm nút "Xem mã QR" và gửi bằng Text
+            print(f"⚠️ Lỗi tải ảnh QR: {e} -> Text mode")
             kb.row(InlineKeyboardButton(text=btn_view_qr, url=qr_url))
             await bot.send_message(
                 chat_id=callback.message.chat.id,
@@ -323,7 +299,6 @@ async def process_buy_request(callback: CallbackQuery):
                 disable_web_page_preview=True
             )
             
-        # Dọn dẹp tin nhắn chờ
         try: await msg_wait.delete()
         except: pass
         try: await callback.message.delete()
@@ -331,31 +306,34 @@ async def process_buy_request(callback: CallbackQuery):
             
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else:
-        await msg_wait.edit_text("❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
+        msg_err = db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán. Vui lòng thử lại sau!")
+        await msg_wait.edit_text(msg_err)
 
 @router.callback_query(F.data.startswith("check_"))
 async def manual_check_payment(callback: CallbackQuery):
     if not await check_protection(callback): return
     
     order_id = callback.data.split("_")[1]
-    
     status = payos_manager.get_payment_status(order_id)
     
     if status == "PAID":
-        await callback.answer("✅ Giao dịch thành công! Đang lấy link nhóm cho bạn...", show_alert=True)
+        alert_paid = db.get_config("ALERT_PAID_SUCCESS", "✅ Giao dịch thành công! Đang lấy link nhóm cho bạn...")
+        await callback.answer(alert_paid, show_alert=True)
         await process_successful_payment(order_id)
         try: await callback.message.delete()
         except: pass
     else:
-        alert_msg = "⏳ Hệ thống chưa nhận được tiền.\n\nNếu bạn vừa chuyển khoản thành công, xin vui lòng đợi thêm 1-2 phút để ngân hàng xử lý nhé!"
-        await callback.answer(alert_msg, show_alert=True)
+        alert_not_paid = db.get_config("ALERT_NOT_PAID", "⏳ Hệ thống chưa nhận được tiền.\n\nNếu bạn vừa chuyển khoản thành công, xin vui lòng đợi thêm 1-2 phút nhé!").replace("\\n", "\n")
+        await callback.answer(alert_not_paid, show_alert=True)
 
 @router.callback_query(F.data.startswith("cancel_order_"))
 async def cancel_order_handler(callback: CallbackQuery):
     order_id = callback.data.split("_")[-1]
     cancelled_orders.add(str(order_id)) 
     await callback.message.delete()
-    await callback.answer("🚫 Đã hủy đơn.", show_alert=True)
+    
+    alert_cancel = db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn.")
+    await callback.answer(alert_cancel, show_alert=True)
     await send_welcome_messages(callback)
 
 @router.message(Command("me"))
@@ -368,10 +346,18 @@ async def cmd_me(event):
     user_id = str(event.from_user.id)
     all_data = db.users_sheet.get_all_values()
     my_plans = [row for row in all_data if row[1] == user_id and row[5] == "PAID"]
-    text = "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n"
-    if not my_plans: text += "❌ Bạn chưa có gói VIP nào."
+    
+    msg_me_title = db.get_config("MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
+    msg_me_empty = db.get_config("MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
+    msg_me_item = db.get_config("MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n────────────────────\n").replace("\\n", "\n")
+    
+    text = msg_me_title
+    if not my_plans: 
+        text += msg_me_empty
     else:
-        for p in my_plans: text += f"🎁 Gói: <b>{p[3]}</b>\n📅 Hạn: <code>{p[7]}</code>\n────────────────────\n"
+        for p in my_plans: 
+            item = msg_me_item.replace("{plan}", str(p[3])).replace("{date}", str(p[7]))
+            text += item
         
     btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=btn_back, callback_data="back_main")).as_markup()
@@ -382,7 +368,7 @@ async def view_policy(callback: CallbackQuery):
     if not await check_protection(callback): return
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
+    text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...").replace("\\n", "\n")
     btn_back = db.get_config("BTN_BACK", "🔙 Quay lại")
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=btn_back, callback_data="back_main")).as_markup()
     await smart_display(callback, text, kb, img=db.get_config("IMG_POLICY"))
