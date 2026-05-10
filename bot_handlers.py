@@ -203,18 +203,36 @@ async def view_group_detail(callback: CallbackQuery):
     kb.row(InlineKeyboardButton(text=btn_back, callback_data="back_main"))
     await smart_display(callback, desc, kb.as_markup(), img)
 
-@router.callback_query(F.data.startswith("buy_") | F.data.startswith("view_full_"))
+# ĐÃ MỞ RỘNG ĐỂ BẮT SỰ KIỆN UP-SALE TỪ SCHEDULER
+@router.callback_query(F.data.startswith("buy_") | F.data.startswith("view_full_") | F.data.startswith("upsell_"))
 async def process_buy_request(callback: CallbackQuery):
     if not await check_protection(callback): return
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    if "full" in callback.data:
+    # --- PHÂN LOẠI CÁC LOẠI ĐƠN HÀNG (BAO GỒM UP-SALE GIẢM GIÁ) ---
+    if "upsell_full" in callback.data:
+        plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp từ 1 Tháng)")
+        p_life = int(db.get_config("PRICE_LIFETIME", "999"))
+        p_1m = int(db.get_config("PRICE_1_MONTH", "999"))
+        amount = max(0, p_life - p_1m)
+        
+    elif "upsell_G" in callback.data:
+        num = callback.data.split("_")[1][1:] # G1 -> 1
+        group_name = db.get_config(f"BTN_G{num}", f"Nhóm {num}")
+        prefix = db.get_config("PLAN_UPSELL_G", "VIP Trọn Đời (Nâng cấp)")
+        plan_name = f"{prefix} - {group_name}"
+        p_life = int(db.get_config(f"PRICE_G{num}_LIFE", "149000"))
+        p_1m = int(db.get_config(f"PRICE_G{num}_1M", "50000"))
+        amount = max(0, p_life - p_1m)
+        
+    elif "full" in callback.data:
         if "1m" in callback.data:
             plan_name = db.get_config("PLAN_FULL_1M", "SVIP+ 1 Tháng (Full Nhóm)")
             amount = int(db.get_config("PRICE_1_MONTH", "999"))
         else:
             plan_name = db.get_config("PLAN_FULL_LIFE", "SVIP+ Trọn Đời (Full Nhóm)")
             amount = int(db.get_config("PRICE_LIFETIME", "999"))
+            
     else:
         parts = callback.data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
@@ -249,7 +267,7 @@ async def process_buy_request(callback: CallbackQuery):
         amount_fmt = format_currency(amount)
         safe_account_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
         
-        # --- TEMPLATE BILL THANH TOÁN TÙY CHỈNH TỪ SHEET ---
+        # --- TEMPLATE BILL THANH TOÁN ---
         bill_template = db.get_config("MSG_BILL_TEMPLATE", (
             "🏦 <b>XÁC NHẬN THANH TOÁN (DUYỆT TỰ ĐỘNG)</b>\n"
             "────────────────────\n"
@@ -264,7 +282,6 @@ async def process_buy_request(callback: CallbackQuery):
             "👉 Nhấp vào <b>Số TK</b> và <b>Nội dung</b> để Copy!"
         )).replace("\\n", "\n")
         
-        # Lắp ráp dữ liệu vào Template
         caption = bill_template.replace("{plan}", str(plan_name))
         caption = caption.replace("{amount}", str(amount_fmt))
         caption = caption.replace("{bank}", str(bank_display))
