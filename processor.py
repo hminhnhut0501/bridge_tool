@@ -110,8 +110,8 @@ async def process_successful_payment(order_code: str):
 
         links_compiled = "\n".join(links_text_list)
         
-        # Lấy template giao hàng từ Sheet
-        delivery_template = db.get_config("MSG_DELIVERY_TEMPLATE", (
+        # --- ĐOẠN CODE FIX LỖI NGOẶC KÉP TRÊN SHEET ---
+        raw_delivery_template = db.get_config("MSG_DELIVERY_TEMPLATE", (
             "🎉 <b>THANH TOÁN THÀNH CÔNG!</b>\n"
             "────────────────────\n"
             "🎁 Gói: <b>{plan}</b>\n"
@@ -120,14 +120,23 @@ async def process_successful_payment(order_code: str):
             "{links}\n"
             "────────────────────\n"
             "⚠️ <i>Lưu ý: Mỗi link dưới đây chỉ nhấp được 1 lần cho 1 tài khoản. Tuyệt đối không chia sẻ cho người khác nhé!</i>"
-        )).replace("\\n", "\n")
+        ))
+        
+        # Xử lý: Xoá dấu ngoặc kép dư thừa ở đầu/cuối và đổi \n thành xuống dòng thực tế
+        delivery_template = raw_delivery_template.strip().strip('"').replace("\\n", "\n")
         
         final_msg = delivery_template.replace("{plan}", str(plan_name))
         final_msg = final_msg.replace("{expiry_text}", str(expiry_text))
         final_msg = final_msg.replace("{links}", str(links_compiled))
 
-        await bot.send_message(chat_id=user_id, text=final_msg, parse_mode="HTML", disable_web_page_preview=True)
-        print(f"✅ Đã giao hàng thành công đơn {target_code} cho user {user_id}")
+        # Thử gửi bằng HTML, nếu Google Sheets bị lỗi cú pháp HTML thì chuyển sang gửi Text thô
+        try:
+            await bot.send_message(chat_id=user_id, text=final_msg, parse_mode="HTML", disable_web_page_preview=True)
+            print(f"✅ Đã giao hàng thành công đơn {target_code} cho user {user_id}")
+        except Exception as html_err:
+            print(f"⚠️ Lỗi cú pháp HTML từ Google Sheets, tự động chuyển sang gửi Text thô: {html_err}")
+            await bot.send_message(chat_id=user_id, text=final_msg, parse_mode=None, disable_web_page_preview=True)
+            print(f"✅ Đã giao hàng (Text) thành công đơn {target_code} cho user {user_id}")
 
     except Exception as e:
         print(f"❌ Lỗi giao hàng: {e}")
