@@ -1,5 +1,4 @@
 import os
-import time
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
@@ -15,11 +14,11 @@ class Database:
         self.users_sheet = None
         self.config_sheet = None
         
-        self.cache_config = {}
-        self.last_reload_time = 0 
+        # Biến Dictionary lưu Cache trên RAM (Tốc độ phản hồi tức thời)
+        self.config_cache = {}
 
     def connect(self):
-        """Kết nối tới Google Sheets"""
+        """Kết nối tới Google Sheets và nạp Cache ngay lập tức"""
         try:
             print("⏳ Đang kết nối tới Google Sheets...")
             creds_json = os.getenv("GOOGLE_SHEETS_CREDS_JSON")
@@ -35,25 +34,19 @@ class Database:
             self.config_sheet = self.sh.worksheet("Config")
             print("✅ Kết nối Google Sheets thành công!")
             
-            # Ép tải dữ liệu ngay lần đầu chạy
-            self.reload_config(force=True)
+            # Ép tải dữ liệu vào RAM ngay lần đầu khởi chạy
+            self.load_cache()
             
         except Exception as e:
             print(f"❌ Lỗi kết nối Google Sheets: {e}")
 
-    def reload_config(self, force=False):
-        """Tải dữ liệu an toàn, quét từ dòng đầu tiên"""
-        current_time = time.time()
-        
-        if not force and (current_time - self.last_reload_time < 60):
-            return
-
+    def load_cache(self):
+        """Tải dữ liệu từ Sheet vào RAM (Chỉ chạy 1 lần lúc khởi động hoặc khi Admin gọi lệnh)"""
         try:
-            # SỬA LỖI Ở ĐÂY: Bỏ [1:] để Bot quét TỪ DÒNG SỐ 1, không bỏ sót bất kỳ ô nào
             all_rows = self.config_sheet.get_all_values()
             temp_cache = {}
             
-            print(f"🔎 Bot đang đọc {len(all_rows)} dòng từ tab Config...")
+            print(f"🔎 Bot đang nạp {len(all_rows)} dòng từ tab Config vào RAM...")
             
             for row in all_rows:
                 if len(row) >= 2:
@@ -62,29 +55,23 @@ class Database:
                     if key:
                         temp_cache[key] = value
             
-            self.cache_config = temp_cache
-            self.last_reload_time = current_time
+            self.config_cache = temp_cache
             
-            # In thử xem Bot đã đọc được MSG_START chưa
-            kt_msg = "CÓ" if "MSG_START" in self.cache_config else "KHÔNG"
-            print(f"✅ Đã tải xong {len(self.cache_config)} cấu hình! (Tìm thấy MSG_START: {kt_msg})")
+            kt_msg = "CÓ" if "MSG_START" in self.config_cache else "KHÔNG"
+            print(f"⚡ Đã nạp xong {len(self.config_cache)} cấu hình siêu tốc! (Tìm thấy MSG_START: {kt_msg})")
             
         except Exception as e:
-            print(f"❌ Lỗi tải Config: {e}")
+            print(f"❌ Lỗi nạp Cache từ Sheet: {e}")
 
     def get_config(self, key, default=""):
-        """Lấy giá trị từ bộ nhớ đệm an toàn"""
-        # Nếu bộ nhớ rỗng, bắt buộc tải lại
-        if not self.cache_config:
-            self.reload_config(force=True)
+        """Đọc giá trị TỪ RAM (Tuyệt đối KHÔNG kết nối Google Sheets ở đây để chống nghẽn Bot)"""
+        if not self.config_cache:
+            # Chỉ nạp lại khi bị lỗi rỗng RAM
+            print("⚠️ Cache rỗng, đang nạp lại khẩn cấp...")
+            self.load_cache()
         
         search_key = str(key).strip().upper()
-        val = self.cache_config.get(search_key, str(default))
-        
-        # In Log ra Terminal để theo dõi lúc Bot chạy
-        if search_key == "MSG_START":
-            print(f"📩 Bot đang lấy nội dung MSG_START: {val[:30]}...") 
-            
-        return val
+        return self.config_cache.get(search_key, str(default))
 
+# Khởi tạo đối tượng
 db = Database()

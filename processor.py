@@ -140,10 +140,11 @@ async def process_successful_payment(order_code: str):
         print(f"❌ Lỗi giao hàng tổng quát: {e}")
 
 # =====================================================
-# 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP)
+# 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP TỐI ƯU HÓA)
 # =====================================================
 async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
+    print(f"🕵️ Bắt đầu Auto-check đơn (Async Mode): {str_code}")
     
     for i in range(40): 
         if str_code in cancelled_orders:
@@ -152,12 +153,19 @@ async def auto_check_loop(order_code, user_id):
             return
 
         await asyncio.sleep(15)
-        status = payos_manager.get_payment_status(str_code)
+        
+        # Đẩy việc kiểm tra PayOS sang một luồng riêng để không kẹt Bot
+        try:
+            status = await asyncio.to_thread(payos_manager.get_payment_status, str_code)
+        except Exception as api_err:
+            print(f"⚠️ Lỗi check PayOS: {api_err}")
+            continue
         
         if status == "PAID":
+            print(f"💰 Đơn {str_code} đã thanh toán! Đang giao hàng...")
             await process_successful_payment(str_code)
             return
 
-    msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR đã hết hạn (Quá 10 phút). Vui lòng tạo đơn mới!").replace("\\n", "\n")
+    msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới!").replace("\\n", "\n")
     try: await bot.send_message(chat_id=user_id, text=msg_timeout, parse_mode="HTML")
     except: pass
