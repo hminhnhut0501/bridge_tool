@@ -7,12 +7,12 @@ from payment import payos_manager
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
 
-# Hàm lọc ký tự đặc biệt chống sập định dạng HTML của Telegram
+# Hàm lọc ký tự đặc biệt chống sập định dạng HTML
 def escape_html(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 # ======================================================
-# 1. HÀM XỬ LÝ GIAO HÀNG (TÍCH HỢP TÙY CHỈNH GOOGLE SHEETS)
+# 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
 # ======================================================
 async def process_successful_payment(order_code: str):
     try:
@@ -25,7 +25,7 @@ async def process_successful_payment(order_code: str):
         user_id = None
         plan_name = None 
         
-        # Duyệt ngược từ dưới lên lấy đơn hàng mới nhất
+        # Duyệt ngược từ dưới lên lấy đơn hàng
         for i in range(len(users_data) - 1, 0, -1):
             row = users_data[i]
             if str(row[0]).strip() == target_code:
@@ -42,7 +42,7 @@ async def process_successful_payment(order_code: str):
             return
 
         # ---------------------------------------------------------
-        # TÍNH TOÁN NGÀY HẾT HẠN THÔNG MINH
+        # TÍNH TOÁN NGÀY HẾT HẠN (CỰC KỲ ĐƠN GIẢN)
         # ---------------------------------------------------------
         plan_lower = plan_name.lower()
         is_1m = any(kw in plan_lower for kw in ["1 tháng", "1m", "30 ngày"])
@@ -50,11 +50,10 @@ async def process_successful_payment(order_code: str):
         if is_1m:
             expire_date = datetime.now() + timedelta(days=30)
             expire_str = expire_date.strftime("%d/%m/%Y %H:%M:%S")
-            expiry_text = db.get_config("MSG_DELIVERY_EXPIRY", "⏳ Hạn sử dụng: <code>{date}</code>").replace("{date}", expire_str)
         else:
             expire_str = db.get_config("MSG_DELIVERY_LIFETIME_TEXT", "Vĩnh viễn")
-            expiry_text = db.get_config("MSG_DELIVERY_EXPIRY_LIFE", "⏳ Hạn sử dụng: <b>Vĩnh viễn</b>")
 
+        # Cập nhật trạng thái PAID và Ngày hết hạn lên Sheet
         db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", datetime.now().strftime("%d/%m/%Y %H:%M:%S"), expire_str]])
 
         # ---------------------------------------------------------
@@ -87,17 +86,15 @@ async def process_successful_payment(order_code: str):
         msg_link_item = db.get_config("MSG_DELIVERY_LINK_ITEM", "👉 <b>{g_name}:</b> {link}")
         
         if not target_groups:
-             links_text_list.append("⚠️ <i>Chưa có link nhóm nào được cấu hình trên hệ thống. Vui lòng liên hệ Admin!</i>")
+             links_text_list.append("⚠️ <i>Chưa có link nhóm nào được cấu hình. Báo Admin nhé!</i>")
         else:
             for grp in target_groups:
                 try:
                     await bot.unban_chat_member(chat_id=int(grp["id"]), user_id=int(user_id))
-                except Exception as unban_err:
-                    print(f"ℹ️ Bỏ qua lỗi Unban tại {grp['name']}: {unban_err}")
+                except Exception: pass # Lỗi Unban thì cứ bơ đi
 
                 try:
                     invite = await bot.create_chat_invite_link(chat_id=int(grp["id"]), member_limit=1)
-                    # LỌC TÊN NHÓM QUA HÀM ESCAPE_HTML ĐỂ CHỐNG LỖI
                     safe_grp_name = escape_html(grp["name"])
                     item = msg_link_item.replace("{g_name}", safe_grp_name).replace("{link}", invite.invite_link)
                     links_text_list.append(item)
@@ -107,47 +104,49 @@ async def process_successful_payment(order_code: str):
 
         links_compiled = "\n".join(links_text_list)
         
+        # --- LẤY TEMPLATE GIAO HÀNG TỪ SHEET ---
         raw_delivery_template = db.get_config("MSG_DELIVERY_TEMPLATE", (
             "🎉 <b>THANH TOÁN THÀNH CÔNG!</b>\n"
             "────────────────────\n"
             "🎁 Gói: <b>{plan}</b>\n"
-            "{expiry_text}\n\n"
+            "⏳ Hạn sử dụng: <b>{expire_date}</b>\n\n"
             "🔗 <b>LINK THAM GIA NHÓM CỦA BẠN:</b>\n"
             "{links}\n"
             "────────────────────\n"
-            "⚠️ <i>Lưu ý: Mỗi link dưới đây chỉ nhấp được 1 lần cho 1 tài khoản. Tuyệt đối không chia sẻ cho người khác nhé!</i>"
+            "⚠️ <i>Lưu ý: Mỗi link dưới đây chỉ nhấp được 1 lần!</i>"
         ))
         
+        # Xoá dấu ngoặc kép rác và xử lý xuống dòng
         delivery_template = raw_delivery_template.strip().strip('"').replace("\\n", "\n")
-        
-        # LỌC TÊN GÓI QUA HÀM ESCAPE_HTML ĐỂ CHỐNG LỖI
         safe_plan_name = escape_html(plan_name)
         
+        # Thay thế các biến động
         final_msg = delivery_template.replace("{plan}", safe_plan_name)
-        final_msg = final_msg.replace("{expiry_text}", str(expiry_text))
         final_msg = final_msg.replace("{links}", str(links_compiled))
+        
+        # Hỗ trợ cả 2 từ khoá (Phòng hờ bạn chưa đổi trên Sheet)
+        final_msg = final_msg.replace("{expire_date}", str(expire_str))
+        final_msg = final_msg.replace("{expiry_text}", f"⏳ Hạn sử dụng: <b>{expire_str}</b>")
 
+        # --- GỬI TIN NHẮN AN TOÀN ---
         try:
             await bot.send_message(chat_id=user_id, text=final_msg, parse_mode="HTML", disable_web_page_preview=True)
-            print(f"✅ Đã giao hàng (HTML) thành công đơn {target_code} cho user {user_id}")
+            print(f"✅ Đã giao hàng (HTML) thành công cho user {user_id}")
         except Exception as html_err:
-            print(f"⚠️ Lỗi cú pháp HTML từ Google Sheets, tự động chuyển sang gửi Text thô: {html_err}")
+            print(f"⚠️ LỖI HTML TỪ SHEET: {html_err}")
             await bot.send_message(chat_id=user_id, text=final_msg, parse_mode=None, disable_web_page_preview=True)
-            print(f"✅ Đã giao hàng (Text) thành công đơn {target_code} cho user {user_id}")
 
     except Exception as e:
-        print(f"❌ Lỗi giao hàng: {e}")
+        print(f"❌ Lỗi giao hàng tổng quát: {e}")
 
 # =====================================================
 # 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP)
 # =====================================================
 async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
-    print(f"🕵️ Bắt đầu Auto-check đơn: {str_code}")
     
     for i in range(40): 
         if str_code in cancelled_orders:
-            print(f"🛑 Đã dừng theo dõi đơn {str_code} vì khách bấm nút Hủy.")
             try: cancelled_orders.remove(str_code)
             except: pass
             return
@@ -156,12 +155,9 @@ async def auto_check_loop(order_code, user_id):
         status = payos_manager.get_payment_status(str_code)
         
         if status == "PAID":
-            print(f"💰 Đơn {str_code} đã thanh toán! Đang gọi hàm giao hàng...")
             await process_successful_payment(str_code)
             return
 
-    print(f"⏰ Đơn {str_code} đã hết thời gian chờ 10 phút.")
-    msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR thanh toán của bạn đã hết hạn (Quá 10 phút). Nếu bạn vẫn muốn mua, vui lòng tạo đơn mới nhé!").replace("\\n", "\n")
-    try:
-        await bot.send_message(chat_id=user_id, text=msg_timeout, parse_mode="HTML")
+    msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR đã hết hạn (Quá 10 phút). Vui lòng tạo đơn mới!").replace("\\n", "\n")
+    try: await bot.send_message(chat_id=user_id, text=msg_timeout, parse_mode="HTML")
     except: pass
