@@ -93,16 +93,20 @@ async def process_successful_payment(order_code: str):
              links_text_list.append("⚠️ <i>Chưa có link nhóm nào được cấu hình trên hệ thống. Vui lòng liên hệ Admin!</i>")
         else:
             for grp in target_groups:
+                # 1. Thử Unban (Lỗi thì bỏ qua vì khách có thể đang là Admin hoặc chưa từng bị Ban)
                 try:
-                    # Mở khóa Unban trước (phòng trường hợp khách bị kick do hết hạn cũ)
                     await bot.unban_chat_member(chat_id=int(grp["id"]), user_id=int(user_id))
-                    # Tạo link chỉ dùng 1 lần
+                except Exception as unban_err:
+                    print(f"ℹ️ Bỏ qua lỗi Unban tại {grp['name']}: {unban_err}")
+
+                # 2. Tạo link độc lập
+                try:
                     invite = await bot.create_chat_invite_link(chat_id=int(grp["id"]), member_limit=1)
                     item = msg_link_item.replace("{g_name}", grp["name"]).replace("{link}", invite.invite_link)
                     links_text_list.append(item)
                 except Exception as e:
                     print(f"❌ Lỗi tạo link nhóm {grp['name']}: {e}")
-                    links_text_list.append(f"👉 <b>{grp['name']}:</b> Lỗi bot chưa có quyền Admin (Báo Admin nhé!)")
+                    links_text_list.append(f"👉 <b>{grp['name']}:</b> Lỗi bot chưa có quyền tạo link!")
 
         links_compiled = "\n".join(links_text_list)
         
@@ -128,9 +132,9 @@ async def process_successful_payment(order_code: str):
     except Exception as e:
         print(f"❌ Lỗi giao hàng: {e}")
 
-# ======================================================
+# =====================================================
 # 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP)
-# ======================================================
+# =====================================================
 async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
     print(f"🕵️ Bắt đầu Auto-check đơn: {str_code}")
@@ -150,7 +154,6 @@ async def auto_check_loop(order_code, user_id):
             await process_successful_payment(str_code)
             return
 
-    # Thông báo nếu hết 10 phút mã QR hết hạn
     print(f"⏰ Đơn {str_code} đã hết thời gian chờ 10 phút.")
     msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR thanh toán của bạn đã hết hạn (Quá 10 phút). Nếu bạn vẫn muốn mua, vui lòng tạo đơn mới nhé!").replace("\\n", "\n")
     try:
