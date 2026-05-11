@@ -1,4 +1,5 @@
 import os
+import time
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
@@ -14,11 +15,11 @@ class Database:
         self.users_sheet = None
         self.config_sheet = None
         
-        # Biến Dictionary lưu Cache trên RAM (Tốc độ phản hồi tức thời)
-        self.config_cache = {}
+        self.cache_config = {}
+        self.last_reload_time = 0 
 
     def connect(self):
-        """Kết nối tới Google Sheets và nạp Cache ngay lập tức"""
+        """Kết nối tới Google Sheets"""
         try:
             print("⏳ Đang kết nối tới Google Sheets...")
             creds_json = os.getenv("GOOGLE_SHEETS_CREDS_JSON")
@@ -34,19 +35,32 @@ class Database:
             self.config_sheet = self.sh.worksheet("Config")
             print("✅ Kết nối Google Sheets thành công!")
             
-            # Ép tải dữ liệu vào RAM ngay lần đầu khởi chạy
-            self.load_cache()
+            # Ép tải dữ liệu ngay lần đầu chạy
+            self.reload_config(force=True)
             
         except Exception as e:
             print(f"❌ Lỗi kết nối Google Sheets: {e}")
 
-    def load_cache(self):
-        """Tải dữ liệu từ Sheet vào RAM"""
+    def reload_config(self, force=False):
+        """Tải dữ liệu an toàn, có cơ chế chống nghẽn (Throttle)"""
+        current_time = time.time()
+        
+        # 1. Nếu không ép buộc, 60s mới cho tải lại 1 lần
+        if not force and (current_time - self.last_reload_time < 60):
+            return
+            
+        # 2. TỐI ƯU HÓA: Kể cả khi file mod_general ép tải lại (force=True),
+        # ta vẫn chặn không cho tải nếu khoảng cách giữa 2 lần chưa quá 10 giây.
+        # Điều này giúp Bot không bị sập nếu có 100 người bấm /start cùng lúc.
+        if force and self.cache_config and (current_time - self.last_reload_time < 10):
+            return
+
         try:
+            # Quét TỪ DÒNG SỐ 1, không bỏ sót bất kỳ ô nào
             all_rows = self.config_sheet.get_all_values()
             temp_cache = {}
             
-            print(f"🔎 Bot đang nạp {len(all_rows)} dòng từ tab Config vào RAM...")
+            print(f"🔎 Bot đang đọc {len(all_rows)} dòng từ tab Config vào RAM...")
             
             for row in all_rows:
                 if len(row) >= 2:
@@ -55,29 +69,25 @@ class Database:
                     if key:
                         temp_cache[key] = value
             
-            self.config_cache = temp_cache
+            self.cache_config = temp_cache
+            self.last_reload_time = current_time
             
-            kt_msg = "CÓ" if "MSG_START" in self.config_cache else "KHÔNG"
-            print(f"⚡ Đã nạp xong {len(self.config_cache)} cấu hình siêu tốc! (Tìm thấy MSG_START: {kt_msg})")
+            kt_msg = "CÓ" if "MSG_START" in self.cache_config else "KHÔNG"
+            print(f"⚡ Đã tải xong {len(self.cache_config)} cấu hình! (Tìm thấy MSG_START: {kt_msg})")
             
         except Exception as e:
-            print(f"❌ Lỗi nạp Cache từ Sheet: {e}")
-
-    # ==========================================
-    # 🔥 ĐOẠN CODE ĐƯỢC THÊM VÀO ĐỂ FIX LỖI
-    # ==========================================
-    def reload_config(self, force=False):
-        """Hàm giả để duy trì tính tương thích với mod_general.py và các file cũ. Tự động chuyển hướng sang load_cache()"""
-        self.load_cache()
+            print(f"❌ Lỗi tải Config: {e}")
 
     def get_config(self, key, default=""):
-        """Đọc giá trị TỪ RAM (Tuyệt đối KHÔNG kết nối Google Sheets)"""
-        if not self.config_cache:
-            print("⚠️ Cache rỗng, đang nạp lại khẩn cấp...")
-            self.load_cache()
+        """Lấy giá trị siêu tốc từ bộ nhớ RAM"""
+        # Nếu bộ nhớ rỗng, bắt buộc tải lại
+        if not self.cache_config:
+            self.reload_config(force=True)
         
         search_key = str(key).strip().upper()
-        return self.config_cache.get(search_key, str(default))
+        val = self.cache_config.get(search_key, str(default))
+            
+        return val
 
-# Khởi tạo đối tượng
+# Khởi tạo đối tượng chung
 db = Database()
