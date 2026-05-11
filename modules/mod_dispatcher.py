@@ -29,7 +29,8 @@ async def dispatcher_worker():
             # 1. Đọc Bảng điều khiển
             configs = config_sheet.get_all_values()
             
-            for config_row in configs[1:]:
+            # Lặp qua các nhiệm vụ từ Bảng điều khiển (Lưu lại vị trí c_idx để cập nhật trạng thái)
+            for c_idx, config_row in enumerate(configs[1:], start=2):
                 if len(config_row) < 6: continue
                 
                 task_name = str(config_row[0]).strip()
@@ -39,7 +40,6 @@ async def dispatcher_worker():
                 dst_topic = str(config_row[4]).strip()
                 schedule_str = str(config_row[5]).strip()
                 
-                # Tách các giờ hẹn (VD: "09:00, 15:00" -> ["09:00", "15:00"])
                 scheduled_times = [t.strip() for t in schedule_str.split(",") if t.strip()]
                 
                 # Nếu đến giờ hoàng đạo
@@ -52,21 +52,22 @@ async def dispatcher_worker():
                     row_to_process = None
                     row_index_to_delete = None
                     
-                    # Tìm từ trên xuống dưới (Bài nào ném vào trước sẽ được đăng trước - FIFO)
+                    # Quét từ trên xuống dưới để bốc bài cũ nhất
                     for q_idx, q_row in enumerate(queue_records[1:], start=2):
                         if len(q_row) >= 5:
                             q_src_group = str(q_row[0]).strip()
                             q_src_topic = str(q_row[1]).strip()
                             q_status = str(q_row[4]).strip()
                             
-                            # Nếu khớp Nguồn và trạng thái là Pending
                             if q_src_group == src_group and q_src_topic == src_topic and q_status == "Pending":
                                 row_to_process = q_row
                                 row_index_to_delete = q_idx
-                                break # Đã tìm thấy bài trên cùng, dừng quét
+                                break
                     
                     if not row_to_process:
-                        logging.info(f"📭 Hàng đợi của '{task_name}' đang trống. Sếp ném thêm bài vào kho đi!")
+                        logging.info(f"📭 Hàng đợi của '{task_name}' đang trống.")
+                        # Báo cáo lên AutoConfig nếu kho trống
+                        config_sheet.update(f"G{c_idx}", [[f"⚠️ Kho trống lúc {current_time}! Hãy nạp thêm bài."]])
                         continue
                         
                     # 3. Lấy dữ liệu bài và Bắt đầu COPY
@@ -75,29 +76,32 @@ async def dispatcher_worker():
                     dst_thread_id = int(dst_topic) if dst_topic.isdigit() else None
                     
                     try:
-                        # Copy 1 cụm (Giữ nguyên Album)
+                        # Copy bài
                         if len(msg_ids_to_copy) == 1:
                             await bot.copy_message(chat_id=dst_group, from_chat_id=src_group, message_id=msg_ids_to_copy[0], message_thread_id=dst_thread_id)
                         else:
                             await bot.copy_messages(chat_id=dst_group, from_chat_id=src_group, message_ids=msg_ids_to_copy, message_thread_id=dst_thread_id)
                             
-                        # 4. ĐĂNG XONG -> XÓA DÒNG ĐÓ ĐI CHO SẠCH
+                        # 4. ĐĂNG XONG -> XÓA DÒNG Ở AUTOQUEUE + BÁO CÁO LÊN AUTOCONFIG
                         queue_sheet.delete_rows(row_index_to_delete)
-                        logging.info(f"✅ Đã phân phát thành công bài của '{task_name}' và dọn dẹp Hàng Đợi.")
                         
-                        # Nghỉ 3 giây trước khi xử lý nhiệm vụ khác để tránh Spam
+                        # Ghi báo cáo lên Cột G của tab AutoConfig
+                        status_msg = f"✅ Đã phát cụm ID [{','.join(raw_ids)}] lúc {current_time}"
+                        config_sheet.update(f"G{c_idx}", [[status_msg]])
+                        
+                        logging.info(f"{status_msg} cho nhiệm vụ '{task_name}'")
+                        
                         await asyncio.sleep(3)
                         
                     except Exception as copy_err:
-                        # Nếu lỗi (có thể do bài trong kho bị sếp lỡ tay xóa), ta vẫn xóa dòng này để không bị kẹt mãi ở 1 bài
                         queue_sheet.delete_rows(row_index_to_delete)
-                        logging.error(f"❌ Lỗi Copy tại '{task_name}': {copy_err}. Đã ném bỏ bài lỗi.")
+                        err_msg = f"❌ Bỏ qua cụm ID [{','.join(raw_ids)}] bị lỗi lúc {current_time}"
+                        config_sheet.update(f"G{c_idx}", [[err_msg]])
+                        logging.error(f"❌ Lỗi Copy '{task_name}': {copy_err}")
 
         except Exception as e:
             logging.error(f"❌ Lỗi vòng lặp Dispatcher: {e}")
 
-        # Ngủ đúng 60 giây chờ phút tiếp theo
         await asyncio.sleep(60)
 
-# Khởi chạy luồng ngầm
 asyncio.create_task(dispatcher_worker())
