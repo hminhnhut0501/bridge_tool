@@ -11,7 +11,7 @@ from processor import process_successful_payment, auto_check_loop, cancelled_ord
 from bot_instance import bot
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome
-from mod_general import send_welcome_messages 
+from modules.mod_general import send_welcome_messages
 
 router = Router()
 
