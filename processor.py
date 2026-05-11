@@ -7,6 +7,10 @@ from payment import payos_manager
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
 
+# Hàm lọc ký tự đặc biệt chống sập định dạng HTML của Telegram
+def escape_html(text):
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 # ======================================================
 # 1. HÀM XỬ LÝ GIAO HÀNG (TÍCH HỢP TÙY CHỈNH GOOGLE SHEETS)
 # ======================================================
@@ -51,7 +55,6 @@ async def process_successful_payment(order_code: str):
             expire_str = db.get_config("MSG_DELIVERY_LIFETIME_TEXT", "Vĩnh viễn")
             expiry_text = db.get_config("MSG_DELIVERY_EXPIRY_LIFE", "⏳ Hạn sử dụng: <b>Vĩnh viễn</b>")
 
-        # Cập nhật trạng thái PAID và Ngày hết hạn
         db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", datetime.now().strftime("%d/%m/%Y %H:%M:%S"), expire_str]])
 
         # ---------------------------------------------------------
@@ -61,23 +64,17 @@ async def process_successful_payment(order_code: str):
         g_names = [db.get_config(f"BTN_G{i}", f"Nhóm {i}") for i in range(1, 5)]
         g_ids = [db.get_config(f"GROUP_{i}_ID") for i in range(1, 5)]
         
-        # Nhận diện gói FULL (SVIP+)
-        is_full = False
-        full_keywords = ["full", "svip", "trọn bộ", "tất cả"]
-        if any(kw in plan_lower for kw in full_keywords):
-            is_full = True
+        is_full = any(kw in plan_lower for kw in ["full", "svip", "trọn bộ", "tất cả"])
             
         if is_full:
             for i in range(4):
                 if g_ids[i]: target_groups.append({"name": g_names[i], "id": g_ids[i]})
         else:
-            # Nhận diện gói lẻ
             for i in range(4):
                 if g_names[i].lower() in plan_lower or f"nhóm {i+1}" in plan_lower or f"g{i+1}" in plan_lower:
                     if g_ids[i]: target_groups.append({"name": g_names[i], "id": g_ids[i]})
                     break
         
-        # Thêm nhóm Hỗ trợ / Cập nhật (Nếu có)
         support_id = db.get_config("GROUP_SUPPORT_ID")
         support_name = db.get_config("BTN_SUPPORT_GROUP", "Nhóm Cập Nhật & Hỗ Trợ")
         if support_id:
@@ -93,24 +90,23 @@ async def process_successful_payment(order_code: str):
              links_text_list.append("⚠️ <i>Chưa có link nhóm nào được cấu hình trên hệ thống. Vui lòng liên hệ Admin!</i>")
         else:
             for grp in target_groups:
-                # 1. Thử Unban (Lỗi thì bỏ qua vì khách có thể đang là Admin hoặc chưa từng bị Ban)
                 try:
                     await bot.unban_chat_member(chat_id=int(grp["id"]), user_id=int(user_id))
                 except Exception as unban_err:
                     print(f"ℹ️ Bỏ qua lỗi Unban tại {grp['name']}: {unban_err}")
 
-                # 2. Tạo link độc lập
                 try:
                     invite = await bot.create_chat_invite_link(chat_id=int(grp["id"]), member_limit=1)
-                    item = msg_link_item.replace("{g_name}", grp["name"]).replace("{link}", invite.invite_link)
+                    # LỌC TÊN NHÓM QUA HÀM ESCAPE_HTML ĐỂ CHỐNG LỖI
+                    safe_grp_name = escape_html(grp["name"])
+                    item = msg_link_item.replace("{g_name}", safe_grp_name).replace("{link}", invite.invite_link)
                     links_text_list.append(item)
                 except Exception as e:
                     print(f"❌ Lỗi tạo link nhóm {grp['name']}: {e}")
-                    links_text_list.append(f"👉 <b>{grp['name']}:</b> Lỗi bot chưa có quyền tạo link!")
+                    links_text_list.append(f"👉 <b>{escape_html(grp['name'])}:</b> Lỗi bot chưa có quyền tạo link!")
 
         links_compiled = "\n".join(links_text_list)
         
-        # --- ĐOẠN CODE FIX LỖI NGOẶC KÉP TRÊN SHEET ---
         raw_delivery_template = db.get_config("MSG_DELIVERY_TEMPLATE", (
             "🎉 <b>THANH TOÁN THÀNH CÔNG!</b>\n"
             "────────────────────\n"
@@ -122,17 +118,18 @@ async def process_successful_payment(order_code: str):
             "⚠️ <i>Lưu ý: Mỗi link dưới đây chỉ nhấp được 1 lần cho 1 tài khoản. Tuyệt đối không chia sẻ cho người khác nhé!</i>"
         ))
         
-        # Xử lý: Xoá dấu ngoặc kép dư thừa ở đầu/cuối và đổi \n thành xuống dòng thực tế
         delivery_template = raw_delivery_template.strip().strip('"').replace("\\n", "\n")
         
-        final_msg = delivery_template.replace("{plan}", str(plan_name))
+        # LỌC TÊN GÓI QUA HÀM ESCAPE_HTML ĐỂ CHỐNG LỖI
+        safe_plan_name = escape_html(plan_name)
+        
+        final_msg = delivery_template.replace("{plan}", safe_plan_name)
         final_msg = final_msg.replace("{expiry_text}", str(expiry_text))
         final_msg = final_msg.replace("{links}", str(links_compiled))
 
-        # Thử gửi bằng HTML, nếu Google Sheets bị lỗi cú pháp HTML thì chuyển sang gửi Text thô
         try:
             await bot.send_message(chat_id=user_id, text=final_msg, parse_mode="HTML", disable_web_page_preview=True)
-            print(f"✅ Đã giao hàng thành công đơn {target_code} cho user {user_id}")
+            print(f"✅ Đã giao hàng (HTML) thành công đơn {target_code} cho user {user_id}")
         except Exception as html_err:
             print(f"⚠️ Lỗi cú pháp HTML từ Google Sheets, tự động chuyển sang gửi Text thô: {html_err}")
             await bot.send_message(chat_id=user_id, text=final_msg, parse_mode=None, disable_web_page_preview=True)
