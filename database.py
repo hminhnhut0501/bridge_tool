@@ -41,7 +41,7 @@ class Database:
             print(f"❌ Lỗi kết nối Google Sheets: {e}")
 
     def load_cache(self):
-        """Tải dữ liệu từ Sheet vào RAM (Chỉ chạy 1 lần lúc khởi động hoặc khi Admin gọi lệnh)"""
+        """Tải dữ liệu từ Sheet vào RAM"""
         try:
             all_rows = self.config_sheet.get_all_values()
             temp_cache = {}
@@ -63,10 +63,16 @@ class Database:
         except Exception as e:
             print(f"❌ Lỗi nạp Cache từ Sheet: {e}")
 
+    # ==========================================
+    # 🔥 ĐOẠN CODE ĐƯỢC THÊM VÀO ĐỂ FIX LỖI
+    # ==========================================
+    def reload_config(self, force=False):
+        """Hàm giả để duy trì tính tương thích với mod_general.py và các file cũ. Tự động chuyển hướng sang load_cache()"""
+        self.load_cache()
+
     def get_config(self, key, default=""):
-        """Đọc giá trị TỪ RAM (Tuyệt đối KHÔNG kết nối Google Sheets ở đây để chống nghẽn Bot)"""
+        """Đọc giá trị TỪ RAM (Tuyệt đối KHÔNG kết nối Google Sheets)"""
         if not self.config_cache:
-            # Chỉ nạp lại khi bị lỗi rỗng RAM
             print("⚠️ Cache rỗng, đang nạp lại khẩn cấp...")
             self.load_cache()
         
