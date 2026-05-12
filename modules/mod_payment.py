@@ -32,25 +32,63 @@ async def view_group_detail(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_1M', '💎 VIP 1 THÁNG')} • {format_currency(db.get_config(f'PRICE_G{num}_1M', '50000'))}", callback_data=f"buy_G{num}_1m"))
     kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_currency(db.get_config(f'PRICE_G{num}_LIFE', '149000'))}", callback_data=f"buy_G{num}_life"))
-    kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_FULL_LIFE', '🔥 SVIP+ TRỌN ĐỜI')} • {format_currency(db.get_config('PRICE_LIFETIME', '999'))}", callback_data="view_full_life"))
+    
+    # Đổi nút mua ngay thành nút điều hướng sang trang Sales Page SVIP
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
-@router.callback_query(F.data.startswith("buy_") | F.data.startswith("view_full_") | F.data.startswith("upsell_"))
+# ==========================================
+# 🌟 MODULE MỚI: TRANG CHI TIẾT GÓI SVIP (SALES PAGE)
+# ==========================================
+@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m"]))
+async def show_svip_page(callback: CallbackQuery):
+    """Hiển thị trang giới thiệu SVIP với ảnh cover và mô tả (Đánh chặn các nút SVIP cũ)"""
+    if not await check_protection(callback): return
+    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
+    
+    img_url = db.get_config("IMG_SVIP_PAGE", "https://via.placeholder.com/800x450.png?text=SVIP+PRO")
+    description = db.get_config("TXT_SVIP_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
+    
+    btn_life_text = db.get_config("BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
+    btn_30d_text = db.get_config("BTN_BUY_SVIP_30D", "💎 MUA 1 THÁNG")
+    
+    # Ưu tiên lấy giá từ Key mới (PRICE_SVIP_LIFE), nếu không có thì lấy Key cũ để chống lỗi
+    price_life = db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "3000"))
+    price_1m = db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "2000"))
+    
+    btn_back_text = db.get_config("BTN_BACK", "🔙 Quay lại")
+
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_currency(price_life)}", callback_data="buy_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_currency(price_1m)}", callback_data="buy_full_1m"))
+    kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
+
+    await smart_display(callback, description, kb.as_markup(), img=img_url)
+
+# ==========================================
+# 💳 XỬ LÝ THANH TOÁN (GIỮ NGUYÊN CODE CŨ CỦA BẠN)
+# ==========================================
+@router.callback_query(F.data.startswith("buy_") | F.data.startswith("upsell_"))
 async def process_buy_request(callback: CallbackQuery):
     if not await check_protection(callback): return
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     if "upsell_full" in callback.data:
         plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        amount = max(0, int(db.get_config("PRICE_LIFETIME", "999")) - int(db.get_config("PRICE_1_MONTH", "999")))
+        # Tương thích với cả Key giá mới và Key giá cũ
+        price_life = int(db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "999")))
+        price_1m = int(db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "999")))
+        amount = max(0, price_life - price_1m)
     elif "upsell_G" in callback.data:
         num = callback.data.split("_")[1][1:]
         plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
         amount = max(0, int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - int(db.get_config(f"PRICE_G{num}_1M", "50000")))
     elif "full" in callback.data:
         plan_name = db.get_config("PLAN_FULL_1M" if "1m" in callback.data else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
-        amount = int(db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME", "999"))
+        # Lấy giá của SVIP để xuất hóa đơn PayOS
+        amount = int(db.get_config("PRICE_SVIP_30D" if "1m" in callback.data else "PRICE_SVIP_LIFE", db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME", "999")))
     else:
         parts = callback.data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
