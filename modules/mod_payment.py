@@ -21,8 +21,16 @@ BANK_NAMES = {
     "970432": "VPBank", "970416": "ACB", "970405": "Agribank"
 }
 
-# 🛡 BIẾN LƯU TRỮ CHỐNG SPAM (Lưu tạm trên RAM)
+# 🛡 BIẾN LƯU TRỮ CHỐNG SPAM
 user_cooldowns = {}
+
+def safe_int(value_str):
+    """Hàm thông minh: Tự động loại bỏ dấu chấm, dấu phẩy, chữ Đ để chống crash ValueError"""
+    try:
+        clean_str = str(value_str).replace('.', '').replace(',', '').replace('Đ', '').replace('đ', '').strip()
+        return int(clean_str)
+    except Exception:
+        return 999  # Trả về giá mặc định nếu lỗi
 
 @router.callback_query(F.data.startswith("group_"))
 async def view_group_detail(callback: CallbackQuery):
@@ -35,21 +43,24 @@ async def view_group_detail(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_1M', '💎 VIP 1 THÁNG')} • {format_currency(db.get_config(f'PRICE_G{num}_1M', '50000'))}", callback_data=f"buy_G{num}_1m"))
     kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_currency(db.get_config(f'PRICE_G{num}_LIFE', '149000'))}", callback_data=f"buy_G{num}_life"))
-    
-    # Nút điều hướng sang trang Sales Page SVIP
+    # Nút dẫn sang trang SVIP Page
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
     
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
 # ==========================================
-# 🌟 TRANG CHI TIẾT GÓI SVIP (SALES PAGE)
+# 🌟 TRANG CHI TIẾT GÓI SVIP (SALES PAGE) - BẮT TẤT CẢ CÁC TÍN HIỆU SVIP TỪ MENU
 # ==========================================
-@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m"]))
+@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m", "buy_full_life", "buy_full_1m"]))
 async def show_svip_page(callback: CallbackQuery):
-    """Hiển thị trang giới thiệu SVIP với ảnh cover và mô tả"""
+    """Bắt đánh chặn mọi cú click vào SVIP ở menu chính để hiển thị trang Sales Page"""
+    # Nếu nút bấm truyền tín hiệu "confirm_" thì bỏ qua để cho hàm tạo QR bên dưới xử lý
+    if callback.data.startswith("confirm_"):
+        return
+
     if not await check_protection(callback): return
-    await cleanup_welcome(callback.fromuser.id, callback.message.chat.id)
+    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     img_url = db.get_config("IMG_SVIP_PAGE", "https://via.placeholder.com/800x450.png?text=SVIP+PRO")
     description = db.get_config("TXT_SVIP_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
@@ -62,50 +73,48 @@ async def show_svip_page(callback: CallbackQuery):
     btn_back_text = db.get_config("BTN_BACK", "🔙 Quay lại")
 
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_currency(price_life)}", callback_data="buy_full_life"))
-    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_currency(price_1m)}", callback_data="buy_full_1m"))
+    # TRUYỀN TÍN HIỆU CONFIRM ĐỂ TẠO MÃ QR
+    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_currency(price_life)}", callback_data="confirm_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_currency(price_1m)}", callback_data="confirm_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 
     await smart_display(callback, description, kb.as_markup(), img=img_url)
 
 # ==========================================
-# 💳 XỬ LÝ THANH TOÁN (KÈM LỚP GIÁP CHỐNG SPAM)
+# 💳 XỬ LÝ THANH TOÁN & CHỐNG SPAM
 # ==========================================
-@router.callback_query(F.data.startswith("buy_") | F.data.startswith("upsell_"))
+@router.callback_query(F.data.startswith("confirm_") | F.data.startswith("buy_") | F.data.startswith("upsell_"))
 async def process_buy_request(callback: CallbackQuery):
     if not await check_protection(callback): return
     
-    # --- 🛡 LOGIC CHỐNG SPAM TẠO MÃ QR (COOLDOWN 15 GIÂY) ---
+    # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
     user_id = callback.from_user.id
     current_time = time.time()
     if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        # Nếu chưa đủ 15 giây, bật thông báo cảnh báo và chặn lại ngay lập tức
-        alert_msg = db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15 giây để tạo mã mới.")
-        await callback.answer(alert_msg, show_alert=True)
+        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
         return
-    # Cập nhật lại thời gian click cuối cùng của người này
     user_cooldowns[user_id] = current_time
-    # --------------------------------------------------------
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
+    # Sử dụng hàm safe_int() để không bao giờ bị lỗi ValueError
     if "upsell_full" in callback.data:
         plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        price_life = int(db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "999")))
-        price_1m = int(db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "999")))
+        price_life = safe_int(db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "999")))
+        price_1m = safe_int(db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "999")))
         amount = max(0, price_life - price_1m)
     elif "upsell_G" in callback.data:
         num = callback.data.split("_")[1][1:]
         plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
-        amount = max(0, int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - int(db.get_config(f"PRICE_G{num}_1M", "50000")))
+        amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
     elif "full" in callback.data:
         plan_name = db.get_config("PLAN_FULL_1M" if "1m" in callback.data else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
-        amount = int(db.get_config("PRICE_SVIP_30D" if "1m" in callback.data else "PRICE_SVIP_LIFE", db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME", "999")))
+        amount = safe_int(db.get_config("PRICE_SVIP_30D" if "1m" in callback.data else "PRICE_SVIP_LIFE", db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME", "999")))
     else:
         parts = callback.data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
         plan_name = f"{db.get_config('PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {db.get_config(f'BTN_G{num}')}"
-        amount = int(db.get_config(f'PRICE_G{num}_{type_p}', "50000"))
+        amount = safe_int(db.get_config(f'PRICE_G{num}_{type_p}', "50000"))
 
     msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
