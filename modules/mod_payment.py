@@ -50,12 +50,12 @@ async def view_group_detail(callback: CallbackQuery):
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
 # ==========================================
-# 🌟 TRANG CHI TIẾT GÓI SVIP (SALES PAGE) - BẮT TẤT CẢ CÁC TÍN HIỆU SVIP TỪ MENU
+# 🌟 TRANG CHI TIẾT GÓI SVIP (GIỮ NGUYÊN CODE CỦA BẠN - ĐÃ FIX LỖI VÒNG LẶP)
 # ==========================================
-@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m", "buy_full_life", "buy_full_1m"]))
+# 🛠 FIX 1: Loại bỏ "buy_full_life" và "buy_full_1m" khỏi F.data.in_ để không tranh sóng với hàm tạo QR
+@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m"]))
 async def show_svip_page(callback: CallbackQuery):
-    """Bắt đánh chặn mọi cú click vào SVIP ở menu chính để hiển thị trang Sales Page"""
-    # Nếu nút bấm truyền tín hiệu "confirm_" thì bỏ qua để cho hàm tạo QR bên dưới xử lý
+    """Hiển thị trang giới thiệu SVIP với ảnh cover và mô tả"""
     if callback.data.startswith("confirm_"):
         return
 
@@ -68,14 +68,15 @@ async def show_svip_page(callback: CallbackQuery):
     btn_life_text = db.get_config("BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
     btn_30d_text = db.get_config("BTN_BUY_SVIP_30D", "💎 MUA 1 THÁNG")
     
-    price_life = db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "3000"))
-    price_1m = db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "2000"))
+    # 🛠 FIX 2: Đồng bộ biến giá (Bỏ PRICE_LIFETIME, chỉ dùng PRICE_SVIP_LIFE)
+    price_life = safe_int(db.get_config("PRICE_SVIP_LIFE", "3000"))
+    price_1m = safe_int(db.get_config("PRICE_SVIP_30D", "2000"))
     btn_back_text = db.get_config("BTN_BACK", "🔙 Quay lại")
 
     kb = InlineKeyboardBuilder()
-    # TRUYỀN TÍN HIỆU CONFIRM ĐỂ TẠO MÃ QR
-    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_currency(price_life)}", callback_data="confirm_full_life"))
-    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_currency(price_1m)}", callback_data="confirm_full_1m"))
+    # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
+    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_currency(price_life)}", callback_data="buy_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_currency(price_1m)}", callback_data="buy_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 
     await smart_display(callback, description, kb.as_markup(), img=img_url)
@@ -98,20 +99,23 @@ async def process_buy_request(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     # Sử dụng hàm safe_int() để không bao giờ bị lỗi ValueError
-    if "upsell_full" in callback.data:
+    data = callback.data.replace("confirm_", "buy_")
+    
+    # 🛠 FIX 3: Đồng bộ biến giá trong lúc tạo bill
+    if "upsell_full" in data:
         plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        price_life = safe_int(db.get_config("PRICE_SVIP_LIFE", db.get_config("PRICE_LIFETIME", "999")))
-        price_1m = safe_int(db.get_config("PRICE_SVIP_30D", db.get_config("PRICE_1_MONTH", "999")))
+        price_life = safe_int(db.get_config("PRICE_SVIP_LIFE", "999"))
+        price_1m = safe_int(db.get_config("PRICE_SVIP_30D", "999"))
         amount = max(0, price_life - price_1m)
-    elif "upsell_G" in callback.data:
-        num = callback.data.split("_")[1][1:]
+    elif "upsell_G" in data:
+        num = data.split("_")[1][1:]
         plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
         amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
-    elif "full" in callback.data:
-        plan_name = db.get_config("PLAN_FULL_1M" if "1m" in callback.data else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
-        amount = safe_int(db.get_config("PRICE_SVIP_30D" if "1m" in callback.data else "PRICE_SVIP_LIFE", db.get_config("PRICE_1_MONTH" if "1m" in callback.data else "PRICE_LIFETIME", "999")))
+    elif "full" in data:
+        plan_name = db.get_config("PLAN_FULL_1M" if "1m" in data else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
+        amount = safe_int(db.get_config("PRICE_SVIP_30D" if "1m" in data else "PRICE_SVIP_LIFE", "999"))
     else:
-        parts = callback.data.split("_")
+        parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
         plan_name = f"{db.get_config('PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {db.get_config(f'BTN_G{num}')}"
         amount = safe_int(db.get_config(f'PRICE_G{num}_{type_p}', "50000"))
@@ -169,6 +173,4 @@ async def cancel_order_handler(callback: CallbackQuery):
     try: await callback.message.delete()
     except: pass
     await callback.answer(db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
-    
-    # Gọi UI Engine để hiển thị lại Menu chính cực mượt
     await render_page(callback, "main_menu")
