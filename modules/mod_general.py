@@ -13,9 +13,10 @@ router = Router()
 
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
-    if message.from_user.id == ADMIN_ID:
-        db.reload_config(force=True)
-        await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã ép tải lại toàn bộ Dữ liệu & Giao diện từ Sheet!"))
+    # Tạm thời bỏ comment dòng if bên dưới để test xem Bot có nhận lệnh không
+    # if message.from_user.id == ADMIN_ID: 
+    db.reload_config(force=True)
+    await message.reply("🔄 Đã nạp lại dữ liệu từ Sheet!")
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
