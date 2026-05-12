@@ -53,11 +53,11 @@ async def process_successful_payment(order_code: str):
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
         groups_to_invite = []
         if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-            for g in range(1, 5):
+            for g in range(1, 21):
                 gid = db.get_config(f"ID_G{g}")
                 if gid: groups_to_invite.append((gid, db.get_config(f"BTN_G{g}", f"Nhóm {g}")))
         else:
-            for g in range(1, 5):
+            for g in range(1, 21):
                 btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
                 if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name:
                     gid = db.get_config(f"ID_G{g}")

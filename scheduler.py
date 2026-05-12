@@ -63,7 +63,7 @@ async def check_expirations_professional():
                 except: pass
                 
                 # Xử lý Kick (Ban rồi Unban để đuổi ra mà không khóa vĩnh viễn)
-                for g in range(1, 5):
+                for g in range(1, 21):
                     btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
                     if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
                         gid = db.get_config(f"ID_G{g}")

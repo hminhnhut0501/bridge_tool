@@ -11,7 +11,7 @@ from processor import process_successful_payment, auto_check_loop, cancelled_ord
 from bot_instance import bot
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome
-from modules.mod_general import send_welcome_messages
+from modules.mod_engine import render_page
 
 router = Router()
 
@@ -166,6 +166,9 @@ async def manual_check_payment(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("cancel_order_"))
 async def cancel_order_handler(callback: CallbackQuery):
     cancelled_orders.add(str(callback.data.split("_")[-1])) 
-    await callback.message.delete()
+    try: await callback.message.delete()
+    except: pass
     await callback.answer(db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
-    await send_welcome_messages(callback)
+    
+    # Gọi UI Engine để hiển thị lại Menu chính cực mượt
+    await render_page(callback, "main_menu")
