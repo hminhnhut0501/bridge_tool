@@ -54,8 +54,13 @@ async def render_page(target, page_id):
 
     # Nếu người dùng click nút (Callback)
     if isinstance(target, CallbackQuery):
-        await target.message.delete()
-        if img_url:
+        # 🔥 BỌC GIÁP TRY-EXCEPT BẢO VỆ Ở ĐÂY ĐỂ CHỐNG CRASH KHI QUAY LẠI
+        try:
+            await target.message.delete()
+        except:
+            pass # Nếu tin nhắn cũ đã bị xóa rồi thì cứ kệ nó, đi tiếp
+
+        if img_url and len(str(img_url)) > 10:
             await target.message.answer_photo(photo=img_url, caption=text, reply_markup=kb_markup, parse_mode="HTML")
         else:
             await target.message.answer(text, reply_markup=kb_markup, parse_mode="HTML")
@@ -63,7 +68,7 @@ async def render_page(target, page_id):
         
     # Nếu người dùng gõ lệnh /start (Message)
     else:
-        if img_url:
+        if img_url and len(str(img_url)) > 10:
             await target.answer_photo(photo=img_url, caption=text, reply_markup=kb_markup, parse_mode="HTML")
         else:
             await target.answer(text, reply_markup=kb_markup, parse_mode="HTML")
