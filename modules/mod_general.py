@@ -6,37 +6,33 @@ from aiogram.filters import CommandStart, Command
 
 from database import db
 from bot_instance import bot
-from helpers import ADMIN_ID, check_protection, cleanup_welcome, get_main_menu_keyboard, smart_display, user_welcome_msgs
+from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
+from modules.mod_engine import render_page  # 🚀 IMPORT ĐỘNG CƠ RENDER TỪ ENGINE
 
 router = Router()
 
 async def send_welcome_messages(event):
+    """Hàm khởi tạo Menu chính - Đã được nâng cấp qua Dynamic UI Engine"""
     db.reload_config(force=True)
     user_id = event.from_user.id
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
 
     await cleanup_welcome(user_id, chat_id)
-    welcome_text = db.get_config("MSG_START", "👑 CHÀO MỪNG BẠN!").replace("\\n", "\n")
-    img_start = db.get_config("IMG_START", "AgACAgUAAxkBAAMNaf3xkPP5Pr9JZtCsKMI4b1G0fC0AAmwRaxsHpelX2z3c8IQ6Xh8BAAMCAAN5AAM7BA")
-    privilege_text = db.get_config("MSG_PRIVILEGE", "💎 Chọn gói dịch vụ:").replace("\\n", "\n")
-
+    
     try:
-        if img_start and len(str(img_start)) > 10: msg1 = await bot.send_photo(chat_id=chat_id, photo=img_start, caption=welcome_text, parse_mode="HTML")
-        else: msg1 = await bot.send_message(chat_id=chat_id, text=welcome_text, parse_mode="HTML")
-        user_welcome_msgs[user_id] = msg1.message_id
-        await asyncio.sleep(0.5)
-        
-        if isinstance(event, Message): await event.answer(text=privilege_text, reply_markup=get_main_menu_keyboard(), parse_mode="HTML")
-        else: await event.message.answer(text=privilege_text, reply_markup=get_main_menu_keyboard(), parse_mode="HTML")
+        # 🔥 GỌI ĐỘNG CƠ XUẤT TRANG MAIN_MENU TỪ GOOGLE SHEETS
+        await render_page(event, "main_menu")
     except Exception as e:
         if "parse entities" in str(e).lower() or "tag" in str(e).lower():
-            await bot.send_message(chat_id=chat_id, text="⚠️ Lỗi thẻ HTML trên Sheet MSG_START.", parse_mode="HTML")
+            await bot.send_message(chat_id=chat_id, text="⚠️ Lỗi thẻ HTML trên Sheet. Vui lòng kiểm tra lại nội dung!", parse_mode="HTML")
+        else:
+            print(f"❌ Lỗi render trang main_menu: {e}")
 
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
     if message.from_user.id == ADMIN_ID:
         db.reload_config(force=True)
-        await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã ép tải lại từ Sheet!"))
+        await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã ép tải lại toàn bộ Dữ liệu & Giao diện từ Sheet!"))
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -49,6 +45,10 @@ async def back_to_main(callback: CallbackQuery):
     try: await callback.message.delete()
     except: pass
     await send_welcome_messages(callback)
+
+# ==========================================
+# CÁC TÍNH NĂNG ĐỘC LẬP (VẪN GIỮ NGUYÊN)
+# ==========================================
 
 @router.message(Command("support"))
 @router.callback_query(F.data == "support_info")
