@@ -11,21 +11,20 @@ from modules.mod_engine import render_page
 
 router = Router()
 
-# ==========================================
-# LỆNH RELOAD: CẬP NHẬT DỮ LIỆU TỪ SHEET
-# ==========================================
+# [1] HÀM CŨ DỰ PHÒNG CHỐNG LỖI IMPORT
+async def send_welcome_messages(event):
+    await cmd_start(event)
+
+# [2] LỆNH RELOAD
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
-    # Bạn có thể mở khóa dòng if bên dưới nếu muốn bảo mật chỉ Admin được reload
     if message.from_user.id == ADMIN_ID: 
         db.reload_config(force=True)
         await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!"))
     else:
         await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
 
-# ==========================================
-# LỆNH START & QUAY LẠI MENU CHÍNH
-# ==========================================
+# [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     if not await check_protection(message): return
@@ -38,29 +37,41 @@ async def back_to_main(callback: CallbackQuery):
     if not await check_protection(callback): return
     await render_page(callback, "main_menu")
 
-# ==========================================
-# XỬ LÝ NÚT QUY ĐỊNH (POLICY)
-# ==========================================
+# [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("policy"))
-@router.callback_query(F.data == "policy") # Giữ lại tín hiệu cũ để không lỗi nút cũ
-async def cmd_policy_dynamic(event):
+@router.callback_query(F.data == "policy")
+@router.callback_query(F.data == "nav:policy_page")
+async def view_policy(event):
     if not await check_protection(event): return
-    # Gọi trang policy_page từ tab MenuBuilder
-    await render_page(event, "policy_page")
+    chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
+    await cleanup_welcome(event.from_user.id, chat_id)
+    
+    # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
+    try:
+        await render_page(event, "policy_page")
+    except:
+        text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+        await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
 
-# ==========================================
-# XỬ LÝ NÚT HỖ TRỢ (SUPPORT)
-# ==========================================
+# [5] TRANG HỖ TRỢ (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("support"))
-@router.callback_query(F.data == "support_info") # Giữ lại tín hiệu cũ
-async def cmd_support_dynamic(event):
+@router.callback_query(F.data == "support_info")
+@router.callback_query(F.data == "nav:support_page")
+async def view_support(event):
     if not await check_protection(event): return
-    # Gọi trang support_page từ tab MenuBuilder
-    await render_page(event, "support_page")
+    chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
+    await cleanup_welcome(event.from_user.id, chat_id)
+    
+    # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
+    try:
+        await render_page(event, "support_page")
+    except:
+        text = db.get_config("MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+        await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
 
-# ==========================================
-# TRANG THÔNG TIN TÀI KHOẢN (/ME)
-# ==========================================
+# [6] TRANG THÔNG TIN TÀI KHOẢN (/ME)
 @router.message(Command("me"))
 @router.callback_query(F.data == "my_info")
 async def cmd_me(event):
@@ -69,10 +80,9 @@ async def cmd_me(event):
     await cleanup_welcome(event.from_user.id, chat_id)
     
     user_id = str(event.from_user.id)
-    db.connect() # Làm mới kết nối để lấy hạn dùng mới nhất
+    db.connect()
     all_data = db.users_sheet.get_all_values()
     
-    # Lọc danh sách gói đã mua của user
     my_plans = [row for row in all_data if len(row) > 7 and str(row[1]) == user_id and row[5] == "PAID"]
     
     text = db.get_config("MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
@@ -84,21 +94,10 @@ async def cmd_me(event):
             
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     
-    # Hiển thị thông minh kết hợp ảnh từ Config
     await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME", ""))
 
-# ==========================================
-# CÔNG CỤ ADMIN: LẤY FILE_ID CỦA ẢNH
-# ==========================================
+# [7] CÔNG CỤ ADMIN: LẤY FILE_ID CỦA ẢNH
 @router.message(F.photo)
 async def get_file_id(message: Message):
-    """Admin gửi ảnh vào Bot để lấy mã ID dán lên Sheet"""
     if message.from_user.id == ADMIN_ID: 
-        await message.reply(f"Mã ảnh của bạn (Dán mã này vào cột B trên Sheet):\n\n<code>{message.photo[-1].file_id}</code>")
-
-# ==========================================
-# HÀM CŨ DỰ PHÒNG (KHÔNG XOÁ ĐỂ TRÁNH LỖI IMPORT)
-# ==========================================
-async def send_welcome_messages(event):
-    """Hàm này hiện tại đã được cmd_start và render_page thay thế"""
-    await cmd_start(event)
+        await message.reply(f"<code>{message.photo[-1].file_id}</code>")
