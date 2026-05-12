@@ -7,26 +7,9 @@ from aiogram.filters import CommandStart, Command
 from database import db
 from bot_instance import bot
 from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
-from modules.mod_engine import render_page  # 🚀 IMPORT ĐỘNG CƠ RENDER TỪ ENGINE
+from modules.mod_engine import render_page 
 
 router = Router()
-
-async def send_welcome_messages(event):
-    """Hàm khởi tạo Menu chính - Đã được nâng cấp qua Dynamic UI Engine"""
-    db.reload_config(force=True)
-    user_id = event.from_user.id
-    chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
-
-    await cleanup_welcome(user_id, chat_id)
-    
-    try:
-        # 🔥 GỌI ĐỘNG CƠ XUẤT TRANG MAIN_MENU TỪ GOOGLE SHEETS
-        await render_page(event, "main_menu")
-    except Exception as e:
-        if "parse entities" in str(e).lower() or "tag" in str(e).lower():
-            await bot.send_message(chat_id=chat_id, text="⚠️ Lỗi thẻ HTML trên Sheet. Vui lòng kiểm tra lại nội dung!", parse_mode="HTML")
-        else:
-            print(f"❌ Lỗi render trang main_menu: {e}")
 
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
@@ -37,32 +20,18 @@ async def cmd_reload(message: Message):
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     if not await check_protection(message): return
-    await send_welcome_messages(message)
+    db.reload_config(force=True)
+    await cleanup_welcome(message.from_user.id, message.chat.id)
+    await render_page(message, "main_menu")
 
 @router.callback_query(F.data == "back_main")
 async def back_to_main(callback: CallbackQuery):
     if not await check_protection(callback): return
-    try: await callback.message.delete()
-    except: pass
-    await send_welcome_messages(callback)
+    await render_page(callback, "main_menu")
 
 # ==========================================
-# CÁC TÍNH NĂNG ĐỘC LẬP (VẪN GIỮ NGUYÊN)
+# TRANG DUY NHẤT CẦN CODE: THÔNG TIN TÀI KHOẢN (/ME)
 # ==========================================
-
-@router.message(Command("support"))
-@router.callback_query(F.data == "support_info")
-async def cmd_support(event):
-    if not await check_protection(event): return
-    chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
-    await cleanup_welcome(event.from_user.id, chat_id)
-    
-    support_text = db.get_config("MSG_SUPPORT", "👨‍💻 HỖ TRỢ").replace("\\n", "\n")
-    kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_CONTACT_ADMIN", "💬 Nhắn tin"), url=db.get_config("URL_ADMIN", "https://t.me/thamtucu")))
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
-    await smart_display(event, support_text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
-
 @router.message(Command("me"))
 @router.callback_query(F.data == "my_info")
 async def cmd_me(event):
@@ -72,25 +41,35 @@ async def cmd_me(event):
     
     user_id = str(event.from_user.id)
     all_data = db.users_sheet.get_all_values()
-    my_plans = [row for row in all_data if row[1] == user_id and row[5] == "PAID"]
+    my_plans = [row for row in all_data if len(row) > 7 and row[1] == user_id and row[5] == "PAID"]
     
     text = db.get_config("MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
-    if not my_plans: text += db.get_config("MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
+    if not my_plans: 
+        text += db.get_config("MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
     else:
         for p in my_plans: 
             text += db.get_config("MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", str(p[7]))
             
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
-    await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME"))
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME", ""))
 
-@router.callback_query(F.data == "policy")
-async def view_policy(callback: CallbackQuery):
-    if not await check_protection(callback): return
-    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
-    text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...").replace("\\n", "\n")
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
-    await smart_display(callback, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
-
+# Lấy ID của Ảnh gửi cho Admin
 @router.message(F.photo)
 async def get_file_id(message: Message):
-    if message.from_user.id == ADMIN_ID: await message.reply(f"<code>{message.photo[-1].file_id}</code>")
+    if message.from_user.id == ADMIN_ID: 
+        await message.reply(f"<code>{message.photo[-1].file_id}</code>")
+
+# ==========================================
+# CÁC LỆNH MENU ĐIỀU HƯỚNG BỔ SUNG
+# ==========================================
+@router.message(Command("support"))
+async def cmd_support_telegram(message: Message):
+    """Bắt lệnh /support từ Menu xanh của Telegram và xuất trang từ Sheet"""
+    if not await check_protection(message): return
+    await render_page(message, "support_page")
+
+@router.message(Command("policy"))
+async def cmd_policy_telegram(message: Message):
+    """Bổ sung thêm lệnh /policy nếu khách gõ tay"""
+    if not await check_protection(message): return
+    await render_page(message, "policy_page")

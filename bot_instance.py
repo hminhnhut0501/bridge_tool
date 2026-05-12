@@ -20,7 +20,6 @@ async def set_commands():
         BotCommand(command="me", description="Kiểm tra gói & Hạn dùng"),
         BotCommand(command="support", description="Liên hệ hỗ trợ Admin"),
     ]
-    await bot.set_my_commands(commands)
 
 # Lưu trữ lịch sử bấm nút của User {user_id: timestamp}
 user_cooldowns = {}

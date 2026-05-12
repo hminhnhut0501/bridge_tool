@@ -1,5 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from database import db
 from bot_instance import bot 
 from payment import payos_manager
@@ -21,11 +24,12 @@ async def process_successful_payment(order_code: str):
         
         db.connect() # Làm mới dữ liệu
         users_data = db.users_sheet.get_all_values()
+        
         row_index = -1
         user_id = None
         plan_name = None 
         
-        # Duyệt ngược từ dưới lên lấy đơn hàng
+        # Duyệt ngược từ dưới lên lấy đơn hàng (Siêu tốc độ)
         for i in range(len(users_data) - 1, 0, -1):
             row = users_data[i]
             if str(row[0]).strip() == target_code:
@@ -33,108 +37,67 @@ async def process_successful_payment(order_code: str):
                     print(f"⚠️ Đơn {target_code} đã được xử lý trước đó.")
                     return
                 row_index = i + 1
-                user_id = str(row[1])
-                plan_name = str(row[3])
+                user_id = str(row[1]).strip()
+                plan_name = str(row[3]).strip()
                 break
-
-        if row_index == -1:
-            print(f"❌ Không tìm thấy đơn {target_code} trong Google Sheets.")
+                
+        if not user_id:
+            print(f"❌ Không tìm thấy đơn {target_code} để giao hàng.")
             return
 
-        # ---------------------------------------------------------
-        # TÍNH TOÁN NGÀY HẾT HẠN (CỰC KỲ ĐƠN GIẢN)
-        # ---------------------------------------------------------
-        plan_lower = plan_name.lower()
-        is_1m = any(kw in plan_lower for kw in ["1 tháng", "1m", "30 ngày"])
-        
-        if is_1m:
-            expire_date = datetime.now() + timedelta(days=30)
-            expire_str = expire_date.strftime("%d/%m/%Y %H:%M:%S")
-        else:
-            expire_str = db.get_config("MSG_DELIVERY_LIFETIME_TEXT", "Vĩnh viễn")
+        # Tính toán hạn dùng
+        is_lifetime = ("TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper())
+        days_to_add = 3650 if is_lifetime else 30
+        expire_date = (datetime.now() + timedelta(days=days_to_add)).strftime("%Y-%m-%d")
 
-        # Cập nhật trạng thái PAID và Ngày hết hạn lên Sheet
-        db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", datetime.now().strftime("%d/%m/%Y %H:%M:%S"), expire_str]])
-
-        # ---------------------------------------------------------
-        # THUẬT TOÁN TÌM LINK NHÓM THÔNG MINH
-        # ---------------------------------------------------------
-        target_groups = []
-        g_names = [db.get_config(f"BTN_G{i}", f"Nhóm {i}") for i in range(1, 5)]
-        g_ids = [db.get_config(f"GROUP_{i}_ID") for i in range(1, 5)]
-        
-        is_full = any(kw in plan_lower for kw in ["full", "svip", "trọn bộ", "tất cả"])
-            
-        if is_full:
-            for i in range(4):
-                if g_ids[i]: target_groups.append({"name": g_names[i], "id": g_ids[i]})
+        # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
+        groups_to_invite = []
+        if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
+            for g in range(1, 5):
+                gid = db.get_config(f"ID_G{g}")
+                if gid: groups_to_invite.append((gid, db.get_config(f"BTN_G{g}", f"Nhóm {g}")))
         else:
-            for i in range(4):
-                if g_names[i].lower() in plan_lower or f"nhóm {i+1}" in plan_lower or f"g{i+1}" in plan_lower:
-                    if g_ids[i]: target_groups.append({"name": g_names[i], "id": g_ids[i]})
-                    break
-        
-        support_id = db.get_config("GROUP_SUPPORT_ID")
-        support_name = db.get_config("BTN_SUPPORT_GROUP", "Nhóm Cập Nhật & Hỗ Trợ")
-        if support_id:
-            target_groups.append({"name": support_name, "id": support_id})
+            for g in range(1, 5):
+                btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
+                if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name:
+                    gid = db.get_config(f"ID_G{g}")
+                    if gid: groups_to_invite.append((gid, btn_name))
 
-        # ---------------------------------------------------------
-        # TẠO LINK MỜI DUY NHẤT & LẮP RÁP TIN NHẮN
-        # ---------------------------------------------------------
-        links_text_list = []
-        msg_link_item = db.get_config("MSG_DELIVERY_LINK_ITEM", "👉 <b>{g_name}:</b> {link}")
-        
-        if not target_groups:
-             links_text_list.append("⚠️ <i>Chưa có link nhóm nào được cấu hình. Báo Admin nhé!</i>")
-        else:
-            for grp in target_groups:
+        # Tạo link mời (Giới hạn 1 người vào)
+        links_msg = ""
+        for gid, gname in groups_to_invite:
+            try:
+                # 🛡 Cố gắng Unban (Ngoại trừ Admin) để tránh lỗi Crash
                 try:
-                    await bot.unban_chat_member(chat_id=int(grp["id"]), user_id=int(user_id))
-                except Exception: pass # Lỗi Unban thì cứ bơ đi
+                    await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
+                except Exception as unban_err:
+                    if "administrator" not in str(unban_err).lower():
+                        print(f"⚠️ Không thể unban user {user_id}: {unban_err}")
 
-                try:
-                    invite = await bot.create_chat_invite_link(chat_id=int(grp["id"]), member_limit=1)
-                    safe_grp_name = escape_html(grp["name"])
-                    item = msg_link_item.replace("{g_name}", safe_grp_name).replace("{link}", invite.invite_link)
-                    links_text_list.append(item)
-                except Exception as e:
-                    print(f"❌ Lỗi tạo link nhóm {grp['name']}: {e}")
-                    links_text_list.append(f"👉 <b>{escape_html(grp['name'])}:</b> Lỗi bot chưa có quyền tạo link!")
+                invite = await bot.create_chat_invite_link(
+                    chat_id=gid,
+                    member_limit=1,
+                    creates_join_request=False
+                )
+                links_msg += f"👉 <b>{escape_html(gname)}</b>:\n{invite.invite_link}\n\n"
+            except Exception as e:
+                links_msg += f"👉 <b>{escape_html(gname)}</b>: <i>❌ Lỗi tạo link ({e})</i>\n\n"
 
-        links_compiled = "\n".join(links_text_list)
-        
-        # --- LẤY TEMPLATE GIAO HÀNG TỪ SHEET ---
-        raw_delivery_template = db.get_config("MSG_DELIVERY_TEMPLATE", (
-            "🎉 <b>THANH TOÁN THÀNH CÔNG!</b>\n"
-            "────────────────────\n"
-            "🎁 Gói: <b>{plan}</b>\n"
-            "⏳ Hạn sử dụng: <b>{expire_date}</b>\n\n"
-            "🔗 <b>LINK THAM GIA NHÓM CỦA BẠN:</b>\n"
-            "{links}\n"
-            "────────────────────\n"
-            "⚠️ <i>Lưu ý: Mỗi link dưới đây chỉ nhấp được 1 lần!</i>"
-        ))
-        
-        # Xoá dấu ngoặc kép rác và xử lý xuống dòng
-        delivery_template = raw_delivery_template.strip().strip('"').replace("\\n", "\n")
-        safe_plan_name = escape_html(plan_name)
-        
-        # Thay thế các biến động
-        final_msg = delivery_template.replace("{plan}", safe_plan_name)
-        final_msg = final_msg.replace("{links}", str(links_compiled))
-        
-        # Hỗ trợ cả 2 từ khoá (Phòng hờ bạn chưa đổi trên Sheet)
-        final_msg = final_msg.replace("{expire_date}", str(expire_str))
-        final_msg = final_msg.replace("{expiry_text}", f"⏳ Hạn sử dụng: <b>{expire_str}</b>")
+        # Cập nhật Sheet
+        db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), expire_date]])
 
-        # --- GỬI TIN NHẮN AN TOÀN ---
+        # Gửi tin nhắn thành công
+        msg_template = db.get_config("MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
+        final_msg = msg_template.replace("{plan}", escape_html(plan_name)).replace("{date}", expire_date).replace("{links}", links_msg)
+        
+        # Tạo nút điều hướng về UI chính bằng cơ chế mới
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+
         try:
-            await bot.send_message(chat_id=user_id, text=final_msg, parse_mode="HTML", disable_web_page_preview=True)
-            print(f"✅ Đã giao hàng (HTML) thành công cho user {user_id}")
+            await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
         except Exception as html_err:
             print(f"⚠️ LỖI HTML TỪ SHEET: {html_err}")
-            await bot.send_message(chat_id=user_id, text=final_msg, parse_mode=None, disable_web_page_preview=True)
+            await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode=None, disable_web_page_preview=True)
 
     except Exception as e:
         print(f"❌ Lỗi giao hàng tổng quát: {e}")
@@ -166,6 +129,9 @@ async def auto_check_loop(order_code, user_id):
             await process_successful_payment(str_code)
             return
 
+    # Thông báo Timeout và hiện nút Quay lại Menu
     msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới!").replace("\\n", "\n")
-    try: await bot.send_message(chat_id=user_id, text=msg_timeout, parse_mode="HTML")
+    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    try: 
+        await bot.send_message(chat_id=user_id, text=msg_timeout, reply_markup=kb_timeout.as_markup(), parse_mode="HTML")
     except: pass

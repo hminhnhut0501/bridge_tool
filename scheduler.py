@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from database import db
 from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -9,156 +9,107 @@ from aiogram.types import InlineKeyboardButton
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Bộ nhớ tạm theo dõi việc gửi tin nhắn (Tránh 1 ngày gửi 2 lần)
+# Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
-
-def format_currency(amount):
-    try:
-        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
-    except:
-        return f"{amount}Đ"
 
 async def check_expirations_professional():
     try:
-        logging.info("⏳ Hệ thống đang quét danh sách thành viên...")
-        db.connect()
+        logging.info("⏳ [SCHEDULER] Đang quét danh sách thành viên để kiểm tra hạn dùng...")
         users_data = db.users_sheet.get_all_values()
         
-        # Lấy cấu hình thời gian báo trước từ Sheet
+        # Lấy số ngày báo trước từ Sheet (Mặc định báo trước 3 ngày)
         days_notice = int(db.get_config("REMINDER_DAYS", "3"))
-        reminder_hour = int(db.get_config("REMINDER_HOUR", "21"))
         
         now = datetime.now()
-        today_str = str(now.date())
+        today_str = now.strftime("%Y-%m-%d")
         
+        # Duyệt từ dòng số 2 (bỏ qua tiêu đề)
         for i, row in enumerate(users_data[1:], start=2):
             if len(row) < 8: continue
             
-            user_id = row[1].strip()
-            plan_name = row[3]
-            status = row[5].strip()
-            expire_str = row[7].strip()
+            user_id = str(row[1]).strip()
+            plan_name = str(row[3]).strip()
+            status = str(row[5]).strip()
+            expire_str = str(row[7]).strip()
 
-            if status != "PAID" or expire_str == "Vĩnh viễn" or not expire_str:
+            if status != "PAID" or not expire_str: 
+                continue
+                
+            # Khách VIP Trọn đời thì bỏ qua luôn, không bao giờ lo hết hạn
+            if "TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper():
                 continue
 
-            expire_dt = None
-            for fmt in ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S"]:
-                try:
-                    expire_dt = datetime.strptime(expire_str, fmt)
-                    break 
-                except ValueError:
-                    continue
-
-            if not expire_dt:
+            try:
+                expire_date = datetime.strptime(expire_str, "%Y-%m-%d")
+                days_remaining = (expire_date.date() - now.date()).days
+            except:
                 continue
 
-            time_left = expire_dt - now
+            notif_key = f"{user_id}_{today_str}"
 
-            # --- 1. XỬ LÝ KICK KHI ĐÃ HẾT HẠN ---
-            if now >= expire_dt:
-                logging.info(f"🚫 User {user_id} đã hết hạn. Đang tiến hành mời rời nhóm...")
-                db.users_sheet.update(f"F{i}", [["EXPIRED"]])
+            # ==========================================
+            # 1. HẾT HẠN -> KICK KHỎI NHÓM & CẬP NHẬT SHEET
+            # ==========================================
+            if days_remaining < 0:
+                # Đổi trạng thái thành EXPIRED trên Sheet
+                db.users_sheet.update_cell(i, 6, "EXPIRED")
+                logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name}. Đã cập nhật EXPIRED.")
                 
-                farewell_template = db.get_config("MSG_EXPIRED", (
-                    "✨ <b>THÔNG BÁO HẾT HẠN GÓI VIP</b> ✨\n"
-                    "────────────────────\n"
-                    "Gói dịch vụ <b>{plan}</b> của bạn đã chính thức khép lại.\n\n"
-                    "🙏 Cảm ơn bạn đã đồng hành cùng <b>Prive+</b>. Hệ thống đã tạm thời mời bạn rời khỏi nhóm VIP.\n\n"
-                    "🔥 Rất hy vọng được sớm gặp lại bạn trong tương lai gần!"
-                )).replace("\\n", "\n")
+                # Gửi tin báo tử
+                msg_expired = db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn và bạn đã bị mời ra khỏi nhóm.\n\n👇 Vui lòng gia hạn để tiếp tục truy cập!").replace("\\n", "\n").replace("{plan}", plan_name)
+                kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_RENEW", "🔄 Gia hạn ngay"), callback_data="nav:main_menu"))
                 
-                try:
-                    await bot.send_message(chat_id=user_id, text=farewell_template.replace("{plan}", str(plan_name)), parse_mode="HTML")
+                try: await bot.send_message(chat_id=user_id, text=msg_expired, reply_markup=kb.as_markup(), parse_mode="HTML")
                 except: pass
-
-                for j in range(1, 5):
-                    group_id = db.get_config(f"GROUP_{j}_ID")
-                    if group_id:
-                        try:
-                            await bot.ban_chat_member(chat_id=int(group_id), user_id=int(user_id))
-                            await bot.unban_chat_member(chat_id=int(group_id), user_id=int(user_id))
-                        except Exception: pass
+                
+                # Xử lý Kick (Ban rồi Unban để đuổi ra mà không khóa vĩnh viễn)
+                for g in range(1, 5):
+                    btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
+                    if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
+                        gid = db.get_config(f"ID_G{g}")
+                        if gid:
+                            try:
+                                await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
+                                await bot.unban_chat_member(chat_id=gid, user_id=int(user_id)) # Unban ngay để họ còn mua lại được
+                            except: pass
                 continue
 
-            # --- 2. NHẮC NHỞ & UP-SALE TRƯỚC X NGÀY VÀO LÚC Y GIỜ ---
-            if 0 < time_left.total_seconds() <= days_notice * 24 * 3600:
-                if now.hour == reminder_hour:
-                    notif_key = f"{user_id}_{today_str}"
-                    
-                    if notif_key not in notified_users:
-                        days_rounded = time_left.days + 1
-                        
-                        msg_template = db.get_config("MSG_REMINDER", (
-                            "⏰ <b>TÀI KHOẢN CỦA BẠN SẮP HẾT HẠN!</b> ⏰\n"
-                            "────────────────────\n"
-                            "Gói <b>{plan}</b> của bạn sẽ kết thúc vào:\n"
-                            "⏳ <code>{date}</code> (Chỉ còn {days} ngày nữa).\n\n"
-                            "🔥 Đừng để gián đoạn trải nghiệm VIP. Hãy gia hạn ngay hôm nay, hoặc <b>NÂNG CẤP TRỌN ĐỜI</b> để được trừ lại tiền gói 1 tháng bạn đang dùng nhé!"
-                        )).replace("\\n", "\n")
-                        
-                        msg = msg_template.replace("{plan}", str(plan_name)).replace("{date}", str(expire_str)).replace("{days}", str(days_rounded))
-                        
-                        # TẠO NÚT UP-SALE THÔNG MINH
-                        kb = InlineKeyboardBuilder()
-                        is_full = ("full" in plan_name.lower() or "svip" in plan_name.lower())
-                        renew_cb = None; upsell_cb = None; p_1m = 0; p_life = 0
-                        
-                        if is_full:
-                            renew_cb = "view_full_1m"
-                            upsell_cb = "upsell_full"
-                            p_1m = int(db.get_config("PRICE_1_MONTH", "999"))
-                            p_life = int(db.get_config("PRICE_LIFETIME", "999"))
-                        else:
-                            for j in range(1, 5):
-                                g_name = db.get_config(f"BTN_G{j}", f"Nhóm {j}").lower()
-                                if g_name in plan_name.lower() or f"nhóm {j}" in plan_name.lower() or f"g{j}" in plan_name.lower():
-                                    renew_cb = f"buy_G{j}_1m"
-                                    upsell_cb = f"upsell_G{j}"
-                                    p_1m = int(db.get_config(f"PRICE_G{j}_1M", "50000"))
-                                    p_life = int(db.get_config(f"PRICE_G{j}_LIFE", "149000"))
-                                    break
-                        
-                        if renew_cb and upsell_cb:
-                            upsell_price = max(0, p_life - p_1m) # Giảm giá bằng đúng gói 1 tháng
-                            
-                            btn_renew_text = db.get_config("BTN_REM_RENEW", "♻️ Gia hạn 1 Tháng ({price})")
-                            btn_upsell_text = db.get_config("BTN_REM_UPSELL", "🚀 Lên Trọn đời (Chỉ bù {upsell_price})")
-                            
-                            btn_renew_text = btn_renew_text.replace("{price}", format_currency(p_1m))
-                            btn_upsell_text = btn_upsell_text.replace("{upsell_price}", format_currency(upsell_price))
-                            
-                            kb.row(InlineKeyboardButton(text=btn_renew_text, callback_data=renew_cb))
-                            kb.row(InlineKeyboardButton(text=btn_upsell_text, callback_data=upsell_cb))
-                        
-                        try:
-                            if len(kb.as_markup().inline_keyboard) > 0:
-                                await bot.send_message(chat_id=user_id, text=msg, reply_markup=kb.as_markup(), parse_mode="HTML")
-                            else:
-                                await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
-                                
-                            notified_users.add(notif_key)
-                            logging.info(f"📩 Đã nhắc gia hạn ({days_rounded} ngày) cho User {user_id}")
-                        except Exception as e:
-                            logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
+            # ==========================================
+            # 2. NHẮC NHỞ SẮP HẾT HẠN (GỬI 1 LẦN/NGÀY)
+            # ==========================================
+            if days_remaining == days_notice and notif_key not in notified_users:
+                msg_reminder = db.get_config("MSG_REMINDER", "⏰ Gói <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa!\n\n👇 Nhấn nút bên dưới để gia hạn ngay nhé:").replace("\\n", "\n").replace("{plan}", plan_name).replace("{days}", str(days_remaining))
+                
+                # Trỏ thẳng về các trang UI mới để khách mua hàng
+                kb = InlineKeyboardBuilder()
+                if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
+                else:
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
+
+                try:
+                    await bot.send_message(chat_id=user_id, text=msg_reminder, reply_markup=kb.as_markup(), parse_mode="HTML")
+                    notified_users.add(notif_key) # Lưu nháp để hôm nay không nhắc lại nữa
+                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}")
+                except Exception as e:
+                    logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
 
     except Exception as e:
         logging.error(f"❌ Lỗi hệ thống quét định kỳ: {e}")
 
+# Worker chạy ngầm vĩnh viễn
 async def main():
-    print("🚀 [PRIVE+] Hệ thống Scheduler vận hành chính thức đã khởi động!")
-    await asyncio.sleep(10) 
+    print("🚀 [MODULE] Scheduler (Quản gia: Nhắc hạn/Kick) đã khởi động!")
+    await asyncio.sleep(60) 
     
     while True:
         await check_expirations_professional()
         
-        # Dọn dẹp bộ nhớ RAM mỗi ngày (Chỉ giữ lại những user đã thông báo trong ngày hôm nay)
-        today_str = str(datetime.now().date())
+        # Cuối ngày dọn dẹp RAM xóa các record của ngày hôm trước
+        today_str = datetime.now().strftime("%Y-%m-%d")
         to_remove = [k for k in notified_users if not k.endswith(today_str)]
         for k in to_remove: notified_users.remove(k)
             
-        logging.info("💤 Hoàn tất chu kỳ quét. Sẽ quay lại sau 60 phút...")
-        await asyncio.sleep(3600) 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        # Bot ngủ 4 tiếng rồi mới quét Sheet lại 1 lần (Cho nhẹ máy chủ)
+        logging.info("💤 Hoàn tất chu kỳ quét. Quản gia đi ngủ 4 tiếng...")
+        await asyncio.sleep(14400)
