@@ -8,6 +8,7 @@ from database import db
 from bot_instance import bot
 from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
 from modules.mod_engine import page_exists, render_page 
+from scheduler import check_expirations_professional
 
 router = Router()
 
@@ -23,6 +24,16 @@ async def cmd_reload(message: Message):
         await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!"))
     else:
         await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+
+@router.message(Command("check_expiry"))
+async def cmd_check_expiry(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+        return
+
+    await message.reply("⏳ Đang quét hạn dùng ngay bây giờ...")
+    await check_expirations_professional()
+    await message.reply("✅ Đã chạy xong một vòng quét hạn dùng. Xem log server để biết dòng nào đã gửi/kick hoặc bị bỏ qua.")
 
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())

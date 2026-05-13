@@ -84,6 +84,3 @@ async def maintenance_worker():
         # Làm việc xong, cho Lao công đi ngủ 12 tiếng (43200 giây) rồi mới quét lại
         logging.info("💤 Dọn dẹp xong! Module Maintenance sẽ ngủ 12 tiếng.")
         await asyncio.sleep(43200)
-
-# Kích hoạt module chạy ngầm vĩnh viễn
-asyncio.create_task(maintenance_worker())

@@ -1,7 +1,4 @@
 #!/bin/bash
 
-# Khởi chạy Scheduler ở chế độ nền (background)
-python scheduler.py &
-
-# Khởi chạy Bot chính (tiến trình này sẽ giữ cho Server luôn chạy)
+# Khởi chạy Bot chính. main.py sẽ tự bật Scheduler/Maintenance worker.
 python main.py

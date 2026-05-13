@@ -20,6 +20,7 @@ async def set_commands():
         BotCommand(command="me", description="Kiểm tra gói & Hạn dùng"),
         BotCommand(command="support", description="Liên hệ hỗ trợ Admin"),
         BotCommand(command="policy", description="Đọc quy định nhóm"), # Thêm dòng này!
+        BotCommand(command="check_expiry", description="Admin: quét hạn dùng ngay"),
     ]
     await bot.set_my_commands(commands)
 
