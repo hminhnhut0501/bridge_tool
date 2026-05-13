@@ -1,10 +1,15 @@
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from aiogram.exceptions import TelegramBadRequest
+import re
+from html import unescape
 from database import db
 from bot_instance import bot, is_spamming
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
+
+def strip_html_tags(text):
+    return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
 
 async def cleanup_welcome(user_id, chat_id):
     """Hàm dọn dẹp các tin nhắn rác/chào mừng cũ"""
@@ -67,7 +72,7 @@ async def smart_display(event, text, reply_markup, img=None):
                 
     except TelegramBadRequest as e:
         if "parse entities" in str(e).lower() or "can't parse entities" in str(e).lower() or "tag" in str(e).lower():
-            fallback_text = f"⚠️ Lỗi định dạng HTML từ Google Sheets. Vui lòng kiểm tra lại thẻ < b >, < i > ở text.\n\nNội dung thô:\n{final_text}"
+            fallback_text = strip_html_tags(final_text)
             if isinstance(event, Message):
                 await event.answer(fallback_text, reply_markup=reply_markup, parse_mode=None)
             else:

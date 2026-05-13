@@ -7,7 +7,7 @@ from aiogram.filters import CommandStart, Command
 from database import db
 from bot_instance import bot
 from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
-from modules.mod_engine import render_page 
+from modules.mod_engine import page_exists, render_page 
 
 router = Router()
 
@@ -49,7 +49,9 @@ async def view_policy(event):
     
     # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
     try:
-        if "policy_page" in db.pages_cache:
+        if not page_exists("policy_page"):
+            db.reload_config(force=True)
+        if page_exists("policy_page"):
             rendered = await render_page(event, "policy_page")
             if rendered:
                 return
@@ -76,7 +78,9 @@ async def view_support(event):
     
     # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
     try:
-        if "support_page" in db.pages_cache:
+        if not page_exists("support_page"):
+            db.reload_config(force=True)
+        if page_exists("support_page"):
             rendered = await render_page(event, "support_page")
             if rendered:
                 return

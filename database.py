@@ -2,10 +2,14 @@ import os
 import time
 import gspread
 import json
+import re
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def normalize_key(value):
+    return re.sub(r"[\u200b-\u200d\ufeff]", "", str(value or "")).strip()
 
 class Database:
     def __init__(self):
@@ -36,8 +40,15 @@ class Database:
             self.config_sheet = self.sh.worksheet("Config")
             
             # Kết nối tab MenuBuilder
-            try: self.menu_sheet = self.sh.worksheet("MenuBuilder")
-            except: print("⚠️ Chưa tìm thấy tab MenuBuilder, Bot sẽ chạy giao diện cũ.")
+            try:
+                self.menu_sheet = self.sh.worksheet("MenuBuilder")
+            except:
+                self.menu_sheet = next(
+                    (sheet for sheet in self.sh.worksheets() if normalize_key(sheet.title).lower() == "menubuilder"),
+                    None,
+                )
+                if not self.menu_sheet:
+                    print("⚠️ Chưa tìm thấy tab MenuBuilder, Bot sẽ chạy giao diện cũ.")
 
             print("✅ Kết nối Google Sheets thành công!")
             self.reload_config(force=True)
@@ -48,7 +59,6 @@ class Database:
     def reload_config(self, force=False):
         current_time = time.time()
         if not force and (current_time - self.last_reload_time < 60): return
-        if force and self.cache_config and (current_time - self.last_reload_time < 10): return
 
         try:
             # 1. Tải Config
@@ -56,7 +66,7 @@ class Database:
             temp_cache = {}
             for row in all_rows:
                 if len(row) >= 2:
-                    key = str(row[0]).strip().upper()
+                    key = normalize_key(row[0]).upper()
                     if key: temp_cache[key] = str(row[1]).strip()
             self.cache_config = temp_cache
             
@@ -66,13 +76,14 @@ class Database:
                 temp_pages = {}
                 for row in menu_rows[1:]: # Bỏ qua tiêu đề
                     if len(row) >= 4:
-                        pid = str(row[0]).strip()
+                        pid = normalize_key(row[0])
                         if pid:
                             temp_pages[pid] = {
                                 'img': str(row[1]).strip(),
                                 'text': str(row[2]).strip(),
                                 'layout': str(row[3]).strip()
                             }
+                            temp_pages[pid.lower()] = temp_pages[pid]
                 self.pages_cache = temp_pages
                 print(f"🎨 Đã nạp thành công {len(self.pages_cache)} trang giao diện động!")
 
@@ -82,6 +93,10 @@ class Database:
 
     def get_config(self, key, default=""):
         if not self.cache_config: self.reload_config(force=True)
-        return self.cache_config.get(str(key).strip().upper(), str(default))
+        return self.cache_config.get(normalize_key(key).upper(), str(default))
+
+    def get_page(self, page_id):
+        normalized = normalize_key(page_id)
+        return self.pages_cache.get(normalized) or self.pages_cache.get(normalized.lower())
 
 db = Database()

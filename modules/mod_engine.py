@@ -1,9 +1,10 @@
 import re
+from html import unescape
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from database import db
+from database import db, normalize_key
 
 router = Router()
 
@@ -25,6 +26,12 @@ def process_dynamic_text(text):
             val = format_currency(val)
         text = text.replace(f"{{{key}}}", val)
     return text
+
+def page_exists(page_id):
+    return db.get_page(page_id) is not None
+
+def strip_html_tags(text):
+    return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
 
 def build_dynamic_keyboard(layout_str):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -57,26 +64,38 @@ def build_dynamic_keyboard(layout_str):
 
 async def send_with_html_fallback(sender, *, text=None, photo=None, reply_markup=None):
     """Gửi HTML trước; nếu Sheet sai thẻ HTML thì gửi lại dạng text thường."""
+    final_text = str(text or "")
+    caption_limit = 1024
+
     try:
         if photo:
-            await sender.answer_photo(photo=photo, caption=text, reply_markup=reply_markup, parse_mode="HTML")
+            if len(final_text) <= caption_limit:
+                await sender.answer_photo(photo=photo, caption=final_text, reply_markup=reply_markup, parse_mode="HTML")
+            else:
+                await sender.answer_photo(photo=photo, parse_mode=None)
+                await sender.answer(final_text, reply_markup=reply_markup, parse_mode="HTML")
         else:
-            await sender.answer(text, reply_markup=reply_markup, parse_mode="HTML")
+            await sender.answer(final_text, reply_markup=reply_markup, parse_mode="HTML")
     except TelegramBadRequest as e:
         err = str(e).lower()
         if "parse entities" not in err and "can't parse entities" not in err:
             raise
 
-        warning = "⚠️ Nội dung trên Google Sheets đang sai định dạng HTML nên bot hiển thị dạng chữ thường.\n\n"
-        safe_text = f"{warning}{text}"
+        print(f"❌ Lỗi định dạng HTML khi render MenuBuilder: {e}")
+        safe_text = strip_html_tags(final_text)
         if photo:
-            await sender.answer_photo(photo=photo, caption=safe_text, reply_markup=reply_markup, parse_mode=None)
+            if len(safe_text) <= caption_limit:
+                await sender.answer_photo(photo=photo, caption=safe_text, reply_markup=reply_markup, parse_mode=None)
+            else:
+                await sender.answer_photo(photo=photo, parse_mode=None)
+                await sender.answer(safe_text, reply_markup=reply_markup, parse_mode=None)
         else:
             await sender.answer(safe_text, reply_markup=reply_markup, parse_mode=None)
 
 async def render_page(target, page_id):
     """Hàm lấy dữ liệu từ RAM và xuất ra giao diện"""
-    page = db.pages_cache.get(page_id)
+    page_id = normalize_key(page_id)
+    page = db.get_page(page_id)
     if not page:
         err = f"⚠️ LỖI: Không tìm thấy trang `{page_id}` trên tab MenuBuilder!"
         if isinstance(target, CallbackQuery):
@@ -141,7 +160,9 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
 
 @router.callback_query(F.data.startswith("nav:"))
 async def handle_navigation(callback: CallbackQuery):
-    page_id = callback.data.split("nav:")[1].strip()
-    if page_id not in db.pages_cache and await render_static_fallback(callback, page_id):
+    page_id = normalize_key(callback.data.split("nav:", 1)[1])
+    if not page_exists(page_id):
+        db.reload_config(force=True)
+    if not page_exists(page_id) and await render_static_fallback(callback, page_id):
         return
     await render_page(callback, page_id)
