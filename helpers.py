@@ -62,6 +62,7 @@ async def smart_display(event, text, reply_markup, img=None):
                 await event.message.answer_photo(photo=final_img, caption=final_text, reply_markup=reply_markup, parse_mode="HTML")
             else:
                 await event.message.answer(text=final_text, reply_markup=reply_markup, parse_mode="HTML")
+            await event.answer()
                 
     except Exception as e:
         if "parse entities" in str(e).lower() or "tag" in str(e).lower():
@@ -70,5 +71,6 @@ async def smart_display(event, text, reply_markup, img=None):
                 await event.answer(fallback_text, reply_markup=reply_markup)
             else:
                 await event.message.answer(fallback_text, reply_markup=reply_markup)
+                await event.answer()
         else:
             print(f"❌ Lỗi xuất giao diện: {e}")

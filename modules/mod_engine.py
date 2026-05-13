@@ -64,7 +64,7 @@ async def render_page(target, page_id):
             await target.answer()
         else:
             await target.answer(err)
-        return
+        return False
 
     # 🔥 Dịch các biến {PRICE...} trong Nội dung bài viết
     raw_text = page['text'].replace('\\n', '\n')
@@ -90,8 +90,38 @@ async def render_page(target, page_id):
             await target.answer_photo(photo=img_url, caption=text, reply_markup=kb_markup, parse_mode="HTML")
         else:
             await target.answer(text, reply_markup=kb_markup, parse_mode="HTML")
+    return True
+
+async def render_static_fallback(callback: CallbackQuery, page_id):
+    """Fallback cho các trang lõi khi MenuBuilder chưa có dữ liệu."""
+    fallback_pages = {
+        "policy_page": ("MSG_POLICY", "Chính sách đang cập nhật...", "IMG_POLICY"),
+        "support_page": ("MSG_SUPPORT", "Hỗ trợ đang cập nhật...", "IMG_SUPPORT"),
+    }
+    fallback = fallback_pages.get(page_id)
+    if not fallback:
+        return False
+
+    text_key, default_text, img_key = fallback
+    text = db.get_config(text_key, default_text).replace("\\n", "\n")
+    img_url = db.get_config(img_key, "")
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+
+    try:
+        await callback.message.delete()
+    except:
+        pass
+
+    if img_url and len(str(img_url)) > 10:
+        await callback.message.answer_photo(photo=img_url, caption=text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    else:
+        await callback.message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    await callback.answer()
+    return True
 
 @router.callback_query(F.data.startswith("nav:"))
 async def handle_navigation(callback: CallbackQuery):
     page_id = callback.data.split("nav:")[1].strip()
+    if page_id not in db.pages_cache and await render_static_fallback(callback, page_id):
+        return
     await render_page(callback, page_id)

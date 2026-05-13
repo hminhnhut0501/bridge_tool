@@ -40,6 +40,7 @@ async def back_to_main(callback: CallbackQuery):
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("policy"))
 @router.callback_query(F.data == "policy")
+@router.callback_query(F.data == "policy_page")
 @router.callback_query(F.data == "nav:policy_page")
 async def view_policy(event):
     if not await check_protection(event): return
@@ -48,11 +49,21 @@ async def view_policy(event):
     
     # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
     try:
-        await render_page(event, "policy_page")
-    except:
+        if "policy_page" in db.pages_cache:
+            rendered = await render_page(event, "policy_page")
+            if rendered:
+                return
+    except Exception as e:
+        print(f"❌ Lỗi render policy_page: {e}")
+
+    try:
         text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
         kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
+    except Exception as e:
+        print(f"❌ Lỗi fallback /policy: {e}")
+        if isinstance(event, CallbackQuery):
+            await event.answer("Không thể mở trang quy định lúc này.", show_alert=True)
 
 # [5] TRANG HỖ TRỢ (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("support"))
@@ -65,11 +76,21 @@ async def view_support(event):
     
     # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
     try:
-        await render_page(event, "support_page")
-    except:
+        if "support_page" in db.pages_cache:
+            rendered = await render_page(event, "support_page")
+            if rendered:
+                return
+    except Exception as e:
+        print(f"❌ Lỗi render support_page: {e}")
+
+    try:
         text = db.get_config("MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
         kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
+    except Exception as e:
+        print(f"❌ Lỗi fallback /support: {e}")
+        if isinstance(event, CallbackQuery):
+            await event.answer("Không thể mở trang hỗ trợ lúc này.", show_alert=True)
 
 # [6] TRANG THÔNG TIN TÀI KHOẢN (/ME)
 @router.message(Command("me"))
