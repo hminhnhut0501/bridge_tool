@@ -1,4 +1,5 @@
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
+from aiogram.exceptions import TelegramBadRequest
 from database import db
 from bot_instance import bot, is_spamming
 
@@ -64,13 +65,15 @@ async def smart_display(event, text, reply_markup, img=None):
                 await event.message.answer(text=final_text, reply_markup=reply_markup, parse_mode="HTML")
             await event.answer()
                 
-    except Exception as e:
-        if "parse entities" in str(e).lower() or "tag" in str(e).lower():
+    except TelegramBadRequest as e:
+        if "parse entities" in str(e).lower() or "can't parse entities" in str(e).lower() or "tag" in str(e).lower():
             fallback_text = f"⚠️ Lỗi định dạng HTML từ Google Sheets. Vui lòng kiểm tra lại thẻ < b >, < i > ở text.\n\nNội dung thô:\n{final_text}"
             if isinstance(event, Message):
-                await event.answer(fallback_text, reply_markup=reply_markup)
+                await event.answer(fallback_text, reply_markup=reply_markup, parse_mode=None)
             else:
-                await event.message.answer(fallback_text, reply_markup=reply_markup)
+                await event.message.answer(fallback_text, reply_markup=reply_markup, parse_mode=None)
                 await event.answer()
         else:
             print(f"❌ Lỗi xuất giao diện: {e}")
+    except Exception as e:
+        print(f"❌ Lỗi xuất giao diện: {e}")

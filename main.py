@@ -28,10 +28,6 @@ try:
 except: maintenance_worker = None
 
 try:
-    from modules.mod_autopost import auto_post_worker
-except: auto_post_worker = None
-
-try:
     from scheduler import main as scheduler_worker
 except: 
     try:
@@ -83,10 +79,6 @@ async def main():
     if maintenance_worker:
         asyncio.create_task(maintenance_worker())
         print("🛠 [Worker] Đã kích hoạt Lao công (Maintenance)")
-        
-    if auto_post_worker:
-        asyncio.create_task(auto_post_worker())
-        print("📮 [Worker] Đã kích hoạt Auto-Post")
         
     if scheduler_worker:
         asyncio.create_task(scheduler_worker())

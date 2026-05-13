@@ -1,5 +1,6 @@
 import re
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db
@@ -54,6 +55,25 @@ def build_dynamic_keyboard(layout_str):
             
     return kb.as_markup()
 
+async def send_with_html_fallback(sender, *, text=None, photo=None, reply_markup=None):
+    """Gửi HTML trước; nếu Sheet sai thẻ HTML thì gửi lại dạng text thường."""
+    try:
+        if photo:
+            await sender.answer_photo(photo=photo, caption=text, reply_markup=reply_markup, parse_mode="HTML")
+        else:
+            await sender.answer(text, reply_markup=reply_markup, parse_mode="HTML")
+    except TelegramBadRequest as e:
+        err = str(e).lower()
+        if "parse entities" not in err and "can't parse entities" not in err:
+            raise
+
+        warning = "⚠️ Nội dung trên Google Sheets đang sai định dạng HTML nên bot hiển thị dạng chữ thường.\n\n"
+        safe_text = f"{warning}{text}"
+        if photo:
+            await sender.answer_photo(photo=photo, caption=safe_text, reply_markup=reply_markup, parse_mode=None)
+        else:
+            await sender.answer(safe_text, reply_markup=reply_markup, parse_mode=None)
+
 async def render_page(target, page_id):
     """Hàm lấy dữ liệu từ RAM và xuất ra giao diện"""
     page = db.pages_cache.get(page_id)
@@ -80,16 +100,16 @@ async def render_page(target, page_id):
             pass 
 
         if img_url and len(str(img_url)) > 10:
-            await target.message.answer_photo(photo=img_url, caption=text, reply_markup=kb_markup, parse_mode="HTML")
+            await send_with_html_fallback(target.message, photo=img_url, text=text, reply_markup=kb_markup)
         else:
-            await target.message.answer(text, reply_markup=kb_markup, parse_mode="HTML")
+            await send_with_html_fallback(target.message, text=text, reply_markup=kb_markup)
         await target.answer()
         
     else:
         if img_url and len(str(img_url)) > 10:
-            await target.answer_photo(photo=img_url, caption=text, reply_markup=kb_markup, parse_mode="HTML")
+            await send_with_html_fallback(target, photo=img_url, text=text, reply_markup=kb_markup)
         else:
-            await target.answer(text, reply_markup=kb_markup, parse_mode="HTML")
+            await send_with_html_fallback(target, text=text, reply_markup=kb_markup)
     return True
 
 async def render_static_fallback(callback: CallbackQuery, page_id):
@@ -113,9 +133,9 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
         pass
 
     if img_url and len(str(img_url)) > 10:
-        await callback.message.answer_photo(photo=img_url, caption=text, reply_markup=kb.as_markup(), parse_mode="HTML")
+        await send_with_html_fallback(callback.message, photo=img_url, text=text, reply_markup=kb.as_markup())
     else:
-        await callback.message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+        await send_with_html_fallback(callback.message, text=text, reply_markup=kb.as_markup())
     await callback.answer()
     return True
 
