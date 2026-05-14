@@ -13,6 +13,7 @@ from bot_instance import bot
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
 from modules.mod_engine import render_page
 from sale_utils import format_price_label, get_price, sale_banner
+from renewal_utils import build_early_renew_offer
 
 router = Router()
 
@@ -44,6 +45,92 @@ def safe_int(value_str):
 def sale_text_for_price(price_key, default=0):
     banner = sale_banner(price_key, default)
     return f"\n\n{banner}" if banner else ""
+
+async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
+    raw_bin = str(pay_data.get('bin', ''))
+    bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
+    actual_stk = pay_data.get('accountNumber', 'N/A')
+    qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
+    safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
+    
+    caption = db.get_config("MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
+    caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_currency(amount)).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
+    caption += extra_caption
+    
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
+    
+    try:
+        await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url, caption=caption, reply_markup=kb.as_markup(), parse_mode="HTML")
+    except:
+        kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
+        await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+
+@router.callback_query(F.data.startswith("renew_"))
+async def process_early_renew(callback: CallbackQuery):
+    if not await check_protection(callback): return
+
+    try:
+        row_index = int(callback.data.split("_", 1)[1])
+    except Exception:
+        await callback.answer("Mã gia hạn không hợp lệ.", show_alert=True)
+        return
+
+    users_data = db.users_sheet.get_all_values()
+    if row_index < 2 or row_index > len(users_data):
+        await callback.answer("Ưu đãi gia hạn không còn hợp lệ.", show_alert=True)
+        return
+
+    row = users_data[row_index - 1]
+    if len(row) < 8 or str(row[1]).strip() != str(callback.from_user.id):
+        await callback.answer("Ưu đãi này không thuộc tài khoản của bạn.", show_alert=True)
+        return
+
+    offer = build_early_renew_offer(row, row_index)
+    if not offer:
+        await callback.answer("Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ.", show_alert=True)
+        return
+
+    user_id = callback.from_user.id
+    current_time = time.time()
+    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
+        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        return
+    user_cooldowns[user_id] = current_time
+
+    msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    order_id = int(time.time())
+    description = f"PRIVE{order_id}"[-20:]
+    amount = offer["renew_price"]
+
+    pay_data = payos_manager.create_payment_link(order_id, amount, description)
+    if not pay_data:
+        await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+        return
+
+    db.users_sheet.append_row([
+        order_id,
+        str(callback.from_user.id),
+        callback.from_user.full_name,
+        offer["plan_name"],
+        amount,
+        "PENDING",
+        "",
+        "",
+        offer["offer_id"],
+        offer["original_price"],
+    ])
+
+    extra_caption = (
+        f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_currency(offer['original_price'])}</s> → "
+        f"<b>{format_currency(amount)}</b> (-{offer['discount_percent']}%)"
+        f"\n⏳ Ưu đãi hết khi VIP hết hạn: <code>{offer['expire_at'].strftime('%d/%m/%Y %H:%M:%S')}</code>"
+    )
+    await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
+    await safe_delete_private_message(msg_wait)
+    await safe_delete_private_message(callback.message)
+    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
 
 @router.callback_query(F.data.startswith("group_"))
 async def view_group_detail(callback: CallbackQuery):
@@ -156,32 +243,16 @@ async def process_buy_request(callback: CallbackQuery):
     if pay_data:
         sale_id = sale_info["sale_id"] if sale_info else ""
         db.users_sheet.append_row([order_id, str(callback.from_user.id), callback.from_user.full_name, plan_name, amount, "PENDING", "", "", sale_id, original_amount or amount])
-        
-        raw_bin = str(pay_data.get('bin', ''))
-        bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
-        actual_stk = pay_data.get('accountNumber', 'N/A')
-        qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
-        safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
-        
-        caption = db.get_config("MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
-        caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_currency(amount)).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
+        extra_caption = ""
         if sale_info:
-            sale_line = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
+            extra_caption = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
             if sale_info["remaining_slots"] is not None:
                 remaining_after_order = max(0, sale_info["remaining_slots"] - 1)
-                sale_line += f"\n🎟 Slot sale còn lại sau đơn này: {remaining_after_order}/{sale_info['slot_limit']}"
+                extra_caption += f"\n🎟 Slot sale còn lại sau đơn này: {remaining_after_order}/{sale_info['slot_limit']}"
             if sale_info["countdown"]:
-                sale_line += f"\n⏳ Sale còn: {sale_info['countdown']}"
-            caption += sale_line
-        
-        kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text=db.get_config("BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
-        kb.row(InlineKeyboardButton(text=db.get_config("BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
-        
-        try: await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url, caption=caption, reply_markup=kb.as_markup(), parse_mode="HTML")
-        except: 
-            kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
-            await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+                extra_caption += f"\n⏳ Sale còn: {sale_info['countdown']}"
+
+        await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption)
             
         await safe_delete_private_message(msg_wait)
         await safe_delete_private_message(callback.message)

@@ -20,6 +20,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 
 from bot_instance import bot, dp, set_commands
 from database import db
+from analytics import setup_analytics
 
 # Import các hàm worker chạy ngầm từ các module
 # Lưu ý: Đảm bảo đường dẫn file chính xác theo cấu trúc của bạn
@@ -73,6 +74,7 @@ async def main():
     await set_commands()
     
     # 3. Nạp các module giao diện (Routers)
+    setup_analytics(dp)
     load_all_modules()
     
     # 4. 🔥 KÍCH HOẠT CÁC TÁC VỤ CHẠY NGẦM (WORKERS)

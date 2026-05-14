@@ -14,6 +14,51 @@ cancelled_orders = set()
 def escape_html(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+def parse_expire_datetime(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    formats = (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+    )
+    for fmt in formats:
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+def normalize_chat_id(value):
+    raw = str(value or "").strip()
+    if raw.endswith(".0"):
+        raw = raw[:-2]
+    return raw
+
+def find_current_expire(users_data, user_id, plan_name):
+    now = datetime.now()
+    best_expire = None
+    target_plan = plan_name.upper()
+    for row in users_data[1:]:
+        if len(row) < 8:
+            continue
+        if str(row[1]).strip() != str(user_id):
+            continue
+        if str(row[5]).strip().upper() != "PAID":
+            continue
+        if str(row[3]).strip().upper() != target_plan:
+            continue
+
+        expire = parse_expire_datetime(row[7])
+        if expire and expire > now and (best_expire is None or expire > best_expire):
+            best_expire = expire
+    return best_expire
+
 # ======================================================
 # 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
 # ======================================================
@@ -45,22 +90,23 @@ async def process_successful_payment(order_code: str):
             print(f"❌ Không tìm thấy đơn {target_code} để giao hàng.")
             return
 
-        # Tính toán hạn dùng
+        # Tính toán hạn dùng. Nếu gia hạn sớm cùng gói, cộng tiếp từ hạn cũ.
         is_lifetime = ("TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper())
         days_to_add = 3650 if is_lifetime else 30
-        expire_date = (datetime.now() + timedelta(days=days_to_add)).strftime("%Y-%m-%d")
+        base_date = find_current_expire(users_data, user_id, plan_name) or datetime.now()
+        expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
         groups_to_invite = []
         if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
             for g in range(1, 21):
-                gid = db.get_config(f"ID_G{g}")
+                gid = normalize_chat_id(db.get_config(f"ID_G{g}"))
                 if gid: groups_to_invite.append((gid, db.get_config(f"BTN_G{g}", f"Nhóm {g}")))
         else:
             for g in range(1, 21):
                 btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
                 if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name:
-                    gid = db.get_config(f"ID_G{g}")
+                    gid = normalize_chat_id(db.get_config(f"ID_G{g}"))
                     if gid: groups_to_invite.append((gid, btn_name))
 
         # Tạo link mời (Giới hạn 1 người vào)

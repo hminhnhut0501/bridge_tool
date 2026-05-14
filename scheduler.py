@@ -6,6 +6,7 @@ from database import db
 from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
+from renewal_utils import build_early_renew_block, build_early_renew_offer
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -49,6 +50,16 @@ def normalize_chat_id(value):
     if raw.endswith(".0"):
         raw = raw[:-2]
     return raw
+
+def row_value(row, index, default=""):
+    return str(row[index]).strip() if len(row) > index else default
+
+def should_skip_reminder(row, today_str):
+    last_reminder_date = row_value(row, 10)
+    return last_reminder_date == today_str
+
+def should_skip_expired_notice(row):
+    return bool(row_value(row, 11))
 
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
@@ -103,20 +114,21 @@ async def check_expirations_professional():
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
 
-                # Gửi tin báo tử
-                msg_expired = (
-                    db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn và bạn đã bị mời ra khỏi nhóm.\n\n👇 Vui lòng gia hạn để tiếp tục truy cập!")
-                    .replace("\\n", "\n")
-                    .replace("{plan}", plan_name)
-                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
-                )
-                kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_RENEW", "🔄 Gia hạn ngay"), callback_data="nav:main_menu"))
-                
-                try:
-                    await send_html_message(user_id, msg_expired, kb.as_markup())
-                    logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
+                if not should_skip_expired_notice(row):
+                    # Gửi tin báo tử
+                    msg_expired = (
+                        db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn và bạn đã bị mời ra khỏi nhóm.\n\n👇 Vui lòng gia hạn để tiếp tục truy cập!")
+                        .replace("\\n", "\n")
+                        .replace("{plan}", plan_name)
+                        .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
+                    )
+                    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_RENEW", "🔄 Gia hạn ngay"), callback_data="nav:main_menu"))
+                    
+                    try:
+                        await send_html_message(user_id, msg_expired, kb.as_markup())
+                        logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
+                    except Exception as e:
+                        logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
                 
                 # Xử lý Kick (Ban rồi Unban để đuổi ra mà không khóa vĩnh viễn)
                 for g in range(1, 21):
@@ -133,7 +145,7 @@ async def check_expirations_professional():
 
                 # Đổi trạng thái thành EXPIRED sau khi đã xử lý gửi/kick
                 try:
-                    db.users_sheet.update_cell(i, 6, "EXPIRED")
+                    db.users_sheet.update(f"F{i}:L{i}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), now.strftime("%Y-%m-%d %H:%M:%S")]])
                     logging.info(f"✅ Đã cập nhật EXPIRED tại dòng {i}.")
                 except Exception as e:
                     logging.error(f"❌ Lỗi cập nhật EXPIRED dòng {i}: {e}")
@@ -142,7 +154,7 @@ async def check_expirations_professional():
             # ==========================================
             # 2. NHẮC NHỞ SẮP HẾT HẠN (GỬI 1 LẦN/NGÀY)
             # ==========================================
-            if 0 <= days_remaining <= days_notice and notif_key not in notified_users:
+            if 0 <= days_remaining <= days_notice and notif_key not in notified_users and not should_skip_reminder(row, today_str):
                 msg_reminder = (
                     db.get_config("MSG_REMINDER", "⏰ Gói <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa!\n\n👇 Nhấn nút bên dưới để gia hạn ngay nhé:")
                     .replace("\\n", "\n")
@@ -150,10 +162,17 @@ async def check_expirations_professional():
                     .replace("{days}", str(days_remaining))
                     .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
                 )
+                early_renew_offer = build_early_renew_offer(row, i, now)
+                msg_reminder += build_early_renew_block(early_renew_offer)
                 
                 # Trỏ thẳng về các trang UI mới để khách mua hàng
                 kb = InlineKeyboardBuilder()
-                if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
+                if early_renew_offer:
+                    kb.row(InlineKeyboardButton(
+                        text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"),
+                        callback_data=f"renew_{i}",
+                    ))
+                elif "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
                 else:
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
@@ -161,6 +180,7 @@ async def check_expirations_professional():
                 try:
                     await send_html_message(user_id, msg_reminder, kb.as_markup())
                     notified_users.add(notif_key) # Lưu nháp để hôm nay không nhắc lại nữa
+                    db.users_sheet.update_cell(i, 11, today_str)
                     logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, dòng {i}.")
                 except Exception as e:
                     logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
