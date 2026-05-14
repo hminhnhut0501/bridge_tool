@@ -1,26 +1,11 @@
 import asyncio
 import logging
-from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
 from database import db, normalize_key
-
-EVENT_HEADERS = [
-    "Timestamp",
-    "Date",
-    "User_ID",
-    "Username",
-    "Full_Name",
-    "Chat_ID",
-    "Chat_Type",
-    "Event_Type",
-    "Command",
-    "Callback_Data",
-    "Text_Preview",
-]
 
 USERS_HEADERS = [
     "User_ID",
@@ -36,6 +21,7 @@ USERS_HEADERS = [
     "Policy_Clicks",
     "Support_Clicks",
     "Buy_Clicks",
+    "Renew_Clicks",
     "Private_Events",
     "Last_Command",
     "Last_Callback",
@@ -53,11 +39,32 @@ DAILY_HEADERS = [
     "Policy_Clicks",
     "Support_Clicks",
     "Buy_Clicks",
+    "Renew_Clicks",
+    "User_IDs",
+    "Private_User_IDs",
 ]
 
-EVENT_SHEET = "AnalyticsEvents"
+PERIOD_HEADERS = [
+    "Period",
+    "Total_Events",
+    "Unique_Users",
+    "Private_Users",
+    "Messages",
+    "Callbacks",
+    "Commands",
+    "Starts",
+    "Policy_Clicks",
+    "Support_Clicks",
+    "Buy_Clicks",
+    "Renew_Clicks",
+    "User_IDs",
+    "Private_User_IDs",
+]
+
 USERS_SHEET = "AnalyticsUsers"
 DAILY_SHEET = "AnalyticsDaily"
+MONTHLY_SHEET = "AnalyticsMonthly"
+YEARLY_SHEET = "AnalyticsYearly"
 
 _queue = None
 _worker_task = None
@@ -65,10 +72,6 @@ _worker_task = None
 
 def _now():
     return datetime.now()
-
-
-def _text_preview(text):
-    return str(text or "").replace("\n", " ")[:120]
 
 
 def _extract_event(event):
@@ -84,7 +87,6 @@ def _extract_event(event):
         "event_type": "",
         "command": "",
         "callback_data": "",
-        "text_preview": "",
     }
 
     if isinstance(event, Message):
@@ -99,7 +101,6 @@ def _extract_event(event):
                 "chat_type": event.chat.type if event.chat else "",
                 "event_type": "message",
                 "command": command,
-                "text_preview": _text_preview(text),
             }
         )
         return base
@@ -116,28 +117,11 @@ def _extract_event(event):
                 "chat_type": chat.type if chat else "",
                 "event_type": "callback",
                 "callback_data": event.data or "",
-                "text_preview": _text_preview(message.text or message.caption if message else ""),
             }
         )
         return base
 
     return None
-
-
-def _event_row(event):
-    return [
-        event["timestamp"],
-        event["date"],
-        event["user_id"],
-        event["username"],
-        event["full_name"],
-        event["chat_id"],
-        event["chat_type"],
-        event["event_type"],
-        event["command"],
-        event["callback_data"],
-        event["text_preview"],
-    ]
 
 
 def _is_policy(event):
@@ -155,6 +139,34 @@ def _is_support(event):
 def _is_buy(event):
     callback = normalize_key(event["callback_data"]).lower()
     return callback.startswith("buy_") or callback.startswith("confirm_") or callback.startswith("upsell_")
+
+
+def _is_renew(event):
+    callback = normalize_key(event["callback_data"]).lower()
+    return callback.startswith("renew_")
+
+
+def _split_ids(value):
+    return {item for item in str(value or "").split(",") if item}
+
+
+def _join_ids(values):
+    return ",".join(sorted(str(value) for value in values if value))
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(float(str(value or "").strip()))
+    except (TypeError, ValueError):
+        return default
+
+
+def _col_name(index):
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
 
 
 def _apply_user_stats(stats, event):
@@ -178,6 +190,7 @@ def _apply_user_stats(stats, event):
             "policy_clicks": 0,
             "support_clicks": 0,
             "buy_clicks": 0,
+            "renew_clicks": 0,
             "private_events": 0,
             "last_command": "",
             "last_callback": "",
@@ -202,6 +215,8 @@ def _apply_user_stats(stats, event):
         row["support_clicks"] += 1
     if _is_buy(event):
         row["buy_clicks"] += 1
+    if _is_renew(event):
+        row["renew_clicks"] += 1
     if event["chat_type"] == "private":
         row["private_events"] += 1
     if event["callback_data"]:
@@ -224,6 +239,7 @@ def _apply_daily_stats(stats, event):
             "policy_clicks": 0,
             "support_clicks": 0,
             "buy_clicks": 0,
+            "renew_clicks": 0,
         },
     )
     row["total_events"] += 1
@@ -245,6 +261,49 @@ def _apply_daily_stats(stats, event):
         row["support_clicks"] += 1
     if _is_buy(event):
         row["buy_clicks"] += 1
+    if _is_renew(event):
+        row["renew_clicks"] += 1
+
+
+def _apply_period_stats(stats, period, event):
+    row = stats.setdefault(
+        period,
+        {
+            "period": period,
+            "total_events": 0,
+            "users": set(),
+            "private_users": set(),
+            "messages": 0,
+            "callbacks": 0,
+            "commands": 0,
+            "starts": 0,
+            "policy_clicks": 0,
+            "support_clicks": 0,
+            "buy_clicks": 0,
+            "renew_clicks": 0,
+        },
+    )
+    row["total_events"] += 1
+    if event["user_id"]:
+        row["users"].add(event["user_id"])
+        if event["chat_type"] == "private":
+            row["private_users"].add(event["user_id"])
+    if event["event_type"] == "message":
+        row["messages"] += 1
+    if event["event_type"] == "callback":
+        row["callbacks"] += 1
+    if event["command"]:
+        row["commands"] += 1
+    if normalize_key(event["command"]).lower() == "start":
+        row["starts"] += 1
+    if _is_policy(event):
+        row["policy_clicks"] += 1
+    if _is_support(event):
+        row["support_clicks"] += 1
+    if _is_buy(event):
+        row["buy_clicks"] += 1
+    if _is_renew(event):
+        row["renew_clicks"] += 1
 
 
 def _get_or_create_sheet(title, headers):
@@ -258,6 +317,9 @@ def _get_or_create_sheet(title, headers):
     values = sheet.get_all_values()
     if not values:
         sheet.append_row(headers)
+    elif values[0][: len(headers)] != headers:
+        end_col = _col_name(len(headers))
+        sheet.update(f"A1:{end_col}1", [headers])
     return sheet
 
 
@@ -283,9 +345,10 @@ def _load_existing_users(sheet):
             "policy_clicks": int(float(row[10] or 0)) if len(row) > 10 else 0,
             "support_clicks": int(float(row[11] or 0)) if len(row) > 11 else 0,
             "buy_clicks": int(float(row[12] or 0)) if len(row) > 12 else 0,
-            "private_events": int(float(row[13] or 0)) if len(row) > 13 else 0,
-            "last_command": row[14] if len(row) > 14 else "",
-            "last_callback": row[15] if len(row) > 15 else "",
+            "renew_clicks": int(float(row[13] or 0)) if len(row) > 13 else 0,
+            "private_events": int(float(row[14] or 0)) if len(row) > 14 else 0,
+            "last_command": row[15] if len(row) > 15 else "",
+            "last_callback": row[16] if len(row) > 16 else "",
         }
     return data
 
@@ -310,63 +373,38 @@ def _load_existing_daily(sheet):
             "policy_clicks": int(float(row[8] or 0)) if len(row) > 8 else 0,
             "support_clicks": int(float(row[9] or 0)) if len(row) > 9 else 0,
             "buy_clicks": int(float(row[10] or 0)) if len(row) > 10 else 0,
+            "renew_clicks": int(float(row[11] or 0)) if len(row) > 11 else 0,
+            "user_ids": _split_ids(row[12] if len(row) > 12 else ""),
+            "private_user_ids": _split_ids(row[13] if len(row) > 13 else ""),
         }
     return data
 
 
-def _compute_daily_from_events(event_sheet, dates):
-    rows = event_sheet.get_all_values()
-    computed = {}
-    target_dates = set(dates)
-    for row in rows[1:]:
-        if len(row) < 10:
+def _load_existing_periods(sheet):
+    values = sheet.get_all_values()
+    data = {}
+    for idx, row in enumerate(values[1:], start=2):
+        if not row or not row[0]:
             continue
-        date = row[1]
-        if date not in target_dates:
-            continue
-
-        item = computed.setdefault(
-            date,
-            {
-                "date": date,
-                "total_events": 0,
-                "users": set(),
-                "private_users": set(),
-                "messages": 0,
-                "callbacks": 0,
-                "commands": 0,
-                "starts": 0,
-                "policy_clicks": 0,
-                "support_clicks": 0,
-                "buy_clicks": 0,
-            },
-        )
-        user_id = row[2]
-        chat_type = row[6]
-        event_type = row[7]
-        command = normalize_key(row[8]).lower()
-        callback = normalize_key(row[9]).lower()
-
-        item["total_events"] += 1
-        if user_id:
-            item["users"].add(user_id)
-            if chat_type == "private":
-                item["private_users"].add(user_id)
-        if event_type == "message":
-            item["messages"] += 1
-        if event_type == "callback":
-            item["callbacks"] += 1
-        if command:
-            item["commands"] += 1
-        if command == "start":
-            item["starts"] += 1
-        if command == "policy" or callback in {"policy", "policy_page", "nav:policy_page"}:
-            item["policy_clicks"] += 1
-        if command == "support" or callback in {"support_info", "nav:support_page"}:
-            item["support_clicks"] += 1
-        if callback.startswith("buy_") or callback.startswith("confirm_") or callback.startswith("upsell_"):
-            item["buy_clicks"] += 1
-    return computed
+        period = str(row[0]).strip()
+        data[period] = {
+            "row": idx,
+            "period": period,
+            "total_events": _safe_int(row[1] if len(row) > 1 else 0),
+            "unique_users": _safe_int(row[2] if len(row) > 2 else 0),
+            "private_users": _safe_int(row[3] if len(row) > 3 else 0),
+            "messages": _safe_int(row[4] if len(row) > 4 else 0),
+            "callbacks": _safe_int(row[5] if len(row) > 5 else 0),
+            "commands": _safe_int(row[6] if len(row) > 6 else 0),
+            "starts": _safe_int(row[7] if len(row) > 7 else 0),
+            "policy_clicks": _safe_int(row[8] if len(row) > 8 else 0),
+            "support_clicks": _safe_int(row[9] if len(row) > 9 else 0),
+            "buy_clicks": _safe_int(row[10] if len(row) > 10 else 0),
+            "renew_clicks": _safe_int(row[11] if len(row) > 11 else 0),
+            "user_ids": _split_ids(row[12] if len(row) > 12 else ""),
+            "private_user_ids": _split_ids(row[13] if len(row) > 13 else ""),
+        }
+    return data
 
 
 def _user_row(user):
@@ -384,6 +422,7 @@ def _user_row(user):
         user["policy_clicks"],
         user["support_clicks"],
         user["buy_clicks"],
+        user["renew_clicks"],
         user["private_events"],
         user["last_command"],
         user["last_callback"],
@@ -395,6 +434,8 @@ def _daily_row(day):
     private_users_value = day.get("private_users", 0)
     unique_users = len(users_value) if isinstance(users_value, set) else users_value
     private_users = len(private_users_value) if isinstance(private_users_value, set) else private_users_value
+    user_ids = day.get("user_ids", day.get("users", set()))
+    private_user_ids = day.get("private_user_ids", day.get("private_users", set()))
 
     return [
         day["date"],
@@ -408,18 +449,109 @@ def _daily_row(day):
         day["policy_clicks"],
         day["support_clicks"],
         day["buy_clicks"],
+        day["renew_clicks"],
+        _join_ids(user_ids),
+        _join_ids(private_user_ids),
     ]
+
+
+def _period_row(period):
+    users_value = period.get("users", period.get("unique_users", 0))
+    private_users_value = period.get("private_users", 0)
+    unique_users = len(users_value) if isinstance(users_value, set) else users_value
+    private_users = len(private_users_value) if isinstance(private_users_value, set) else private_users_value
+    user_ids = period.get("user_ids", period.get("users", set()))
+    private_user_ids = period.get("private_user_ids", period.get("private_users", set()))
+
+    return [
+        period["period"],
+        period["total_events"],
+        unique_users,
+        private_users,
+        period["messages"],
+        period["callbacks"],
+        period["commands"],
+        period["starts"],
+        period["policy_clicks"],
+        period["support_clicks"],
+        period["buy_clicks"],
+        period["renew_clicks"],
+        _join_ids(user_ids),
+        _join_ids(private_user_ids),
+    ]
+
+
+def _update_period_sheet(sheet, aggregate_periods):
+    existing = _load_existing_periods(sheet)
+    batch_updates = []
+    new_rows = []
+    for period, delta in aggregate_periods.items():
+        current = existing.get(period)
+        if current:
+            user_ids = current.get("user_ids", set()) | delta["users"]
+            private_user_ids = current.get("private_user_ids", set()) | delta["private_users"]
+            current.update(
+                {
+                    "total_events": current["total_events"] + delta["total_events"],
+                    "unique_users": len(user_ids),
+                    "private_users": len(private_user_ids),
+                    "messages": current["messages"] + delta["messages"],
+                    "callbacks": current["callbacks"] + delta["callbacks"],
+                    "commands": current["commands"] + delta["commands"],
+                    "starts": current["starts"] + delta["starts"],
+                    "policy_clicks": current["policy_clicks"] + delta["policy_clicks"],
+                    "support_clicks": current["support_clicks"] + delta["support_clicks"],
+                    "buy_clicks": current["buy_clicks"] + delta["buy_clicks"],
+                    "renew_clicks": current["renew_clicks"] + delta["renew_clicks"],
+                    "user_ids": user_ids,
+                    "private_user_ids": private_user_ids,
+                }
+            )
+            batch_updates.append({"range": f"A{current['row']}:N{current['row']}", "values": [_period_row(current)]})
+        else:
+            delta["user_ids"] = delta["users"]
+            delta["private_user_ids"] = delta["private_users"]
+            new_rows.append(_period_row(delta))
+
+    if new_rows:
+        sheet.append_rows(new_rows, value_input_option="USER_ENTERED")
+    if batch_updates:
+        sheet.batch_update(batch_updates, value_input_option="USER_ENTERED")
+
+
+def _prune_old_daily_rows(sheet):
+    retention_days = _safe_int(db.get_config("ANALYTICS_DAILY_RETENTION_DAYS", "120"), 120)
+    if retention_days <= 0:
+        return
+
+    cutoff = (_now() - timedelta(days=retention_days)).date()
+    values = sheet.get_all_values()
+    rows_to_delete = []
+    for idx, row in enumerate(values[1:], start=2):
+        if not row or not row[0]:
+            continue
+        try:
+            row_date = datetime.strptime(str(row[0]).strip(), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if row_date < cutoff:
+            rows_to_delete.append(idx)
+
+    for idx in reversed(rows_to_delete):
+        sheet.delete_rows(idx)
+
+    if rows_to_delete:
+        logging.info(f"📊 AnalyticsDaily đã xoá {len(rows_to_delete)} dòng cũ hơn {retention_days} ngày.")
 
 
 def _flush_to_sheets(events):
     if not events or not db.sh:
         return
 
-    event_sheet = _get_or_create_sheet(EVENT_SHEET, EVENT_HEADERS)
     users_sheet = _get_or_create_sheet(USERS_SHEET, USERS_HEADERS)
     daily_sheet = _get_or_create_sheet(DAILY_SHEET, DAILY_HEADERS)
-
-    event_sheet.append_rows([_event_row(event) for event in events], value_input_option="USER_ENTERED")
+    monthly_sheet = _get_or_create_sheet(MONTHLY_SHEET, PERIOD_HEADERS)
+    yearly_sheet = _get_or_create_sheet(YEARLY_SHEET, PERIOD_HEADERS)
 
     existing_users = _load_existing_users(users_sheet)
     batch_user_updates = []
@@ -444,12 +576,13 @@ def _flush_to_sheets(events):
                     "policy_clicks": current["policy_clicks"] + delta["policy_clicks"],
                     "support_clicks": current["support_clicks"] + delta["support_clicks"],
                     "buy_clicks": current["buy_clicks"] + delta["buy_clicks"],
+                    "renew_clicks": current["renew_clicks"] + delta["renew_clicks"],
                     "private_events": current["private_events"] + delta["private_events"],
                     "last_command": delta["last_command"] or current["last_command"],
                     "last_callback": delta["last_callback"] or current["last_callback"],
                 }
             )
-            batch_user_updates.append({"range": f"A{current['row']}:P{current['row']}", "values": [_user_row(current)]})
+            batch_user_updates.append({"range": f"A{current['row']}:Q{current['row']}", "values": [_user_row(current)]})
         else:
             new_user_rows.append(_user_row(delta))
 
@@ -459,24 +592,54 @@ def _flush_to_sheets(events):
         users_sheet.batch_update(batch_user_updates, value_input_option="USER_ENTERED")
 
     existing_daily = _load_existing_daily(daily_sheet)
-    affected_dates = {event["date"] for event in events}
-    aggregate_daily = _compute_daily_from_events(event_sheet, affected_dates)
+    aggregate_daily = {}
+    for event in events:
+        _apply_daily_stats(aggregate_daily, event)
+
     batch_daily_updates = []
     new_daily_rows = []
     for date, delta in aggregate_daily.items():
         current = existing_daily.get(date)
         if current:
-            current.update(delta)
-            current["unique_users"] = len(delta["users"])
-            current["private_users"] = len(delta["private_users"])
-            batch_daily_updates.append({"range": f"A{current['row']}:K{current['row']}", "values": [_daily_row(current)]})
+            user_ids = current.get("user_ids", set()) | delta["users"]
+            private_user_ids = current.get("private_user_ids", set()) | delta["private_users"]
+            current.update(
+                {
+                    "total_events": current["total_events"] + delta["total_events"],
+                    "unique_users": len(user_ids),
+                    "private_users": len(private_user_ids),
+                    "messages": current["messages"] + delta["messages"],
+                    "callbacks": current["callbacks"] + delta["callbacks"],
+                    "commands": current["commands"] + delta["commands"],
+                    "starts": current["starts"] + delta["starts"],
+                    "policy_clicks": current["policy_clicks"] + delta["policy_clicks"],
+                    "support_clicks": current["support_clicks"] + delta["support_clicks"],
+                    "buy_clicks": current["buy_clicks"] + delta["buy_clicks"],
+                    "renew_clicks": current["renew_clicks"] + delta["renew_clicks"],
+                    "user_ids": user_ids,
+                    "private_user_ids": private_user_ids,
+                }
+            )
+            batch_daily_updates.append({"range": f"A{current['row']}:N{current['row']}", "values": [_daily_row(current)]})
         else:
+            delta["user_ids"] = delta["users"]
+            delta["private_user_ids"] = delta["private_users"]
             new_daily_rows.append(_daily_row(delta))
 
     if new_daily_rows:
         daily_sheet.append_rows(new_daily_rows, value_input_option="USER_ENTERED")
     if batch_daily_updates:
         daily_sheet.batch_update(batch_daily_updates, value_input_option="USER_ENTERED")
+
+    aggregate_monthly = {}
+    aggregate_yearly = {}
+    for event in events:
+        _apply_period_stats(aggregate_monthly, event["date"][:7], event)
+        _apply_period_stats(aggregate_yearly, event["date"][:4], event)
+
+    _update_period_sheet(monthly_sheet, aggregate_monthly)
+    _update_period_sheet(yearly_sheet, aggregate_yearly)
+    _prune_old_daily_rows(daily_sheet)
 
 
 async def _analytics_worker():
@@ -525,4 +688,4 @@ def setup_analytics(dp):
     middleware = AnalyticsMiddleware()
     dp.message.outer_middleware(middleware)
     dp.callback_query.outer_middleware(middleware)
-    print("📊 Analytics đã bật: ghi vào AnalyticsEvents / AnalyticsUsers / AnalyticsDaily.")
+    print("📊 Analytics đã bật: ghi vào AnalyticsUsers / AnalyticsDaily / AnalyticsMonthly / AnalyticsYearly.")
