@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
+from sale_utils import format_price_label, sale_banner
 
 router = Router()
 
@@ -21,12 +22,31 @@ def process_dynamic_text(text):
     # Tìm tất cả các chữ nằm trong ngoặc nhọn, VD: {PRICE_SVIP_LIFE}
     matches = re.findall(r'\{([A-Z0-9_]+)\}', text)
     for key in matches:
-        val = db.get_config(key, "???")
-        # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
-        if "PRICE" in key and val != "???":
-            val = format_currency(val)
+        if key.startswith("PRICE_"):
+            val = format_price_label(key, 0)
+        elif key.startswith("SALE_BANNER_"):
+            price_key = key.replace("SALE_BANNER_", "", 1)
+            val = sale_banner(price_key, 0)
+        else:
+            val = db.get_config(key, "???")
+            # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
+            if "PRICE" in key and val != "???":
+                val = format_currency(val)
         text = text.replace(f"{{{key}}}", val)
     return text
+
+def build_sale_banner_from_content(content):
+    price_keys = []
+    for key in re.findall(r'\{(PRICE_[A-Z0-9_]+)\}', content or ""):
+        if key not in price_keys:
+            price_keys.append(key)
+
+    banners = [sale_banner(key, 0) for key in price_keys]
+    banners = [banner for banner in banners if banner]
+    if not banners:
+        return ""
+
+    return "\n".join(dict.fromkeys(banners))
 
 def page_exists(page_id):
     return db.get_page(page_id) is not None
@@ -108,7 +128,10 @@ async def render_page(target, page_id):
 
     # 🔥 Dịch các biến {PRICE...} trong Nội dung bài viết
     raw_text = page['text'].replace('\\n', '\n')
+    banner = build_sale_banner_from_content(f"{raw_text}\n{page['layout']}")
     text = process_dynamic_text(raw_text)
+    if banner:
+        text = f"{banner}\n\n{text}"
     
     kb_markup = build_dynamic_keyboard(page['layout'])
     img_url = page['img']

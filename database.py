@@ -19,9 +19,11 @@ class Database:
         self.users_sheet = None
         self.config_sheet = None
         self.menu_sheet = None # Thêm tab Menu
+        self.sale_sheet = None
         
         self.cache_config = {}
         self.pages_cache = {} # Thêm RAM Cache cho giao diện
+        self.sales_cache = []
         self.last_reload_time = 0 
 
     def connect(self):
@@ -49,6 +51,16 @@ class Database:
                 )
                 if not self.menu_sheet:
                     print("⚠️ Chưa tìm thấy tab MenuBuilder, Bot sẽ chạy giao diện cũ.")
+
+            try:
+                self.sale_sheet = self.sh.worksheet("Sale")
+            except:
+                self.sale_sheet = next(
+                    (sheet for sheet in self.sh.worksheets() if normalize_key(sheet.title).lower() in ["sale", "sales"]),
+                    None,
+                )
+                if not self.sale_sheet:
+                    print("ℹ️ Chưa tìm thấy tab Sale, Bot sẽ dùng giá gốc.")
 
             print("✅ Kết nối Google Sheets thành công!")
             self.reload_config(force=True)
@@ -87,6 +99,9 @@ class Database:
                 self.pages_cache = temp_pages
                 print(f"🎨 Đã nạp thành công {len(self.pages_cache)} trang giao diện động!")
 
+            # 3. TẢI CẤU HÌNH SALE
+            self.sales_cache = self.load_sales()
+
             self.last_reload_time = current_time
         except Exception as e:
             print(f"❌ Lỗi tải Dữ liệu: {e}")
@@ -98,5 +113,31 @@ class Database:
     def get_page(self, page_id):
         normalized = normalize_key(page_id)
         return self.pages_cache.get(normalized) or self.pages_cache.get(normalized.lower())
+
+    def load_sales(self):
+        if not self.sale_sheet:
+            return []
+
+        try:
+            rows = self.sale_sheet.get_all_values()
+            if len(rows) < 2:
+                return []
+
+            headers = [normalize_key(h).lower().replace(" ", "_") for h in rows[0]]
+            sales = []
+            for row in rows[1:]:
+                if not any(str(cell).strip() for cell in row):
+                    continue
+                item = {}
+                for idx, header in enumerate(headers):
+                    if header:
+                        item[header] = str(row[idx]).strip() if idx < len(row) else ""
+                sales.append(item)
+
+            print(f"🏷 Đã nạp {len(sales)} dòng cấu hình Sale.")
+            return sales
+        except Exception as e:
+            print(f"❌ Lỗi tải tab Sale: {e}")
+            return []
 
 db = Database()
