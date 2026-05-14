@@ -3,7 +3,7 @@ from aiogram.exceptions import TelegramBadRequest
 import re
 from html import unescape
 from database import db
-from bot_instance import bot, is_spamming
+from bot_instance import is_spamming
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
@@ -12,12 +12,19 @@ def strip_html_tags(text):
     return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
 
 async def cleanup_welcome(user_id, chat_id):
-    """Hàm dọn dẹp các tin nhắn rác/chào mừng cũ"""
-    if user_id in user_welcome_msgs:
-        try:
-            await bot.delete_message(chat_id, user_welcome_msgs[user_id])
-        except: pass
-        del user_welcome_msgs[user_id]
+    """Giữ tương thích code cũ, không xoá tin nhắn trong group."""
+    user_welcome_msgs.pop(user_id, None)
+
+async def safe_delete_private_message(message):
+    """Chỉ xoá tin trong private chat, tuyệt đối không xoá message trong group."""
+    if not message or getattr(message.chat, "type", None) != "private":
+        return False
+
+    try:
+        await message.delete()
+        return True
+    except Exception:
+        return False
 
 async def check_protection(event):
     """Lớp khiên bảo vệ: Chống Spam click và Khóa Bot khi Bảo trì"""
@@ -61,8 +68,7 @@ async def smart_display(event, text, reply_markup, img=None):
             else:
                 await event.answer(text=final_text, reply_markup=reply_markup, parse_mode="HTML")
         else:
-            try: await event.message.delete()
-            except: pass
+            await safe_delete_private_message(event.message)
             
             if final_img and len(final_img) > 10:
                 await event.message.answer_photo(photo=final_img, caption=final_text, reply_markup=reply_markup, parse_mode="HTML")

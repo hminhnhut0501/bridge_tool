@@ -5,6 +5,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
+from helpers import safe_delete_private_message
 
 router = Router()
 
@@ -113,10 +114,7 @@ async def render_page(target, page_id):
     img_url = page['img']
 
     if isinstance(target, CallbackQuery):
-        try:
-            await target.message.delete()
-        except:
-            pass 
+        await safe_delete_private_message(target.message)
 
         if img_url and len(str(img_url)) > 10:
             await send_with_html_fallback(target.message, photo=img_url, text=text, reply_markup=kb_markup)
@@ -146,10 +144,7 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
     img_url = db.get_config(img_key, "")
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
 
-    try:
-        await callback.message.delete()
-    except:
-        pass
+    await safe_delete_private_message(callback.message)
 
     if img_url and len(str(img_url)) > 10:
         await send_with_html_fallback(callback.message, photo=img_url, text=text, reply_markup=kb.as_markup())

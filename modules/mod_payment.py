@@ -10,7 +10,7 @@ from payment import payos_manager
 from processor import process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
 
-from helpers import check_protection, format_currency, smart_display, cleanup_welcome
+from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
 from modules.mod_engine import render_page
 
 router = Router()
@@ -147,10 +147,8 @@ async def process_buy_request(callback: CallbackQuery):
             kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
             await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
             
-        try: await msg_wait.delete()
-        except: pass
-        try: await callback.message.delete()
-        except: pass
+        await safe_delete_private_message(msg_wait)
+        await safe_delete_private_message(callback.message)
             
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else: await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
@@ -163,14 +161,12 @@ async def manual_check_payment(callback: CallbackQuery):
     if payos_manager.get_payment_status(order_id) == "PAID":
         await callback.answer(db.get_config("ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)
         await process_successful_payment(order_id)
-        try: await callback.message.delete()
-        except: pass
+        await safe_delete_private_message(callback.message)
     else: await callback.answer(db.get_config("ALERT_NOT_PAID", "⏳ Hệ thống chưa nhận được tiền!").replace("\\n", "\n"), show_alert=True)
 
 @router.callback_query(F.data.startswith("cancel_order_"))
 async def cancel_order_handler(callback: CallbackQuery):
     cancelled_orders.add(str(callback.data.split("_")[-1])) 
-    try: await callback.message.delete()
-    except: pass
+    await safe_delete_private_message(callback.message)
     await callback.answer(db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
     await render_page(callback, "main_menu")
