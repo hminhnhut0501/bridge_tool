@@ -284,7 +284,7 @@ def build_sale_announcement():
 
     line_template = db.get_config(
         "SALE_LINE_TEMPLATE",
-        "• <b>{price_key}</b>: <s>{old_price}</s> → <b>{sale_price}</b> (-{discount_percent}%) | còn {countdown} | slot {slots}",
+        "🔥 <b>{price_key}</b>\n   Giá gốc: <s>{old_price}</s>\n   Giá sale: <b>{sale_price}</b> (-{discount_percent}%)\n   ⏳ Còn: <b>{countdown}</b> | 🎟 Slot: <b>{slots}</b>",
     )
     sale_lines = "\n".join(render_sale_template(line_template, sale) for sale in active_sales)
     first_sale = active_sales[0]
@@ -296,7 +296,7 @@ def build_sale_announcement():
 
     template = db.get_config(
         "MSG_SALE_ANNOUNCE",
-        "🔥 <b>FLASH SALE ĐANG MỞ</b>\n\n{sale_lines}\n\n⏳ Kết thúc gần nhất sau: <b>{countdown}</b>\n🎟 Slot: <b>{slots}</b>\n\nChọn gói bên dưới để giữ giá sale trước khi hết thời gian.",
+        "🔥 <b>FLASH SALE PRIVÉ+ ĐANG MỞ</b> 🔥\n\nChỉ trong thời gian giới hạn, một số gói VIP đang được giảm giá trực tiếp khi tạo mã QR.\n\n{sale_lines}\n\n⏳ <b>Sale kết thúc gần nhất sau:</b> {countdown}\n🎟 <b>Slot còn lại:</b> {slots}\n\nBấm chọn gói bên dưới để giữ giá sale trước khi hết thời gian hoặc hết slot.",
     ).replace("\\n", "\n")
 
     text = render_sale_template(template, min_end_sale)

@@ -39,14 +39,17 @@ async def cmd_check_expiry(message: Message):
 async def send_sale_announcement(message: Message):
     enabled = str(db.get_config("SALE_ANNOUNCE_ENABLED", "ON")).strip().upper()
     if enabled in ["OFF", "FALSE", "NO", "0", "TẮT", "TAT"]:
-        return
+        return False
 
     text = build_sale_announcement()
     if not text:
-        return
+        return False
 
     img = str(db.get_config("IMG_SALE_BANNER", "")).strip()
-    layout = db.get_config("SALE_ANNOUNCE_BUTTONS", "").replace("\\n", "\n")
+    layout = db.get_config(
+        "SALE_ANNOUNCE_BUTTONS",
+        "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 1 Tháng => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
+    ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
 
     try:
@@ -54,8 +57,10 @@ async def send_sale_announcement(message: Message):
             await send_with_html_fallback(message, photo=img, text=text, reply_markup=reply_markup)
         else:
             await send_with_html_fallback(message, text=text, reply_markup=reply_markup)
+        return True
     except Exception as e:
         print(f"❌ Lỗi gửi thông báo sale: {e}")
+        return False
 
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
@@ -63,7 +68,8 @@ async def cmd_start(message: Message):
     if not await check_protection(message): return
     db.reload_config(force=True)
     await cleanup_welcome(message.from_user.id, message.chat.id)
-    await send_sale_announcement(message)
+    if await send_sale_announcement(message):
+        return
     await render_page(message, "main_menu")
 
 @router.callback_query(F.data == "back_main")
