@@ -7,7 +7,8 @@ from aiogram.filters import CommandStart, Command
 from database import db
 from bot_instance import bot
 from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
-from modules.mod_engine import page_exists, render_page 
+from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
+from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
 
 router = Router()
@@ -35,12 +36,34 @@ async def cmd_check_expiry(message: Message):
     await check_expirations_professional()
     await message.reply("✅ Đã chạy xong một vòng quét hạn dùng. Xem log server để biết dòng nào đã gửi/kick hoặc bị bỏ qua.")
 
+async def send_sale_announcement(message: Message):
+    enabled = str(db.get_config("SALE_ANNOUNCE_ENABLED", "ON")).strip().upper()
+    if enabled in ["OFF", "FALSE", "NO", "0", "TẮT", "TAT"]:
+        return
+
+    text = build_sale_announcement()
+    if not text:
+        return
+
+    img = str(db.get_config("IMG_SALE_BANNER", "")).strip()
+    layout = db.get_config("SALE_ANNOUNCE_BUTTONS", "").replace("\\n", "\n")
+    reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
+
+    try:
+        if img and len(img) > 10:
+            await send_with_html_fallback(message, photo=img, text=text, reply_markup=reply_markup)
+        else:
+            await send_with_html_fallback(message, text=text, reply_markup=reply_markup)
+    except Exception as e:
+        print(f"❌ Lỗi gửi thông báo sale: {e}")
+
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     if not await check_protection(message): return
     db.reload_config(force=True)
     await cleanup_welcome(message.from_user.id, message.chat.id)
+    await send_sale_announcement(message)
     await render_page(message, "main_menu")
 
 @router.callback_query(F.data == "back_main")

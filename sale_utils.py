@@ -174,6 +174,21 @@ def get_active_sale(price_key, original_price):
     return None
 
 
+def get_active_sales():
+    active_sales = []
+    seen = set()
+    for row in db.sales_cache:
+        price_key = sale_price_key(row)
+        if not price_key or price_key in seen:
+            continue
+        original_price = safe_int(db.get_config(price_key, 0), 0)
+        sale = get_active_sale(price_key, original_price)
+        if sale:
+            active_sales.append(sale)
+            seen.add(price_key)
+    return active_sales
+
+
 def get_price(price_key, default=0):
     original_price = safe_int(db.get_config(price_key, default), default)
     sale = get_active_sale(price_key, original_price)
@@ -195,6 +210,14 @@ def format_price_label(price_key, default=0):
     return label
 
 
+def sale_slots_text(sale):
+    if not sale:
+        return ""
+    if sale["remaining_slots"] is None:
+        return "không giới hạn"
+    return f"{sale['remaining_slots']}/{sale['slot_limit']}"
+
+
 def sale_banner(price_key, default=0):
     original_price = safe_int(db.get_config(price_key, default), default)
     sale = get_active_sale(price_key, original_price)
@@ -205,3 +228,76 @@ def sale_banner(price_key, default=0):
     if sale["remaining_slots"] is not None:
         parts.append(f"còn {sale['remaining_slots']}/{sale['slot_limit']} slot")
     return " • ".join(parts)
+
+
+def sale_placeholder(price_key, field, default=0):
+    original_price = safe_int(db.get_config(price_key, default), default)
+    sale = get_active_sale(price_key, original_price)
+    field = normalize_key(field).upper()
+
+    if field == "LABEL":
+        return format_price_label(price_key, default)
+    if not sale:
+        return ""
+
+    values = {
+        "TEXT": sale_banner(price_key, default),
+        "BANNER": sale_banner(price_key, default),
+        "OLD_PRICE": format_currency(sale["original_price"]),
+        "ORIGINAL_PRICE": format_currency(sale["original_price"]),
+        "SALE_PRICE": format_currency(sale["sale_price"]),
+        "PRICE": format_currency(sale["sale_price"]),
+        "PERCENT": str(sale["discount_percent"]),
+        "DISCOUNT": str(sale["discount_percent"]),
+        "COUNTDOWN": sale["countdown"],
+        "SLOTS": sale_slots_text(sale),
+        "SLOTS_LEFT": str(sale["remaining_slots"]) if sale["remaining_slots"] is not None else "",
+        "SLOT_LIMIT": str(sale["slot_limit"]) if sale["slot_limit"] else "",
+        "SALE_ID": sale["sale_id"],
+    }
+    return values.get(field, "")
+
+
+def render_sale_template(template, sale):
+    values = {
+        "{sale_id}": sale["sale_id"],
+        "{price_key}": sale["price_key"],
+        "{old_price}": format_currency(sale["original_price"]),
+        "{original_price}": format_currency(sale["original_price"]),
+        "{sale_price}": format_currency(sale["sale_price"]),
+        "{discount_percent}": str(sale["discount_percent"]),
+        "{countdown}": sale["countdown"],
+        "{slots}": sale_slots_text(sale),
+        "{slots_left}": str(sale["remaining_slots"]) if sale["remaining_slots"] is not None else "",
+        "{slot_limit}": str(sale["slot_limit"]) if sale["slot_limit"] else "",
+    }
+    rendered = str(template or "")
+    for key, value in values.items():
+        rendered = rendered.replace(key, value)
+    return rendered
+
+
+def build_sale_announcement():
+    active_sales = get_active_sales()
+    if not active_sales:
+        return ""
+
+    line_template = db.get_config(
+        "SALE_LINE_TEMPLATE",
+        "• <b>{price_key}</b>: <s>{old_price}</s> → <b>{sale_price}</b> (-{discount_percent}%) | còn {countdown} | slot {slots}",
+    )
+    sale_lines = "\n".join(render_sale_template(line_template, sale) for sale in active_sales)
+    first_sale = active_sales[0]
+    min_end_sale = min(
+        (sale for sale in active_sales if sale["end_at"]),
+        key=lambda sale: sale["end_at"],
+        default=first_sale,
+    )
+
+    template = db.get_config(
+        "MSG_SALE_ANNOUNCE",
+        "🔥 <b>FLASH SALE ĐANG MỞ</b>\n\n{sale_lines}\n\n⏳ Kết thúc gần nhất sau: <b>{countdown}</b>\n🎟 Slot: <b>{slots}</b>\n\nChọn gói bên dưới để giữ giá sale trước khi hết thời gian.",
+    ).replace("\\n", "\n")
+
+    text = render_sale_template(template, min_end_sale)
+    return text.replace("{sale_lines}", sale_lines)

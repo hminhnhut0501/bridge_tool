@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
-from sale_utils import format_price_label, sale_banner
+from sale_utils import format_price_label, sale_banner, sale_placeholder
 
 router = Router()
 
@@ -27,6 +27,8 @@ def process_dynamic_text(text):
         elif key.startswith("SALE_BANNER_"):
             price_key = key.replace("SALE_BANNER_", "", 1)
             val = sale_banner(price_key, 0)
+        elif key.startswith("SALE_"):
+            val = process_sale_placeholder(key)
         else:
             val = db.get_config(key, "???")
             # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
@@ -35,18 +37,28 @@ def process_dynamic_text(text):
         text = text.replace(f"{{{key}}}", val)
     return text
 
-def build_sale_banner_from_content(content):
-    price_keys = []
-    for key in re.findall(r'\{(PRICE_[A-Z0-9_]+)\}', content or ""):
-        if key not in price_keys:
-            price_keys.append(key)
-
-    banners = [sale_banner(key, 0) for key in price_keys]
-    banners = [banner for banner in banners if banner]
-    if not banners:
-        return ""
-
-    return "\n".join(dict.fromkeys(banners))
+def process_sale_placeholder(key):
+    fields = [
+        "SALE_OLD_PRICE_",
+        "SALE_ORIGINAL_PRICE_",
+        "SALE_SALE_PRICE_",
+        "SALE_PRICE_",
+        "SALE_PERCENT_",
+        "SALE_DISCOUNT_",
+        "SALE_COUNTDOWN_",
+        "SALE_SLOTS_LEFT_",
+        "SALE_SLOT_LIMIT_",
+        "SALE_SLOTS_",
+        "SALE_TEXT_",
+        "SALE_LABEL_",
+        "SALE_ID_",
+    ]
+    for prefix in fields:
+        if key.startswith(prefix):
+            field = prefix.replace("SALE_", "").strip("_")
+            price_key = key.replace(prefix, "", 1)
+            return sale_placeholder(price_key, field, 0)
+    return ""
 
 def page_exists(page_id):
     return db.get_page(page_id) is not None
@@ -128,10 +140,7 @@ async def render_page(target, page_id):
 
     # 🔥 Dịch các biến {PRICE...} trong Nội dung bài viết
     raw_text = page['text'].replace('\\n', '\n')
-    banner = build_sale_banner_from_content(f"{raw_text}\n{page['layout']}")
     text = process_dynamic_text(raw_text)
-    if banner:
-        text = f"{banner}\n\n{text}"
     
     kb_markup = build_dynamic_keyboard(page['layout'])
     img_url = page['img']
