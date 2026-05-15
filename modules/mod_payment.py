@@ -47,7 +47,18 @@ def sale_text_for_price(price_key, default=0):
     banner = sale_banner(price_key, default)
     return f"\n\n{banner}" if banner else ""
 
-def create_pending_order(order_id, user_id, full_name, plan_name, amount, sale_id="", original_amount=None):
+def create_pending_order(
+    order_id,
+    user_id,
+    full_name,
+    plan_name,
+    amount,
+    sale_id="",
+    original_amount=None,
+    coupon_code="",
+    coupon_discount_percent=0,
+    coupon_discount_amount=0,
+):
     if supabase_store.enabled:
         return supabase_store.create_order(
             order_id=order_id,
@@ -57,6 +68,9 @@ def create_pending_order(order_id, user_id, full_name, plan_name, amount, sale_i
             amount=amount,
             sale_id=sale_id,
             original_amount=original_amount or amount,
+            coupon_code=coupon_code,
+            coupon_discount_percent=coupon_discount_percent,
+            coupon_discount_amount=coupon_discount_amount,
         )
 
     db.users_sheet.append_row([
@@ -71,6 +85,75 @@ def create_pending_order(order_id, user_id, full_name, plan_name, amount, sale_i
         sale_id,
         original_amount or amount,
     ])
+
+
+def buy_data_from_plan_key(plan_key):
+    key = str(plan_key or "").strip().upper()
+    if key == "FULL_1M":
+        return "buy_full_1m"
+    if key == "FULL_LIFE":
+        return "buy_full_life"
+    if key.startswith("G") and key.endswith("_1M"):
+        return f"buy_{key[:-3]}_1m"
+    if key.startswith("G") and key.endswith("_LIFE"):
+        return f"buy_{key[:-5]}_life"
+    return ""
+
+
+def resolve_purchase_offer(data):
+    sale_info = None
+    original_amount = None
+    price_key = ""
+    data = data.replace("confirm_", "buy_")
+
+    if "upsell_full" in data:
+        plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
+        price_life, sale_life = get_price("PRICE_SVIP_LIFE", "999")
+        price_1m, sale_1m = get_price("PRICE_SVIP_30D", "999")
+        amount = max(0, price_life - price_1m)
+        sale_info = sale_life or sale_1m
+        original_amount = max(0, safe_int(db.get_config("PRICE_SVIP_LIFE", "999")) - safe_int(db.get_config("PRICE_SVIP_30D", "999")))
+    elif "upsell_G" in data:
+        num = data.split("_")[1][1:]
+        plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
+        price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", "149000")
+        price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", "50000")
+        amount = max(0, price_life - price_1m)
+        sale_info = sale_life or sale_1m
+        original_amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
+    elif "full" in data:
+        is_1m = "1m" in data
+        plan_name = db.get_config("PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
+        price_key = "PRICE_SVIP_30D" if is_1m else "PRICE_SVIP_LIFE"
+        amount, sale_info = get_price(price_key, "999")
+        original_amount = safe_int(db.get_config(price_key, "999"))
+    else:
+        parts = data.split("_")
+        num, type_p = parts[1][1:], parts[2].upper()
+        plan_name = f"{db.get_config('PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {db.get_config(f'BTN_G{num}')}"
+        price_key = f"PRICE_G{num}_{type_p}"
+        amount, sale_info = get_price(price_key, "50000")
+        original_amount = safe_int(db.get_config(price_key, "50000"))
+
+    return {
+        "plan_name": plan_name,
+        "price_key": price_key,
+        "amount": amount,
+        "sale_info": sale_info,
+        "original_amount": original_amount or amount,
+    }
+
+
+def sale_caption(sale_info, original_amount, amount):
+    if not sale_info:
+        return ""
+    text = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
+    if sale_info["remaining_slots"] is not None:
+        remaining_after_order = max(0, sale_info["remaining_slots"] - 1)
+        text += f"\n🎟 Slot sale còn lại sau đơn này: {remaining_after_order}/{sale_info['slot_limit']}"
+    if sale_info["countdown"]:
+        text += f"\n⏳ Sale còn: {sale_info['countdown']}"
+    return text
 
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
     raw_bin = str(pay_data.get('bin', ''))
@@ -246,40 +329,11 @@ async def process_buy_request(callback: CallbackQuery):
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    # Sử dụng hàm safe_int() để không bao giờ bị lỗi ValueError
-    data = callback.data.replace("confirm_", "buy_")
-    
-    # 🛠 FIX 3: Đồng bộ biến giá trong lúc tạo bill
-    sale_info = None
-    original_amount = None
-    if "upsell_full" in data:
-        plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        price_life, sale_life = get_price("PRICE_SVIP_LIFE", "999")
-        price_1m, sale_1m = get_price("PRICE_SVIP_30D", "999")
-        amount = max(0, price_life - price_1m)
-        sale_info = sale_life or sale_1m
-        original_amount = max(0, safe_int(db.get_config("PRICE_SVIP_LIFE", "999")) - safe_int(db.get_config("PRICE_SVIP_30D", "999")))
-    elif "upsell_G" in data:
-        num = data.split("_")[1][1:]
-        plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
-        price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", "149000")
-        price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", "50000")
-        amount = max(0, price_life - price_1m)
-        sale_info = sale_life or sale_1m
-        original_amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
-    elif "full" in data:
-        is_1m = "1m" in data
-        plan_name = db.get_config("PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
-        price_key = "PRICE_SVIP_30D" if is_1m else "PRICE_SVIP_LIFE"
-        amount, sale_info = get_price(price_key, "999")
-        original_amount = safe_int(db.get_config(price_key, "999"))
-    else:
-        parts = data.split("_")
-        num, type_p = parts[1][1:], parts[2].upper()
-        plan_name = f"{db.get_config('PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {db.get_config(f'BTN_G{num}')}"
-        price_key = f"PRICE_G{num}_{type_p}"
-        amount, sale_info = get_price(price_key, "50000")
-        original_amount = safe_int(db.get_config(price_key, "50000"))
+    offer = resolve_purchase_offer(callback.data)
+    plan_name = offer["plan_name"]
+    amount = offer["amount"]
+    sale_info = offer["sale_info"]
+    original_amount = offer["original_amount"]
 
     msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
@@ -298,14 +352,7 @@ async def process_buy_request(callback: CallbackQuery):
             sale_id=sale_id,
             original_amount=original_amount or amount,
         )
-        extra_caption = ""
-        if sale_info:
-            extra_caption = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
-            if sale_info["remaining_slots"] is not None:
-                remaining_after_order = max(0, sale_info["remaining_slots"] - 1)
-                extra_caption += f"\n🎟 Slot sale còn lại sau đơn này: {remaining_after_order}/{sale_info['slot_limit']}"
-            if sale_info["countdown"]:
-                extra_caption += f"\n⏳ Sale còn: {sale_info['countdown']}"
+        extra_caption = sale_caption(sale_info, original_amount, amount)
 
         await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption)
             
@@ -314,6 +361,90 @@ async def process_buy_request(callback: CallbackQuery):
             
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else: await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+
+
+@router.callback_query(F.data.startswith("couponbuy|"))
+async def process_coupon_buy_request(callback: CallbackQuery):
+    if not await check_protection(callback):
+        return
+
+    try:
+        _, code, plan_key = callback.data.split("|", 2)
+    except ValueError:
+        await callback.answer("Mã giảm giá không hợp lệ.", show_alert=True)
+        return
+
+    from modules.mod_coupon import (
+        coupon_discount_percent,
+        coupon_matches_plan,
+        coupon_type,
+        find_coupon,
+        normalize_code,
+        validate_coupon_base,
+    )
+
+    code = normalize_code(code)
+    _, _, _, coupon = find_coupon(code)
+    valid, reason = validate_coupon_base(coupon, callback.from_user.id)
+    if not valid:
+        await callback.answer(reason, show_alert=True)
+        return
+    if coupon_type(coupon) != "DISCOUNT" or not coupon_matches_plan(coupon, plan_key):
+        await callback.answer("Mã này không áp dụng cho gói đã chọn.", show_alert=True)
+        return
+
+    user_id = callback.from_user.id
+    current_time = time.time()
+    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
+        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        return
+    user_cooldowns[user_id] = current_time
+
+    buy_data = buy_data_from_plan_key(plan_key)
+    if not buy_data:
+        await callback.answer("Gói áp dụng không hợp lệ.", show_alert=True)
+        return
+
+    offer = resolve_purchase_offer(buy_data)
+    percent = coupon_discount_percent(coupon)
+    before_coupon = offer["amount"]
+    discount_amount = int(round(before_coupon * percent / 100))
+    amount = max(0, before_coupon - discount_amount)
+    if amount <= 0:
+        await callback.answer("Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá.", show_alert=True)
+        return
+
+    msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    order_id = int(time.time())
+    description = f"PRIVE{order_id}"[-20:]
+    pay_data = payos_manager.create_payment_link(order_id, amount, description)
+
+    if not pay_data:
+        await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+        return
+
+    sale_info = offer["sale_info"]
+    sale_id = sale_info["sale_id"] if sale_info else ""
+    create_pending_order(
+        order_id=order_id,
+        user_id=callback.from_user.id,
+        full_name=callback.from_user.full_name,
+        plan_name=offer["plan_name"],
+        amount=amount,
+        sale_id=sale_id,
+        original_amount=offer["original_amount"],
+        coupon_code=code,
+        coupon_discount_percent=percent,
+        coupon_discount_amount=discount_amount,
+    )
+    extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon)
+    extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_currency(discount_amount)})"
+    extra_caption += f"\n💳 <b>Cần thanh toán:</b> {format_currency(amount)}"
+
+    await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
+    await safe_delete_private_message(msg_wait)
+    await safe_delete_private_message(callback.message)
+    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
 
 @router.callback_query(F.data.startswith("check_"))
 async def manual_check_payment(callback: CallbackQuery):

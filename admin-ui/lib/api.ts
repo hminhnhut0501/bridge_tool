@@ -7,6 +7,11 @@ export type Order = {
   status: string;
   paid_at: string | null;
   expire_at: string | null;
+  sale_id?: string | null;
+  original_amount?: number | null;
+  coupon_code?: string | null;
+  coupon_discount_percent?: number | null;
+  coupon_discount_amount?: number | null;
   created_at: string;
 };
 

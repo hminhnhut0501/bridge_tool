@@ -216,6 +216,11 @@ async def process_successful_payment(order_code: str):
         paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if supabase_store.enabled:
             supabase_store.mark_order_paid(target_code, paid_at=paid_at, expire_at=expire_date)
+            if order.get("coupon_code"):
+                try:
+                    supabase_store.consume_coupon_for_order(order)
+                except Exception as coupon_err:
+                    print(f"⚠️ Không thể ghi nhận coupon cho đơn {target_code}: {coupon_err}")
             await delete_payment_message(order)
         else:
             db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])

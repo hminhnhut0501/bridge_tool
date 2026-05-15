@@ -196,6 +196,9 @@ class SupabaseStore:
             order.get("original_amount", ""),
             order.get("last_reminder_date", ""),
             order.get("expired_notice_at", ""),
+            order.get("coupon_code", ""),
+            order.get("coupon_discount_percent", ""),
+            order.get("coupon_discount_amount", ""),
         ]
 
     def list_users(self, limit=200):
@@ -239,7 +242,19 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
-    def create_order(self, order_id, telegram_user_id, full_name, plan_name, amount, sale_id="", original_amount=None):
+    def create_order(
+        self,
+        order_id,
+        telegram_user_id,
+        full_name,
+        plan_name,
+        amount,
+        sale_id="",
+        original_amount=None,
+        coupon_code="",
+        coupon_discount_percent=0,
+        coupon_discount_amount=0,
+    ):
         payload = {
             "order_id": str(order_id),
             "telegram_user_id": str(telegram_user_id),
@@ -250,6 +265,10 @@ class SupabaseStore:
             "sale_id": _clean_text(sale_id),
             "original_amount": _parse_int(original_amount if original_amount is not None else amount),
         }
+        if coupon_code:
+            payload["coupon_code"] = _clean_text(coupon_code).upper()
+            payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
+            payload["coupon_discount_amount"] = _parse_int(coupon_discount_amount)
         return self._request(
             "POST",
             "orders",
@@ -354,6 +373,9 @@ class SupabaseStore:
         canonical.setdefault("Max_Uses", raw.get("max_uses") or raw.get("max_use") or raw.get("max") or "1")
         canonical.setdefault("Used_Count", raw.get("used_count") or raw.get("used") or "0")
         canonical.setdefault("Valid_Until", raw.get("valid_until") or raw.get("expires_at") or "")
+        canonical.setdefault("Coupon_Type", raw.get("coupon_type") or raw.get("type") or raw.get("loai") or "ACTIVATION")
+        canonical.setdefault("Discount_Percent", raw.get("discount_percent") or raw.get("discount") or raw.get("percent") or "")
+        canonical.setdefault("Applies_To", raw.get("applies_to") or raw.get("apply_to") or raw.get("packages") or "")
         max_uses = _parse_int(canonical.get("Max_Uses"), 1)
         used_count = _parse_int(canonical.get("Used_Count"), 0)
         enabled = str(canonical.get("Enabled") or "ON").strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"}
@@ -370,6 +392,48 @@ class SupabaseStore:
         if valid_until:
             payload["expires_at"] = _parse_datetime(valid_until) or valid_until
         return self.upsert_coupon(payload)
+
+    def consume_coupon_for_order(self, order):
+        code = _clean_text((order or {}).get("coupon_code")).upper()
+        if not code:
+            return []
+
+        coupon = self.get_coupon(code)
+        if not coupon:
+            return []
+
+        raw = dict(coupon.get("raw_data") or {})
+        used_count = _parse_int(raw.get("Used_Count") or coupon.get("used_count"), 0) + 1
+        used_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        raw.update({
+            "Used_Count": str(used_count),
+            "Last_Used_At": used_at,
+            "Last_Used_By": str(order.get("telegram_user_id") or ""),
+        })
+        updated = self._request(
+            "PATCH",
+            "coupons",
+            params={"code": f"eq.{code}"},
+            json={"used_count": used_count, "raw_data": raw},
+            prefer="return=representation",
+        )
+        self.record_coupon_redemption(
+            code,
+            order.get("telegram_user_id"),
+            order_id=order.get("order_id"),
+            raw_data={
+                "Redeemed_At": used_at,
+                "Code": code,
+                "User_ID": str(order.get("telegram_user_id") or ""),
+                "Full_Name": order.get("full_name") or "",
+                "Plan_Name": order.get("plan_name") or "",
+                "Status": "PAID_DISCOUNT",
+                "User_Order_ID": str(order.get("order_id") or ""),
+                "Discount_Percent": str(order.get("coupon_discount_percent") or ""),
+                "Discount_Amount": str(order.get("coupon_discount_amount") or ""),
+            },
+        )
+        return updated
 
     def update_coupon_raw(self, code, raw_updates):
         coupon = self.get_coupon(code)

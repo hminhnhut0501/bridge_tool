@@ -28,8 +28,11 @@ TIME_FMT = "%Y-%m-%d %H:%M:%S"
 COUPON_HEADERS = [
     "Code",
     "Enabled",
+    "Coupon_Type",
     "Plan_Name",
     "Duration_Days",
+    "Discount_Percent",
+    "Applies_To",
     "Max_Uses",
     "Used_Count",
     "Valid_From",
@@ -81,6 +84,45 @@ def normalize_code(value):
 
 def truthy(value):
     return str(value or "").strip().upper() in {"ON", "TRUE", "YES", "Y", "1", "ACTIVE", "BẬT", "BAT"}
+
+
+def coupon_type(item):
+    raw_type = normalize_key((item or {}).get("Coupon_Type") or (item or {}).get("Type") or "ACTIVATION").upper()
+    if raw_type in {"DISCOUNT", "GIAM_GIA", "GIẢM_GIÁ", "PERCENT"}:
+        return "DISCOUNT"
+    return "ACTIVATION"
+
+
+def normalize_plan_key(value):
+    return normalize_key(value).upper().replace(" ", "")
+
+
+def all_coupon_plan_keys():
+    keys = ["FULL_1M", "FULL_LIFE"]
+    for group_no in range(1, 21):
+        if db.get_config(f"BTN_G{group_no}") or db.get_config(f"ID_G{group_no}"):
+            keys.extend([f"G{group_no}_1M", f"G{group_no}_LIFE"])
+    return keys
+
+
+def coupon_applies_to(item):
+    raw = str((item or {}).get("Applies_To") or "").strip()
+    if not raw:
+        fallback = normalize_plan_key((item or {}).get("Plan_Name"))
+        return [fallback] if fallback else []
+    if raw.upper() == "ALL":
+        return ["ALL"]
+    return [normalize_plan_key(part) for part in raw.replace(";", ",").split(",") if normalize_plan_key(part)]
+
+
+def coupon_matches_plan(item, plan_key):
+    applies = coupon_applies_to(item)
+    return "ALL" in applies or normalize_plan_key(plan_key) in applies
+
+
+def coupon_discount_percent(item):
+    percent = safe_int((item or {}).get("Discount_Percent"), 0)
+    return max(0, min(percent, 100))
 
 
 def get_or_create_sheet(title, headers):
@@ -174,7 +216,7 @@ def has_user_redeemed(code, user_id):
     return False
 
 
-def validate_coupon(item, user_id):
+def validate_coupon_base(item, user_id):
     if not item:
         return False, "Mã giảm giá không tồn tại hoặc đã được dọn khỏi hệ thống."
 
@@ -196,6 +238,21 @@ def validate_coupon(item, user_id):
 
     if has_user_redeemed(item.get("Code"), user_id):
         return False, "Bạn đã sử dụng mã này trước đó rồi."
+
+    return True, ""
+
+
+def validate_coupon(item, user_id):
+    valid, reason = validate_coupon_base(item, user_id)
+    if not valid:
+        return False, reason
+
+    if coupon_type(item) == "DISCOUNT":
+        if coupon_discount_percent(item) <= 0:
+            return False, "Mã giảm giá chưa cấu hình phần trăm giảm."
+        if not coupon_applies_to(item):
+            return False, "Mã giảm giá chưa chọn gói áp dụng."
+        return True, ""
 
     plan_name = str(item.get("Plan_Name") or "").strip()
     duration_days = safe_int(item.get("Duration_Days"), 0)
@@ -227,6 +284,35 @@ def resolve_plan_name(plan_key):
             return f"{db.get_config('PLAN_G_LIFE', 'Gói trọn đời')} - {db.get_config(f'BTN_G{group_no}', f'Nhóm {group_no}')}"
 
     return raw.replace("_", " ")
+
+
+def discount_plan_label(plan_key):
+    return resolve_plan_name(plan_key)
+
+
+def build_discount_coupon_keyboard(code, coupon):
+    applies = coupon_applies_to(coupon)
+    plan_keys = all_coupon_plan_keys() if "ALL" in applies else applies
+    kb = InlineKeyboardBuilder()
+    for plan_key in plan_keys:
+        kb.row(InlineKeyboardButton(
+            text=f"{discount_plan_label(plan_key)} (-{coupon_discount_percent(coupon)}%)",
+            callback_data=f"couponbuy|{code}|{plan_key}",
+        ))
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    return kb.as_markup()
+
+
+async def send_discount_coupon_options(message: Message, code, coupon):
+    text = db.get_config(
+        "MSG_COUPON_DISCOUNT_OPTIONS",
+        "<b>✅ Mã giảm giá hợp lệ</b>\\n\\n"
+        "Mã: <code>{code}</code>\\n"
+        "Giảm: <b>{percent}%</b>\\n\\n"
+        "Chọn gói muốn mua bên dưới, bot sẽ tạo QR đã trừ giảm giá.",
+    ).replace("\\n", "\n")
+    text = text.replace("{code}", escape_html(code)).replace("{percent}", str(coupon_discount_percent(coupon)))
+    await message.answer(text, reply_markup=build_discount_coupon_keyboard(code, coupon), parse_mode="HTML")
 
 
 def resolve_groups(plan_name):
@@ -311,6 +397,10 @@ async def redeem_coupon_locked(message: Message, code):
     valid, reason = validate_coupon(coupon, message.from_user.id)
     if not valid:
         await message.answer(f"❌ {escape_html(reason)}", parse_mode="HTML")
+        return
+
+    if coupon_type(coupon) == "DISCOUNT":
+        await send_discount_coupon_options(message, code, coupon)
         return
 
     plan_name = resolve_plan_name(coupon.get("Plan_Name"))
@@ -474,7 +564,7 @@ async def cmd_gen_coupon(message: Message):
     if len(parts) < 4:
         await message.answer(
             "Cú pháp: /gen_coupon <số_lượng> <plan_key> <số_ngày> [max_uses] [prefix]\n"
-            "Ví dụ: /gen_coupon 10 full_1m 30 1 VIP\n"
+            "Ví dụ: /gen_coupon 10 full_1m 30 1 HANGCU_\n"
             "Plan key nhanh: full_1m, full_life, g1_1m, g1_life..."
         )
         return
@@ -483,7 +573,7 @@ async def cmd_gen_coupon(message: Message):
     plan_name = resolve_plan_name(parts[2])
     duration_days = max(safe_int(parts[3], 30), 1)
     max_uses = max(safe_int(parts[4], 1), 1) if len(parts) >= 5 else 1
-    prefix = normalize_code(parts[5])[:8] if len(parts) >= 6 else "VIP"
+    prefix = normalize_code(parts[5])[:16] if len(parts) >= 6 else "HANGCU_"
 
     alphabet = string.ascii_uppercase + string.digits
     created_at = now_text()
@@ -504,8 +594,11 @@ async def cmd_gen_coupon(message: Message):
         raw = {
             "Code": code,
             "Enabled": "ON",
+            "Coupon_Type": "ACTIVATION",
             "Plan_Name": plan_name,
             "Duration_Days": str(duration_days),
+            "Discount_Percent": "",
+            "Applies_To": "",
             "Max_Uses": str(max_uses),
             "Used_Count": "0",
             "Valid_From": "",
