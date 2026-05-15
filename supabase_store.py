@@ -183,22 +183,25 @@ class SupabaseStore:
     def order_to_sheet_row(self, order):
         if not order:
             return []
+        def value(key):
+            return order.get(key) or ""
+
         return [
-            order.get("order_id", ""),
-            order.get("telegram_user_id", ""),
-            order.get("full_name", ""),
-            order.get("plan_name", ""),
-            order.get("amount", ""),
-            order.get("status", ""),
-            order.get("paid_at", ""),
-            order.get("expire_at", ""),
-            order.get("sale_id", ""),
-            order.get("original_amount", ""),
-            order.get("last_reminder_date", ""),
-            order.get("expired_notice_at", ""),
-            order.get("coupon_code", ""),
-            order.get("coupon_discount_percent", ""),
-            order.get("coupon_discount_amount", ""),
+            value("order_id"),
+            value("telegram_user_id"),
+            value("full_name"),
+            value("plan_name"),
+            value("amount"),
+            value("status"),
+            value("paid_at"),
+            value("expire_at"),
+            value("sale_id"),
+            value("original_amount"),
+            value("last_reminder_date"),
+            value("expired_notice_at"),
+            value("coupon_code"),
+            value("coupon_discount_percent"),
+            value("coupon_discount_amount"),
         ]
 
     def list_users(self, limit=200):

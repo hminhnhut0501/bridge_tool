@@ -62,7 +62,9 @@ def normalize_chat_id(value):
     return raw
 
 def row_value(row, index, default=""):
-    return str(row[index]).strip() if len(row) > index else default
+    if len(row) <= index or row[index] is None:
+        return default
+    return str(row[index]).strip()
 
 def should_skip_reminder(row, today_str):
     last_reminder_date = row_value(row, 10)
