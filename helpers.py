@@ -2,11 +2,27 @@ from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from aiogram.exceptions import TelegramBadRequest
 import re
 from html import unescape
+import os
+
 from database import db
 from bot_instance import is_spamming
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
+
+
+def configured_admin_ids():
+    raw = str(db.get_config("ADMIN_IDS", os.getenv("ADMIN_IDS", str(ADMIN_ID))) or "").strip()
+    values = {str(ADMIN_ID)}
+    for item in raw.replace(";", ",").split(","):
+        item = item.strip()
+        if item:
+            values.add(item)
+    return values
+
+
+def is_admin_user(user_id):
+    return str(user_id) in configured_admin_ids()
 
 def strip_html_tags(text):
     return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
@@ -31,7 +47,7 @@ async def check_protection(event):
     user_id = event.from_user.id
     maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
     
-    if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and user_id != ADMIN_ID:
+    if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and not is_admin_user(user_id):
         msg = db.get_config("MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
         alert_main = db.get_config("ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
         if isinstance(event, Message): 
@@ -40,7 +56,7 @@ async def check_protection(event):
             await event.answer(alert_main, show_alert=True)
         return False
         
-    if is_spamming(user_id) and user_id != ADMIN_ID:
+    if is_spamming(user_id) and not is_admin_user(user_id):
         alert_spam = db.get_config("ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
         if isinstance(event, CallbackQuery):
             await event.answer(alert_spam, show_alert=False)

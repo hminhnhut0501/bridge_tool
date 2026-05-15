@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot_instance import bot
 from database import db, normalize_key
-from helpers import ADMIN_ID, check_protection
+from helpers import check_protection, is_admin_user
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 
@@ -542,7 +542,7 @@ async def coupon_button(callback: CallbackQuery, state: FSMContext):
 @router.message(CouponState.waiting_code)
 async def coupon_code_received(message: Message, state: FSMContext):
     maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
-    if maintenance_status in {"ON", "TRUE", "CÓ", "YES"} and message.from_user.id != ADMIN_ID:
+    if maintenance_status in {"ON", "TRUE", "CÓ", "YES"} and not is_admin_user(message.from_user.id):
         await message.answer(db.get_config("MSG_MAINTENANCE", "Hệ thống đang bảo trì, vui lòng quay lại sau.").replace("\\n", "\n"), parse_mode="HTML")
         return
 
@@ -557,7 +557,7 @@ async def coupon_code_received(message: Message, state: FSMContext):
 
 @router.message(Command("gen_coupon"))
 async def cmd_gen_coupon(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if not is_admin_user(message.from_user.id):
         return
 
     parts = (message.text or "").split()

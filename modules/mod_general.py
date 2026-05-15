@@ -7,7 +7,7 @@ from aiogram.filters import CommandStart, Command
 from database import db
 from bot_instance import bot
 from supabase_store import supabase_store
-from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
+from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
@@ -34,7 +34,7 @@ async def send_welcome_messages(event):
 # [2] LỆNH RELOAD
 @router.message(Command("reload"))
 async def cmd_reload(message: Message):
-    if message.from_user.id == ADMIN_ID: 
+    if is_admin_user(message.from_user.id):
         db.reload_config(force=True)
         await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!"))
     else:
@@ -42,7 +42,7 @@ async def cmd_reload(message: Message):
 
 @router.message(Command("check_expiry"))
 async def cmd_check_expiry(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if not is_admin_user(message.from_user.id):
         await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
         return
 
@@ -52,7 +52,7 @@ async def cmd_check_expiry(message: Message):
 
 @router.message(Command("early_renew"))
 async def cmd_early_renew(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if not is_admin_user(message.from_user.id):
         await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
         return
 
@@ -209,5 +209,5 @@ async def cmd_me(event):
 # [7] CÔNG CỤ ADMIN: LẤY FILE_ID CỦA ẢNH
 @router.message(F.photo)
 async def get_file_id(message: Message):
-    if message.from_user.id == ADMIN_ID: 
+    if is_admin_user(message.from_user.id):
         await message.reply(f"<code>{message.photo[-1].file_id}</code>")

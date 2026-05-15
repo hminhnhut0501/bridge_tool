@@ -47,7 +47,7 @@ import {
 } from "@/lib/api";
 
 type Tab = "overview" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
-type ContentSubTab = "bot" | "plans" | "messages" | "menu";
+type ContentSubTab = "bot" | "plans" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 
 type Notice = {
   type: "ok" | "error";
@@ -121,6 +121,15 @@ const BOT_FIELDS: ConfigField[] = [
   },
 ];
 
+const ADMIN_FIELDS: ConfigField[] = [
+  {
+    key: "ADMIN_IDS",
+    label: "Telegram Admin ID",
+    placeholder: "887869657",
+    help: "Nhập một hoặc nhiều Telegram ID admin, cách nhau bằng dấu phẩy. Admin được bỏ qua bảo trì/spam và dùng lệnh quản trị.",
+  },
+];
+
 const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_BILL_TEMPLATE",
@@ -151,6 +160,32 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
+    key: "MSG_COUPON_PROMPT",
+    label: "Tin yêu cầu nhập coupon",
+    placeholder: "<b>Nhập mã giảm giá / mã kích hoạt</b>\\n\\nGửi mã bạn nhận được vào đây.",
+    help: "Tin bot gửi khi khách bấm nhập coupon.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_COUPON_DISCOUNT_OPTIONS",
+    label: "Tin coupon giảm giá hợp lệ",
+    placeholder: "Mã: {code}\\nGiảm: {percent}%\\nChọn gói muốn mua bên dưới.",
+    help: "Dùng biến {code}, {percent}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_WAIT_QR",
+    label: "Tin đang tạo QR",
+    placeholder: "⏳ Đang tạo mã QR...",
+    help: "Tin tạm khi bot gọi PayOS.",
+  },
+  {
+    key: "MSG_QR_ERROR",
+    label: "Tin lỗi tạo QR",
+    placeholder: "❌ Lỗi cổng thanh toán!",
+    help: "Tin gửi khi PayOS không tạo được đơn.",
+  },
+  {
     key: "MSG_EXPIRED",
     label: "Tin gói hết hạn",
     placeholder: "Gói {plan} của bạn đã hết hạn.",
@@ -162,6 +197,108 @@ const MESSAGE_FIELDS: ConfigField[] = [
     label: "Tin nhắc sắp hết hạn",
     placeholder: "Gói {plan} sẽ hết hạn sau {days} ngày.",
     help: "Dùng biến {plan}, {days}, {date}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_ME_TITLE",
+    label: "Tiêu đề /me",
+    placeholder: "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\\n\\n",
+    help: "Phần đầu trang tài khoản.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_ME_EMPTY",
+    label: "Tin /me khi chưa có gói",
+    placeholder: "❌ Bạn chưa có gói VIP nào.",
+    help: "Hiện khi khách chưa có đơn PAID.",
+  },
+  {
+    key: "MSG_ME_ITEM",
+    label: "Mẫu từng gói trong /me",
+    placeholder: "🎁 Gói: <b>{plan}</b>\\n📅 Hạn: <code>{date}</code>\\n\\n",
+    help: "Dùng biến {plan}, {date}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_POLICY",
+    label: "Nội dung quy định fallback",
+    placeholder: "Chính sách đang cập nhật...",
+    help: "Dùng khi chưa có menu page policy_page.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_SUPPORT",
+    label: "Nội dung hỗ trợ fallback",
+    placeholder: "Hỗ trợ đang cập nhật...",
+    help: "Dùng khi chưa có menu page support_page.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_UPDATING",
+    label: "Tin đang cập nhật",
+    placeholder: "🌟 <b>ĐANG CẬP NHẬT DỮ LIỆU...</b>",
+    help: "Fallback khi nội dung trang trống.",
+    kind: "textarea",
+  },
+];
+
+const BUTTON_FIELDS: ConfigField[] = [
+  { key: "BTN_BACK", label: "Nút quay lại", placeholder: "🔙 Quay lại Menu", help: "Dùng ở hầu hết trang bot." },
+  { key: "BTN_CHECK_PAYMENT", label: "Nút đã chuyển khoản", placeholder: "🔄 Đã chuyển khoản", help: "Nút dưới QR để khách check thủ công." },
+  { key: "BTN_CANCEL_ORDER", label: "Nút hủy đơn", placeholder: "❌ Hủy", help: "Nút dưới QR để hủy đơn pending." },
+  { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
+  { key: "BTN_BUY_1M", label: "Nút mua nhóm 1 tháng", placeholder: "💎 VIP 1 THÁNG", help: "Nút trên trang chi tiết nhóm." },
+  { key: "BTN_BUY_LIFE", label: "Nút mua nhóm trọn đời", placeholder: "👑 VIP TRỌN ĐỜI", help: "Nút trên trang chi tiết nhóm." },
+  { key: "BTN_VIEW_SVIP_PAGE", label: "Nút xem SVIP", placeholder: "🌟 XEM GÓI SVIP+", help: "Nút từ nhóm riêng sang trang SVIP." },
+  { key: "BTN_RENEW", label: "Nút gia hạn", placeholder: "🔄 Gia hạn ngay", help: "Nút khi gói hết hạn." },
+  { key: "BTN_EARLY_RENEW", label: "Nút gia hạn sớm", placeholder: "🔥 Gia hạn sớm -{discount_percent}%", help: "Nút ưu đãi gia hạn sớm." },
+  { key: "BTN_RENEW_FULL", label: "Nút gia hạn/lên trọn đời", placeholder: "🌟 Gia hạn / Lên Trọn Đời", help: "Nút trong tin nhắc gia hạn." },
+  { key: "BTN_RENEW_GROUP", label: "Nút mở rộng gói", placeholder: "🔄 Gia hạn / Mở rộng gói", help: "Nút trong tin nhắc gia hạn." },
+];
+
+const ALERT_FIELDS: ConfigField[] = [
+  { key: "ALERT_SPAM", label: "Cảnh báo spam chung", placeholder: "⏳ Vui lòng thao tác chậm lại!", help: "Khi khách bấm quá nhanh." },
+  { key: "ALERT_SPAM_QR", label: "Cảnh báo spam tạo QR", placeholder: "⏳ Thao tác quá nhanh! Vui lòng chờ 15s.", help: "Khi khách tạo QR liên tục." },
+  { key: "ALERT_MAINTENANCE", label: "Cảnh báo bảo trì", placeholder: "🛠 Bot đang bảo trì, vui lòng quay lại sau...", help: "Alert khi khách bấm nút lúc bảo trì." },
+  { key: "ALERT_QR_EXPIRED", label: "Cảnh báo QR hết hạn", placeholder: "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới.", help: "Khi khách bấm check QR quá hạn." },
+  { key: "ALERT_PAID_SUCCESS", label: "Cảnh báo đã nhận tiền", placeholder: "✅ Giao dịch thành công!", help: "Khi PayOS trả PAID." },
+  { key: "ALERT_NOT_PAID", label: "Cảnh báo chưa nhận tiền", placeholder: "⏳ Hệ thống chưa nhận được tiền!", help: "Khi khách bấm đã chuyển khoản nhưng PayOS chưa PAID." },
+  { key: "ALERT_CANCELLED", label: "Cảnh báo hủy đơn", placeholder: "🚫 Đã hủy đơn.", help: "Khi khách bấm hủy QR." },
+  { key: "ALERT_EARLY_RENEW_OFF", label: "Cảnh báo gia hạn sớm tắt", placeholder: "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường.", help: "Khi khách bấm offer đã tắt." },
+];
+
+const SALE_CONTENT_FIELDS: ConfigField[] = [
+  {
+    key: "SALE_ANNOUNCE_ENABLED",
+    label: "Thông báo flash sale khi /start",
+    placeholder: "ON",
+    help: "Bật/tắt màn hình thông báo flash sale trước menu chính.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  { key: "IMG_SALE_BANNER", label: "Ảnh banner flash sale", placeholder: "File ID Telegram hoặc URL ảnh", help: "Ảnh gửi kèm thông báo sale." },
+  {
+    key: "MSG_SALE_ANNOUNCE",
+    label: "Nội dung thông báo flash sale",
+    placeholder: "🔥 <b>FLASH SALE PRIVÉ+ ĐANG MỞ</b>\\n\\n{sale_lines}\\n\\nSale kết thúc sau: {countdown}",
+    help: "Dùng biến {sale_lines}, {countdown}, {slots}.",
+    kind: "textarea",
+  },
+  {
+    key: "SALE_LINE_TEMPLATE",
+    label: "Mẫu từng dòng sale",
+    placeholder: "🔥 <b>{price_key}</b>\\nGiá gốc: <s>{old_price}</s>\\nGiá sale: <b>{sale_price}</b> (-{discount_percent}%)",
+    help: "Dùng biến {price_key}, {old_price}, {sale_price}, {discount_percent}, {countdown}, {slots}.",
+    kind: "textarea",
+  },
+  {
+    key: "SALE_ANNOUNCE_BUTTONS",
+    label: "Nút dưới thông báo flash sale",
+    placeholder: "🔥 Mua SVIP Trọn Đời => buy_full_life\\n💎 Mua SVIP 1 Tháng => buy_full_1m",
+    help: "Mỗi dòng là một nút. Dùng cú pháp Text => callback.",
     kind: "textarea",
   },
 ];
@@ -263,11 +400,17 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...BOT_FIELDS, ...MESSAGE_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...BOT_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
   }, [config]);
+
+  useEffect(() => {
+    if (savedSecret) {
+      loadAll(savedSecret);
+    }
+  }, [savedSecret]);
 
   function showNotice(type: Notice["type"], text: string) {
     setNotice({ type, text });
@@ -318,7 +461,6 @@ export default function Home() {
   function login() {
     window.localStorage.setItem("prive_admin_secret", secret);
     setSavedSecret(secret);
-    loadAll(secret);
   }
 
   function logout() {
@@ -458,10 +600,29 @@ export default function Home() {
     setCouponForm({ ...couponForm, Applies_To: next.length ? next.join(",") : "ALL" });
   }
 
+  const usedCoupons = useMemo(() => coupons.filter((item) => item.max_uses && item.used_count >= item.max_uses), [coupons]);
+  const [showUsedCoupons, setShowUsedCoupons] = useState(true);
+  const visibleCoupons = useMemo(() => showUsedCoupons ? coupons : coupons.filter((item) => !(item.max_uses && item.used_count >= item.max_uses)), [coupons, showUsedCoupons]);
+
   async function removeCoupon(code = couponForm.Code) {
     if (!code || !window.confirm(`Xoá coupon "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
     await runAction(`coupon-delete-${code}`, async () => {
       await deleteCoupon(savedSecret, code);
+      resetCouponForm();
+      await loadAll();
+    });
+  }
+
+  async function removeUsedCoupons() {
+    if (!usedCoupons.length) {
+      showNotice("ok", "Không có coupon đã dùng hết để xoá.");
+      return;
+    }
+    if (!window.confirm(`Xoá ${usedCoupons.length} coupon đã dùng hết? Lịch sử redemption vẫn được giữ riêng.`)) return;
+    await runAction("coupon-delete-used", async () => {
+      for (const coupon of usedCoupons) {
+        await deleteCoupon(savedSecret, coupon.code);
+      }
       resetCouponForm();
       await loadAll();
     });
@@ -708,13 +869,21 @@ export default function Home() {
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
                 <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
+                <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
+                <button className={contentTab === "alerts" ? "active" : ""} onClick={() => setContentTab("alerts")}>Cảnh báo</button>
                 <button className={contentTab === "messages" ? "active" : ""} onClick={() => setContentTab("messages")}>Tin nhắn</button>
+                <button className={contentTab === "saleContent" ? "active" : ""} onClick={() => setContentTab("saleContent")}>Flash sale</button>
+                <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
                 <button className={contentTab === "menu" ? "active" : ""} onClick={() => setContentTab("menu")}>Menu Builder</button>
               </div>
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
+            {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
+            {contentTab === "alerts" ? <ConfigEditor title="Cảnh báo nhanh" subtitle="Các alert ngắn khi khách bấm nút, spam, hủy đơn, check QR." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
             {contentTab === "messages" ? <ConfigEditor title="Tin nhắn tự động" subtitle="Các mẫu tin bot gửi cho khách. Placeholder được ghi rõ dưới từng ô." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}
+            {contentTab === "saleContent" ? <ConfigEditor title="Nội dung flash sale" subtitle="Bật/tắt thông báo sale, chỉnh banner, mẫu tin và nút dưới thông báo sale." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_FIELDS)} /> : null}
+            {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ADMIN_FIELDS)} /> : null}
             {contentTab === "menu" ? (
               <section className="panel">
                 <PanelHead
@@ -761,6 +930,8 @@ export default function Home() {
                 <div className="panel-actions">
                   <button className="btn secondary" onClick={resetCouponForm}><Plus size={16} /> Thêm mới</button>
                   <button className="btn secondary" onClick={generateCouponCode}><RefreshCw size={16} /> Gen mã HANGCU_</button>
+                  <button className="btn secondary" onClick={() => setShowUsedCoupons(!showUsedCoupons)}>{showUsedCoupons ? "Ẩn đã dùng" : "Hiện đã dùng"}</button>
+                  <button className="btn danger" onClick={removeUsedCoupons} disabled={!usedCoupons.length}><Trash2 size={16} /> Xoá đã dùng</button>
                   <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
                   <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
                 </div>
@@ -801,7 +972,7 @@ export default function Home() {
             ) : null}
             <SimpleTable
               headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã dùng", "Tối đa"]}
-              rows={coupons.map((item) => [
+              rows={visibleCoupons.map((item) => [
                 item.code,
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : item.plan_name || "-",
@@ -811,7 +982,7 @@ export default function Home() {
                 String(item.max_uses || "-"),
               ])}
               onRow={(idx) => {
-                const item = coupons[idx];
+                const item = visibleCoupons[idx];
                 setCouponForm({
                   ...EMPTY_COUPON_FORM,
                   Code: item.code,
@@ -825,7 +996,7 @@ export default function Home() {
                 });
               }}
               actions={(idx) => (
-                <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(coupons[idx].code); }} title="Xoá coupon">
+                <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(visibleCoupons[idx].code); }} title="Xoá coupon">
                   <Trash2 size={16} />
                 </button>
               )}
