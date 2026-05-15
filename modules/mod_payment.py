@@ -9,11 +9,12 @@ from database import db
 from payment import payos_manager
 from processor import process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
+from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
 from modules.mod_engine import render_page
 from sale_utils import format_price_label, get_price, sale_banner
-from renewal_utils import build_early_renew_offer
+from renewal_utils import build_early_renew_offer, is_early_renew_enabled
 
 router = Router()
 
@@ -46,6 +47,31 @@ def sale_text_for_price(price_key, default=0):
     banner = sale_banner(price_key, default)
     return f"\n\n{banner}" if banner else ""
 
+def create_pending_order(order_id, user_id, full_name, plan_name, amount, sale_id="", original_amount=None):
+    if supabase_store.enabled:
+        return supabase_store.create_order(
+            order_id=order_id,
+            telegram_user_id=user_id,
+            full_name=full_name,
+            plan_name=plan_name,
+            amount=amount,
+            sale_id=sale_id,
+            original_amount=original_amount or amount,
+        )
+
+    db.users_sheet.append_row([
+        order_id,
+        str(user_id),
+        full_name,
+        plan_name,
+        amount,
+        "PENDING",
+        "",
+        "",
+        sale_id,
+        original_amount or amount,
+    ])
+
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
@@ -71,18 +97,36 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
 async def process_early_renew(callback: CallbackQuery):
     if not await check_protection(callback): return
 
-    try:
-        row_index = int(callback.data.split("_", 1)[1])
-    except Exception:
-        await callback.answer("Mã gia hạn không hợp lệ.", show_alert=True)
+    if not is_early_renew_enabled():
+        await callback.answer(db.get_config("ALERT_EARLY_RENEW_OFF", "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường."), show_alert=True)
+        await render_page(callback, "main_menu")
         return
 
-    users_data = db.users_sheet.get_all_values()
-    if row_index < 2 or row_index > len(users_data):
+    row_index = None
+    row = None
+    if callback.data.startswith("renew_order_"):
+        source_order_id = callback.data.replace("renew_order_", "", 1).strip()
+        if supabase_store.enabled:
+            order = supabase_store.get_order(source_order_id)
+            row = supabase_store.order_to_sheet_row(order)
+            row_index = source_order_id
+    else:
+        try:
+            row_index = int(callback.data.split("_", 1)[1])
+        except Exception:
+            await callback.answer("Mã gia hạn không hợp lệ.", show_alert=True)
+            return
+
+        users_data = db.users_sheet.get_all_values()
+        if row_index < 2 or row_index > len(users_data):
+            await callback.answer("Ưu đãi gia hạn không còn hợp lệ.", show_alert=True)
+            return
+        row = users_data[row_index - 1]
+
+    if not row:
         await callback.answer("Ưu đãi gia hạn không còn hợp lệ.", show_alert=True)
         return
 
-    row = users_data[row_index - 1]
     if len(row) < 8 or str(row[1]).strip() != str(callback.from_user.id):
         await callback.answer("Ưu đãi này không thuộc tài khoản của bạn.", show_alert=True)
         return
@@ -109,18 +153,15 @@ async def process_early_renew(callback: CallbackQuery):
         await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
 
-    db.users_sheet.append_row([
-        order_id,
-        str(callback.from_user.id),
-        callback.from_user.full_name,
-        offer["plan_name"],
-        amount,
-        "PENDING",
-        "",
-        "",
-        offer["offer_id"],
-        offer["original_price"],
-    ])
+    create_pending_order(
+        order_id=order_id,
+        user_id=callback.from_user.id,
+        full_name=callback.from_user.full_name,
+        plan_name=offer["plan_name"],
+        amount=amount,
+        sale_id=offer["offer_id"],
+        original_amount=offer["original_price"],
+    )
 
     extra_caption = (
         f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_currency(offer['original_price'])}</s> → "
@@ -242,7 +283,15 @@ async def process_buy_request(callback: CallbackQuery):
     
     if pay_data:
         sale_id = sale_info["sale_id"] if sale_info else ""
-        db.users_sheet.append_row([order_id, str(callback.from_user.id), callback.from_user.full_name, plan_name, amount, "PENDING", "", "", sale_id, original_amount or amount])
+        create_pending_order(
+            order_id=order_id,
+            user_id=callback.from_user.id,
+            full_name=callback.from_user.full_name,
+            plan_name=plan_name,
+            amount=amount,
+            sale_id=sale_id,
+            original_amount=original_amount or amount,
+        )
         extra_caption = ""
         if sale_info:
             extra_caption = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
@@ -273,7 +322,13 @@ async def manual_check_payment(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("cancel_order_"))
 async def cancel_order_handler(callback: CallbackQuery):
-    cancelled_orders.add(str(callback.data.split("_")[-1])) 
+    order_id = str(callback.data.split("_")[-1])
+    cancelled_orders.add(order_id)
+    if supabase_store.enabled:
+        try:
+            supabase_store.update_order_status(order_id, "CANCELLED")
+        except Exception as e:
+            print(f"⚠️ Không thể cập nhật CANCELLED cho đơn {order_id}: {e}")
     await safe_delete_private_message(callback.message)
     await callback.answer(db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
     await render_page(callback, "main_menu")

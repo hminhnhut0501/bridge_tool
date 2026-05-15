@@ -110,6 +110,23 @@ class Database:
         if not self.cache_config: self.reload_config(force=True)
         return self.cache_config.get(normalize_key(key).upper(), str(default))
 
+    def set_config(self, key, value):
+        normalized_key = normalize_key(key).upper()
+        if not normalized_key:
+            raise ValueError("Config key không hợp lệ")
+        if not self.config_sheet:
+            self.connect()
+
+        rows = self.config_sheet.get_all_values()
+        for idx, row in enumerate(rows, start=1):
+            if row and normalize_key(row[0]).upper() == normalized_key:
+                self.config_sheet.update_cell(idx, 2, str(value))
+                self.cache_config[normalized_key] = str(value)
+                return
+
+        self.config_sheet.append_row([normalized_key, str(value)])
+        self.cache_config[normalized_key] = str(value)
+
     def get_page(self, page_id):
         normalized = normalize_key(page_id)
         return self.pages_cache.get(normalized) or self.pages_cache.get(normalized.lower())

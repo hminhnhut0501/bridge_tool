@@ -7,6 +7,7 @@ from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from renewal_utils import build_early_renew_block, build_early_renew_offer
+from supabase_store import supabase_store
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -29,6 +30,14 @@ def parse_expire_datetime(value):
     raw = str(value or "").strip()
     if not raw:
         return None
+
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            parsed = parsed.astimezone().replace(tzinfo=None)
+        return parsed
+    except ValueError:
+        pass
 
     formats = (
         "%Y-%m-%d %H:%M:%S",
@@ -72,10 +81,14 @@ async def send_html_message(chat_id, text, reply_markup=None):
 async def check_expirations_professional():
     try:
         logging.info("⏳ [SCHEDULER] Đang quét danh sách thành viên để kiểm tra hạn dùng...")
-        if not db.users_sheet:
+        use_supabase = supabase_store.enabled
+        if not use_supabase and not db.users_sheet:
             db.connect()
 
-        users_data = db.users_sheet.get_all_values()
+        if use_supabase:
+            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_paid_orders(limit=1000)]
+        else:
+            users_data = db.users_sheet.get_all_values()[1:]
         
         # Lấy số ngày báo trước từ Sheet (Mặc định báo trước 3 ngày)
         days_notice = parse_int_config(db.get_config("REMINDER_DAYS", "3"), 3)
@@ -84,9 +97,13 @@ async def check_expirations_professional():
         today_str = now.strftime("%Y-%m-%d")
         logging.info(f"⏰ Scheduler dùng timezone Asia/Ho_Chi_Minh, hiện tại: {now:%Y-%m-%d %H:%M:%S}, nhắc trước {days_notice} ngày.")
         
-        # Duyệt từ dòng số 2 (bỏ qua tiêu đề)
-        for i, row in enumerate(users_data[1:], start=2):
+        # Duyệt danh sách đơn PAID từ Supabase hoặc các dòng Users từ Sheet.
+        for offset, row in enumerate(users_data, start=0):
             if len(row) < 8: continue
+
+            row_number = offset + 2
+            order_id = row_value(row, 0)
+            offer_ref = order_id if use_supabase else row_number
             
             user_id = str(row[1]).strip()
             plan_name = str(row[3]).strip()
@@ -102,11 +119,11 @@ async def check_expirations_professional():
 
             expire_date = parse_expire_datetime(expire_str)
             if not expire_date:
-                logging.warning(f"⚠️ Bỏ qua dòng {i}: không đọc được ngày hết hạn '{expire_str}' cho user {user_id}.")
+                logging.warning(f"⚠️ Bỏ qua đơn/dòng {offer_ref}: không đọc được ngày hết hạn '{expire_str}' cho user {user_id}.")
                 continue
 
             days_remaining = (expire_date.date() - now.date()).days
-            notif_key = f"{user_id}_{i}_{today_str}"
+            notif_key = f"{user_id}_{offer_ref}_{today_str}"
 
             # ==========================================
             # 1. HẾT HẠN -> KICK KHỎI NHÓM & CẬP NHẬT SHEET
@@ -145,10 +162,13 @@ async def check_expirations_professional():
 
                 # Đổi trạng thái thành EXPIRED sau khi đã xử lý gửi/kick
                 try:
-                    db.users_sheet.update(f"F{i}:L{i}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), now.strftime("%Y-%m-%d %H:%M:%S")]])
-                    logging.info(f"✅ Đã cập nhật EXPIRED tại dòng {i}.")
+                    if use_supabase:
+                        supabase_store.mark_order_expired(order_id, expired_notice_at=now.strftime("%Y-%m-%d %H:%M:%S"))
+                    else:
+                        db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), now.strftime("%Y-%m-%d %H:%M:%S")]])
+                    logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
                 except Exception as e:
-                    logging.error(f"❌ Lỗi cập nhật EXPIRED dòng {i}: {e}")
+                    logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
                 continue
 
             # ==========================================
@@ -162,15 +182,16 @@ async def check_expirations_professional():
                     .replace("{days}", str(days_remaining))
                     .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
                 )
-                early_renew_offer = build_early_renew_offer(row, i, now)
+                early_renew_offer = build_early_renew_offer(row, offer_ref, now)
                 msg_reminder += build_early_renew_block(early_renew_offer)
                 
                 # Trỏ thẳng về các trang UI mới để khách mua hàng
                 kb = InlineKeyboardBuilder()
                 if early_renew_offer:
+                    callback_data = f"renew_order_{order_id}" if use_supabase else f"renew_{row_number}"
                     kb.row(InlineKeyboardButton(
                         text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"),
-                        callback_data=f"renew_{i}",
+                        callback_data=callback_data,
                     ))
                 elif "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
@@ -180,12 +201,15 @@ async def check_expirations_professional():
                 try:
                     await send_html_message(user_id, msg_reminder, kb.as_markup())
                     notified_users.add(notif_key) # Lưu nháp để hôm nay không nhắc lại nữa
-                    db.users_sheet.update_cell(i, 11, today_str)
-                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, dòng {i}.")
+                    if use_supabase:
+                        supabase_store.mark_reminder_sent(order_id, today_str)
+                    else:
+                        db.users_sheet.update_cell(row_number, 11, today_str)
+                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, đơn/dòng {offer_ref}.")
                 except Exception as e:
                     logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
             else:
-                logging.info(f"⏭ Dòng {i}: User {user_id} còn {days_remaining} ngày, chưa tới điều kiện nhắc.")
+                logging.info(f"⏭ Đơn/dòng {offer_ref}: User {user_id} còn {days_remaining} ngày, chưa tới điều kiện nhắc.")
 
     except Exception as e:
         logging.error(f"❌ Lỗi hệ thống quét định kỳ: {e}")
@@ -193,7 +217,7 @@ async def check_expirations_professional():
 # Worker chạy ngầm vĩnh viễn
 async def main():
     print("🚀 [MODULE] Scheduler (Quản gia: Nhắc hạn/Kick) đã khởi động!")
-    if not db.users_sheet:
+    if not supabase_store.enabled and not db.users_sheet:
         db.connect()
     await asyncio.sleep(10) 
     

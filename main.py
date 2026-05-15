@@ -35,6 +35,11 @@ except:
         from modules.scheduler import main as scheduler_worker
     except: scheduler_worker = None
 
+try:
+    from modules.mod_coupon import coupon_cleanup_worker
+except:
+    coupon_cleanup_worker = None
+
 # ==========================================
 # 🧩 CƠ CHẾ AUTO-DISCOVERY (NẠP ROUTERS)
 # ==========================================
@@ -85,6 +90,10 @@ async def main():
     if scheduler_worker:
         asyncio.create_task(scheduler_worker())
         print("⏰ [Worker] Đã kích hoạt Scheduler (Quét hết hạn)")
+
+    if coupon_cleanup_worker:
+        asyncio.create_task(coupon_cleanup_worker())
+        print("🎟 [Worker] Đã kích hoạt Coupon Cleanup")
 
     print("🤖 Bot Hang Cu Privé+ đang sẵn sàng nhận lệnh...")
     

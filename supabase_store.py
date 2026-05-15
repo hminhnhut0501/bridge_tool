@@ -83,12 +83,72 @@ class SupabaseStore:
             return []
         return response.json()
 
+    def patch_order(self, order_id, payload):
+        return self._request(
+            "PATCH",
+            "orders",
+            params={"order_id": f"eq.{order_id}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
     def list_orders(self, limit=200):
         return self._request(
             "GET",
             "orders",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
+
+    def get_order(self, order_id):
+        rows = self._request(
+            "GET",
+            "orders",
+            params={"select": "*", "order_id": f"eq.{order_id}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def list_paid_orders(self, limit=1000):
+        return self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "status": "eq.PAID",
+                "order": "expire_at.asc",
+                "limit": str(limit),
+            },
+        )
+
+    def list_paid_orders_for_user(self, telegram_user_id, limit=100):
+        return self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{telegram_user_id}",
+                "status": "eq.PAID",
+                "order": "expire_at.desc",
+                "limit": str(limit),
+            },
+        )
+
+    def order_to_sheet_row(self, order):
+        if not order:
+            return []
+        return [
+            order.get("order_id", ""),
+            order.get("telegram_user_id", ""),
+            order.get("full_name", ""),
+            order.get("plan_name", ""),
+            order.get("amount", ""),
+            order.get("status", ""),
+            order.get("paid_at", ""),
+            order.get("expire_at", ""),
+            order.get("sale_id", ""),
+            order.get("original_amount", ""),
+            order.get("last_reminder_date", ""),
+            order.get("expired_notice_at", ""),
+        ]
 
     def list_users(self, limit=200):
         rows = self._request(
@@ -148,13 +208,19 @@ class SupabaseStore:
             payload["paid_at"] = _parse_datetime(paid_at) or paid_at
         if expire_at is not None:
             payload["expire_at"] = _parse_datetime(expire_at) or expire_at
-        return self._request(
-            "PATCH",
-            "orders",
-            params={"order_id": f"eq.{order_id}"},
-            json=payload,
-            prefer="return=representation",
-        )
+        return self.patch_order(order_id, payload)
+
+    def mark_order_paid(self, order_id, paid_at, expire_at):
+        return self.update_order_status(order_id, "PAID", paid_at=paid_at, expire_at=expire_at)
+
+    def mark_order_expired(self, order_id, expired_notice_at=None):
+        payload = {"status": "EXPIRED"}
+        if expired_notice_at is not None:
+            payload["expired_notice_at"] = _parse_datetime(expired_notice_at) or expired_notice_at
+        return self.patch_order(order_id, payload)
+
+    def mark_reminder_sent(self, order_id, reminder_date):
+        return self.patch_order(order_id, {"last_reminder_date": str(reminder_date)})
 
     def upsert_menu_page(self, page_id, image_url, body, layout):
         payload = {

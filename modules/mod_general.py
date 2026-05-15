@@ -6,12 +6,26 @@ from aiogram.filters import CommandStart, Command
 
 from database import db
 from bot_instance import bot
+from supabase_store import supabase_store
 from helpers import ADMIN_ID, check_protection, cleanup_welcome, smart_display
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
+from renewal_utils import is_early_renew_enabled
 
 router = Router()
+
+def order_to_me_item(order):
+    return [
+        order.get("order_id", ""),
+        order.get("telegram_user_id", ""),
+        order.get("full_name", ""),
+        order.get("plan_name", ""),
+        order.get("amount", ""),
+        order.get("status", ""),
+        order.get("paid_at", ""),
+        order.get("expire_at", ""),
+    ]
 
 # [1] HÀM CŨ DỰ PHÒNG CHỐNG LỖI IMPORT
 async def send_welcome_messages(event):
@@ -35,6 +49,32 @@ async def cmd_check_expiry(message: Message):
     await message.reply("⏳ Đang quét hạn dùng ngay bây giờ...")
     await check_expirations_professional()
     await message.reply("✅ Đã chạy xong một vòng quét hạn dùng. Xem log server để biết dòng nào đã gửi/kick hoặc bị bỏ qua.")
+
+@router.message(Command("early_renew"))
+async def cmd_early_renew(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+        return
+
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        status = "ON" if is_early_renew_enabled() else "OFF"
+        await message.reply(
+            f"EARLY_RENEW hiện đang: <b>{status}</b>\n"
+            "Dùng: /early_renew on hoặc /early_renew off",
+            parse_mode="HTML",
+        )
+        return
+
+    action = parts[1].strip().lower()
+    if action in {"on", "1", "true", "yes", "bat", "bật"}:
+        db.set_config("EARLY_RENEW_ENABLED", "ON")
+        await message.reply("✅ Đã bật EARLY_RENEW. Tin nhắc gia hạn sẽ kèm ưu đãi nếu đủ điều kiện.")
+    elif action in {"off", "0", "false", "no", "tat", "tắt"}:
+        db.set_config("EARLY_RENEW_ENABLED", "OFF")
+        await message.reply("✅ Đã tắt EARLY_RENEW. Tin nhắc gia hạn sẽ dùng nội dung và nút gia hạn thường.")
+    else:
+        await message.reply("Cú pháp: /early_renew on hoặc /early_renew off")
 
 async def send_sale_announcement(message: Message):
     enabled = str(db.get_config("SALE_ANNOUNCE_ENABLED", "ON")).strip().upper()
@@ -145,10 +185,15 @@ async def cmd_me(event):
     await cleanup_welcome(event.from_user.id, chat_id)
     
     user_id = str(event.from_user.id)
-    db.connect()
-    all_data = db.users_sheet.get_all_values()
-    
-    my_plans = [row for row in all_data if len(row) > 7 and str(row[1]) == user_id and row[5] == "PAID"]
+    if supabase_store.enabled:
+        my_plans = [
+            order_to_me_item(order)
+            for order in supabase_store.list_paid_orders_for_user(user_id, limit=100)
+        ]
+    else:
+        db.connect()
+        all_data = db.users_sheet.get_all_values()
+        my_plans = [row for row in all_data if len(row) > 7 and str(row[1]) == user_id and row[5] == "PAID"]
     
     text = db.get_config("MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
     if not my_plans: 

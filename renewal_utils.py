@@ -70,6 +70,11 @@ def get_notice_days():
     return safe_int(db.get_config("EARLY_RENEW_DAYS", db.get_config("REMINDER_DAYS", "3")), 3)
 
 
+def is_early_renew_enabled():
+    value = normalize_key(db.get_config("EARLY_RENEW_ENABLED", db.get_config("EARLY_RENEW", "ON"))).upper()
+    return value not in {"OFF", "FALSE", "NO", "0", "TẮT", "TAT", "DISABLED"}
+
+
 def resolve_price_key(plan_name):
     plan = normalize_key(plan_name).upper()
     if "TRỌN ĐỜI" in plan or "LIFE" in plan:
@@ -86,6 +91,9 @@ def resolve_price_key(plan_name):
 
 
 def build_early_renew_offer(row, row_index=None, now=None):
+    if not is_early_renew_enabled():
+        return None
+
     now = now or datetime.now()
     if len(row) < 8:
         return None

@@ -6,6 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db
 from bot_instance import bot 
 from payment import payos_manager
+from supabase_store import supabase_store
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -18,6 +19,14 @@ def parse_expire_datetime(value):
     raw = str(value or "").strip()
     if not raw:
         return None
+
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            parsed = parsed.astimezone().replace(tzinfo=None)
+        return parsed
+    except ValueError:
+        pass
 
     formats = (
         "%Y-%m-%d %H:%M:%S",
@@ -59,6 +68,23 @@ def find_current_expire(users_data, user_id, plan_name):
             best_expire = expire
     return best_expire
 
+def find_current_expire_from_orders(orders, user_id, plan_name):
+    now = datetime.now()
+    best_expire = None
+    target_plan = plan_name.upper()
+    for order in orders:
+        if str(order.get("telegram_user_id", "")).strip() != str(user_id):
+            continue
+        if str(order.get("status", "")).strip().upper() != "PAID":
+            continue
+        if str(order.get("plan_name", "")).strip().upper() != target_plan:
+            continue
+
+        expire = parse_expire_datetime(order.get("expire_at"))
+        if expire and expire > now and (best_expire is None or expire > best_expire):
+            best_expire = expire
+    return best_expire
+
 # ======================================================
 # 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
 # ======================================================
@@ -66,25 +92,39 @@ async def process_successful_payment(order_code: str):
     try:
         target_code = str(order_code).strip()
         print(f"🔄 Đang bắt đầu xử lý giao hàng cho đơn: {target_code}")
-        
-        db.connect() # Làm mới dữ liệu
-        users_data = db.users_sheet.get_all_values()
-        
+
         row_index = -1
         user_id = None
         plan_name = None 
+        users_data = []
+        paid_orders = []
+
+        if supabase_store.enabled:
+            order = supabase_store.get_order(target_code)
+            if not order:
+                print(f"❌ Không tìm thấy đơn {target_code} trên Supabase để giao hàng.")
+                return
+            if str(order.get("status", "")).strip().upper() == "PAID":
+                print(f"⚠️ Đơn {target_code} đã được xử lý trước đó.")
+                return
+            user_id = str(order.get("telegram_user_id", "")).strip()
+            plan_name = str(order.get("plan_name", "")).strip()
+            paid_orders = supabase_store.list_paid_orders_for_user(user_id, limit=200)
+        else:
+            db.connect() # Làm mới dữ liệu
+            users_data = db.users_sheet.get_all_values()
         
-        # Duyệt ngược từ dưới lên lấy đơn hàng (Siêu tốc độ)
-        for i in range(len(users_data) - 1, 0, -1):
-            row = users_data[i]
-            if str(row[0]).strip() == target_code:
-                if len(row) > 5 and row[5].strip() == "PAID":
-                    print(f"⚠️ Đơn {target_code} đã được xử lý trước đó.")
-                    return
-                row_index = i + 1
-                user_id = str(row[1]).strip()
-                plan_name = str(row[3]).strip()
-                break
+            # Duyệt ngược từ dưới lên lấy đơn hàng (Siêu tốc độ)
+            for i in range(len(users_data) - 1, 0, -1):
+                row = users_data[i]
+                if str(row[0]).strip() == target_code:
+                    if len(row) > 5 and row[5].strip() == "PAID":
+                        print(f"⚠️ Đơn {target_code} đã được xử lý trước đó.")
+                        return
+                    row_index = i + 1
+                    user_id = str(row[1]).strip()
+                    plan_name = str(row[3]).strip()
+                    break
                 
         if not user_id:
             print(f"❌ Không tìm thấy đơn {target_code} để giao hàng.")
@@ -93,7 +133,10 @@ async def process_successful_payment(order_code: str):
         # Tính toán hạn dùng. Nếu gia hạn sớm cùng gói, cộng tiếp từ hạn cũ.
         is_lifetime = ("TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper())
         days_to_add = 3650 if is_lifetime else 30
-        base_date = find_current_expire(users_data, user_id, plan_name) or datetime.now()
+        if supabase_store.enabled:
+            base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or datetime.now()
+        else:
+            base_date = find_current_expire(users_data, user_id, plan_name) or datetime.now()
         expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
@@ -129,8 +172,12 @@ async def process_successful_payment(order_code: str):
             except Exception as e:
                 links_msg += f"👉 <b>{escape_html(gname)}</b>: <i>❌ Lỗi tạo link ({e})</i>\n\n"
 
-        # Cập nhật Sheet
-        db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), expire_date]])
+        # Cập nhật trạng thái đơn
+        paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if supabase_store.enabled:
+            supabase_store.mark_order_paid(target_code, paid_at=paid_at, expire_at=expire_date)
+        else:
+            db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])
 
         # Gửi tin nhắn thành công
         msg_template = db.get_config("MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")

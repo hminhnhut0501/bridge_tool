@@ -207,6 +207,7 @@ export default function Home() {
                         >
                           <option value="PENDING">PENDING</option>
                           <option value="PAID">PAID</option>
+                          <option value="CANCELLED">CANCELLED</option>
                           <option value="EXPIRED">EXPIRED</option>
                         </select>
                       </td>
