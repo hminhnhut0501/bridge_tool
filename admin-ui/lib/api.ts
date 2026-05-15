@@ -91,8 +91,8 @@ async function request<T>(path: string, secret: string, init?: RequestInit): Pro
   return res.json();
 }
 
-export async function getOrders(secret: string) {
-  return request<{ data: Order[] }>("/admin-api/orders", secret);
+export async function getOrders(secret: string, limit = 5000) {
+  return request<{ data: Order[] }>(`/admin-api/orders?limit=${limit}`, secret);
 }
 
 export async function getUsers(secret: string) {

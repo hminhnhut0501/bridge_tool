@@ -3,6 +3,7 @@
 import {
   Activity,
   BadgePercent,
+  BarChart3,
   CheckCircle2,
   FileText,
   Gift,
@@ -46,8 +47,10 @@ import {
   upsertSaleRule,
 } from "@/lib/api";
 
-type Tab = "overview" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
 type ContentSubTab = "bot" | "plans" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
+type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
+type GroupMode = "none" | "day" | "month";
 
 type Notice = {
   type: "ok" | "error";
@@ -333,6 +336,8 @@ const EMPTY_COUPON_FORM = {
   Enabled: "ON",
 };
 
+const ORDER_PAGE_SIZE = 25;
+
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
@@ -340,6 +345,74 @@ function money(value: number) {
 function dateText(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function dayKey(value: string | null | undefined) {
+  if (!value) return "Không rõ ngày";
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function monthKey(value: string | null | undefined) {
+  if (!value) return "Không rõ tháng";
+  return new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "numeric" }).format(new Date(value));
+}
+
+function isWithinPeriod(value: string | null | undefined, period: OrderPeriod) {
+  if (period === "all") return true;
+  if (!value) return false;
+
+  const date = new Date(value);
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (period === "today") return date >= start;
+  if (period === "7d") {
+    const sevenDaysAgo = new Date(start);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    return date >= sevenDaysAgo;
+  }
+  if (period === "month") {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return date >= monthStart;
+  }
+  if (period === "year") {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    return date >= yearStart;
+  }
+  return true;
+}
+
+function uniquePaidCustomers(orders: Order[]) {
+  return new Set(orders.filter((item) => item.status === "PAID").map((item) => item.telegram_user_id)).size;
+}
+
+function orderStats(orders: Order[]) {
+  const paidOrders = orders.filter((item) => item.status === "PAID");
+  const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const discount = paidOrders.reduce((sum, item) => sum + (item.coupon_discount_amount || 0), 0);
+  return {
+    total: orders.length,
+    paid: paidOrders.length,
+    pending: orders.filter((item) => item.status === "PENDING").length,
+    cancelled: orders.filter((item) => item.status === "CANCELLED").length,
+    expired: orders.filter((item) => item.status === "EXPIRED").length,
+    revenue,
+    discount,
+    averageOrder: paidOrders.length ? Math.round(revenue / paidOrders.length) : 0,
+    conversion: orders.length ? Math.round((paidOrders.length / orders.length) * 100) : 0,
+    customers: uniquePaidCustomers(orders),
+  };
+}
+
+function groupOrders(orders: Order[], mode: GroupMode) {
+  if (mode === "none") return [];
+  const groups = new Map<string, Order[]>();
+  for (const order of orders) {
+    const key = mode === "day" ? dayKey(order.created_at) : monthKey(order.created_at);
+    groups.set(key, [...(groups.get(key) || []), order]);
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items, stats: orderStats(items) }));
 }
 
 function statusClass(status: string) {
@@ -382,6 +455,9 @@ export default function Home() {
   const [saving, setSaving] = useState("");
   const [query, setQuery] = useState("");
   const [orderStatus, setOrderStatus] = useState("ALL");
+  const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("month");
+  const [orderGroupMode, setOrderGroupMode] = useState<GroupMode>("day");
+  const [orderPage, setOrderPage] = useState(1);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupId, setGroupId] = useState("");
@@ -451,6 +527,7 @@ export default function Home() {
       setSaleRules(salesRes.data);
       setCoupons(couponsRes.data);
       setWebhook(webhookRes.data);
+      setOrderPage(1);
     } catch (err) {
       showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
@@ -648,6 +725,9 @@ export default function Home() {
     const revenue = orders.filter((item) => item.status === "PAID").reduce((sum, item) => sum + (item.amount || 0), 0);
     return { paid, pending, revenue, users: users.length, coupons: coupons.length, menu: menuPages.length };
   }, [orders, users, coupons, menuPages]);
+  const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
+  const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
+  const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
 
   const configuredGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config]);
   const visibleGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config]);
@@ -678,9 +758,22 @@ export default function Home() {
       const text = `${order.order_id} ${order.full_name || ""} ${order.telegram_user_id} ${order.plan_name} ${order.coupon_code || ""}`.toLowerCase();
       const matchQuery = !query || text.includes(query.toLowerCase());
       const matchStatus = orderStatus === "ALL" || order.status === orderStatus;
-      return matchQuery && matchStatus;
+      const matchPeriod = isWithinPeriod(order.created_at, orderPeriod);
+      return matchQuery && matchStatus && matchPeriod;
     });
-  }, [orders, query, orderStatus]);
+  }, [orders, query, orderStatus, orderPeriod]);
+  const filteredOrderStats = useMemo(() => orderStats(filteredOrders), [filteredOrders]);
+  const groupedFilteredOrders = useMemo(() => groupOrders(filteredOrders, orderGroupMode), [filteredOrders, orderGroupMode]);
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDER_PAGE_SIZE));
+  const pagedOrders = useMemo(() => {
+    const safePage = Math.min(orderPage, totalOrderPages);
+    const start = (safePage - 1) * ORDER_PAGE_SIZE;
+    return filteredOrders.slice(start, start + ORDER_PAGE_SIZE);
+  }, [filteredOrders, orderPage, totalOrderPages]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [query, orderStatus, orderPeriod, orderGroupMode]);
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 1 tháng";
@@ -735,6 +828,7 @@ export default function Home() {
         </div>
         <nav className="nav">
           <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Activity size={18} /> Tổng quan</button>
+          <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")}><BarChart3 size={18} /> Thống kê</button>
           <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
@@ -775,6 +869,12 @@ export default function Home() {
               <Metric label="Khách gần đây" value={String(metrics.users)} />
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
             </div>
+            <div className="grid">
+              <Metric label="Doanh thu hôm nay" value={money(todayStats.revenue)} />
+              <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
+              <Metric label="Doanh thu tháng này" value={money(monthStats.revenue)} />
+              <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} />
+            </div>
             <section className="panel">
               <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
               <div className="status-grid">
@@ -787,6 +887,31 @@ export default function Home() {
             <section className="panel">
               <PanelHead title="Đơn hàng mới nhất" subtitle="5 đơn gần nhất." />
               <OrdersTable orders={orders.slice(0, 5)} onStatusChange={changeOrderStatus} saving={saving} />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "analytics" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Hôm nay" value={money(todayStats.revenue)} />
+              <Metric label="Tháng này" value={money(monthStats.revenue)} />
+              <Metric label="Năm nay" value={money(yearStats.revenue)} />
+              <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} />
+            </div>
+            <div className="grid">
+              <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} />
+              <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} />
+              <Metric label="AOV tháng" value={money(monthStats.averageOrder)} />
+              <Metric label="Coupon giảm tháng" value={money(monthStats.discount)} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Theo dõi tăng trưởng" subtitle="Doanh thu, tỉ lệ thanh toán, khách trả tiền và giảm giá coupon theo từng ngày trong tháng." />
+              <SummaryTable groups={groupOrders(orders.filter((item) => isWithinPeriod(item.created_at, "month")), "day")} />
+            </section>
+            <section className="panel">
+              <PanelHead title="Tổng hợp theo tháng" subtitle="Dữ liệu năm hiện tại, không xoá đơn cũ." />
+              <SummaryTable groups={groupOrders(orders.filter((item) => isWithinPeriod(item.created_at, "year")), "month")} />
             </section>
           </div>
         ) : null}
@@ -846,20 +971,42 @@ export default function Home() {
         ) : null}
 
         {tab === "orders" ? (
-          <section className="panel">
-            <PanelHead title="Đơn hàng" subtitle="Theo dõi QR, thanh toán, hủy và hết hạn." />
-            <div className="toolbar">
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói..." />
-              <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="PENDING">Đang chờ</option>
-                <option value="PAID">Đã thanh toán</option>
-                <option value="CANCELLED">Đã hủy</option>
-                <option value="EXPIRED">Hết hạn</option>
-              </select>
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Doanh thu bộ lọc" value={money(filteredOrderStats.revenue)} />
+              <Metric label="Đơn PAID" value={String(filteredOrderStats.paid)} />
+              <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} />
+              <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} />
             </div>
-            <OrdersTable orders={filteredOrders} onStatusChange={changeOrderStatus} saving={saving} />
-          </section>
+            <section className="panel">
+              <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
+              <div className="toolbar orders-toolbar">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." />
+                <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
+                  <option value="ALL">Tất cả trạng thái</option>
+                  <option value="PENDING">Đang chờ</option>
+                  <option value="PAID">Đã thanh toán</option>
+                  <option value="CANCELLED">Đã hủy</option>
+                  <option value="EXPIRED">Hết hạn</option>
+                </select>
+                <select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value as OrderPeriod)}>
+                  <option value="today">Hôm nay</option>
+                  <option value="7d">7 ngày gần đây</option>
+                  <option value="month">Tháng này</option>
+                  <option value="year">Năm nay</option>
+                  <option value="all">Tất cả</option>
+                </select>
+                <select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value as GroupMode)}>
+                  <option value="day">Nhóm theo ngày</option>
+                  <option value="month">Nhóm theo tháng</option>
+                  <option value="none">Không nhóm</option>
+                </select>
+              </div>
+              {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
+              <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} saving={saving} />
+              <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
+            </section>
+          </div>
         ) : null}
 
         {tab === "content" ? (
@@ -1130,6 +1277,46 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function SummaryTable({ groups }: { groups: { label: string; items: Order[]; stats: ReturnType<typeof orderStats> }[] }) {
+  return (
+    <div className="table-wrap summary-wrap">
+      <table>
+        <thead><tr><th>Kỳ</th><th>Doanh thu</th><th>PAID</th><th>PENDING</th><th>Huỷ/Hết hạn</th><th>Khách trả tiền</th><th>AOV</th><th>Coupon giảm</th><th>Tỉ lệ thanh toán</th></tr></thead>
+        <tbody>
+          {groups.length ? groups.map((group) => (
+            <tr key={group.label}>
+              <td><strong>{group.label}</strong><div className="muted">{group.items.length} đơn</div></td>
+              <td>{money(group.stats.revenue)}</td>
+              <td>{group.stats.paid}</td>
+              <td>{group.stats.pending}</td>
+              <td>{group.stats.cancelled + group.stats.expired}</td>
+              <td>{group.stats.customers}</td>
+              <td>{money(group.stats.averageOrder)}</td>
+              <td>{money(group.stats.discount)}</td>
+              <td>{group.stats.conversion}%</td>
+            </tr>
+          )) : (
+            <tr><td colSpan={9} className="empty-state">Chưa có dữ liệu trong kỳ này.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Pagination({ page, totalPages, totalItems, onPage }: { page: number; totalPages: number; totalItems: number; onPage: (page: number) => void }) {
+  const safePage = Math.min(page, totalPages);
+  return (
+    <div className="pagination">
+      <span>{totalItems} đơn • Trang {safePage}/{totalPages}</span>
+      <div>
+        <button className="btn secondary" disabled={safePage <= 1} onClick={() => onPage(safePage - 1)}>Trước</button>
+        <button className="btn secondary" disabled={safePage >= totalPages} onClick={() => onPage(safePage + 1)}>Sau</button>
+      </div>
     </div>
   );
 }

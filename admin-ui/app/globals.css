@@ -333,8 +333,16 @@ select:disabled {
   padding: 14px 16px;
 }
 
+.toolbar.orders-toolbar {
+  grid-template-columns: minmax(260px, 1fr) 180px 180px 180px;
+}
+
 .table-wrap {
   overflow-x: auto;
+}
+
+.summary-wrap {
+  border-top: 1px solid var(--line);
 }
 
 table {
@@ -394,6 +402,20 @@ tbody tr:hover {
   color: var(--muted);
   font-weight: 700;
   text-align: center;
+}
+
+.pagination {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
+.pagination div {
+  display: flex;
+  gap: 8px;
 }
 
 .empty-card {
@@ -701,6 +723,7 @@ td select {
   }
 
   .toolbar,
+  .toolbar.orders-toolbar,
   .group-list,
   .status-grid,
   .check-grid,
