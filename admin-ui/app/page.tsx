@@ -1,19 +1,28 @@
 "use client";
 
-import { RefreshCw, Save, Settings, ShoppingCart, Users } from "lucide-react";
+import { BadgePercent, FileText, RefreshCw, Save, Settings, ShoppingCart, Ticket, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ConfigRow,
+  Coupon,
+  MenuPage,
   Order,
+  SaleRule,
   UserRow,
+  createCoupon,
   getConfig,
+  getCoupons,
+  getMenuPages,
   getOrders,
+  getSaleRules,
   getUsers,
+  updateMenuPage,
   updateConfig,
   updateOrderStatus,
+  upsertSaleRule,
 } from "@/lib/api";
 
-type Tab = "orders" | "users" | "config";
+type Tab = "orders" | "users" | "config" | "menu" | "sales" | "coupons";
 
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
@@ -41,8 +50,14 @@ export default function Home() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [config, setConfig] = useState<ConfigRow[]>([]);
+  const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
+  const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [editingKey, setEditingKey] = useState("");
   const [editingValue, setEditingValue] = useState("");
+  const [menuForm, setMenuForm] = useState({ page_id: "", image_url: "", body: "", layout: "" });
+  const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+  const [couponForm, setCouponForm] = useState({ Code: "", Plan_Name: "", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -57,14 +72,20 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      const [ordersRes, usersRes, configRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
+        getMenuPages(activeSecret),
+        getSaleRules(activeSecret),
+        getCoupons(activeSecret),
       ]);
       setOrders(ordersRes.data);
       setUsers(usersRes.data);
       setConfig(configRes.data);
+      setMenuPages(menuRes.data);
+      setSaleRules(salesRes.data);
+      setCoupons(couponsRes.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được dữ liệu");
     } finally {
@@ -83,6 +104,27 @@ export default function Home() {
     await updateConfig(savedSecret, editingKey, editingValue);
     setEditingKey("");
     setEditingValue("");
+    await loadAll();
+  }
+
+  async function saveMenuPage() {
+    if (!menuForm.page_id) return;
+    await updateMenuPage(savedSecret, menuForm.page_id, menuForm);
+    setMenuForm({ page_id: "", image_url: "", body: "", layout: "" });
+    await loadAll();
+  }
+
+  async function saveSaleRule() {
+    if (!saleForm.sale_id || !saleForm.price_key) return;
+    await upsertSaleRule(savedSecret, saleForm);
+    setSaleForm({ sale_id: "", price_key: "", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+    await loadAll();
+  }
+
+  async function saveCoupon() {
+    if (!couponForm.Code || !couponForm.Plan_Name) return;
+    await createCoupon(savedSecret, couponForm);
+    setCouponForm({ Code: "", Plan_Name: "", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
     await loadAll();
   }
 
@@ -136,6 +178,15 @@ export default function Home() {
           </button>
           <button className={tab === "config" ? "active" : ""} onClick={() => setTab("config")}>
             <Settings size={18} /> Config
+          </button>
+          <button className={tab === "menu" ? "active" : ""} onClick={() => setTab("menu")}>
+            <FileText size={18} /> Menu
+          </button>
+          <button className={tab === "sales" ? "active" : ""} onClick={() => setTab("sales")}>
+            <BadgePercent size={18} /> Sale
+          </button>
+          <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}>
+            <Ticket size={18} /> Coupon
           </button>
         </nav>
       </aside>
@@ -291,6 +342,90 @@ export default function Home() {
                       <td>{item.key}</td>
                       <td>{item.value}</td>
                       <td>{dateText(item.updated_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "menu" ? (
+          <section className="panel">
+            <div className="panel-head">
+              <strong>Menu pages</strong>
+              <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu page</button>
+            </div>
+            <div className="card stack">
+              <label className="field"><span>Page ID</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} /></label>
+              <label className="field"><span>Image URL</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} /></label>
+              <label className="field"><span>Body</span><input value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} /></label>
+              <label className="field"><span>Layout</span><input value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} /></label>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Page ID</th><th>Body</th><th>Layout</th><th>Cập nhật</th></tr></thead>
+                <tbody>
+                  {menuPages.map((item) => (
+                    <tr key={item.page_id} onClick={() => setMenuForm({ page_id: item.page_id, image_url: item.image_url || "", body: item.body || "", layout: item.layout || "" })}>
+                      <td>{item.page_id}</td><td>{item.body}</td><td>{item.layout}</td><td>{dateText(item.updated_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "sales" ? (
+          <section className="panel">
+            <div className="panel-head">
+              <strong>Sale rules</strong>
+              <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
+            </div>
+            <div className="card stack">
+              <label className="field"><span>Sale ID</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} /></label>
+              <label className="field"><span>Price key</span><input value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })} /></label>
+              <label className="field"><span>Discount %</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} /></label>
+              <label className="field"><span>Sale price</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} /></label>
+              <label className="field"><span>Slot limit</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} /></label>
+              <label className="field"><span>Enabled</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">ON</option><option value="OFF">OFF</option></select></label>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Sale ID</th><th>Price key</th><th>Giảm</th><th>Giá sale</th><th>Slot</th><th>Bật</th></tr></thead>
+                <tbody>
+                  {saleRules.map((item) => (
+                    <tr key={item.sale_id} onClick={() => setSaleForm({ sale_id: item.sale_id, price_key: item.price_key, discount_percent: String(item.discount_percent || ""), sale_price: String(item.sale_price || ""), slot_limit: String(item.slot_limit || ""), enabled: item.enabled ? "ON" : "OFF", start_at: item.starts_at || "", end_at: item.ends_at || "" })}>
+                      <td>{item.sale_id}</td><td>{item.price_key}</td><td>{item.discount_percent || "-"}</td><td>{item.sale_price || "-"}</td><td>{item.slot_limit || "-"}</td><td>{item.enabled ? "ON" : "OFF"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "coupons" ? (
+          <section className="panel">
+            <div className="panel-head">
+              <strong>Coupons</strong>
+              <button className="btn" onClick={saveCoupon}><Save size={16} /> Tạo coupon</button>
+            </div>
+            <div className="card stack">
+              <label className="field"><span>Code</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value })} /></label>
+              <label className="field"><span>Plan name</span><input value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })} /></label>
+              <label className="field"><span>Duration days</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} /></label>
+              <label className="field"><span>Max uses</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} /></label>
+              <label className="field"><span>Enabled</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">ON</option><option value="OFF">OFF</option></select></label>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Code</th><th>Plan</th><th>Status</th><th>Used</th><th>Max</th><th>Expire</th></tr></thead>
+                <tbody>
+                  {coupons.map((item) => (
+                    <tr key={item.code} onClick={() => setCouponForm({ Code: item.code, Plan_Name: item.plan_name || "", Duration_Days: item.raw_data?.Duration_Days || "30", Max_Uses: String(item.max_uses || 1), Enabled: item.status === "ACTIVE" ? "ON" : "OFF" })}>
+                      <td>{item.code}</td><td>{item.plan_name || "-"}</td><td>{item.status}</td><td>{item.used_count}</td><td>{item.max_uses || "-"}</td><td>{dateText(item.expires_at)}</td>
                     </tr>
                   ))}
                 </tbody>

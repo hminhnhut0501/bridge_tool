@@ -173,4 +173,48 @@ async def admin_config():
 @app.patch("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
 async def admin_set_config(key: str, request: Request):
     body = await request.json()
-    return {"data": supabase_store.set_config(key, body.get("value", ""))}
+    data = supabase_store.set_config(key, body.get("value", ""))
+    db.cache_config[str(key).strip().upper()] = str(body.get("value", ""))
+    return {"data": data}
+
+
+@app.get("/admin-api/menu-pages", dependencies=[Depends(require_admin)])
+async def admin_menu_pages():
+    return {"data": supabase_store.list_menu_pages()}
+
+
+@app.patch("/admin-api/menu-pages/{page_id}", dependencies=[Depends(require_admin)])
+async def admin_set_menu_page(page_id: str, request: Request):
+    body = await request.json()
+    data = supabase_store.upsert_menu_page(
+        page_id=page_id,
+        image_url=body.get("image_url", ""),
+        body=body.get("body", ""),
+        layout=body.get("layout", ""),
+    )
+    db.reload_config(force=True)
+    return {"data": data}
+
+
+@app.get("/admin-api/sale-rules", dependencies=[Depends(require_admin)])
+async def admin_sale_rules():
+    return {"data": supabase_store.list_sale_rules()}
+
+
+@app.post("/admin-api/sale-rules", dependencies=[Depends(require_admin)])
+async def admin_upsert_sale_rule(request: Request):
+    body = await request.json()
+    data = supabase_store.upsert_sale_rule(body)
+    db.reload_config(force=True)
+    return {"data": data}
+
+
+@app.get("/admin-api/coupons", dependencies=[Depends(require_admin)])
+async def admin_coupons():
+    return {"data": supabase_store.list_coupons()}
+
+
+@app.post("/admin-api/coupons", dependencies=[Depends(require_admin)])
+async def admin_create_coupon(request: Request):
+    body = await request.json()
+    return {"data": supabase_store.create_coupon_from_sheet_row(body)}

@@ -3,6 +3,7 @@ import time
 import logging
 from aiogram import Router
 from database import db
+from supabase_store import supabase_store
 
 # Khai báo router để main.py tự động nạp module này mà không bị lỗi
 router = Router()
@@ -17,6 +18,22 @@ async def maintenance_worker():
     while True:
         try:
             logging.info("🧹 Bắt đầu chu kỳ dọn dẹp Database...")
+
+            if supabase_store.enabled:
+                current_time = int(time.time())
+                for order in supabase_store.list_orders(limit=1000):
+                    try:
+                        order_id = int(str(order.get("order_id") or "0"))
+                    except ValueError:
+                        continue
+                    status = str(order.get("status") or "").upper()
+                    if status == "PENDING" and (current_time - order_id > 2592000):
+                        supabase_store.update_order_status(order_id, "CANCELLED")
+                        logging.info(f"🗑 Đã chuyển đơn PENDING quá hạn sang CANCELLED: {order_id}")
+
+                logging.info("💤 Dọn dẹp Supabase xong! Module Maintenance sẽ ngủ 12 tiếng.")
+                await asyncio.sleep(43200)
+                continue
             
             # Kết nối thẳng vào Sheet (Không dùng cache vì thao tác này cần dữ liệu realtime)
             sh = db.client.open_by_key(db.sh.id)

@@ -24,6 +24,11 @@ def _parse_datetime(value):
     if not raw:
         return None
 
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).isoformat()
+    except ValueError:
+        pass
+
     formats = (
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
@@ -82,6 +87,49 @@ class SupabaseStore:
         if not response.text:
             return []
         return response.json()
+
+    def list_config(self):
+        return self.get_config()
+
+    def list_menu_pages(self):
+        return self._request("GET", "menu_pages", params={"select": "*", "order": "page_id.asc"})
+
+    def list_sale_rules(self):
+        return self._request("GET", "sale_rules", params={"select": "*", "order": "created_at.asc"})
+
+    def upsert_sale_rule(self, raw):
+        payload = {
+            "sale_id": _clean_text(raw.get("sale_id") or raw.get("sale_code") or raw.get("code")),
+            "price_key": _clean_text(raw.get("price_key") or raw.get("key") or raw.get("config_key")).upper(),
+            "discount_percent": _parse_int(raw.get("discount_percent") or raw.get("discount") or raw.get("percent"), 0),
+            "sale_price": _parse_int(raw.get("sale_price") or raw.get("price_sale"), 0),
+            "slot_limit": _parse_int(raw.get("slot_limit") or raw.get("slots"), 0),
+            "enabled": str(raw.get("enabled") or raw.get("status") or "ON").strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"},
+            "raw_data": raw,
+        }
+        if not payload["sale_id"]:
+            payload["sale_id"] = f"{payload['price_key']}:{raw.get('end_at') or raw.get('end') or 'NO_END'}"
+        start_at = raw.get("start_at") or raw.get("start")
+        end_at = raw.get("end_at") or raw.get("end")
+        if start_at:
+            payload["starts_at"] = _parse_datetime(start_at) or start_at
+        if end_at:
+            payload["ends_at"] = _parse_datetime(end_at) or end_at
+        return self._request(
+            "POST",
+            "sale_rules",
+            params={"on_conflict": "sale_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def count_orders_by_sale_id(self, sale_id, statuses=("PENDING", "PAID")):
+        rows = self._request(
+            "GET",
+            "orders",
+            params={"select": "order_id", "sale_id": f"eq.{sale_id}", "status": f"in.({','.join(statuses)})"},
+        )
+        return len(rows)
 
     def patch_order(self, order_id, payload):
         return self._request(
@@ -245,6 +293,101 @@ class SupabaseStore:
             json=payload,
             prefer="resolution=merge-duplicates,return=representation",
         )
+
+    def list_coupons(self):
+        return self._request("GET", "coupons", params={"select": "*", "order": "created_at.desc"})
+
+    def get_coupon(self, code):
+        rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
+        return rows[0] if rows else None
+
+    def create_coupon_from_sheet_row(self, raw):
+        code = _clean_text(raw.get("Code") or raw.get("code")).upper()
+        if not code:
+            return []
+        canonical = dict(raw)
+        canonical.setdefault("Code", code)
+        canonical.setdefault("Enabled", raw.get("enabled") or raw.get("status") or "ON")
+        canonical.setdefault("Plan_Name", raw.get("plan_name") or raw.get("plan") or raw.get("goi") or raw.get("gói") or "")
+        canonical.setdefault("Duration_Days", raw.get("duration_days") or raw.get("days") or raw.get("so_ngay") or raw.get("số_ngày") or "")
+        canonical.setdefault("Max_Uses", raw.get("max_uses") or raw.get("max_use") or raw.get("max") or "1")
+        canonical.setdefault("Used_Count", raw.get("used_count") or raw.get("used") or "0")
+        canonical.setdefault("Valid_Until", raw.get("valid_until") or raw.get("expires_at") or "")
+        max_uses = _parse_int(canonical.get("Max_Uses"), 1)
+        used_count = _parse_int(canonical.get("Used_Count"), 0)
+        enabled = str(canonical.get("Enabled") or "ON").strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"}
+        payload = {
+            "code": code,
+            "plan_name": canonical.get("Plan_Name"),
+            "amount": 0,
+            "status": "ACTIVE" if enabled else "INACTIVE",
+            "max_uses": max_uses,
+            "used_count": used_count,
+            "raw_data": canonical,
+        }
+        valid_until = canonical.get("Valid_Until")
+        if valid_until:
+            payload["expires_at"] = _parse_datetime(valid_until) or valid_until
+        return self.upsert_coupon(payload)
+
+    def update_coupon_raw(self, code, raw_updates):
+        coupon = self.get_coupon(code)
+        if not coupon:
+            return []
+        raw = dict(coupon.get("raw_data") or {})
+        raw.update(raw_updates)
+        payload = {
+            "used_count": _parse_int(raw.get("Used_Count") or raw.get("used_count"), coupon.get("used_count") or 0),
+            "raw_data": raw,
+        }
+        return self._request(
+            "PATCH",
+            "coupons",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def has_coupon_redemption(self, code, telegram_user_id):
+        rows = self._request(
+            "GET",
+            "coupon_redemptions",
+            params={
+                "select": "id",
+                "coupon_code": f"eq.{_clean_text(code).upper()}",
+                "telegram_user_id": f"eq.{telegram_user_id}",
+                "limit": "1",
+            },
+        )
+        return bool(rows)
+
+    def record_coupon_redemption(self, code, telegram_user_id, order_id=None, raw_data=None):
+        payload = {
+            "coupon_code": _clean_text(code).upper(),
+            "telegram_user_id": str(telegram_user_id),
+            "order_id": str(order_id or ""),
+            "raw_data": raw_data or {},
+        }
+        return self._request("POST", "coupon_redemptions", json=payload, prefer="return=representation")
+
+    def list_coupon_redemptions(self, code=None):
+        params = {"select": "*", "order": "redeemed_at.desc"}
+        if code:
+            params["coupon_code"] = f"eq.{_clean_text(code).upper()}"
+        return self._request("GET", "coupon_redemptions", params=params)
+
+    def insert_analytics_events(self, events):
+        payload = [
+            {
+                "event_name": event.get("event_type") or "event",
+                "telegram_user_id": event.get("user_id") or None,
+                "payload": event,
+            }
+            for event in events
+        ]
+        if not payload:
+            return []
+        return self._request("POST", "analytics_events", json=payload)
 
 
 supabase_store = SupabaseStore()

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from database import db, normalize_key
+from supabase_store import supabase_store
 
 SALE_STATUS_ACTIVE = {"ON", "TRUE", "YES", "1", "ACTIVE", "BẬT", "CO", "CÓ"}
 SALE_STATUS_INACTIVE = {"OFF", "FALSE", "NO", "0", "INACTIVE", "TẮT", "TAT", "KHÔNG", "KHONG"}
@@ -102,7 +103,16 @@ def sale_price_key(row):
 
 
 def count_used_slots(sale_id):
-    if not sale_id or not db.users_sheet:
+    if not sale_id:
+        return 0
+
+    if supabase_store.enabled:
+        try:
+            return supabase_store.count_orders_by_sale_id(sale_id)
+        except Exception:
+            return 0
+
+    if not db.users_sheet:
         return 0
 
     try:

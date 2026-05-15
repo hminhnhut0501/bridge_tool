@@ -101,27 +101,48 @@ def migrate_coupons():
         code = raw.get("code") or raw.get("coupon") or raw.get("ma") or raw.get("mã")
         if not code:
             continue
-        payload = {
-            "code": str(code).strip().upper(),
-            "plan_name": raw.get("plan_name") or raw.get("plan") or raw.get("goi"),
-            "amount": as_int(raw.get("amount") or raw.get("price") or raw.get("gia")),
-            "status": (raw.get("status") or "ACTIVE").upper(),
-            "raw_data": raw,
-        }
-        supabase_store.upsert_coupon(payload)
+        supabase_store.create_coupon_from_sheet_row(raw)
         count += 1
     print(f"migrated coupons: {count}")
+
+
+def migrate_sales():
+    if not db.sale_sheet:
+        print("skip sale_rules: sheet not found")
+        return
+
+    rows = db.sale_sheet.get_all_values()
+    if len(rows) < 2:
+        print("skip sale_rules: empty sheet")
+        return
+
+    headers = [normalize_key(h).lower().replace(" ", "_") for h in rows[0]]
+    count = 0
+    for row in rows[1:]:
+        if not any(str(cell).strip() for cell in row):
+            continue
+        raw = {
+            header: row_value(row, idx)
+            for idx, header in enumerate(headers)
+            if header
+        }
+        if not (raw.get("price_key") or raw.get("key") or raw.get("config_key")):
+            continue
+        supabase_store.upsert_sale_rule(raw)
+        count += 1
+    print(f"migrated sale_rules: {count}")
 
 
 def main():
     if not supabase_store.enabled:
         raise SystemExit("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
 
-    db.connect()
+    db.connect_google()
     supabase_store.connect()
     migrate_config()
     migrate_menu_pages()
     migrate_orders()
+    migrate_sales()
     migrate_coupons()
     print("done")
 

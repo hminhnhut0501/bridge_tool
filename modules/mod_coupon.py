@@ -140,6 +140,19 @@ def get_redemption_rows():
 
 
 def find_coupon(code):
+    if supabase_store.enabled:
+        coupon = supabase_store.get_coupon(normalize_code(code))
+        if not coupon:
+            return None, [], None, None
+        raw = dict(coupon.get("raw_data") or {})
+        raw.setdefault("Code", coupon.get("code") or "")
+        raw.setdefault("Enabled", "ON" if str(coupon.get("status") or "ACTIVE").upper() == "ACTIVE" else "OFF")
+        raw.setdefault("Plan_Name", coupon.get("plan_name") or "")
+        raw.setdefault("Max_Uses", coupon.get("max_uses") or "")
+        raw.setdefault("Used_Count", coupon.get("used_count") or "")
+        raw.setdefault("Valid_Until", coupon.get("expires_at") or raw.get("Valid_Until") or "")
+        return None, [], coupon.get("code"), raw
+
     target = normalize_code(code)
     coupons_sheet, headers, rows = get_coupon_rows()
     for row_index, item in rows:
@@ -149,6 +162,9 @@ def find_coupon(code):
 
 
 def has_user_redeemed(code, user_id):
+    if supabase_store.enabled:
+        return supabase_store.has_coupon_redemption(code, user_id)
+
     _, _, rows = get_redemption_rows()
     target = normalize_code(code)
     uid = str(user_id)
@@ -259,6 +275,15 @@ async def build_invite_links(user_id, plan_name):
 
 
 def update_coupon_usage(coupons_sheet, headers, row_index, item, user_id):
+    if supabase_store.enabled:
+        used_count = safe_int(item.get("Used_Count"), 0) + 1
+        supabase_store.update_coupon_raw(item.get("Code"), {
+            "Used_Count": str(used_count),
+            "Last_Used_At": now_text(),
+            "Last_Used_By": str(user_id),
+        })
+        return
+
     header_pos = {header: idx + 1 for idx, header in enumerate(headers)}
     used_col = header_pos.get("Used_Count")
     last_at_col = header_pos.get("Last_Used_At")
@@ -280,7 +305,8 @@ async def redeem_coupon(message: Message, code):
 
 async def redeem_coupon_locked(message: Message, code):
     code = normalize_code(code)
-    db.connect()
+    if not supabase_store.enabled:
+        db.connect()
     coupons_sheet, headers, row_index, coupon = find_coupon(code)
     valid, reason = validate_coupon(coupon, message.from_user.id)
     if not valid:
@@ -333,20 +359,36 @@ async def redeem_coupon_locked(message: Message, code):
             "COUPON",
         ])
 
-    _, redemptions_sheet = ensure_coupon_sheets()
-    redemptions_sheet.append_row([
-        paid_at,
-        code,
-        str(message.from_user.id),
-        username,
-        user_full_name,
-        plan_name,
-        str(duration_days),
-        expire_text,
-        "REDEEMED",
-        str(order_id),
-        group_names,
-    ])
+    redemption_payload = {
+        "Redeemed_At": paid_at,
+        "Code": code,
+        "User_ID": str(message.from_user.id),
+        "Username": username,
+        "Full_Name": user_full_name,
+        "Plan_Name": plan_name,
+        "Duration_Days": str(duration_days),
+        "Expire_At": expire_text,
+        "Status": "REDEEMED",
+        "User_Order_ID": str(order_id),
+        "Groups": group_names,
+    }
+    if supabase_store.enabled:
+        supabase_store.record_coupon_redemption(code, message.from_user.id, order_id=order_id, raw_data=redemption_payload)
+    else:
+        _, redemptions_sheet = ensure_coupon_sheets()
+        redemptions_sheet.append_row([
+            paid_at,
+            code,
+            str(message.from_user.id),
+            username,
+            user_full_name,
+            plan_name,
+            str(duration_days),
+            expire_text,
+            "REDEEMED",
+            str(order_id),
+            group_names,
+        ])
 
     update_coupon_usage(coupons_sheet, headers, row_index, coupon, message.from_user.id)
 
@@ -443,12 +485,15 @@ async def cmd_gen_coupon(message: Message):
     max_uses = max(safe_int(parts[4], 1), 1) if len(parts) >= 5 else 1
     prefix = normalize_code(parts[5])[:8] if len(parts) >= 6 else "VIP"
 
-    coupons_sheet, _ = ensure_coupon_sheets()
     alphabet = string.ascii_uppercase + string.digits
     created_at = now_text()
     rows = []
     codes = []
-    existing = {item.get("Code") for _, item in get_coupon_rows()[2]}
+    if supabase_store.enabled:
+        existing = {str(item.get("code") or "").upper() for item in supabase_store.list_coupons()}
+    else:
+        coupons_sheet, _ = ensure_coupon_sheets()
+        existing = {item.get("Code") for _, item in get_coupon_rows()[2]}
 
     while len(rows) < count:
         code = f"{prefix}{''.join(secrets.choice(alphabet) for _ in range(8))}"
@@ -456,24 +501,29 @@ async def cmd_gen_coupon(message: Message):
             continue
         existing.add(code)
         codes.append(code)
-        rows.append([
-            code,
-            "ON",
-            plan_name,
-            str(duration_days),
-            str(max_uses),
-            "0",
-            "",
-            "",
-            db.get_config("COUPON_CLEANUP_AFTER_DAYS", "7"),
-            created_at,
-            str(message.from_user.id),
-            "",
-            "",
-            "Generated by /gen_coupon",
-        ])
+        raw = {
+            "Code": code,
+            "Enabled": "ON",
+            "Plan_Name": plan_name,
+            "Duration_Days": str(duration_days),
+            "Max_Uses": str(max_uses),
+            "Used_Count": "0",
+            "Valid_From": "",
+            "Valid_Until": "",
+            "Cleanup_After_Days": db.get_config("COUPON_CLEANUP_AFTER_DAYS", "7"),
+            "Created_At": created_at,
+            "Created_By": str(message.from_user.id),
+            "Last_Used_At": "",
+            "Last_Used_By": "",
+            "Note": "Generated by /gen_coupon",
+        }
+        rows.append(raw)
 
-    coupons_sheet.append_rows(rows)
+    if supabase_store.enabled:
+        for raw in rows:
+            supabase_store.create_coupon_from_sheet_row(raw)
+    else:
+        coupons_sheet.append_rows([[raw.get(header, "") for header in COUPON_HEADERS] for raw in rows])
     preview = "\n".join(f"<code>{escape_html(code)}</code>" for code in codes[:20])
     more = "" if len(codes) <= 20 else f"\n... và {len(codes) - 20} mã nữa"
     await message.answer(
@@ -489,6 +539,10 @@ async def coupon_cleanup_worker():
     await asyncio.sleep(30)
     while True:
         try:
+            if supabase_store.enabled:
+                log.info("Coupon cleanup skipped: Supabase retains coupon history.")
+                await asyncio.sleep(12 * 60 * 60)
+                continue
             db.connect()
             cleanup_coupon_sheets()
         except Exception as err:

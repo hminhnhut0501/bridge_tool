@@ -6,6 +6,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message
 
 from database import db, normalize_key
+from supabase_store import supabase_store
 
 USERS_HEADERS = [
     "User_ID",
@@ -545,6 +546,10 @@ def _prune_old_daily_rows(sheet):
 
 
 def _flush_to_sheets(events):
+    if supabase_store.enabled:
+        supabase_store.insert_analytics_events(events)
+        return
+
     if not events or not db.sh:
         return
 
@@ -664,7 +669,7 @@ async def _analytics_worker():
         try:
             await asyncio.to_thread(_flush_to_sheets, batch)
         except Exception as e:
-            logging.error(f"❌ Lỗi ghi Analytics vào Sheet: {e}")
+            logging.error(f"❌ Lỗi ghi Analytics: {e}")
 
 
 class AnalyticsMiddleware(BaseMiddleware):
@@ -688,4 +693,5 @@ def setup_analytics(dp):
     middleware = AnalyticsMiddleware()
     dp.message.outer_middleware(middleware)
     dp.callback_query.outer_middleware(middleware)
-    print("📊 Analytics đã bật: ghi vào AnalyticsUsers / AnalyticsDaily / AnalyticsMonthly / AnalyticsYearly.")
+    target = "Supabase analytics_events" if supabase_store.enabled else "AnalyticsUsers / AnalyticsDaily / AnalyticsMonthly / AnalyticsYearly"
+    print(f"📊 Analytics đã bật: ghi vào {target}.")

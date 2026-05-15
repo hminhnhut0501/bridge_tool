@@ -25,6 +25,36 @@ export type ConfigRow = {
   updated_at: string;
 };
 
+export type MenuPage = {
+  page_id: string;
+  image_url: string | null;
+  body: string;
+  layout: string;
+  updated_at: string;
+};
+
+export type SaleRule = {
+  sale_id: string;
+  price_key: string;
+  discount_percent: number | null;
+  sale_price: number | null;
+  slot_limit: number | null;
+  used_count: number;
+  enabled: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+};
+
+export type Coupon = {
+  code: string;
+  plan_name: string | null;
+  status: string;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  raw_data: Record<string, string>;
+};
+
 const baseUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, secret: string, init?: RequestInit): Promise<T> {
@@ -69,5 +99,38 @@ export async function updateOrderStatus(secret: string, orderId: string, status:
   return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function getMenuPages(secret: string) {
+  return request<{ data: MenuPage[] }>("/admin-api/menu-pages", secret);
+}
+
+export async function updateMenuPage(secret: string, pageId: string, payload: Partial<MenuPage>) {
+  return request<{ data: MenuPage[] }>(`/admin-api/menu-pages/${encodeURIComponent(pageId)}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getSaleRules(secret: string) {
+  return request<{ data: SaleRule[] }>("/admin-api/sale-rules", secret);
+}
+
+export async function upsertSaleRule(secret: string, payload: Record<string, string>) {
+  return request<{ data: SaleRule[] }>("/admin-api/sale-rules", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getCoupons(secret: string) {
+  return request<{ data: Coupon[] }>("/admin-api/coupons", secret);
+}
+
+export async function createCoupon(secret: string, payload: Record<string, string>) {
+  return request<{ data: Coupon[] }>("/admin-api/coupons", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
