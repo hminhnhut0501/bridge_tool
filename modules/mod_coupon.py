@@ -313,7 +313,7 @@ async def redeem_coupon_locked(message: Message, code):
         await message.answer(f"❌ {escape_html(reason)}", parse_mode="HTML")
         return
 
-    plan_name = coupon.get("Plan_Name")
+    plan_name = resolve_plan_name(coupon.get("Plan_Name"))
     duration_days = safe_int(coupon.get("Duration_Days"), 30)
     if supabase_store.enabled:
         paid_orders = supabase_store.list_paid_orders_for_user(message.from_user.id, limit=200)

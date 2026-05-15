@@ -55,6 +55,9 @@ export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [editingKey, setEditingKey] = useState("");
   const [editingValue, setEditingValue] = useState("");
+  const [groupNo, setGroupNo] = useState("1");
+  const [groupName, setGroupName] = useState("");
+  const [groupId, setGroupId] = useState("");
   const [menuForm, setMenuForm] = useState({ page_id: "", image_url: "", body: "", layout: "" });
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [couponForm, setCouponForm] = useState({ Code: "", Plan_Name: "", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
@@ -104,6 +107,15 @@ export default function Home() {
     await updateConfig(savedSecret, editingKey, editingValue);
     setEditingKey("");
     setEditingValue("");
+    await loadAll();
+  }
+
+  async function saveGroupConfig() {
+    if (!groupNo || !groupName || !groupId) return;
+    await updateConfig(savedSecret, `BTN_G${groupNo}`, groupName);
+    await updateConfig(savedSecret, `ID_G${groupNo}`, groupId);
+    setGroupName("");
+    setGroupId("");
     await loadAll();
   }
 
@@ -203,6 +215,10 @@ export default function Home() {
         </div>
 
         {error ? <div className="error">{error}</div> : null}
+
+        <div className="note" style={{ marginBottom: 18 }}>
+          Config nhóm: đặt <code>ID_G1</code>, <code>ID_G2</code>... là Telegram group id và <code>BTN_G1</code>, <code>BTN_G2</code>... là tên nhóm. Coupon có thể nhập Plan name dạng <code>G1_1M</code>, <code>G1_LIFE</code>, <code>FULL_1M</code>, <code>FULL_LIFE</code>; bot sẽ tự đổi sang tên gói đúng để cấp link.
+        </div>
 
         <div className="grid">
           <div className="card">
@@ -312,6 +328,26 @@ export default function Home() {
               </button>
             </div>
             <div className="card stack">
+              <div className="note">
+                Cấu hình nhóm nhận link: chọn số nhóm, nhập tên nút hiển thị và Telegram group id. Coupon/Plan sẽ match theo <code>G1</code>, <code>G2</code> hoặc tên nhóm.
+              </div>
+              <label className="field">
+                <span>Số nhóm</span>
+                <select value={groupNo} onChange={(event) => setGroupNo(event.target.value)}>
+                  {Array.from({ length: 20 }, (_, idx) => String(idx + 1)).map((item) => <option key={item} value={item}>G{item}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tên nhóm BTN_G</span>
+                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="VD: Nhóm 1 Privé+" />
+              </label>
+              <label className="field">
+                <span>Telegram group ID_G</span>
+                <input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder="VD: -1001234567890" />
+              </label>
+              <button className="btn secondary" onClick={saveGroupConfig}>Lưu cấu hình nhóm</button>
+            </div>
+            <div className="card stack">
               <label className="field">
                 <span>Key</span>
                 <input value={editingKey} onChange={(event) => setEditingKey(event.target.value)} placeholder="VD: MSG_DELIVERY" />
@@ -414,7 +450,7 @@ export default function Home() {
             </div>
             <div className="card stack">
               <label className="field"><span>Code</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value })} /></label>
-              <label className="field"><span>Plan name</span><input value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })} /></label>
+              <label className="field"><span>Plan name hoặc plan key</span><input value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })} placeholder="VD: G1_1M, G1_LIFE, FULL_1M, FULL_LIFE" /></label>
               <label className="field"><span>Duration days</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} /></label>
               <label className="field"><span>Max uses</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} /></label>
               <label className="field"><span>Enabled</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">ON</option><option value="OFF">OFF</option></select></label>

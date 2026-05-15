@@ -251,6 +251,21 @@ th {
   padding: 10px;
 }
 
+.note {
+  background: #eef6f3;
+  border: 1px solid #b9d8cd;
+  border-radius: 8px;
+  color: #164b40;
+  line-height: 1.5;
+  padding: 12px 14px;
+}
+
+.note code {
+  background: #dceee8;
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 1fr;

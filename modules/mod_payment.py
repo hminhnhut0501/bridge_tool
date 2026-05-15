@@ -88,10 +88,16 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
     
     try:
-        await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url, caption=caption, reply_markup=kb.as_markup(), parse_mode="HTML")
+        sent = await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url, caption=caption, reply_markup=kb.as_markup(), parse_mode="HTML")
     except:
         kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
-        await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+        sent = await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+    if supabase_store.enabled and sent:
+        try:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        except Exception as e:
+            print(f"⚠️ Không lưu được payment message cho đơn {order_id}: {e}")
+    return sent
 
 @router.callback_query(F.data.startswith("renew_"))
 async def process_early_renew(callback: CallbackQuery):

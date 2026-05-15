@@ -85,6 +85,18 @@ def find_current_expire_from_orders(orders, user_id, plan_name):
             best_expire = expire
     return best_expire
 
+async def delete_payment_message(order):
+    if not order:
+        return
+    chat_id = order.get("payment_message_chat_id")
+    message_id = order.get("payment_message_id")
+    if not chat_id or not message_id:
+        return
+    try:
+        await bot.delete_message(chat_id=chat_id, message_id=int(message_id))
+    except Exception as e:
+        print(f"⚠️ Không thể xoá tin QR đơn {order.get('order_id')}: {e}")
+
 # ======================================================
 # 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
 # ======================================================
@@ -176,6 +188,7 @@ async def process_successful_payment(order_code: str):
         paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if supabase_store.enabled:
             supabase_store.mark_order_paid(target_code, paid_at=paid_at, expire_at=expire_date)
+            await delete_payment_message(order)
         else:
             db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])
 

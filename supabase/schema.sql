@@ -14,6 +14,8 @@ create table if not exists public.orders (
   original_amount integer,
   last_reminder_date date,
   expired_notice_at timestamptz,
+  payment_message_chat_id text,
+  payment_message_id integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

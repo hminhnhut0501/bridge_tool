@@ -270,6 +270,12 @@ class SupabaseStore:
     def mark_reminder_sent(self, order_id, reminder_date):
         return self.patch_order(order_id, {"last_reminder_date": str(reminder_date)})
 
+    def set_payment_message(self, order_id, chat_id, message_id):
+        return self.patch_order(order_id, {
+            "payment_message_chat_id": str(chat_id),
+            "payment_message_id": int(message_id),
+        })
+
     def upsert_menu_page(self, page_id, image_url, body, layout):
         payload = {
             "page_id": _clean_text(page_id),
