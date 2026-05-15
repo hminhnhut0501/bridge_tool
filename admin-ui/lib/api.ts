@@ -105,6 +105,12 @@ export async function updateConfig(secret: string, key: string, value: string) {
   });
 }
 
+export async function deleteConfig(secret: string, key: string) {
+  return request<{ data: ConfigRow[] }>(`/admin-api/config/${encodeURIComponent(key)}`, secret, {
+    method: "DELETE",
+  });
+}
+
 export async function updateOrderStatus(secret: string, orderId: string, status: string) {
   return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
     method: "PATCH",
@@ -123,6 +129,12 @@ export async function updateMenuPage(secret: string, pageId: string, payload: Pa
   });
 }
 
+export async function deleteMenuPage(secret: string, pageId: string) {
+  return request<{ data: MenuPage[] }>(`/admin-api/menu-pages/${encodeURIComponent(pageId)}`, secret, {
+    method: "DELETE",
+  });
+}
+
 export async function getSaleRules(secret: string) {
   return request<{ data: SaleRule[] }>("/admin-api/sale-rules", secret);
 }
@@ -134,6 +146,12 @@ export async function upsertSaleRule(secret: string, payload: Record<string, str
   });
 }
 
+export async function deleteSaleRule(secret: string, saleId: string) {
+  return request<{ data: SaleRule[] }>(`/admin-api/sale-rules/${encodeURIComponent(saleId)}`, secret, {
+    method: "DELETE",
+  });
+}
+
 export async function getCoupons(secret: string) {
   return request<{ data: Coupon[] }>("/admin-api/coupons", secret);
 }
@@ -142,6 +160,12 @@ export async function createCoupon(secret: string, payload: Record<string, strin
   return request<{ data: Coupon[] }>("/admin-api/coupons", secret, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCoupon(secret: string, code: string) {
+  return request<{ data: Coupon[] }>(`/admin-api/coupons/${encodeURIComponent(code)}`, secret, {
+    method: "DELETE",
   });
 }
 

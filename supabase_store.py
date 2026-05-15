@@ -231,6 +231,14 @@ class SupabaseStore:
             prefer="resolution=merge-duplicates,return=representation",
         )
 
+    def delete_config(self, key):
+        return self._request(
+            "DELETE",
+            "bot_config",
+            params={"key": f"eq.{_clean_text(key).upper()}"},
+            prefer="return=representation",
+        )
+
     def create_order(self, order_id, telegram_user_id, full_name, plan_name, amount, sale_id="", original_amount=None):
         payload = {
             "order_id": str(order_id),
@@ -294,6 +302,14 @@ class SupabaseStore:
             prefer="resolution=merge-duplicates,return=representation",
         )
 
+    def delete_menu_page(self, page_id):
+        return self._request(
+            "DELETE",
+            "menu_pages",
+            params={"page_id": f"eq.{_clean_text(page_id)}"},
+            prefer="return=representation",
+        )
+
     def upsert_coupon(self, payload):
         return self._request(
             "POST",
@@ -305,6 +321,22 @@ class SupabaseStore:
 
     def list_coupons(self):
         return self._request("GET", "coupons", params={"select": "*", "order": "created_at.desc"})
+
+    def delete_sale_rule(self, sale_id):
+        return self._request(
+            "DELETE",
+            "sale_rules",
+            params={"sale_id": f"eq.{_clean_text(sale_id)}"},
+            prefer="return=representation",
+        )
+
+    def delete_coupon(self, code):
+        return self._request(
+            "DELETE",
+            "coupons",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            prefer="return=representation",
+        )
 
     def get_coupon(self, code):
         rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})

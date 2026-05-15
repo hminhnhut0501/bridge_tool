@@ -198,6 +198,13 @@ async def admin_set_config(key: str, request: Request):
     return {"data": data}
 
 
+@app.delete("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
+async def admin_delete_config(key: str):
+    data = supabase_store.delete_config(key)
+    db.cache_config.pop(str(key).strip().upper(), None)
+    return {"data": data}
+
+
 @app.get("/admin-api/menu-pages", dependencies=[Depends(require_admin)])
 async def admin_menu_pages():
     return {"data": supabase_store.list_menu_pages()}
@@ -216,6 +223,13 @@ async def admin_set_menu_page(page_id: str, request: Request):
     return {"data": data}
 
 
+@app.delete("/admin-api/menu-pages/{page_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_menu_page(page_id: str):
+    data = supabase_store.delete_menu_page(page_id)
+    db.reload_config(force=True)
+    return {"data": data}
+
+
 @app.get("/admin-api/sale-rules", dependencies=[Depends(require_admin)])
 async def admin_sale_rules():
     return {"data": supabase_store.list_sale_rules()}
@@ -229,6 +243,13 @@ async def admin_upsert_sale_rule(request: Request):
     return {"data": data}
 
 
+@app.delete("/admin-api/sale-rules/{sale_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_sale_rule(sale_id: str):
+    data = supabase_store.delete_sale_rule(sale_id)
+    db.reload_config(force=True)
+    return {"data": data}
+
+
 @app.get("/admin-api/coupons", dependencies=[Depends(require_admin)])
 async def admin_coupons():
     return {"data": supabase_store.list_coupons()}
@@ -238,3 +259,8 @@ async def admin_coupons():
 async def admin_create_coupon(request: Request):
     body = await request.json()
     return {"data": supabase_store.create_coupon_from_sheet_row(body)}
+
+
+@app.delete("/admin-api/coupons/{code}", dependencies=[Depends(require_admin)])
+async def admin_delete_coupon(code: str):
+    return {"data": supabase_store.delete_coupon(code)}
