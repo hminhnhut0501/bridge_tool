@@ -1,4 +1,5 @@
 import asyncio
+import math
 from datetime import datetime, timedelta
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -49,6 +50,12 @@ def normalize_chat_id(value):
         raw = raw[:-2]
     return raw
 
+def parse_int_config(key, default):
+    try:
+        return int(float(str(db.get_config(key, default)).strip()))
+    except (TypeError, ValueError):
+        return default
+
 def find_current_expire(users_data, user_id, plan_name):
     now = datetime.now()
     best_expire = None
@@ -96,6 +103,27 @@ async def delete_payment_message(order):
         await bot.delete_message(chat_id=chat_id, message_id=int(message_id))
     except Exception as e:
         print(f"⚠️ Không thể xoá tin QR đơn {order.get('order_id')}: {e}")
+
+async def expire_pending_payment(order_code, user_id):
+    order = supabase_store.get_order(order_code) if supabase_store.enabled else None
+    if order and str(order.get("status", "")).upper() != "PENDING":
+        return
+
+    if supabase_store.enabled:
+        supabase_store.expire_pending_order(order_code)
+        await delete_payment_message(order)
+
+    msg_timeout = db.get_config(
+        "MSG_TIMEOUT_QR",
+        "⏳ Mã QR đã hết hạn sau {minutes} phút. Vui lòng tạo đơn mới để thanh toán.",
+    ).replace("\\n", "\n")
+    qr_ttl_seconds = parse_int_config("QR_TTL_SECONDS", 300)
+    msg_timeout = msg_timeout.replace("{minutes}", str(max(1, qr_ttl_seconds // 60)))
+    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    try:
+        await bot.send_message(chat_id=user_id, text=msg_timeout, reply_markup=kb_timeout.as_markup(), parse_mode="HTML")
+    except Exception:
+        pass
 
 # ======================================================
 # 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
@@ -213,15 +241,24 @@ async def process_successful_payment(order_code: str):
 # =====================================================
 async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
-    print(f"🕵️ Bắt đầu Auto-check đơn (Async Mode): {str_code}")
-    
-    for i in range(40): 
+    qr_ttl_seconds = max(60, parse_int_config("QR_TTL_SECONDS", 300))
+    check_interval_seconds = max(5, parse_int_config("PAYMENT_CHECK_INTERVAL_SECONDS", 10))
+    max_checks = max(1, math.ceil(qr_ttl_seconds / check_interval_seconds))
+    print(f"🕵️ Bắt đầu Auto-check đơn {str_code}: tối đa {qr_ttl_seconds}s, mỗi {check_interval_seconds}s.")
+
+    for _ in range(max_checks):
         if str_code in cancelled_orders:
             try: cancelled_orders.remove(str_code)
             except: pass
             return
 
-        await asyncio.sleep(15)
+        await asyncio.sleep(check_interval_seconds)
+
+        if supabase_store.enabled:
+            order = supabase_store.get_order(str_code)
+            if order and str(order.get("status", "")).upper() != "PENDING":
+                print(f"ℹ️ Dừng auto-check đơn {str_code} vì trạng thái hiện tại là {order.get('status')}.")
+                return
         
         # Đẩy việc kiểm tra PayOS sang một luồng riêng để không kẹt Bot
         try:
@@ -235,9 +272,5 @@ async def auto_check_loop(order_code, user_id):
             await process_successful_payment(str_code)
             return
 
-    # Thông báo Timeout và hiện nút Quay lại Menu
-    msg_timeout = db.get_config("MSG_TIMEOUT_QR", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới!").replace("\\n", "\n")
-    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
-    try: 
-        await bot.send_message(chat_id=user_id, text=msg_timeout, reply_markup=kb_timeout.as_markup(), parse_mode="HTML")
-    except: pass
+    print(f"⌛ Đơn {str_code} hết hạn QR sau {qr_ttl_seconds}s.")
+    await expire_pending_payment(str_code, user_id)

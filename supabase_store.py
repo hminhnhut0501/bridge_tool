@@ -267,6 +267,9 @@ class SupabaseStore:
             payload["expired_notice_at"] = _parse_datetime(expired_notice_at) or expired_notice_at
         return self.patch_order(order_id, payload)
 
+    def expire_pending_order(self, order_id):
+        return self.patch_order(order_id, {"status": "EXPIRED"})
+
     def mark_reminder_sent(self, order_id, reminder_date):
         return self.patch_order(order_id, {"last_reminder_date": str(reminder_date)})
 

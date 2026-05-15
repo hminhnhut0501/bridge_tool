@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
 from payment import payos_manager
-from processor import process_successful_payment, auto_check_loop, cancelled_orders
+from processor import expire_pending_payment, parse_int_config, process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
 from supabase_store import supabase_store
 
@@ -319,6 +319,16 @@ async def process_buy_request(callback: CallbackQuery):
 async def manual_check_payment(callback: CallbackQuery):
     if not await check_protection(callback): return
     order_id = callback.data.split("_")[1]
+
+    qr_ttl_seconds = max(60, parse_int_config("QR_TTL_SECONDS", 300))
+    try:
+        if int(time.time()) - int(order_id) > qr_ttl_seconds:
+            await callback.answer(db.get_config("ALERT_QR_EXPIRED", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới."), show_alert=True)
+            await expire_pending_payment(order_id, callback.from_user.id)
+            await safe_delete_private_message(callback.message)
+            return
+    except ValueError:
+        pass
     
     if payos_manager.get_payment_status(order_id) == "PAID":
         await callback.answer(db.get_config("ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)

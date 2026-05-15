@@ -62,6 +62,18 @@ const GROUP_COUNT = 20;
 
 const BOT_FIELDS: ConfigField[] = [
   {
+    key: "QR_TTL_SECONDS",
+    label: "Thời hạn mã QR",
+    placeholder: "300",
+    help: "Số giây QR còn hiệu lực. 300 giây = 5 phút. Hết hạn bot sẽ xoá QR và nhắc tạo đơn mới.",
+  },
+  {
+    key: "PAYMENT_CHECK_INTERVAL_SECONDS",
+    label: "Tần suất tự kiểm tra thanh toán",
+    placeholder: "10",
+    help: "Bot sẽ check PayOS mỗi N giây trong thời hạn QR. Khuyến nghị 10-15 giây.",
+  },
+  {
     key: "MAINTENANCE_MODE",
     label: "Chế độ bảo trì",
     placeholder: "OFF",
@@ -110,6 +122,13 @@ const MESSAGE_FIELDS: ConfigField[] = [
     label: "Nội dung bill QR",
     placeholder: "Mã Đơn: {desc}\\nSố tiền: {amount}\\nNgân hàng: {bank}",
     help: "Dùng biến {plan}, {amount}, {bank}, {name}, {stk}, {desc}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_TIMEOUT_QR",
+    label: "Tin khi QR hết hạn",
+    placeholder: "⏳ Mã QR đã hết hạn sau {minutes} phút. Vui lòng tạo đơn mới để thanh toán.",
+    help: "Dùng biến {minutes}. Bot gửi tin này sau khi hết thời gian tự check.",
     kind: "textarea",
   },
   {
