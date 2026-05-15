@@ -2,3 +2,6 @@
 google-key.json
 __pycache__/
 *.pyc
+admin-ui/node_modules/
+admin-ui/.next/
+admin-ui/.env.local

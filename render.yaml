@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: prive-bot-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn web_backend:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: ADMIN_ALLOWED_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_SHEETS_CREDS_JSON
+        sync: false
