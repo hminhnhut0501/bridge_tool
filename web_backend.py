@@ -129,6 +129,26 @@ async def health():
     }
 
 
+@app.get("/")
+async def root():
+    return {"ok": True, "service": "prive-bot-backend"}
+
+
+@app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])
+async def admin_webhook_info():
+    return {"data": await bot.get_webhook_info()}
+
+
+@app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])
+async def admin_webhook_reset():
+    webhook_url = os.getenv("WEBHOOK_URL")
+    webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
+    if not webhook_url:
+        raise HTTPException(status_code=503, detail="WEBHOOK_URL is not configured")
+    await bot.set_webhook(webhook_url, secret_token=webhook_secret or None, drop_pending_updates=False)
+    return {"data": await bot.get_webhook_info()}
+
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     expected = os.getenv("TELEGRAM_WEBHOOK_SECRET")
