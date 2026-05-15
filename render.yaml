@@ -10,6 +10,12 @@ services:
         value: 3.12.4
       - key: BOT_TOKEN
         sync: false
+      - key: PAYOS_CLIENT_ID
+        sync: false
+      - key: PAYOS_API_KEY
+        sync: false
+      - key: PAYOS_CHECKSUM_KEY
+        sync: false
       - key: WEBHOOK_URL
         sync: false
       - key: TELEGRAM_WEBHOOK_SECRET

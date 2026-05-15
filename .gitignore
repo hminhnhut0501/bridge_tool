@@ -1,7 +1,9 @@
 .env
 google-key.json
+.DS_Store
 __pycache__/
 *.pyc
+venv/
 admin-ui/node_modules/
 admin-ui/.next/
 admin-ui/.env.local
