@@ -55,6 +55,16 @@ export type Coupon = {
   raw_data: Record<string, string>;
 };
 
+export type WebhookInfo = {
+  url: string;
+  has_custom_certificate: boolean;
+  pending_update_count: number;
+  last_error_date?: number;
+  last_error_message?: string;
+  max_connections?: number;
+  allowed_updates?: string[];
+};
+
 const baseUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, secret: string, init?: RequestInit): Promise<T> {
@@ -132,5 +142,15 @@ export async function createCoupon(secret: string, payload: Record<string, strin
   return request<{ data: Coupon[] }>("/admin-api/coupons", secret, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getWebhookInfo(secret: string) {
+  return request<{ data: WebhookInfo }>("/admin-api/webhook-info", secret);
+}
+
+export async function resetWebhook(secret: string) {
+  return request<{ data: WebhookInfo }>("/admin-api/webhook-reset", secret, {
+    method: "POST",
   });
 }

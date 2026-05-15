@@ -1,6 +1,23 @@
 "use client";
 
-import { BadgePercent, FileText, RefreshCw, Save, Settings, ShoppingCart, Ticket, Users } from "lucide-react";
+import {
+  Activity,
+  BadgePercent,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  Gift,
+  Loader2,
+  RefreshCw,
+  Save,
+  Settings,
+  ShieldCheck,
+  ShoppingCart,
+  Ticket,
+  Users,
+  XCircle,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ConfigRow,
@@ -9,6 +26,7 @@ import {
   Order,
   SaleRule,
   UserRow,
+  WebhookInfo,
   createCoupon,
   getConfig,
   getCoupons,
@@ -16,53 +34,186 @@ import {
   getOrders,
   getSaleRules,
   getUsers,
-  updateMenuPage,
+  getWebhookInfo,
+  resetWebhook,
   updateConfig,
+  updateMenuPage,
   updateOrderStatus,
   upsertSaleRule,
 } from "@/lib/api";
 
-type Tab = "orders" | "users" | "config" | "menu" | "sales" | "coupons";
+type Tab = "overview" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
+
+type Notice = {
+  type: "ok" | "error";
+  text: string;
+};
+
+type ConfigField = {
+  key: string;
+  label: string;
+  placeholder: string;
+  help: string;
+  kind?: "input" | "textarea" | "select";
+  options?: { label: string; value: string }[];
+};
+
+const GROUP_COUNT = 20;
+
+const BOT_FIELDS: ConfigField[] = [
+  {
+    key: "MAINTENANCE_MODE",
+    label: "Chế độ bảo trì",
+    placeholder: "OFF",
+    help: "Bật ON để chỉ admin dùng bot, khách sẽ thấy thông báo bảo trì.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
+    key: "MSG_MAINTENANCE",
+    label: "Thông báo bảo trì",
+    placeholder: "Hệ thống đang bảo trì, vui lòng quay lại sau.",
+    help: "Tin nhắn gửi cho khách khi bot đang bảo trì.",
+    kind: "textarea",
+  },
+  {
+    key: "REMINDER_DAYS",
+    label: "Nhắc trước khi hết hạn",
+    placeholder: "3",
+    help: "Số ngày trước khi hết hạn bot sẽ nhắc khách gia hạn.",
+  },
+  {
+    key: "EARLY_RENEW_ENABLED",
+    label: "Ưu đãi gia hạn sớm",
+    placeholder: "ON",
+    help: "Bật/tắt nút gia hạn sớm trong tin nhắc hết hạn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "EARLY_RENEW_DISCOUNT_PERCENT",
+    label: "Giảm giá gia hạn sớm",
+    placeholder: "10",
+    help: "Phần trăm giảm khi khách gia hạn sớm.",
+  },
+];
+
+const MESSAGE_FIELDS: ConfigField[] = [
+  {
+    key: "MSG_BILL_TEMPLATE",
+    label: "Nội dung bill QR",
+    placeholder: "Mã Đơn: {desc}\\nSố tiền: {amount}\\nNgân hàng: {bank}",
+    help: "Dùng biến {plan}, {amount}, {bank}, {name}, {stk}, {desc}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_DELIVERY",
+    label: "Tin gửi link sau thanh toán",
+    placeholder: "Thanh toán thành công!\\nGói: {plan}\\nHạn dùng: {date}\\n{links}",
+    help: "Dùng biến {plan}, {date}, {links}. Tin QR sẽ được xóa trước khi gửi link.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_COUPON_SUCCESS",
+    label: "Tin kích hoạt coupon thành công",
+    placeholder: "Mã: {code}\\nGói: {plan}\\nHạn: {expire}\\n{links}",
+    help: "Dùng biến {code}, {plan}, {expire}, {links}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_EXPIRED",
+    label: "Tin gói hết hạn",
+    placeholder: "Gói {plan} của bạn đã hết hạn.",
+    help: "Dùng biến {plan}, {date}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_REMINDER",
+    label: "Tin nhắc sắp hết hạn",
+    placeholder: "Gói {plan} sẽ hết hạn sau {days} ngày.",
+    help: "Dùng biến {plan}, {days}, {date}.",
+    kind: "textarea",
+  },
+];
+
+const PLAN_FIELDS: ConfigField[] = [
+  { key: "PLAN_FULL_1M", label: "Tên gói SVIP 1 tháng", placeholder: "SVIP+ 1 THÁNG", help: "Tên gói hiển thị khi khách mua SVIP 1 tháng." },
+  { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
+  { key: "PRICE_SVIP_30D", label: "Giá SVIP 1 tháng", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 1 tháng", placeholder: "MUA 1 THÁNG", help: "Text nút trong bot." },
+  { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
+];
+
+const PRICE_KEY_OPTIONS = [
+  "PRICE_SVIP_30D",
+  "PRICE_SVIP_LIFE",
+  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `PRICE_G${idx + 1}_1M`),
+  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `PRICE_G${idx + 1}_LIFE`),
+];
+
+const PLAN_KEY_OPTIONS = [
+  "FULL_1M",
+  "FULL_LIFE",
+  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `G${idx + 1}_1M`),
+  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `G${idx + 1}_LIFE`),
+];
 
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
 
-function dateText(value: string | null) {
+function dateText(value: string | null | undefined) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 function statusClass(status: string) {
   const normalized = status.toLowerCase();
   if (normalized === "paid") return "status paid";
-  if (normalized === "expired") return "status expired";
+  if (normalized === "expired" || normalized === "cancelled") return "status expired";
   return "status pending";
+}
+
+function getConfigValue(config: ConfigRow[], key: string, fallback = "") {
+  return config.find((item) => item.key === key)?.value ?? fallback;
+}
+
+function isGroupConfigured(config: ConfigRow[], groupNo: number) {
+  return Boolean(getConfigValue(config, `BTN_G${groupNo}`) && getConfigValue(config, `ID_G${groupNo}`));
 }
 
 export default function Home() {
   const [secret, setSecret] = useState("");
   const [savedSecret, setSavedSecret] = useState("");
-  const [tab, setTab] = useState<Tab>("orders");
+  const [tab, setTab] = useState<Tab>("overview");
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [config, setConfig] = useState<ConfigRow[]>([]);
   const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [editingKey, setEditingKey] = useState("");
-  const [editingValue, setEditingValue] = useState("");
+  const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState("");
+  const [query, setQuery] = useState("");
+  const [orderStatus, setOrderStatus] = useState("ALL");
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupId, setGroupId] = useState("");
-  const [menuForm, setMenuForm] = useState({ page_id: "", image_url: "", body: "", layout: "" });
-  const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
-  const [couponForm, setCouponForm] = useState({ Code: "", Plan_Name: "", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [groupPrice1m, setGroupPrice1m] = useState("");
+  const [groupPriceLife, setGroupPriceLife] = useState("");
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
+  const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+  const [couponForm, setCouponForm] = useState({ Code: "", Plan_Name: "G1_1M", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
 
   useEffect(() => {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
@@ -70,18 +221,45 @@ export default function Home() {
     setSecret(stored);
   }, []);
 
+  useEffect(() => {
+    const nextValues: Record<string, string> = {};
+    [...BOT_FIELDS, ...MESSAGE_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+      nextValues[field.key] = getConfigValue(config, field.key);
+    });
+    setFieldValues(nextValues);
+  }, [config]);
+
+  function showNotice(type: Notice["type"], text: string) {
+    setNotice({ type, text });
+    window.setTimeout(() => setNotice(null), 3500);
+  }
+
+  async function runAction(label: string, action: () => Promise<void>) {
+    setSaving(label);
+    setNotice(null);
+    try {
+      await action();
+      showNotice("ok", "Đã lưu thay đổi.");
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không lưu được thay đổi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function loadAll(activeSecret = savedSecret) {
     if (!activeSecret) return;
     setLoading(true);
-    setError("");
+    setNotice(null);
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
         getMenuPages(activeSecret),
         getSaleRules(activeSecret),
         getCoupons(activeSecret),
+        getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
       setUsers(usersRes.data);
@@ -89,8 +267,9 @@ export default function Home() {
       setMenuPages(menuRes.data);
       setSaleRules(salesRes.data);
       setCoupons(couponsRes.data);
+      setWebhook(webhookRes.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tải được dữ liệu");
+      showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
       setLoading(false);
     }
@@ -102,57 +281,95 @@ export default function Home() {
     loadAll(secret);
   }
 
-  async function saveConfig() {
-    if (!editingKey) return;
-    await updateConfig(savedSecret, editingKey, editingValue);
-    setEditingKey("");
-    setEditingValue("");
-    await loadAll();
+  function logout() {
+    window.localStorage.removeItem("prive_admin_secret");
+    setSavedSecret("");
+    setSecret("");
+  }
+
+  async function saveFields(fields: ConfigField[]) {
+    await runAction("fields", async () => {
+      for (const field of fields) {
+        await updateConfig(savedSecret, field.key, fieldValues[field.key] || "");
+      }
+      await loadAll();
+    });
   }
 
   async function saveGroupConfig() {
-    if (!groupNo || !groupName || !groupId) return;
-    await updateConfig(savedSecret, `BTN_G${groupNo}`, groupName);
-    await updateConfig(savedSecret, `ID_G${groupNo}`, groupId);
-    setGroupName("");
-    setGroupId("");
-    await loadAll();
+    await runAction("group", async () => {
+      await updateConfig(savedSecret, `BTN_G${groupNo}`, groupName);
+      await updateConfig(savedSecret, `ID_G${groupNo}`, groupId);
+      await updateConfig(savedSecret, `PRICE_G${groupNo}_1M`, groupPrice1m);
+      await updateConfig(savedSecret, `PRICE_G${groupNo}_LIFE`, groupPriceLife);
+      setGroupName("");
+      setGroupId("");
+      setGroupPrice1m("");
+      setGroupPriceLife("");
+      await loadAll();
+    });
   }
 
   async function saveMenuPage() {
-    if (!menuForm.page_id) return;
-    await updateMenuPage(savedSecret, menuForm.page_id, menuForm);
-    setMenuForm({ page_id: "", image_url: "", body: "", layout: "" });
-    await loadAll();
+    await runAction("menu", async () => {
+      await updateMenuPage(savedSecret, menuForm.page_id, menuForm);
+      await loadAll();
+    });
   }
 
   async function saveSaleRule() {
-    if (!saleForm.sale_id || !saleForm.price_key) return;
-    await upsertSaleRule(savedSecret, saleForm);
-    setSaleForm({ sale_id: "", price_key: "", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
-    await loadAll();
+    await runAction("sale", async () => {
+      await upsertSaleRule(savedSecret, saleForm);
+      await loadAll();
+    });
   }
 
   async function saveCoupon() {
-    if (!couponForm.Code || !couponForm.Plan_Name) return;
-    await createCoupon(savedSecret, couponForm);
-    setCouponForm({ Code: "", Plan_Name: "", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
-    await loadAll();
+    await runAction("coupon", async () => {
+      await createCoupon(savedSecret, couponForm);
+      setCouponForm({ Code: "", Plan_Name: "G1_1M", Duration_Days: "30", Max_Uses: "1", Enabled: "ON" });
+      await loadAll();
+    });
   }
 
   async function changeOrderStatus(orderId: string, status: string) {
-    await updateOrderStatus(savedSecret, orderId, status);
-    await loadAll();
+    await runAction(`order-${orderId}`, async () => {
+      await updateOrderStatus(savedSecret, orderId, status);
+      await loadAll();
+    });
+  }
+
+  async function handleWebhookReset() {
+    await runAction("webhook", async () => {
+      const res = await resetWebhook(savedSecret);
+      setWebhook(res.data);
+    });
   }
 
   const metrics = useMemo(() => {
     const paid = orders.filter((item) => item.status === "PAID").length;
     const pending = orders.filter((item) => item.status === "PENDING").length;
-    const revenue = orders
-      .filter((item) => item.status === "PAID")
-      .reduce((sum, item) => sum + (item.amount || 0), 0);
-    return { paid, pending, revenue, users: users.length };
-  }, [orders, users]);
+    const revenue = orders.filter((item) => item.status === "PAID").reduce((sum, item) => sum + (item.amount || 0), 0);
+    return { paid, pending, revenue, users: users.length, coupons: coupons.length, menu: menuPages.length };
+  }, [orders, users, coupons, menuPages]);
+
+  const configuredGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config]);
+  const missingCore = useMemo(() => {
+    const items = [];
+    if (!webhook?.url) items.push("Webhook Telegram chưa hoạt động");
+    if (configuredGroups.length === 0) items.push("Chưa cấu hình nhóm nhận link");
+    if (!getConfigValue(config, "MSG_DELIVERY")) items.push("Chưa có tin gửi link sau thanh toán");
+    return items;
+  }, [config, configuredGroups.length, webhook]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const text = `${order.order_id} ${order.full_name || ""} ${order.telegram_user_id} ${order.plan_name}`.toLowerCase();
+      const matchQuery = !query || text.includes(query.toLowerCase());
+      const matchStatus = orderStatus === "ALL" || order.status === orderStatus;
+      return matchQuery && matchStatus;
+    });
+  }, [orders, query, orderStatus]);
 
   if (!savedSecret) {
     return (
@@ -160,16 +377,11 @@ export default function Home() {
         <section className="login-panel stack">
           <div>
             <h1>Prive Admin</h1>
-            <p className="muted">Nhập ADMIN_SECRET đã cấu hình trên Render.</p>
+            <p className="muted">Nhập mật khẩu admin đã đặt trong Render.</p>
           </div>
           <label className="field">
-            <span>Admin secret</span>
-            <input
-              type="password"
-              value={secret}
-              onChange={(event) => setSecret(event.target.value)}
-              placeholder="ADMIN_SECRET"
-            />
+            <span>Mật khẩu admin</span>
+            <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Dán ADMIN_SECRET tại đây" />
           </label>
           <button className="btn" onClick={login}>Đăng nhập</button>
         </section>
@@ -181,295 +393,282 @@ export default function Home() {
     <main className="shell">
       <aside className="sidebar">
         <div className="brand">Prive Admin</div>
+        <div className="side-status">
+          <span className={webhook?.url ? "dot ok" : "dot bad"} />
+          {webhook?.url ? "Webhook đang bật" : "Webhook cần kiểm tra"}
+        </div>
         <nav className="nav">
-          <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>
-            <ShoppingCart size={18} /> Đơn hàng
-          </button>
-          <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")}>
-            <Users size={18} /> Users
-          </button>
-          <button className={tab === "config" ? "active" : ""} onClick={() => setTab("config")}>
-            <Settings size={18} /> Config
-          </button>
-          <button className={tab === "menu" ? "active" : ""} onClick={() => setTab("menu")}>
-            <FileText size={18} /> Menu
-          </button>
-          <button className={tab === "sales" ? "active" : ""} onClick={() => setTab("sales")}>
-            <BadgePercent size={18} /> Sale
-          </button>
-          <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}>
-            <Ticket size={18} /> Coupon
-          </button>
+          <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Activity size={18} /> Tổng quan</button>
+          <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
+          <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
+          <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
+          <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}><Ticket size={18} /> Coupon</button>
+          <button className={tab === "sales" ? "active" : ""} onClick={() => setTab("sales")}><BadgePercent size={18} /> Sale</button>
+          <button className={tab === "system" ? "active" : ""} onClick={() => setTab("system")}><Settings size={18} /> Hệ thống</button>
         </nav>
       </aside>
 
       <section className="main">
         <div className="topbar">
           <div>
-            <h1 className="title">Dashboard</h1>
-            <div className="muted">Quản lý dữ liệu bot từ Supabase qua Render backend.</div>
+            <h1 className="title">Quản lý bot Privé+</h1>
+            <div className="muted">Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.</div>
           </div>
-          <button className="btn secondary" onClick={() => loadAll()} disabled={loading}>
-            <RefreshCw size={17} /> {loading ? "Đang tải" : "Tải lại"}
-          </button>
-        </div>
-
-        {error ? <div className="error">{error}</div> : null}
-
-        <div className="note" style={{ marginBottom: 18 }}>
-          Config nhóm: đặt <code>ID_G1</code>, <code>ID_G2</code>... là Telegram group id và <code>BTN_G1</code>, <code>BTN_G2</code>... là tên nhóm. Coupon có thể nhập Plan name dạng <code>G1_1M</code>, <code>G1_LIFE</code>, <code>FULL_1M</code>, <code>FULL_LIFE</code>; bot sẽ tự đổi sang tên gói đúng để cấp link.
-        </div>
-
-        <div className="grid">
-          <div className="card">
-            <div className="muted">Doanh thu PAID</div>
-            <div className="metric">{money(metrics.revenue)}</div>
-          </div>
-          <div className="card">
-            <div className="muted">Đơn PAID</div>
-            <div className="metric">{metrics.paid}</div>
-          </div>
-          <div className="card">
-            <div className="muted">Đơn PENDING</div>
-            <div className="metric">{metrics.pending}</div>
-          </div>
-          <div className="card">
-            <div className="muted">Users gần đây</div>
-            <div className="metric">{metrics.users}</div>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => loadAll()} disabled={loading}>
+              {loading ? <Loader2 size={17} className="spin" /> : <RefreshCw size={17} />} Tải lại
+            </button>
+            <button className="btn ghost" onClick={logout}>Đăng xuất</button>
           </div>
         </div>
+
+        {notice ? <div className={notice.type === "ok" ? "toast ok" : "toast error-toast"}>{notice.type === "ok" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{notice.text}</div> : null}
+
+        {missingCore.length ? (
+          <div className="warning">
+            <strong>Cần hoàn tất cấu hình</strong>
+            <span>{missingCore.join(" • ")}</span>
+          </div>
+        ) : null}
+
+        {tab === "overview" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Doanh thu đã thanh toán" value={money(metrics.revenue)} />
+              <Metric label="Đơn đang chờ" value={String(metrics.pending)} />
+              <Metric label="Khách gần đây" value={String(metrics.users)} />
+              <Metric label="Nhóm đã cấu hình" value={`${configuredGroups.length}/${GROUP_COUNT}`} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
+              <div className="status-grid">
+                <HealthItem ok={Boolean(webhook?.url)} title="Telegram webhook" detail={webhook?.url || "Chưa set webhook"} />
+                <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Setup nhóm để cấu hình"} />
+                <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
+                <HealthItem ok={metrics.coupons >= 0} title="Coupon" detail={`${metrics.coupons} mã trong hệ thống`} />
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHead title="Đơn hàng mới nhất" subtitle="5 đơn gần nhất." />
+              <OrdersTable orders={orders.slice(0, 5)} onStatusChange={changeOrderStatus} saving={saving} />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "setup" ? (
+          <div className="stack">
+            <section className="panel">
+              <PanelHead title="Setup nhóm nhận link" subtitle="Không cần nhớ key. Chọn G1, G2... rồi nhập tên nhóm và Telegram group ID." action={<button className="btn" onClick={saveGroupConfig} disabled={saving === "group"}><Save size={16} /> Lưu nhóm</button>} />
+              <div className="form-grid">
+                <label className="field">
+                  <span>Nhóm cần cấu hình</span>
+                  <select value={groupNo} onChange={(event) => setGroupNo(event.target.value)}>
+                    {Array.from({ length: GROUP_COUNT }, (_, idx) => String(idx + 1)).map((item) => <option key={item} value={item}>G{item}</option>)}
+                  </select>
+                  <small>Coupon dùng plan key như G{groupNo}_1M hoặc G{groupNo}_LIFE sẽ cấp link nhóm này.</small>
+                </label>
+                <label className="field"><span>Tên nhóm hiển thị</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Nhóm 1 Privé+"} /></label>
+                <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
+                <label className="field"><span>Giá 1 tháng</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
+                <label className="field"><span>Giá trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
+              </div>
+              <div className="hint">
+                Muốn lấy group ID: thêm bot vào group, cho bot quyền tạo invite link, rồi dùng group id dạng <code>-100...</code>. Plan coupon nên dùng <code>G{groupNo}_1M</code> hoặc <code>G{groupNo}_LIFE</code>.
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHead title="Danh sách nhóm" subtitle="Nhóm nào thiếu ID hoặc tên sẽ không cấp được link." />
+              <div className="group-list">
+                {Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).map((item) => {
+                  const name = getConfigValue(config, `BTN_G${item}`);
+                  const id = getConfigValue(config, `ID_G${item}`);
+                  return (
+                    <button className={name && id ? "group-row ok" : "group-row"} key={item} onClick={() => setGroupNo(String(item))}>
+                      <span>G{item}</span>
+                      <strong>{name || "Chưa đặt tên"}</strong>
+                      <em>{id || "Chưa có group ID"}</em>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {tab === "orders" ? (
           <section className="panel">
-            <div className="panel-head">
-              <strong>Đơn hàng</strong>
-              <span className="muted">{orders.length} dòng</span>
+            <PanelHead title="Đơn hàng" subtitle="Theo dõi QR, thanh toán, hủy và hết hạn." />
+            <div className="toolbar">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói..." />
+              <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PENDING">Đang chờ</option>
+                <option value="PAID">Đã thanh toán</option>
+                <option value="CANCELLED">Đã hủy</option>
+                <option value="EXPIRED">Hết hạn</option>
+              </select>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mã đơn</th>
-                    <th>User</th>
-                    <th>Gói</th>
-                    <th>Tiền</th>
-                    <th>Trạng thái</th>
-                    <th>Tạo lúc</th>
-                    <th>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order) => (
-                    <tr key={order.order_id}>
-                      <td>{order.order_id}</td>
-                      <td>{order.full_name || order.telegram_user_id}</td>
-                      <td>{order.plan_name}</td>
-                      <td>{money(order.amount)}</td>
-                      <td><span className={statusClass(order.status)}>{order.status}</span></td>
-                      <td>{dateText(order.created_at)}</td>
-                      <td>
-                        <select
-                          value={order.status}
-                          onChange={(event) => changeOrderStatus(order.order_id, event.target.value)}
-                        >
-                          <option value="PENDING">PENDING</option>
-                          <option value="PAID">PAID</option>
-                          <option value="CANCELLED">CANCELLED</option>
-                          <option value="EXPIRED">EXPIRED</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <OrdersTable orders={filteredOrders} onStatusChange={changeOrderStatus} saving={saving} />
           </section>
         ) : null}
 
-        {tab === "users" ? (
-          <section className="panel">
-            <div className="panel-head">
-              <strong>Users</strong>
-              <span className="muted">{users.length} dòng</span>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Telegram ID</th>
-                    <th>Tên</th>
-                    <th>Gói gần nhất</th>
-                    <th>Trạng thái</th>
-                    <th>Hết hạn</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.telegram_user_id}>
-                      <td>{user.telegram_user_id}</td>
-                      <td>{user.full_name || "-"}</td>
-                      <td>{user.plan_name}</td>
-                      <td><span className={statusClass(user.status)}>{user.status}</span></td>
-                      <td>{dateText(user.expire_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ) : null}
-
-        {tab === "config" ? (
-          <section className="panel">
-            <div className="panel-head">
-              <strong>Config</strong>
-              <button className="btn" onClick={saveConfig}>
-                <Save size={16} /> Lưu config
-              </button>
-            </div>
-            <div className="card stack">
-              <div className="note">
-                Cấu hình nhóm nhận link: chọn số nhóm, nhập tên nút hiển thị và Telegram group id. Coupon/Plan sẽ match theo <code>G1</code>, <code>G2</code> hoặc tên nhóm.
+        {tab === "content" ? (
+          <div className="stack">
+            <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn và gia hạn sớm." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} />
+            <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} />
+            <ConfigEditor title="Tin nhắn tự động" subtitle="Các mẫu tin bot gửi cho khách." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} />
+            <section className="panel">
+              <PanelHead title="Menu Builder" subtitle="Soạn nội dung trang bot và layout nút bấm." action={<button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu menu</button>} />
+              <div className="form-grid two">
+                <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder="VD: main_menu, support_page, policy_page" /></label>
+                <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
+                <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
+                <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /></label>
               </div>
-              <label className="field">
-                <span>Số nhóm</span>
-                <select value={groupNo} onChange={(event) => setGroupNo(event.target.value)}>
-                  {Array.from({ length: 20 }, (_, idx) => String(idx + 1)).map((item) => <option key={item} value={item}>G{item}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span>Tên nhóm BTN_G</span>
-                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="VD: Nhóm 1 Privé+" />
-              </label>
-              <label className="field">
-                <span>Telegram group ID_G</span>
-                <input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder="VD: -1001234567890" />
-              </label>
-              <button className="btn secondary" onClick={saveGroupConfig}>Lưu cấu hình nhóm</button>
-            </div>
-            <div className="card stack">
-              <label className="field">
-                <span>Key</span>
-                <input value={editingKey} onChange={(event) => setEditingKey(event.target.value)} placeholder="VD: MSG_DELIVERY" />
-              </label>
-              <label className="field">
-                <span>Value</span>
-                <input value={editingValue} onChange={(event) => setEditingValue(event.target.value)} placeholder="Giá trị mới" />
-              </label>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Key</th>
-                    <th>Value</th>
-                    <th>Cập nhật</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {config.map((item) => (
-                    <tr
-                      key={item.key}
-                      onClick={() => {
-                        setEditingKey(item.key);
-                        setEditingValue(item.value);
-                      }}
-                    >
-                      <td>{item.key}</td>
-                      <td>{item.value}</td>
-                      <td>{dateText(item.updated_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+              <SimpleTable headers={["Trang", "Nội dung", "Nút"]} rows={menuPages.map((item) => [item.page_id, item.body, item.layout])} onRow={(idx) => {
+                const item = menuPages[idx];
+                setMenuForm({ page_id: item.page_id, image_url: item.image_url || "", body: item.body || "", layout: item.layout || "" });
+              }} />
+            </section>
+          </div>
         ) : null}
 
-        {tab === "menu" ? (
+        {tab === "coupons" ? (
           <section className="panel">
-            <div className="panel-head">
-              <strong>Menu pages</strong>
-              <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu page</button>
+            <PanelHead title="Coupon" subtitle="Tạo mã kích hoạt gói. Không cần nhớ config key nhóm." action={<button className="btn" onClick={saveCoupon}><Gift size={16} /> Tạo coupon</button>} />
+            <div className="form-grid">
+              <label className="field"><span>Mã coupon</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" /></label>
+              <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{PLAN_KEY_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select><small>G1_1M là nhóm 1 một tháng. FULL_LIFE là SVIP trọn đời.</small></label>
+              <label className="field"><span>Số ngày sử dụng</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" /></label>
+              <label className="field"><span>Số lượt dùng tối đa</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" /></label>
+              <label className="field"><span>Trạng thái</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
             </div>
-            <div className="card stack">
-              <label className="field"><span>Page ID</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} /></label>
-              <label className="field"><span>Image URL</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} /></label>
-              <label className="field"><span>Body</span><input value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} /></label>
-              <label className="field"><span>Layout</span><input value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} /></label>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Page ID</th><th>Body</th><th>Layout</th><th>Cập nhật</th></tr></thead>
-                <tbody>
-                  {menuPages.map((item) => (
-                    <tr key={item.page_id} onClick={() => setMenuForm({ page_id: item.page_id, image_url: item.image_url || "", body: item.body || "", layout: item.layout || "" })}>
-                      <td>{item.page_id}</td><td>{item.body}</td><td>{item.layout}</td><td>{dateText(item.updated_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <SimpleTable headers={["Mã", "Gói", "Trạng thái", "Đã dùng", "Tối đa", "Hết hạn"]} rows={coupons.map((item) => [item.code, item.plan_name || "-", item.status, String(item.used_count), String(item.max_uses || "-"), dateText(item.expires_at)])} onRow={(idx) => {
+              const item = coupons[idx];
+              setCouponForm({ Code: item.code, Plan_Name: item.raw_data?.Plan_Name || item.plan_name || "G1_1M", Duration_Days: item.raw_data?.Duration_Days || "30", Max_Uses: String(item.max_uses || 1), Enabled: item.status === "ACTIVE" ? "ON" : "OFF" });
+            }} />
           </section>
         ) : null}
 
         {tab === "sales" ? (
           <section className="panel">
-            <div className="panel-head">
-              <strong>Sale rules</strong>
-              <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
+            <PanelHead title="Sale rules" subtitle="Tạo giảm giá theo gói. Bot tự áp giá sale khi khách tạo QR." action={<button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>} />
+            <div className="form-grid">
+              <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
+              <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{PRICE_KEY_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              <label className="field"><span>Giảm theo phần trăm</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" /></label>
+              <label className="field"><span>Hoặc giá sale cố định</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" /></label>
+              <label className="field"><span>Giới hạn slot</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" /></label>
+              <label className="field"><span>Trạng thái</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
             </div>
-            <div className="card stack">
-              <label className="field"><span>Sale ID</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} /></label>
-              <label className="field"><span>Price key</span><input value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })} /></label>
-              <label className="field"><span>Discount %</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} /></label>
-              <label className="field"><span>Sale price</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} /></label>
-              <label className="field"><span>Slot limit</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} /></label>
-              <label className="field"><span>Enabled</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">ON</option><option value="OFF">OFF</option></select></label>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Sale ID</th><th>Price key</th><th>Giảm</th><th>Giá sale</th><th>Slot</th><th>Bật</th></tr></thead>
-                <tbody>
-                  {saleRules.map((item) => (
-                    <tr key={item.sale_id} onClick={() => setSaleForm({ sale_id: item.sale_id, price_key: item.price_key, discount_percent: String(item.discount_percent || ""), sale_price: String(item.sale_price || ""), slot_limit: String(item.slot_limit || ""), enabled: item.enabled ? "ON" : "OFF", start_at: item.starts_at || "", end_at: item.ends_at || "" })}>
-                      <td>{item.sale_id}</td><td>{item.price_key}</td><td>{item.discount_percent || "-"}</td><td>{item.sale_price || "-"}</td><td>{item.slot_limit || "-"}</td><td>{item.enabled ? "ON" : "OFF"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <SimpleTable headers={["Sale", "Gói", "Giảm %", "Giá sale", "Slot", "Bật"]} rows={saleRules.map((item) => [item.sale_id, item.price_key, String(item.discount_percent || "-"), String(item.sale_price || "-"), String(item.slot_limit || "-"), item.enabled ? "ON" : "OFF"])} onRow={(idx) => {
+              const item = saleRules[idx];
+              setSaleForm({ sale_id: item.sale_id, price_key: item.price_key, discount_percent: String(item.discount_percent || ""), sale_price: String(item.sale_price || ""), slot_limit: String(item.slot_limit || ""), enabled: item.enabled ? "ON" : "OFF", start_at: item.starts_at || "", end_at: item.ends_at || "" });
+            }} />
           </section>
         ) : null}
 
-        {tab === "coupons" ? (
-          <section className="panel">
-            <div className="panel-head">
-              <strong>Coupons</strong>
-              <button className="btn" onClick={saveCoupon}><Save size={16} /> Tạo coupon</button>
-            </div>
-            <div className="card stack">
-              <label className="field"><span>Code</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value })} /></label>
-              <label className="field"><span>Plan name hoặc plan key</span><input value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })} placeholder="VD: G1_1M, G1_LIFE, FULL_1M, FULL_LIFE" /></label>
-              <label className="field"><span>Duration days</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} /></label>
-              <label className="field"><span>Max uses</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} /></label>
-              <label className="field"><span>Enabled</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">ON</option><option value="OFF">OFF</option></select></label>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Code</th><th>Plan</th><th>Status</th><th>Used</th><th>Max</th><th>Expire</th></tr></thead>
-                <tbody>
-                  {coupons.map((item) => (
-                    <tr key={item.code} onClick={() => setCouponForm({ Code: item.code, Plan_Name: item.plan_name || "", Duration_Days: item.raw_data?.Duration_Days || "30", Max_Uses: String(item.max_uses || 1), Enabled: item.status === "ACTIVE" ? "ON" : "OFF" })}>
-                      <td>{item.code}</td><td>{item.plan_name || "-"}</td><td>{item.status}</td><td>{item.used_count}</td><td>{item.max_uses || "-"}</td><td>{dateText(item.expires_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+        {tab === "system" ? (
+          <div className="stack">
+            <section className="panel">
+              <PanelHead title="Telegram webhook" subtitle="Nếu bot không phản hồi, kiểm tra và reset webhook tại đây." action={<button className="btn" onClick={handleWebhookReset}><RefreshCw size={16} /> Reset webhook</button>} />
+              <div className="system-list">
+                <Info label="Webhook URL" value={webhook?.url || "Chưa cấu hình"} />
+                <Info label="Update đang chờ" value={String(webhook?.pending_update_count ?? 0)} />
+                <Info label="Lỗi gần nhất" value={webhook?.last_error_message || "Không có"} />
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />
+              <SimpleTable headers={["Tên kỹ thuật", "Giá trị"]} rows={config.map((item) => [item.key, item.value])} />
+            </section>
+          </div>
         ) : null}
       </section>
     </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="card"><div className="muted">{label}</div><div className="metric">{value}</div></div>;
+}
+
+function PanelHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+  return <div className="panel-head"><div><strong>{title}</strong>{subtitle ? <div className="muted">{subtitle}</div> : null}</div>{action}</div>;
+}
+
+function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
+  return <div className="health-item">{ok ? <CheckCircle2 className="good" size={20} /> : <XCircle className="bad" size={20} />}<div><strong>{title}</strong><span>{detail}</span></div></div>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="info-row"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: () => void }) {
+  return (
+    <section className="panel">
+      <PanelHead title={title} subtitle={subtitle} action={<button className="btn" onClick={onSave}><Save size={16} /> Lưu</button>} />
+      <div className="form-grid two">
+        {fields.map((field) => (
+          <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
+            <span>{field.label}</span>
+            {field.kind === "textarea" ? (
+              <textarea value={values[field.key] || ""} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })} placeholder={field.placeholder} />
+            ) : field.kind === "select" ? (
+              <select value={values[field.key] || field.placeholder} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })}>
+                {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
+            ) : (
+              <input value={values[field.key] || ""} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })} placeholder={field.placeholder} />
+            )}
+            <small>{field.help}</small>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; saving: string }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Mã đơn</th><th>Khách</th><th>Gói</th><th>Tiền</th><th>Trạng thái</th><th>Tạo lúc</th><th>Đổi trạng thái</th></tr></thead>
+        <tbody>
+          {orders.map((order) => (
+            <tr key={order.order_id}>
+              <td>{order.order_id}</td>
+              <td><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></td>
+              <td>{order.plan_name}</td>
+              <td>{money(order.amount)}</td>
+              <td><span className={statusClass(order.status)}>{order.status}</span></td>
+              <td>{dateText(order.created_at)}</td>
+              <td>
+                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
+                  <option value="PENDING">Đang chờ</option>
+                  <option value="PAID">Đã thanh toán</option>
+                  <option value="CANCELLED">Đã hủy</option>
+                  <option value="EXPIRED">Hết hạn</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SimpleTable({ headers, rows, onRow }: { headers: string[]; rows: string[][]; onRow?: (index: number) => void }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead><tr>{headers.map((item) => <th key={item}>{item}</th>)}</tr></thead>
+        <tbody>
+          {rows.map((row, idx) => <tr key={idx} onClick={() => onRow?.(idx)}>{row.map((cell, cellIdx) => <td key={cellIdx}>{cell}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
   );
 }
