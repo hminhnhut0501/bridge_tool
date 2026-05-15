@@ -25,6 +25,8 @@ coupon_lock = asyncio.Lock()
 COUPONS_SHEET = "Coupons"
 REDEMPTIONS_SHEET = "CouponRedemptions"
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
+SELECT_GROUP_1M = "SELECT_GROUP_1M"
+SELECT_GROUP_LIFE = "SELECT_GROUP_LIFE"
 
 COUPON_HEADERS = [
     "Code",
@@ -104,6 +106,20 @@ def all_coupon_plan_keys():
         if db.get_config(f"BTN_G{group_no}") or db.get_config(f"ID_G{group_no}"):
             keys.extend([f"G{group_no}_1M", f"G{group_no}_LIFE"])
     return keys
+
+
+def selectable_group_plan_keys(plan_name):
+    key = normalize_plan_key(plan_name)
+    suffix = "_LIFE" if key == SELECT_GROUP_LIFE else "_1M"
+    keys = []
+    for group_no in range(1, 21):
+        if db.get_config(f"BTN_G{group_no}") and db.get_config(f"ID_G{group_no}"):
+            keys.append(f"G{group_no}{suffix}")
+    return keys
+
+
+def is_selectable_group_coupon_plan(plan_name):
+    return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_LIFE}
 
 
 def coupon_applies_to(item):
@@ -274,6 +290,8 @@ def resolve_plan_name(plan_key):
         "FULL_LIFE": db.get_config("PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
         "SVIP_1M": db.get_config("PLAN_FULL_1M", "SVIP+ 1 THÁNG"),
         "SVIP_LIFE": db.get_config("PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
+        SELECT_GROUP_1M: "Khách tự chọn group lẻ - 1 tháng",
+        SELECT_GROUP_LIFE: "Khách tự chọn group lẻ - trọn đời",
     }
     if key in plan_map:
         return plan_map[key]
@@ -314,6 +332,33 @@ async def send_discount_coupon_options(message: Message, code, coupon):
     ).replace("\\n", "\n")
     text = text.replace("{code}", escape_html(code)).replace("{percent}", str(coupon_discount_percent(coupon)))
     await message.answer(text, reply_markup=build_discount_coupon_keyboard(code, coupon), parse_mode="HTML")
+
+
+def build_activation_group_keyboard(code, coupon):
+    kb = InlineKeyboardBuilder()
+    for plan_key in selectable_group_plan_keys(coupon.get("Plan_Name")):
+        kb.row(InlineKeyboardButton(
+            text=resolve_plan_name(plan_key),
+            callback_data=f"cact|{code}|{plan_key}",
+        ))
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    return kb.as_markup()
+
+
+async def send_activation_group_options(message: Message, code, coupon):
+    if not selectable_group_plan_keys(coupon.get("Plan_Name")):
+        await message.answer("❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn. Vui lòng báo admin kiểm tra BTN_G/ID_G.", parse_mode="HTML")
+        return
+
+    text = db.get_config(
+        "MSG_COUPON_GROUP_OPTIONS",
+        "<b>✅ Mã kích hoạt hợp lệ</b>\\n\\n"
+        "Mã: <code>{code}</code>\\n"
+        "Thời hạn: <b>{days} ngày</b>\\n\\n"
+        "Chọn group bạn muốn kích hoạt bên dưới.",
+    ).replace("\\n", "\n")
+    text = text.replace("{code}", escape_html(code)).replace("{days}", str(safe_int(coupon.get("Duration_Days"), 30)))
+    await message.answer(text, reply_markup=build_activation_group_keyboard(code, coupon), parse_mode="HTML")
 
 
 def resolve_groups(plan_name):
@@ -409,31 +454,40 @@ async def redeem_coupon_locked(message: Message, code):
         await send_discount_coupon_options(message, code, coupon)
         return
 
-    plan_name = resolve_plan_name(coupon.get("Plan_Name"))
+    if is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
+        await send_activation_group_options(message, code, coupon)
+        return
+
+    await redeem_activation_coupon(message, message.from_user, code, coupon, coupons_sheet, headers, row_index)
+
+
+async def redeem_activation_coupon(message: Message, user, code, coupon, coupons_sheet, headers, row_index, selected_plan_key=None):
+    plan_key = selected_plan_key or coupon.get("Plan_Name")
+    plan_name = resolve_plan_name(plan_key)
     duration_days = safe_int(coupon.get("Duration_Days"), 30)
     if supabase_store.enabled:
-        paid_orders = supabase_store.list_paid_orders_for_user(message.from_user.id, limit=200)
-        base_date = find_current_expire_from_orders(paid_orders, message.from_user.id, plan_name) or datetime.now()
+        paid_orders = supabase_store.list_paid_orders_for_user(user.id, limit=200)
+        base_date = find_current_expire_from_orders(paid_orders, user.id, plan_name) or datetime.now()
     else:
         users_data = db.users_sheet.get_all_values()
-        base_date = find_current_expire(users_data, message.from_user.id, plan_name) or datetime.now()
+        base_date = find_current_expire(users_data, user.id, plan_name) or datetime.now()
     expire_at = base_date + timedelta(days=duration_days)
     expire_text = expire_at.strftime(TIME_FMT)
 
-    links_msg, group_names = await build_invite_links(message.from_user.id, plan_name)
+    links_msg, group_names = await build_invite_links(user.id, plan_name)
     if not links_msg.strip():
         await message.answer("❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link. Vui lòng báo admin kiểm tra Plan_Name/ID_G.", parse_mode="HTML")
         return
 
     order_id = int(datetime.now().timestamp() * 1000)
-    user_full_name = (message.from_user.full_name or "").strip()
-    username = message.from_user.username or ""
+    user_full_name = (user.full_name or "").strip()
+    username = user.username or ""
     paid_at = now_text()
 
     if supabase_store.enabled:
         supabase_store.create_order(
             order_id=order_id,
-            telegram_user_id=message.from_user.id,
+            telegram_user_id=user.id,
             full_name=user_full_name,
             plan_name=plan_name,
             amount=0,
@@ -444,7 +498,7 @@ async def redeem_coupon_locked(message: Message, code):
     else:
         db.users_sheet.append_row([
             order_id,
-            str(message.from_user.id),
+            str(user.id),
             user_full_name,
             plan_name,
             "0",
@@ -458,7 +512,7 @@ async def redeem_coupon_locked(message: Message, code):
     redemption_payload = {
         "Redeemed_At": paid_at,
         "Code": code,
-        "User_ID": str(message.from_user.id),
+        "User_ID": str(user.id),
         "Username": username,
         "Full_Name": user_full_name,
         "Plan_Name": plan_name,
@@ -469,7 +523,7 @@ async def redeem_coupon_locked(message: Message, code):
         "Groups": group_names,
     }
     if supabase_store.enabled:
-        supabase_store.record_coupon_redemption(code, message.from_user.id, order_id=order_id, raw_data=redemption_payload)
+        supabase_store.record_coupon_redemption(code, user.id, order_id=order_id, raw_data=redemption_payload)
     else:
         _, redemptions_sheet = ensure_coupon_sheets()
         redemptions_sheet.append_row([
@@ -486,7 +540,7 @@ async def redeem_coupon_locked(message: Message, code):
             group_names,
         ])
 
-    update_coupon_usage(coupons_sheet, headers, row_index, coupon, message.from_user.id)
+    update_coupon_usage(coupons_sheet, headers, row_index, coupon, user.id)
 
     template = db.get_config(
         "MSG_COUPON_SUCCESS",
@@ -504,7 +558,7 @@ async def redeem_coupon_locked(message: Message, code):
         .replace("{links}", links_msg)
     )
     kb = InlineKeyboardBuilder()
-    support_error = await add_support_join_button(kb, message.from_user.id)
+    support_error = await add_support_join_button(kb, user.id)
     if support_error:
         text += support_error
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
@@ -545,6 +599,47 @@ async def coupon_button(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Vui lòng nhắn riêng với bot để nhập mã.", show_alert=True)
         return
     await send_coupon_prompt(callback, state)
+
+
+@router.callback_query(F.data.startswith("cact|"))
+async def coupon_activation_group_selected(callback: CallbackQuery):
+    if not await check_protection(callback):
+        return
+
+    try:
+        _, code, selected_plan_key = callback.data.split("|", 2)
+    except ValueError:
+        await callback.answer("Lựa chọn coupon không hợp lệ.", show_alert=True)
+        return
+
+    code = normalize_code(code)
+    if not supabase_store.enabled:
+        db.connect()
+    coupons_sheet, headers, row_index, coupon = find_coupon(code)
+    valid, reason = validate_coupon_base(coupon, callback.from_user.id)
+    if not valid:
+        await callback.answer(reason, show_alert=True)
+        return
+    if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
+        await callback.answer("Mã này không phải coupon chọn group.", show_alert=True)
+        return
+
+    selected_plan_key = normalize_plan_key(selected_plan_key)
+    if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
+        await callback.answer("Group này không nằm trong phạm vi coupon.", show_alert=True)
+        return
+
+    await callback.answer()
+    await redeem_activation_coupon(
+        callback.message,
+        callback.from_user,
+        code,
+        coupon,
+        coupons_sheet,
+        headers,
+        row_index,
+        selected_plan_key=selected_plan_key,
+    )
 
 
 @router.message(CouponState.waiting_code)

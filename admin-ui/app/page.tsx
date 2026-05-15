@@ -243,6 +243,13 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
+    key: "MSG_COUPON_GROUP_OPTIONS",
+    label: "Tin coupon chọn group",
+    placeholder: "Mã: {code}\\nThời hạn: {days} ngày\\nChọn group bạn muốn kích hoạt bên dưới.",
+    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn group lẻ. Dùng biến {code}, {days}.",
+    kind: "textarea",
+  },
+  {
     key: "MSG_WAIT_QR",
     label: "Tin đang tạo QR",
     placeholder: "⏳ Đang tạo mã QR...",
@@ -391,10 +398,15 @@ const PLAN_KEY_OPTIONS = [
   "FULL_LIFE",
 ];
 
+const SELECTABLE_GROUP_COUPON_OPTIONS = [
+  "SELECT_GROUP_1M",
+  "SELECT_GROUP_LIFE",
+];
+
 const EMPTY_COUPON_FORM = {
   Code: "",
   Coupon_Type: "DISCOUNT",
-  Plan_Name: "G1_1M",
+  Plan_Name: "SELECT_GROUP_1M",
   Duration_Days: "30",
   Discount_Percent: "10",
   Applies_To: "ALL",
@@ -720,6 +732,11 @@ export default function Home() {
         if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
           throw new Error("Coupon giảm giá cần phần trăm từ 1 đến 99. Muốn miễn phí hãy dùng loại Kích hoạt miễn phí.");
         }
+      } else {
+        const days = Number(payload.Duration_Days || 0);
+        if (!Number.isFinite(days) || days <= 0) {
+          throw new Error("Coupon kích hoạt cần số ngày sử dụng lớn hơn 0.");
+        }
       }
       await createCoupon(savedSecret, payload);
       setCouponForm({ ...EMPTY_COUPON_FORM });
@@ -805,6 +822,11 @@ export default function Home() {
   }, [groupNo, visibleGroups]);
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
+    ...SELECTABLE_GROUP_COUPON_OPTIONS,
+    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
+  ], [configuredGroups]);
+  const discountPlanKeyOptions = useMemo(() => [
+    ...PLAN_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
   ], [configuredGroups]);
   const priceKeyOptions = useMemo(() => [
@@ -844,6 +866,8 @@ export default function Home() {
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 1 tháng";
     if (value === "FULL_LIFE") return "SVIP chung - trọn đời";
+    if (value === "SELECT_GROUP_1M") return "Khách tự chọn group lẻ - 1 tháng";
+    if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn group lẻ - trọn đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -1161,7 +1185,7 @@ export default function Home() {
                 <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
               ) : (
                 <>
-                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
+                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
                   <label className="field"><span>Số ngày sử dụng</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" /></label>
                 </>
               )}
@@ -1175,7 +1199,7 @@ export default function Home() {
                   <button className={couponForm.Applies_To === "ALL" ? "scope-pill active" : "scope-pill"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</button>
                 </div>
                 <div className="check-grid">
-                  {planKeyOptions.map((item) => {
+                  {discountPlanKeyOptions.map((item) => {
                     const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
                     return (
                       <label className={selected ? "check-card active" : "check-card"} key={item}>
@@ -1192,7 +1216,7 @@ export default function Home() {
               rows={visibleCoupons.map((item) => [
                 item.code,
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
-                item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : item.plan_name || "-",
+                item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : planOptionLabel(item.raw_data?.Plan_Name || item.plan_name || "-"),
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? `${item.raw_data?.Discount_Percent || 0}%` : "-",
                 item.status,
                 String(item.used_count),
@@ -1204,7 +1228,7 @@ export default function Home() {
                   ...EMPTY_COUPON_FORM,
                   Code: item.code,
                   Coupon_Type: item.raw_data?.Coupon_Type || "ACTIVATION",
-                  Plan_Name: item.raw_data?.Plan_Name || item.plan_name || "G1_1M",
+                  Plan_Name: item.raw_data?.Plan_Name || item.plan_name || "SELECT_GROUP_1M",
                   Duration_Days: item.raw_data?.Duration_Days || "30",
                   Discount_Percent: item.raw_data?.Discount_Percent || "10",
                   Applies_To: item.raw_data?.Applies_To || "ALL",
