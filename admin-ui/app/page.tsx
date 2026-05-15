@@ -178,15 +178,11 @@ const PLAN_FIELDS: ConfigField[] = [
 const PRICE_KEY_OPTIONS = [
   "PRICE_SVIP_30D",
   "PRICE_SVIP_LIFE",
-  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `PRICE_G${idx + 1}_1M`),
-  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `PRICE_G${idx + 1}_LIFE`),
 ];
 
 const PLAN_KEY_OPTIONS = [
   "FULL_1M",
   "FULL_LIFE",
-  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `G${idx + 1}_1M`),
-  ...Array.from({ length: GROUP_COUNT }, (_, idx) => `G${idx + 1}_LIFE`),
 ];
 
 const EMPTY_COUPON_FORM = {
@@ -222,6 +218,10 @@ function getConfigValue(config: ConfigRow[], key: string, fallback = "") {
 
 function isGroupConfigured(config: ConfigRow[], groupNo: number) {
   return Boolean(getConfigValue(config, `BTN_G${groupNo}`) && getConfigValue(config, `ID_G${groupNo}`));
+}
+
+function hasAnyGroupConfig(config: ConfigRow[], groupNo: number) {
+  return groupConfigKeys(String(groupNo)).some((key) => Boolean(getConfigValue(config, key)));
 }
 
 function groupConfigKeys(groupNo: string) {
@@ -489,6 +489,21 @@ export default function Home() {
   }, [orders, users, coupons, menuPages]);
 
   const configuredGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config]);
+  const visibleGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config]);
+  const groupSelectOptions = useMemo(() => {
+    const selected = Number(groupNo);
+    const values = new Set(visibleGroups);
+    if (selected >= 1 && selected <= GROUP_COUNT) values.add(selected);
+    return Array.from(values).sort((a, b) => a - b);
+  }, [groupNo, visibleGroups]);
+  const planKeyOptions = useMemo(() => [
+    ...PLAN_KEY_OPTIONS,
+    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
+  ], [configuredGroups]);
+  const priceKeyOptions = useMemo(() => [
+    ...PRICE_KEY_OPTIONS,
+    ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`]),
+  ], [configuredGroups]);
   const missingCore = useMemo(() => {
     const items = [];
     if (!webhook?.url) items.push("Webhook Telegram chưa hoạt động");
@@ -597,7 +612,7 @@ export default function Home() {
               <Metric label="Doanh thu đã thanh toán" value={money(metrics.revenue)} />
               <Metric label="Đơn đang chờ" value={String(metrics.pending)} />
               <Metric label="Khách gần đây" value={String(metrics.users)} />
-              <Metric label="Nhóm đã cấu hình" value={`${configuredGroups.length}/${GROUP_COUNT}`} />
+              <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
             </div>
             <section className="panel">
               <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
@@ -633,7 +648,11 @@ export default function Home() {
                 <label className="field">
                   <span>Nhóm cần cấu hình</span>
                   <select value={groupNo} onChange={(event) => fillGroupForm(event.target.value)}>
-                    {Array.from({ length: GROUP_COUNT }, (_, idx) => String(idx + 1)).map((item) => <option key={item} value={item}>G{item}</option>)}
+                    {groupSelectOptions.map((item) => (
+                      <option key={item} value={item}>
+                        G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}
+                      </option>
+                    ))}
                   </select>
                   <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown, không cần nhớ mã kỹ thuật.</small>
                 </label>
@@ -647,9 +666,9 @@ export default function Home() {
               </div>
             </section>
             <section className="panel">
-              <PanelHead title="Danh sách nhóm" subtitle="Nhóm nào thiếu ID hoặc tên sẽ không cấp được link." />
+              <PanelHead title="Danh sách nhóm" subtitle="Chỉ hiện những nhóm bạn đã thêm. Bấm Thêm nhóm mới để tạo G tiếp theo." />
               <div className="group-list">
-                {Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).map((item) => {
+                {visibleGroups.length ? visibleGroups.map((item) => {
                   const name = getConfigValue(config, `BTN_G${item}`);
                   const id = getConfigValue(config, `ID_G${item}`);
                   return (
@@ -659,7 +678,7 @@ export default function Home() {
                       <em>{id || "Chưa có group ID"}</em>
                     </button>
                   );
-                })}
+                }) : <div className="empty-card">Chưa có nhóm nào. Bấm <strong>Thêm nhóm mới</strong>, nhập tên nhóm và Telegram group ID rồi lưu.</div>}
               </div>
             </section>
           </div>
@@ -754,7 +773,7 @@ export default function Home() {
                 <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
               ) : (
                 <>
-                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{PLAN_KEY_OPTIONS.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Tên hiển thị đã đổi theo Setup nhóm. Không cần nhớ mã kỹ thuật.</small></label>
+                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
                   <label className="field"><span>Số ngày sử dụng</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" /></label>
                 </>
               )}
@@ -768,7 +787,7 @@ export default function Home() {
                   <button className={couponForm.Applies_To === "ALL" ? "scope-pill active" : "scope-pill"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</button>
                 </div>
                 <div className="check-grid">
-                  {PLAN_KEY_OPTIONS.map((item) => {
+                  {planKeyOptions.map((item) => {
                     const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
                     return (
                       <label className={selected ? "check-card active" : "check-card"} key={item}>
@@ -829,7 +848,7 @@ export default function Home() {
             />
             <div className="form-grid">
               <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
-              <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{PRICE_KEY_OPTIONS.map((item) => <option key={item} value={item}>{priceOptionLabel(item)}</option>)}</select></label>
+              <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{priceKeyOptions.map((item) => <option key={item} value={item}>{priceOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
               <label className="field"><span>Giảm theo phần trăm</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" /></label>
               <label className="field"><span>Hoặc giá sale cố định</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" /></label>
               <label className="field"><span>Giới hạn slot</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" /></label>

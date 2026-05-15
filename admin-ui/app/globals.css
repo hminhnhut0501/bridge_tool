@@ -396,6 +396,17 @@ tbody tr:hover {
   text-align: center;
 }
 
+.empty-card {
+  background: var(--panel-soft);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  padding: 18px;
+  text-align: center;
+}
+
 .coupon-scope {
   border-top: 1px solid var(--line);
   display: grid;
