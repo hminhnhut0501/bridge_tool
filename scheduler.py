@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from database import db
 from bot_instance import bot
@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
+from support_utils import is_lifetime_plan, is_support_group, mute_member, support_group_grace_days, unmute_member
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -70,6 +71,35 @@ def should_skip_reminder(row, today_str):
 def should_skip_expired_notice(row):
     return bool(row_value(row, 11))
 
+def group_matches_plan(group_no, plan_name):
+    btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
+    return btn_name.upper() in plan_name.upper() or f"G{group_no}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper()
+
+def plan_group_ids(plan_name):
+    groups = []
+    for group_no in range(1, 21):
+        if not group_matches_plan(group_no, plan_name):
+            continue
+        gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
+        if gid and not is_support_group(gid):
+            groups.append(gid)
+    return groups
+
+def user_has_active_renewal(user_id, plan_name, current_order_id, users_data, now):
+    for row in users_data:
+        if row_value(row, 0) == current_order_id:
+            continue
+        if row_value(row, 1) != str(user_id):
+            continue
+        if row_value(row, 5).upper() != "PAID":
+            continue
+        if row_value(row, 3).upper() != str(plan_name).upper():
+            continue
+        expire_date = parse_expire_datetime(row_value(row, 7))
+        if expire_date and expire_date > now:
+            return True
+    return False
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -113,8 +143,8 @@ async def check_expirations_professional():
             if status != "PAID" or not expire_str: 
                 continue
                 
-            # Khách VIP Trọn đời thì bỏ qua luôn, không bao giờ lo hết hạn
-            if "TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper():
+            # Khách VIP Trọn đời thì bỏ qua luôn, không bao giờ lo hết hạn hoặc bị xử lý support.
+            if is_lifetime_plan(plan_name):
                 continue
 
             expire_date = parse_expire_datetime(expire_str)
@@ -126,18 +156,34 @@ async def check_expirations_professional():
             notif_key = f"{user_id}_{offer_ref}_{today_str}"
 
             # ==========================================
-            # 1. HẾT HẠN -> KICK KHỎI NHÓM & CẬP NHẬT SHEET
+            # 1. HẾT HẠN -> MUTE, SAU GRACE DAYS MỚI KICK
             # ==========================================
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
+                if user_has_active_renewal(user_id, plan_name, order_id, users_data, now):
+                    for gid in plan_group_ids(plan_name):
+                        try:
+                            await unmute_member(gid, user_id)
+                            logging.info(f"🔊 User {user_id} đã gia hạn, mở mute lại ở group {gid}.")
+                        except Exception as e:
+                            logging.error(f"❌ Lỗi mở mute User {user_id} ở group {gid}: {e}")
+                    try:
+                        if use_supabase:
+                            supabase_store.mark_order_expired(order_id, expired_notice_at=row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S"))
+                        else:
+                            db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S")]])
+                    except Exception as e:
+                        logging.error(f"❌ Lỗi đóng đơn cũ đã được gia hạn {offer_ref}: {e}")
+                    continue
 
                 if not should_skip_expired_notice(row):
-                    # Gửi tin báo tử
+                    # Gửi tin báo hết hạn và mute
                     msg_expired = (
-                        db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn và bạn đã bị mời ra khỏi nhóm.\n\n👇 Vui lòng gia hạn để tiếp tục truy cập!")
+                        db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn. Bạn đã bị tắt quyền gửi tin trong nhóm.\n\nBạn có <b>{grace_days} ngày</b> để gia hạn. Nếu không gia hạn, hệ thống sẽ mời bạn ra khỏi nhóm.")
                         .replace("\\n", "\n")
                         .replace("{plan}", plan_name)
                         .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
+                        .replace("{grace_days}", str(support_group_grace_days()))
                     )
                     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_RENEW", "🔄 Gia hạn ngay"), callback_data="nav:main_menu"))
                     
@@ -146,29 +192,38 @@ async def check_expirations_professional():
                         logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
                     except Exception as e:
                         logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
-                
-                # Xử lý Kick (Ban rồi Unban để đuổi ra mà không khóa vĩnh viễn)
-                for g in range(1, 21):
-                    btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
-                    if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-                        gid = normalize_chat_id(db.get_config(f"ID_G{g}"))
-                        if gid:
-                            try:
-                                await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
-                                await bot.unban_chat_member(chat_id=gid, user_id=int(user_id)) # Unban ngay để họ còn mua lại được
-                                logging.info(f"🚪 Đã kick User {user_id} khỏi group {gid}")
-                            except Exception as e:
-                                logging.error(f"❌ Lỗi kick User {user_id} khỏi group {gid}: {e}")
+                    for gid in plan_group_ids(plan_name):
+                        try:
+                            await mute_member(gid, user_id)
+                            logging.info(f"🔇 Đã mute User {user_id} trong group {gid}")
+                        except Exception as e:
+                            logging.error(f"❌ Lỗi mute User {user_id} trong group {gid}: {e}")
 
-                # Đổi trạng thái thành EXPIRED sau khi đã xử lý gửi/kick
-                try:
                     if use_supabase:
-                        supabase_store.mark_order_expired(order_id, expired_notice_at=now.strftime("%Y-%m-%d %H:%M:%S"))
+                        supabase_store.mark_expired_notice(order_id, expired_notice_at=now.strftime("%Y-%m-%d %H:%M:%S"))
                     else:
-                        db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), now.strftime("%Y-%m-%d %H:%M:%S")]])
-                    logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
+                        db.users_sheet.update_cell(row_number, 12, now.strftime("%Y-%m-%d %H:%M:%S"))
+                    logging.info(f"✅ Đã cập nhật mốc mute/hết hạn tại đơn/dòng {offer_ref}.")
+
+                expired_notice_at = parse_expire_datetime(row_value(row, 11)) or now
+                kick_at = expire_date + timedelta(days=support_group_grace_days())
+                if now >= kick_at:
+                    for gid in plan_group_ids(plan_name):
+                        try:
+                            await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
+                            await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
+                            logging.info(f"🚪 Đã kick User {user_id} khỏi group {gid} sau grace period.")
+                        except Exception as e:
+                            logging.error(f"❌ Lỗi kick User {user_id} khỏi group {gid}: {e}")
+
+                    try:
+                        if use_supabase:
+                            supabase_store.mark_order_expired(order_id, expired_notice_at=expired_notice_at.strftime("%Y-%m-%d %H:%M:%S"))
+                        else:
+                            db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), expired_notice_at.strftime("%Y-%m-%d %H:%M:%S")]])
+                        logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
+                    except Exception as e:
+                        logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
                 continue
 
             # ==========================================

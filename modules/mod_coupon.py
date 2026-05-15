@@ -16,6 +16,7 @@ from database import db, normalize_key
 from helpers import check_protection, is_admin_user
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
+from support_utils import add_support_join_button, is_support_group, unmute_member
 
 router = Router()
 log = logging.getLogger(__name__)
@@ -354,6 +355,11 @@ async def build_invite_links(user_id, plan_name):
                 creates_join_request=False,
             )
             links_msg += f"👉 <b>{escape_html(group_name)}</b>:\n{invite.invite_link}\n\n"
+            try:
+                if not is_support_group(gid):
+                    await unmute_member(gid, user_id)
+            except Exception as unmute_err:
+                log.warning("Cannot unmute coupon user %s in %s: %s", user_id, gid, unmute_err)
         except Exception as err:
             links_msg += f"👉 <b>{escape_html(group_name)}</b>: <i>Không tạo được link ({escape_html(err)})</i>\n\n"
 
@@ -497,9 +503,11 @@ async def redeem_coupon_locked(message: Message, code):
         .replace("{expire}", expire_text)
         .replace("{links}", links_msg)
     )
-    kb = InlineKeyboardBuilder().row(
-        InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main")
-    )
+    kb = InlineKeyboardBuilder()
+    support_error = await add_support_join_button(kb, message.from_user.id)
+    if support_error:
+        text += support_error
+    kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
     await message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
 
 

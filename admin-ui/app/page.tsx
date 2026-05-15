@@ -48,7 +48,7 @@ import {
 } from "@/lib/api";
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
-type ContentSubTab = "bot" | "plans" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
+type ContentSubTab = "bot" | "plans" | "support" | "currency" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 
@@ -130,6 +130,72 @@ const ADMIN_FIELDS: ConfigField[] = [
     label: "Telegram Admin ID",
     placeholder: "887869657",
     help: "Nhập một hoặc nhiều Telegram ID admin, cách nhau bằng dấu phẩy. Admin được bỏ qua bảo trì/spam và dùng lệnh quản trị.",
+  },
+];
+
+const SUPPORT_FIELDS: ConfigField[] = [
+  {
+    key: "SUPPORT_GROUP_ENABLED",
+    label: "Bật nhóm support",
+    placeholder: "OFF",
+    help: "Bật ON để gửi nút join nhóm hỗ trợ kèm link tham gia sau thanh toán/coupon.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
+    key: "SUPPORT_GROUP_ID",
+    label: "Support group ID",
+    placeholder: "-1001234567890",
+    help: "ID nhóm support. Nhóm này không bị kick khi gói hết hạn.",
+  },
+  {
+    key: "SUPPORT_GROUP_NAME",
+    label: "Tên nhóm support",
+    placeholder: "Nhóm hỗ trợ Privé+",
+    help: "Tên hiển thị trong log/lỗi.",
+  },
+  {
+    key: "SUPPORT_GROUP_BUTTON_TEXT",
+    label: "Text nút join support",
+    placeholder: "💬 Join nhóm hỗ trợ",
+    help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
+  },
+  {
+    key: "SUPPORT_GROUP_GRACE_DAYS",
+    label: "Số ngày mute trước khi kick",
+    placeholder: "14",
+    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm trả phí.",
+  },
+];
+
+const CURRENCY_FIELDS: ConfigField[] = [
+  {
+    key: "DISPLAY_CURRENCY_STYLE",
+    label: "Kiểu hiển thị tiền",
+    placeholder: "VND_LOWER",
+    help: "Chỉ ảnh hưởng text UI bot. QR PayOS vẫn luôn dùng VND integer.",
+    kind: "select",
+    options: [
+      { label: "3.000đ", value: "VND_LOWER" },
+      { label: "3.000 VNĐ", value: "VND_TEXT" },
+      { label: "3K", value: "COMPACT_K" },
+      { label: "3.000 + hậu tố tuỳ chỉnh", value: "CUSTOM_SUFFIX" },
+    ],
+  },
+  {
+    key: "DISPLAY_CURRENCY_SUFFIX",
+    label: "Hậu tố tiền tuỳ chỉnh",
+    placeholder: "🐟",
+    help: "Dùng khi chọn kiểu hậu tố tuỳ chỉnh. Ví dụ: 🐟, coin, điểm.",
+  },
+  {
+    key: "DISPLAY_CURRENCY_COMPACT_DECIMALS",
+    label: "Số lẻ khi hiển thị K",
+    placeholder: "0",
+    help: "Ví dụ 1 sẽ hiển thị 3.5K nếu giá là 3500.",
   },
 ];
 
@@ -476,7 +542,7 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...BOT_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
@@ -1016,6 +1082,8 @@ export default function Home() {
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
                 <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
+                <button className={contentTab === "support" ? "active" : ""} onClick={() => setContentTab("support")}>Support group</button>
+                <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
                 <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
                 <button className={contentTab === "alerts" ? "active" : ""} onClick={() => setContentTab("alerts")}>Cảnh báo</button>
                 <button className={contentTab === "messages" ? "active" : ""} onClick={() => setContentTab("messages")}>Tin nhắn</button>
@@ -1026,6 +1094,8 @@ export default function Home() {
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
+            {contentTab === "support" ? <ConfigEditor title="Support group" subtitle="Cấu hình nhóm hỗ trợ riêng. Link join chỉ dùng 1 lần; group này không bị kick khi hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SUPPORT_FIELDS)} /> : null}
+            {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
             {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
             {contentTab === "alerts" ? <ConfigEditor title="Cảnh báo nhanh" subtitle="Các alert ngắn khi khách bấm nút, spam, hủy đơn, check QR." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
             {contentTab === "messages" ? <ConfigEditor title="Tin nhắn tự động" subtitle="Các mẫu tin bot gửi cho khách. Placeholder được ghi rõ dưới từng ô." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}

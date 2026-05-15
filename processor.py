@@ -8,6 +8,7 @@ from database import db
 from bot_instance import bot 
 from payment import payos_manager
 from supabase_store import supabase_store
+from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, unmute_member
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -171,7 +172,7 @@ async def process_successful_payment(order_code: str):
             return
 
         # Tính toán hạn dùng. Nếu gia hạn sớm cùng gói, cộng tiếp từ hạn cũ.
-        is_lifetime = ("TRỌN ĐỜI" in plan_name.upper() or "LIFE" in plan_name.upper())
+        is_lifetime = is_lifetime_plan(plan_name)
         days_to_add = 3650 if is_lifetime else 30
         if supabase_store.enabled:
             base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or datetime.now()
@@ -209,6 +210,11 @@ async def process_successful_payment(order_code: str):
                     creates_join_request=False
                 )
                 links_msg += f"👉 <b>{escape_html(gname)}</b>:\n{invite.invite_link}\n\n"
+                try:
+                    if not is_support_group(gid):
+                        await unmute_member(gid, user_id)
+                except Exception as unmute_err:
+                    print(f"⚠️ Không thể mở mute user {user_id} ở group {gid}: {unmute_err}")
             except Exception as e:
                 links_msg += f"👉 <b>{escape_html(gname)}</b>: <i>❌ Lỗi tạo link ({e})</i>\n\n"
 
@@ -230,7 +236,11 @@ async def process_successful_payment(order_code: str):
         final_msg = msg_template.replace("{plan}", escape_html(plan_name)).replace("{date}", expire_date).replace("{links}", links_msg)
         
         # Tạo nút điều hướng về UI chính bằng cơ chế mới
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        kb = InlineKeyboardBuilder()
+        support_error = await add_support_join_button(kb, user_id)
+        if support_error:
+            final_msg += support_error
+        kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
 
         try:
             await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)

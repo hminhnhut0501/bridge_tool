@@ -58,7 +58,18 @@ def parse_datetime(value):
 
 def format_currency(amount):
     try:
-        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
+        value = float(amount)
+        style = str(db.get_config("DISPLAY_CURRENCY_STYLE", "VND_LOWER")).strip().upper()
+        suffix = str(db.get_config("DISPLAY_CURRENCY_SUFFIX", "đ"))
+        compact_decimals = int(float(str(db.get_config("DISPLAY_CURRENCY_COMPACT_DECIMALS", "0")).strip()))
+        if style == "VND_TEXT":
+            return "{:,.0f} VNĐ".format(value).replace(",", ".")
+        if style == "COMPACT_K":
+            compact = value / 1000
+            return f"{compact:,.{compact_decimals}f}K".replace(",", ".")
+        if style == "CUSTOM_SUFFIX":
+            return "{:,.0f} {}".format(value, suffix).replace(",", ".")
+        return "{:,.0f}đ".format(value).replace(",", ".")
     except (TypeError, ValueError):
         return f"{amount}Đ"
 

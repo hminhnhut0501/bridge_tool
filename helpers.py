@@ -65,10 +65,21 @@ async def check_protection(event):
     return True
 
 def format_currency(amount):
-    """Định dạng tiền tệ VNĐ (VD: 3000 -> 3.000Đ)"""
+    """Định dạng tiền hiển thị. Số tiền gửi PayOS vẫn luôn là VND integer ở payment flow."""
     try:
-        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
-    except:
+        value = float(amount)
+        style = str(db.get_config("DISPLAY_CURRENCY_STYLE", "VND_LOWER")).strip().upper()
+        suffix = str(db.get_config("DISPLAY_CURRENCY_SUFFIX", "đ"))
+        compact_decimals = int(float(str(db.get_config("DISPLAY_CURRENCY_COMPACT_DECIMALS", "0")).strip()))
+        if style == "VND_TEXT":
+            return "{:,.0f} VNĐ".format(value).replace(",", ".")
+        if style == "COMPACT_K":
+            compact = value / 1000
+            return f"{compact:,.{compact_decimals}f}K".replace(",", ".")
+        if style == "CUSTOM_SUFFIX":
+            return "{:,.0f} {}".format(value, suffix).replace(",", ".")
+        return "{:,.0f}đ".format(value).replace(",", ".")
+    except Exception:
         return f"{amount}Đ"
 
 async def smart_display(event, text, reply_markup, img=None):
