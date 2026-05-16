@@ -27,6 +27,7 @@ import {
   MenuPage,
   Order,
   SaleRule,
+  SupportEvent,
   UserRow,
   WebhookInfo,
   createCoupon,
@@ -41,6 +42,7 @@ import {
   getMenuPages,
   getOrders,
   getSaleRules,
+  getSupportEvents,
   getUsers,
   getWebhookInfo,
   resetWebhook,
@@ -51,8 +53,8 @@ import {
   upsertSaleRule,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "content" | "coupons" | "security" | "sales" | "system";
-type ContentSubTab = "bot" | "plans" | "support" | "currency" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
+type ContentSubTab = "bot" | "plans" | "currency" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 
@@ -103,11 +105,36 @@ const BOT_FIELDS: ConfigField[] = [
     help: "Tin nhắn gửi cho khách khi bot đang bảo trì.",
     kind: "textarea",
   },
+];
+
+const RENEWAL_FIELDS: ConfigField[] = [
+  {
+    key: "REMINDER_ENABLED",
+    label: "Bật nhắc gia hạn",
+    placeholder: "ON",
+    help: "Bật ON để scheduler gửi tin nhắc trước khi hết hạn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
   {
     key: "REMINDER_DAYS",
     label: "Nhắc trước khi hết hạn",
     placeholder: "3",
     help: "Số ngày trước khi hết hạn bot sẽ nhắc khách gia hạn.",
+  },
+  {
+    key: "EXPIRED_NOTICE_ENABLED",
+    label: "Bật tin báo hết hạn",
+    placeholder: "ON",
+    help: "Bật ON để bot gửi tin báo khi gói vừa hết hạn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
   },
   {
     key: "EARLY_RENEW_ENABLED",
@@ -125,6 +152,38 @@ const BOT_FIELDS: ConfigField[] = [
     label: "Giảm giá gia hạn sớm",
     placeholder: "10",
     help: "Phần trăm giảm khi khách gia hạn sớm.",
+  },
+  {
+    key: "MSG_REMINDER",
+    label: "Tin nhắc sắp hết hạn",
+    placeholder: "Gói {plan} sẽ hết hạn sau {days} ngày.",
+    help: "Dùng biến {plan}, {days}, {date}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_EXPIRED",
+    label: "Tin gói hết hạn",
+    placeholder: "Gói {plan} của bạn đã hết hạn.",
+    help: "Dùng biến {plan}, {date}, {grace_days}.",
+    kind: "textarea",
+  },
+  {
+    key: "BTN_EARLY_RENEW",
+    label: "Nút gia hạn sớm",
+    placeholder: "🔥 Gia hạn sớm -{percent}%",
+    help: "Text nút ưu đãi gia hạn sớm.",
+  },
+  {
+    key: "BTN_RENEW_FULL",
+    label: "Nút gia hạn SVIP",
+    placeholder: "🌟 Gia hạn / Lên Trọn Đời",
+    help: "Text nút gia hạn cho gói SVIP/full.",
+  },
+  {
+    key: "BTN_RENEW_GROUP",
+    label: "Nút gia hạn group",
+    placeholder: "🔄 Gia hạn / Mở rộng gói",
+    help: "Text nút gia hạn cho gói group lẻ.",
   },
 ];
 
@@ -320,6 +379,17 @@ const SUPPORT_FIELDS: ConfigField[] = [
     help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
   },
   {
+    key: "SUPPORT_GROUP_MUTE_ENABLED",
+    label: "Mute khi hết hạn",
+    placeholder: "ON",
+    help: "Bật ON để user hết hạn bị mute trong các group trả phí trước khi kick.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "SUPPORT_GROUP_GRACE_DAYS",
     label: "Số ngày mute trước khi kick",
     placeholder: "14",
@@ -428,20 +498,6 @@ const MESSAGE_FIELDS: ConfigField[] = [
     label: "Tin lỗi tạo QR",
     placeholder: "❌ Lỗi cổng thanh toán!",
     help: "Tin gửi khi PayOS không tạo được đơn.",
-  },
-  {
-    key: "MSG_EXPIRED",
-    label: "Tin gói hết hạn",
-    placeholder: "Gói {plan} của bạn đã hết hạn.",
-    help: "Dùng biến {plan}, {date}.",
-    kind: "textarea",
-  },
-  {
-    key: "MSG_REMINDER",
-    label: "Tin nhắc sắp hết hạn",
-    placeholder: "Gói {plan} sẽ hết hạn sau {days} ngày.",
-    help: "Dùng biến {plan}, {days}, {date}.",
-    kind: "textarea",
   },
   {
     key: "MSG_ME_TITLE",
@@ -596,6 +652,30 @@ function dateText(value: string | null | undefined) {
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function dateOnly(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function isTodayDate(value: string | null | undefined) {
+  return Boolean(value && dateOnly(value) === dateOnly(new Date().toISOString()));
+}
+
+function daysUntil(value: string | null | undefined) {
+  if (!value) return 999999;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 999999;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
 function dayKey(value: string | null | undefined) {
   if (!value) return "Không rõ ngày";
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(value));
@@ -671,6 +751,19 @@ function statusClass(status: string) {
   return "status pending";
 }
 
+function supportEventLabel(type: string) {
+  const labels: Record<string, string> = {
+    support_joined: "Vừa join support",
+    support_left: "Rời support",
+    renewal_reminder_sent: "Đã nhắc gia hạn",
+    expired_notice_sent: "Đã báo hết hạn",
+    member_muted: "Đã mute",
+    member_unmuted: "Đã mở mute",
+    member_kicked: "Đã kick",
+  };
+  return labels[type] || type;
+}
+
 function getConfigValue(config: ConfigRow[], key: string, fallback = "") {
   return config.find((item) => item.key === key)?.value ?? fallback;
 }
@@ -699,6 +792,7 @@ export default function Home() {
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
+  const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -727,7 +821,7 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...SECURITY_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
@@ -762,7 +856,7 @@ export default function Home() {
     setLoading(true);
     setNotice(null);
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -770,6 +864,7 @@ export default function Home() {
         getSaleRules(activeSecret),
         getCoupons(activeSecret),
         getBlacklist(activeSecret),
+        getSupportEvents(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
@@ -779,6 +874,7 @@ export default function Home() {
       setSaleRules(salesRes.data);
       setCoupons(couponsRes.data);
       setBlacklist(blacklistRes.data);
+      setSupportEvents(supportEventsRes.data);
       setWebhook(webhookRes.data);
       setOrderPage(1);
     } catch (err) {
@@ -1059,6 +1155,21 @@ export default function Home() {
     const start = (safePage - 1) * ORDER_PAGE_SIZE;
     return filteredOrders.slice(start, start + ORDER_PAGE_SIZE);
   }, [filteredOrders, orderPage, totalOrderPages]);
+  const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
+  const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
+  const expiringSoon = useMemo(() => {
+    const noticeDays = Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3;
+    return paidMemberOrders.filter((item) => {
+      const days = daysUntil(item.expire_at);
+      return days >= 0 && days <= noticeDays;
+    });
+  }, [paidMemberOrders, config]);
+  const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
+  const expiredNoticeToday = useMemo(() => orders.filter((item) => item.expired_notice_at && isTodayDate(item.expired_notice_at)), [orders]);
+  const supportTodayEvents = useMemo(() => supportEvents.filter((item) => isTodayDate(item.created_at)), [supportEvents]);
+  const supportJoinedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "support_joined"), [supportTodayEvents]);
+  const supportMutedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_muted"), [supportTodayEvents]);
+  const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
 
   useEffect(() => {
     setOrderPage(1);
@@ -1122,6 +1233,8 @@ export default function Home() {
           <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")}><BarChart3 size={18} /> Thống kê</button>
           <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
+          <button className={tab === "renewals" ? "active" : ""} onClick={() => setTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
+          <button className={tab === "supportGroup" ? "active" : ""} onClick={() => setTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
           <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}><Ticket size={18} /> Coupon</button>
           <button className={tab === "security" ? "active" : ""} onClick={() => setTab("security")}><ShieldCheck size={18} /> Bảo mật</button>
@@ -1301,6 +1414,111 @@ export default function Home() {
           </div>
         ) : null}
 
+        {tab === "renewals" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Hết hạn hôm nay" value={String(expiringToday.length)} />
+              <Metric label="Sắp hết hạn" value={String(expiringSoon.length)} />
+              <Metric label="Đã nhắc hôm nay" value={String(remindedToday.length)} />
+              <Metric label="Đã báo hết hạn hôm nay" value={String(expiredNoticeToday.length)} />
+            </div>
+            <ConfigEditor
+              title="Cài đặt gia hạn"
+              subtitle="Bật/tắt nhắc gia hạn, tin báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên."
+              fields={RENEWAL_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={() => saveFields(RENEWAL_FIELDS)}
+            />
+            <section className="panel">
+              <PanelHead title="User sắp hết hạn" subtitle="Dựa trên các đơn PAID còn hạn, theo số ngày nhắc cấu hình." />
+              <SimpleTable
+                headers={["Khách", "Telegram ID", "Gói", "Hết hạn", "Còn lại", "Nhắc gần nhất"]}
+                rows={expiringSoon.map((item) => [
+                  item.full_name || "-",
+                  item.telegram_user_id,
+                  item.plan_name,
+                  dateText(item.expire_at),
+                  `${daysUntil(item.expire_at)} ngày`,
+                  item.last_reminder_date || "-",
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="Hết hạn hôm nay" subtitle="Danh sách user có hạn dùng rơi vào hôm nay." />
+              <SimpleTable
+                headers={["Khách", "Telegram ID", "Gói", "Hết hạn", "Trạng thái", "Đã báo hết hạn"]}
+                rows={expiringToday.map((item) => [
+                  item.full_name || "-",
+                  item.telegram_user_id,
+                  item.plan_name,
+                  dateText(item.expire_at),
+                  item.status,
+                  item.expired_notice_at ? dateText(item.expired_notice_at) : "-",
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="Vừa gửi nhắc / báo hết hạn" subtitle="Theo dõi những user đã được scheduler xử lý hôm nay." />
+              <SimpleTable
+                headers={["Loại", "Khách", "Telegram ID", "Gói", "Đơn", "Thời điểm"]}
+                rows={[
+                  ...remindedToday.map((item) => ["Nhắc gia hạn", item.full_name || "-", item.telegram_user_id, item.plan_name, item.order_id, item.last_reminder_date || "-"]),
+                  ...expiredNoticeToday.map((item) => ["Báo hết hạn", item.full_name || "-", item.telegram_user_id, item.plan_name, item.order_id, dateText(item.expired_notice_at)]),
+                ]}
+              />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "supportGroup" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Join hôm nay" value={String(supportJoinedToday.length)} />
+              <Metric label="Mute hôm nay" value={String(supportMutedToday.length)} />
+              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} />
+              <Metric label="Sự kiện gần đây" value={String(supportEvents.length)} />
+            </div>
+            <ConfigEditor
+              title="Cài đặt group hỗ trợ"
+              subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick."
+              fields={SUPPORT_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={() => saveFields(SUPPORT_FIELDS)}
+            />
+            <section className="panel">
+              <PanelHead title="Sự kiện support hôm nay" subtitle="Ai vừa join group hỗ trợ, ai bị mute hoặc bị kick hôm nay." />
+              <SimpleTable
+                headers={["Loại", "Khách", "Telegram ID", "Group", "Gói", "Đơn", "Thời điểm"]}
+                rows={supportTodayEvents.map((item) => [
+                  supportEventLabel(item.event_type),
+                  item.full_name || item.username || "-",
+                  item.telegram_user_id || "-",
+                  item.chat_title || item.chat_id || "-",
+                  item.plan_name || "-",
+                  item.order_id || "-",
+                  dateText(item.created_at),
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="Log support gần đây" subtitle="Lưu lại các lần join, mute, unmute, kick, gửi nhắc và báo hết hạn." />
+              <SimpleTable
+                headers={["Loại", "Khách", "Telegram ID", "Group", "Gói", "Thời điểm"]}
+                rows={supportEvents.slice(0, 100).map((item) => [
+                  supportEventLabel(item.event_type),
+                  item.full_name || item.username || "-",
+                  item.telegram_user_id || "-",
+                  item.chat_title || item.chat_id || "-",
+                  item.plan_name || "-",
+                  dateText(item.created_at),
+                ])}
+              />
+            </section>
+          </div>
+        ) : null}
+
         {tab === "content" ? (
           <div className="stack">
             <section className="panel content-hub">
@@ -1308,7 +1526,6 @@ export default function Home() {
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
                 <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
-                <button className={contentTab === "support" ? "active" : ""} onClick={() => setContentTab("support")}>Support group</button>
                 <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
                 <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
                 <button className={contentTab === "alerts" ? "active" : ""} onClick={() => setContentTab("alerts")}>Cảnh báo</button>
@@ -1320,7 +1537,6 @@ export default function Home() {
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
-            {contentTab === "support" ? <ConfigEditor title="Support group" subtitle="Cấu hình nhóm hỗ trợ riêng. Link join chỉ dùng 1 lần; group này không bị kick khi hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SUPPORT_FIELDS)} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
             {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
             {contentTab === "alerts" ? <ConfigEditor title="Cảnh báo nhanh" subtitle="Các alert ngắn khi khách bấm nút, spam, hủy đơn, check QR." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}

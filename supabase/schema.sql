@@ -96,6 +96,24 @@ create table if not exists public.security_blacklist (
 create index if not exists idx_security_blacklist_telegram_user_id on public.security_blacklist (telegram_user_id);
 create index if not exists idx_security_blacklist_is_active on public.security_blacklist (is_active);
 
+create table if not exists public.support_events (
+  id uuid primary key default gen_random_uuid(),
+  event_type text not null,
+  telegram_user_id text,
+  username text,
+  full_name text,
+  chat_id text,
+  chat_title text,
+  order_id text,
+  plan_name text,
+  raw_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_support_events_event_type on public.support_events (event_type);
+create index if not exists idx_support_events_created_at on public.support_events (created_at desc);
+create index if not exists idx_support_events_telegram_user_id on public.support_events (telegram_user_id);
+
 create table if not exists public.analytics_events (
   id uuid primary key default gen_random_uuid(),
   event_name text not null,
@@ -151,6 +169,7 @@ alter table public.sale_rules enable row level security;
 alter table public.coupons enable row level security;
 alter table public.coupon_redemptions enable row level security;
 alter table public.security_blacklist enable row level security;
+alter table public.support_events enable row level security;
 alter table public.analytics_events enable row level security;
 
 drop policy if exists "service_role_full_access_orders" on public.orders;
@@ -198,6 +217,13 @@ with check (true);
 drop policy if exists "service_role_full_access_security_blacklist" on public.security_blacklist;
 create policy "service_role_full_access_security_blacklist"
 on public.security_blacklist for all
+to service_role
+using (true)
+with check (true);
+
+drop policy if exists "service_role_full_access_support_events" on public.support_events;
+create policy "service_role_full_access_support_events"
+on public.support_events for all
 to service_role
 using (true)
 with check (true);

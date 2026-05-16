@@ -2,6 +2,7 @@ from aiogram.types import ChatPermissions, InlineKeyboardButton
 
 from bot_instance import bot
 from database import db
+from supabase_store import supabase_store
 
 
 def escape_html(text):
@@ -32,6 +33,17 @@ def support_group_grace_days():
         return max(0, int(float(str(db.get_config("SUPPORT_GROUP_GRACE_DAYS", "14")).strip())))
     except (TypeError, ValueError):
         return 14
+
+def support_group_mute_enabled():
+    return str(db.get_config("SUPPORT_GROUP_MUTE_ENABLED", "ON")).strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+def record_support_event(event_type, telegram_user_id=None, **kwargs):
+    if not supabase_store.enabled:
+        return
+    try:
+        supabase_store.record_support_event(event_type, telegram_user_id, **kwargs)
+    except Exception as exc:
+        print(f"⚠️ Không ghi được support event {event_type}: {exc}")
 
 
 def is_lifetime_plan(plan_name):

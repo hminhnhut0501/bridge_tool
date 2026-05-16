@@ -12,6 +12,8 @@ export type Order = {
   coupon_code?: string | null;
   coupon_discount_percent?: number | null;
   coupon_discount_amount?: number | null;
+  last_reminder_date?: string | null;
+  expired_notice_at?: string | null;
   created_at: string;
 };
 
@@ -69,6 +71,20 @@ export type BlacklistEntry = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type SupportEvent = {
+  id: string;
+  event_type: string;
+  telegram_user_id: string | null;
+  username: string | null;
+  full_name: string | null;
+  chat_id: string | null;
+  chat_title: string | null;
+  order_id: string | null;
+  plan_name: string | null;
+  raw_data: Record<string, unknown>;
+  created_at: string;
 };
 
 export type WebhookInfo = {
@@ -200,6 +216,10 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
   return request<{ data: BlacklistEntry[] }>(`/admin-api/blacklist/${encodeURIComponent(telegramUserId)}`, secret, {
     method: "DELETE",
   });
+}
+
+export async function getSupportEvents(secret: string) {
+  return request<{ data: SupportEvent[] }>("/admin-api/support-events", secret);
 }
 
 export async function getWebhookInfo(secret: string) {

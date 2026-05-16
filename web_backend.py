@@ -107,7 +107,7 @@ async def startup():
     webhook_url = os.getenv("WEBHOOK_URL")
     webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
     if webhook_url:
-        await bot.set_webhook(webhook_url, secret_token=webhook_secret or None)
+        await bot.set_webhook(webhook_url, secret_token=webhook_secret or None, allowed_updates=dp.resolve_used_update_types())
         print(f"✅ Telegram webhook set: {webhook_url}")
     else:
         print("⚠️ WEBHOOK_URL chưa được cấu hình, backend chỉ chạy API/health.")
@@ -145,7 +145,12 @@ async def admin_webhook_reset():
     webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
     if not webhook_url:
         raise HTTPException(status_code=503, detail="WEBHOOK_URL is not configured")
-    await bot.set_webhook(webhook_url, secret_token=webhook_secret or None, drop_pending_updates=False)
+    await bot.set_webhook(
+        webhook_url,
+        secret_token=webhook_secret or None,
+        drop_pending_updates=False,
+        allowed_updates=dp.resolve_used_update_types(),
+    )
     return {"data": await bot.get_webhook_info()}
 
 
@@ -286,3 +291,12 @@ async def admin_upsert_blacklist(request: Request):
 @app.delete("/admin-api/blacklist/{telegram_user_id}", dependencies=[Depends(require_admin)])
 async def admin_delete_blacklist(telegram_user_id: str):
     return {"data": supabase_store.delete_blacklist(telegram_user_id)}
+
+
+@app.get("/admin-api/support-events", dependencies=[Depends(require_admin)])
+async def admin_support_events(limit: int = 500):
+    try:
+        return {"data": supabase_store.list_support_events(limit=limit)}
+    except Exception as exc:
+        print(f"⚠️ Không đọc được support_events: {exc}")
+        return {"data": []}

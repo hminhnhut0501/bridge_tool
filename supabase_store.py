@@ -414,6 +414,27 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def record_support_event(self, event_type, telegram_user_id=None, **kwargs):
+        payload = {
+            "event_type": _clean_text(event_type),
+            "telegram_user_id": _clean_text(telegram_user_id),
+            "username": _clean_text(kwargs.get("username")),
+            "full_name": _clean_text(kwargs.get("full_name")),
+            "chat_id": _clean_text(kwargs.get("chat_id")),
+            "chat_title": _clean_text(kwargs.get("chat_title")),
+            "order_id": _clean_text(kwargs.get("order_id")),
+            "plan_name": _clean_text(kwargs.get("plan_name")),
+            "raw_data": kwargs.get("raw_data") or {},
+        }
+        return self._request("POST", "support_events", json=payload, prefer="return=representation")
+
+    def list_support_events(self, limit=500):
+        return self._request(
+            "GET",
+            "support_events",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+
     def get_coupon(self, code):
         rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
         return rows[0] if rows else None
