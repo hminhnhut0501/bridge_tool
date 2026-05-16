@@ -122,6 +122,17 @@ def is_selectable_group_coupon_plan(plan_name):
     return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_LIFE}
 
 
+def duration_label(coupon):
+    custom = str((coupon or {}).get("Duration_Label") or (coupon or {}).get("Activation_Label") or "").strip()
+    if custom:
+        return custom
+
+    days = safe_int((coupon or {}).get("Duration_Days"), 30)
+    if days >= 3650:
+        return "trọn đời"
+    return f"{days} ngày"
+
+
 def coupon_applies_to(item):
     raw = str((item or {}).get("Applies_To") or "").strip()
     if not raw:
@@ -305,6 +316,58 @@ def resolve_plan_name(plan_key):
     return raw.replace("_", " ")
 
 
+def group_name_from_plan_key(plan_key):
+    key = normalize_plan_key(plan_key)
+    match = None
+    if key.startswith("G") and key.endswith("_1M"):
+        match = key[1:-3]
+    elif key.startswith("G") and key.endswith("_LIFE"):
+        match = key[1:-5]
+    if not match:
+        return ""
+    return db.get_config(f"BTN_G{match}", f"Nhóm {match}")
+
+
+def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name=""):
+    group_name = group_name_from_plan_key(plan_key)
+    days = str(safe_int((coupon or {}).get("Duration_Days"), 30))
+    label = duration_label(coupon)
+    plan_name = fallback_plan_name or resolve_plan_name(plan_key)
+    values = {
+        "{group}": group_name,
+        "{group_name}": group_name,
+        "{duration_label}": label,
+        "{duration}": label,
+        "{days}": days,
+        "{plan}": plan_name,
+        "{plan_name}": plan_name,
+    }
+    rendered = str(template or "")
+    for key, value in values.items():
+        rendered = rendered.replace(key, str(value))
+    return rendered.strip()
+
+
+def activation_coupon_plan_name(plan_key, coupon):
+    purchase_plan_name = resolve_plan_name(plan_key)
+    template = (
+        (coupon or {}).get("Plan_Name_Template")
+        or (coupon or {}).get("Activation_Plan_Template")
+        or db.get_config("COUPON_ACTIVATION_PLAN_TEMPLATE", "VIP {duration_label} - {group}")
+    )
+    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=purchase_plan_name) or purchase_plan_name
+
+
+def activation_coupon_button_label(plan_key, coupon):
+    plan_name = activation_coupon_plan_name(plan_key, coupon)
+    template = (
+        (coupon or {}).get("Button_Template")
+        or (coupon or {}).get("Activation_Button_Template")
+        or db.get_config("COUPON_ACTIVATION_BUTTON_TEMPLATE", "{plan_name}")
+    )
+    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=plan_name) or plan_name
+
+
 def discount_plan_label(plan_key):
     return resolve_plan_name(plan_key)
 
@@ -338,7 +401,7 @@ def build_activation_group_keyboard(code, coupon):
     kb = InlineKeyboardBuilder()
     for plan_key in selectable_group_plan_keys(coupon.get("Plan_Name")):
         kb.row(InlineKeyboardButton(
-            text=resolve_plan_name(plan_key),
+            text=activation_coupon_button_label(plan_key, coupon),
             callback_data=f"cact|{code}|{plan_key}",
         ))
     kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
@@ -357,7 +420,13 @@ async def send_activation_group_options(message: Message, code, coupon):
         "Thời hạn: <b>{days} ngày</b>\\n\\n"
         "Chọn group bạn muốn kích hoạt bên dưới.",
     ).replace("\\n", "\n")
-    text = text.replace("{code}", escape_html(code)).replace("{days}", str(safe_int(coupon.get("Duration_Days"), 30)))
+    text = (
+        text
+        .replace("{code}", escape_html(code))
+        .replace("{days}", str(safe_int(coupon.get("Duration_Days"), 30)))
+        .replace("{duration_label}", escape_html(duration_label(coupon)))
+        .replace("{duration}", escape_html(duration_label(coupon)))
+    )
     await message.answer(text, reply_markup=build_activation_group_keyboard(code, coupon), parse_mode="HTML")
 
 
@@ -463,7 +532,10 @@ async def redeem_coupon_locked(message: Message, code):
 
 async def redeem_activation_coupon(message: Message, user, code, coupon, coupons_sheet, headers, row_index, selected_plan_key=None):
     plan_key = selected_plan_key or coupon.get("Plan_Name")
-    plan_name = resolve_plan_name(plan_key)
+    if selected_plan_key and is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
+        plan_name = activation_coupon_plan_name(plan_key, coupon)
+    else:
+        plan_name = resolve_plan_name(plan_key)
     duration_days = safe_int(coupon.get("Duration_Days"), 30)
     if supabase_store.enabled:
         paid_orders = supabase_store.list_paid_orders_for_user(user.id, limit=200)
@@ -529,7 +601,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
         redemptions_sheet.append_row([
             paid_at,
             code,
-            str(message.from_user.id),
+            str(user.id),
             username,
             user_full_name,
             plan_name,
@@ -612,34 +684,35 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
         await callback.answer("Lựa chọn coupon không hợp lệ.", show_alert=True)
         return
 
-    code = normalize_code(code)
-    if not supabase_store.enabled:
-        db.connect()
-    coupons_sheet, headers, row_index, coupon = find_coupon(code)
-    valid, reason = validate_coupon_base(coupon, callback.from_user.id)
-    if not valid:
-        await callback.answer(reason, show_alert=True)
-        return
-    if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-        await callback.answer("Mã này không phải coupon chọn group.", show_alert=True)
-        return
+    async with coupon_lock:
+        code = normalize_code(code)
+        if not supabase_store.enabled:
+            db.connect()
+        coupons_sheet, headers, row_index, coupon = find_coupon(code)
+        valid, reason = validate_coupon_base(coupon, callback.from_user.id)
+        if not valid:
+            await callback.answer(reason, show_alert=True)
+            return
+        if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
+            await callback.answer("Mã này không phải coupon chọn group.", show_alert=True)
+            return
 
-    selected_plan_key = normalize_plan_key(selected_plan_key)
-    if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
-        await callback.answer("Group này không nằm trong phạm vi coupon.", show_alert=True)
-        return
+        selected_plan_key = normalize_plan_key(selected_plan_key)
+        if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
+            await callback.answer("Group này không nằm trong phạm vi coupon.", show_alert=True)
+            return
 
-    await callback.answer()
-    await redeem_activation_coupon(
-        callback.message,
-        callback.from_user,
-        code,
-        coupon,
-        coupons_sheet,
-        headers,
-        row_index,
-        selected_plan_key=selected_plan_key,
-    )
+        await callback.answer()
+        await redeem_activation_coupon(
+            callback.message,
+            callback.from_user,
+            code,
+            coupon,
+            coupons_sheet,
+            headers,
+            row_index,
+            selected_plan_key=selected_plan_key,
+        )
 
 
 @router.message(CouponState.waiting_code)

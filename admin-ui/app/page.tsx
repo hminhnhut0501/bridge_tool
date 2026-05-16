@@ -245,9 +245,21 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_COUPON_GROUP_OPTIONS",
     label: "Tin coupon chọn group",
-    placeholder: "Mã: {code}\\nThời hạn: {days} ngày\\nChọn group bạn muốn kích hoạt bên dưới.",
-    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn group lẻ. Dùng biến {code}, {days}.",
+    placeholder: "Mã: {code}\\nThời hạn: {duration_label}\\nChọn group bạn muốn kích hoạt bên dưới.",
+    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn group lẻ. Dùng biến {code}, {days}, {duration_label}.",
     kind: "textarea",
+  },
+  {
+    key: "COUPON_ACTIVATION_PLAN_TEMPLATE",
+    label: "Tên gói coupon kích hoạt",
+    placeholder: "VIP {duration_label} - {group}",
+    help: "Tên lưu vào đơn và hiển thị khi kích hoạt coupon chọn group. Dùng {duration_label}, {days}, {group}.",
+  },
+  {
+    key: "COUPON_ACTIVATION_BUTTON_TEMPLATE",
+    label: "Nút chọn group coupon",
+    placeholder: "{plan_name}",
+    help: "Text nút chọn group sau khi nhập coupon. Dùng {plan_name}, {duration_label}, {days}, {group}.",
   },
   {
     key: "MSG_WAIT_QR",
@@ -408,6 +420,9 @@ const EMPTY_COUPON_FORM = {
   Coupon_Type: "DISCOUNT",
   Plan_Name: "SELECT_GROUP_1M",
   Duration_Days: "30",
+  Duration_Label: "",
+  Plan_Name_Template: "",
+  Button_Template: "",
   Discount_Percent: "10",
   Applies_To: "ALL",
   Max_Uses: "1",
@@ -1187,6 +1202,9 @@ export default function Home() {
                 <>
                   <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
                   <label className="field"><span>Số ngày sử dụng</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" /></label>
+                  <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 1 ngày, 7 ngày, dùng thử" /><small>Để trống thì bot tự dùng “N ngày”.</small></label>
+                  <label className="field"><span>Mẫu tên gói</span><input value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" /><small>Lưu vào đơn và hiện trong tin thành công. Dùng {duration_label}, {days}, {group}.</small></label>
+                  <label className="field"><span>Mẫu nút chọn group</span><input value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" /><small>Dùng khi khách tự chọn group. Dùng {plan_name}, {duration_label}, {group}.</small></label>
                 </>
               )}
               <label className="field"><span>Số lượt dùng tối đa</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" /></label>
@@ -1230,6 +1248,9 @@ export default function Home() {
                   Coupon_Type: item.raw_data?.Coupon_Type || "ACTIVATION",
                   Plan_Name: item.raw_data?.Plan_Name || item.plan_name || "SELECT_GROUP_1M",
                   Duration_Days: item.raw_data?.Duration_Days || "30",
+                  Duration_Label: item.raw_data?.Duration_Label || item.raw_data?.Activation_Label || "",
+                  Plan_Name_Template: item.raw_data?.Plan_Name_Template || item.raw_data?.Activation_Plan_Template || "",
+                  Button_Template: item.raw_data?.Button_Template || item.raw_data?.Activation_Button_Template || "",
                   Discount_Percent: item.raw_data?.Discount_Percent || "10",
                   Applies_To: item.raw_data?.Applies_To || "ALL",
                   Max_Uses: String(item.max_uses || 1),
