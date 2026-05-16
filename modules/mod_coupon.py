@@ -2,6 +2,7 @@ import asyncio
 import logging
 import secrets
 import string
+import time
 from datetime import datetime, timedelta
 
 from aiogram import F, Router
@@ -21,6 +22,8 @@ from support_utils import add_support_join_button, is_support_group, unmute_memb
 router = Router()
 log = logging.getLogger(__name__)
 coupon_lock = asyncio.Lock()
+coupon_attempts = {}
+coupon_locks = {}
 
 COUPONS_SHEET = "Coupons"
 REDEMPTIONS_SHEET = "CouponRedemptions"
@@ -87,6 +90,71 @@ def normalize_code(value):
 
 def truthy(value):
     return str(value or "").strip().upper() in {"ON", "TRUE", "YES", "Y", "1", "ACTIVE", "BẬT", "BAT"}
+
+
+def config_enabled(key, default="OFF"):
+    return truthy(db.get_config(key, default) or default)
+
+
+def coupon_auto_prefixes():
+    raw = db.get_config("COUPON_AUTO_REDEEM_PREFIXES", "HANGCU_")
+    return [item.strip().upper() for item in str(raw or "").replace("\n", ",").split(",") if item.strip()]
+
+
+def code_has_auto_prefix(text):
+    code = normalize_code(text)
+    return bool(code) and any(code.startswith(prefix) for prefix in coupon_auto_prefixes())
+
+
+async def check_coupon_abuse(message, code):
+    user = message.from_user
+    if not user or is_admin_user(user.id) or not config_enabled("COUPON_ABUSE_ENABLED", "ON"):
+        return True
+
+    now_ts = time.time()
+    user_id = user.id
+    locked_until = coupon_locks.get(user_id, 0)
+    if locked_until > now_ts:
+        minutes_left = max(int((locked_until - now_ts + 59) // 60), 1)
+        if config_enabled("COUPON_ABUSE_NOTIFY_USER", "ON"):
+            template = db.get_config(
+                "MSG_COUPON_RATE_LIMITED",
+                "⛔ Bạn nhập mã quá nhiều lần. Vui lòng thử lại sau {minutes} phút.",
+            ).replace("\\n", "\n")
+            await message.answer(template.replace("{minutes}", str(minutes_left)), parse_mode="HTML")
+        return False
+
+    window_seconds = max(safe_int(db.get_config("COUPON_WINDOW_SECONDS", "600"), 600), 30)
+    max_attempts = max(safe_int(db.get_config("COUPON_MAX_ATTEMPTS", "5"), 5), 1)
+    lock_minutes = max(safe_int(db.get_config("COUPON_LOCK_MINUTES", "30"), 30), 1)
+    attempts = [item for item in coupon_attempts.get(user_id, []) if now_ts - item < window_seconds]
+    attempts.append(now_ts)
+    coupon_attempts[user_id] = attempts
+
+    if len(attempts) <= max_attempts:
+        return True
+
+    coupon_locks[user_id] = now_ts + lock_minutes * 60
+    if config_enabled("COUPON_ABUSE_AUTO_BLACKLIST", "OFF") and supabase_store.enabled:
+        try:
+            supabase_store.upsert_blacklist({
+                "telegram_user_id": str(user.id),
+                "username": user.username or "",
+                "full_name": user.full_name or "",
+                "reason": f"Nhập coupon quá giới hạn: {len(attempts)} lần/{window_seconds}s",
+                "source": "coupon_abuse",
+                "raw_data": {"last_code": code},
+            })
+        except Exception as exc:
+            log.warning("Cannot auto blacklist coupon abuse user %s: %s", user.id, exc)
+
+    if config_enabled("COUPON_ABUSE_NOTIFY_USER", "ON"):
+        template = db.get_config(
+            "MSG_COUPON_RATE_LIMITED",
+            "⛔ Bạn nhập mã quá nhiều lần. Vui lòng thử lại sau {minutes} phút.",
+        ).replace("\\n", "\n")
+        await message.answer(template.replace("{minutes}", str(lock_minutes)), parse_mode="HTML")
+    return False
 
 
 def coupon_type(item):
@@ -511,6 +579,8 @@ async def redeem_coupon(message: Message, code):
 
 async def redeem_coupon_locked(message: Message, code):
     code = normalize_code(code)
+    if not await check_coupon_abuse(message, code):
+        return
     if not supabase_store.enabled:
         db.connect()
     coupons_sheet, headers, row_index, coupon = find_coupon(code)
@@ -657,6 +727,8 @@ async def send_coupon_prompt(target, state: FSMContext):
 async def cmd_coupon(message: Message, state: FSMContext):
     if not await check_protection(message):
         return
+    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
+        return
     if message.chat.type != "private":
         await message.answer("Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.")
         return
@@ -666,6 +738,9 @@ async def cmd_coupon(message: Message, state: FSMContext):
 @router.callback_query(F.data.in_({"coupon_enter", "coupon_code", "redeem_code"}))
 async def coupon_button(callback: CallbackQuery, state: FSMContext):
     if not await check_protection(callback):
+        return
+    if not config_enabled("COUPON_MENU_ENABLED", "OFF"):
+        await callback.answer("Chức năng nhập mã trên menu đang được ẩn.", show_alert=True)
         return
     if callback.message.chat.type != "private":
         await callback.answer("Vui lòng nhắn riêng với bot để nhập mã.", show_alert=True)
@@ -717,9 +792,7 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
 
 @router.message(CouponState.waiting_code)
 async def coupon_code_received(message: Message, state: FSMContext):
-    maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
-    if maintenance_status in {"ON", "TRUE", "CÓ", "YES"} and not is_admin_user(message.from_user.id):
-        await message.answer(db.get_config("MSG_MAINTENANCE", "Hệ thống đang bảo trì, vui lòng quay lại sau.").replace("\\n", "\n"), parse_mode="HTML")
+    if not await check_protection(message):
         return
 
     code = normalize_code(message.text)
@@ -729,6 +802,22 @@ async def coupon_code_received(message: Message, state: FSMContext):
 
     await state.clear()
     await redeem_coupon(message, code)
+
+
+@router.message(F.text & ~F.text.startswith("/"))
+async def coupon_auto_code_received(message: Message):
+    if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
+        return
+    if not message.text:
+        return
+    if not code_has_auto_prefix(message.text):
+        return
+    if not await check_protection(message):
+        return
+    if message.chat.type != "private":
+        await message.answer("Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.")
+        return
+    await redeem_coupon(message, message.text)
 
 
 @router.message(Command("gen_coupon"))

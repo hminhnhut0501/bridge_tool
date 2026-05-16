@@ -363,6 +363,57 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def list_blacklist(self, limit=500):
+        return self._request(
+            "GET",
+            "security_blacklist",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+
+    def get_blacklist_entry(self, telegram_user_id):
+        rows = self._request(
+            "GET",
+            "security_blacklist",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{telegram_user_id}",
+                "is_active": "eq.true",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def upsert_blacklist(self, raw):
+        telegram_user_id = _clean_text(raw.get("telegram_user_id") or raw.get("Telegram_User_ID") or raw.get("user_id"))
+        if not telegram_user_id:
+            return []
+        is_active_raw = raw.get("is_active", True)
+        is_active = str(is_active_raw).strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"}
+        payload = {
+            "telegram_user_id": telegram_user_id,
+            "username": _clean_text(raw.get("username") or raw.get("Username") or ""),
+            "full_name": _clean_text(raw.get("full_name") or raw.get("Full_Name") or ""),
+            "reason": _clean_text(raw.get("reason") or raw.get("Reason") or "Manual blacklist"),
+            "source": _clean_text(raw.get("source") or raw.get("Source") or "dashboard"),
+            "is_active": is_active,
+            "raw_data": raw.get("raw_data") or {},
+        }
+        return self._request(
+            "POST",
+            "security_blacklist",
+            params={"on_conflict": "telegram_user_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def delete_blacklist(self, telegram_user_id):
+        return self._request(
+            "DELETE",
+            "security_blacklist",
+            params={"telegram_user_id": f"eq.{telegram_user_id}"},
+            prefer="return=representation",
+        )
+
     def get_coupon(self, code):
         rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
         return rows[0] if rows else None

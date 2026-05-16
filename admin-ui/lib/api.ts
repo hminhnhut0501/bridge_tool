@@ -60,6 +60,17 @@ export type Coupon = {
   raw_data: Record<string, string>;
 };
 
+export type BlacklistEntry = {
+  telegram_user_id: string;
+  username: string | null;
+  full_name: string | null;
+  reason: string;
+  source: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WebhookInfo = {
   url: string;
   has_custom_certificate: boolean;
@@ -170,6 +181,23 @@ export async function createCoupon(secret: string, payload: Record<string, strin
 
 export async function deleteCoupon(secret: string, code: string) {
   return request<{ data: Coupon[] }>(`/admin-api/coupons/${encodeURIComponent(code)}`, secret, {
+    method: "DELETE",
+  });
+}
+
+export async function getBlacklist(secret: string) {
+  return request<{ data: BlacklistEntry[] }>("/admin-api/blacklist", secret);
+}
+
+export async function upsertBlacklist(secret: string, payload: Record<string, string>) {
+  return request<{ data: BlacklistEntry[] }>("/admin-api/blacklist", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBlacklist(secret: string, telegramUserId: string) {
+  return request<{ data: BlacklistEntry[] }>(`/admin-api/blacklist/${encodeURIComponent(telegramUserId)}`, secret, {
     method: "DELETE",
   });
 }

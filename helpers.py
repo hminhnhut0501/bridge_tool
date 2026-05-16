@@ -3,12 +3,15 @@ from aiogram.exceptions import TelegramBadRequest
 import re
 from html import unescape
 import os
+import time
 
 from database import db
-from bot_instance import is_spamming
+from bot_instance import bot, is_spamming
+from supabase_store import supabase_store
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
+_bio_link_cache = {}
 
 
 def configured_admin_ids():
@@ -23,6 +26,80 @@ def configured_admin_ids():
 
 def is_admin_user(user_id):
     return str(user_id) in configured_admin_ids()
+
+def config_enabled(key, default="OFF"):
+    return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
+
+def config_int(key, default):
+    try:
+        return int(float(str(db.get_config(key, str(default)) or default).strip()))
+    except Exception:
+        return default
+
+def bio_link_patterns():
+    raw = db.get_config("SELLER_BIO_LINK_PATTERNS", "http://,https://,t.me/,telegram.me/,linktr.ee,beacons.ai")
+    return [item.strip().lower() for item in str(raw or "").replace("\n", ",").split(",") if item.strip()]
+
+def text_has_blocked_link(text):
+    lowered = str(text or "").lower()
+    if not lowered:
+        return False
+    return any(pattern in lowered for pattern in bio_link_patterns())
+
+async def blacklist_entry_for_user(user):
+    if not config_enabled("BLACKLIST_ENABLED", "ON") or is_admin_user(user.id):
+        return None
+
+    if supabase_store.enabled:
+        try:
+            entry = supabase_store.get_blacklist_entry(user.id)
+            if entry:
+                return entry
+        except Exception as exc:
+            print(f"⚠️ Không đọc được blacklist Supabase: {exc}")
+
+    if not config_enabled("SELLER_BIO_LINK_BLOCK_ENABLED", "OFF"):
+        return None
+
+    now_ts = time.time()
+    ttl = max(config_int("BIO_LINK_CHECK_TTL_SECONDS", 86400), 60)
+    last_checked = _bio_link_cache.get(user.id, 0)
+    if now_ts - last_checked < ttl:
+        return None
+    _bio_link_cache[user.id] = now_ts
+
+    try:
+        chat = await bot.get_chat(user.id)
+        bio = (
+            getattr(chat, "bio", None)
+            or getattr(chat, "about", None)
+            or getattr(chat, "description", None)
+            or ""
+        )
+    except Exception as exc:
+        print(f"⚠️ Không đọc được bio user {user.id}: {exc}")
+        return None
+
+    if not text_has_blocked_link(bio):
+        return None
+
+    entry = {
+        "telegram_user_id": str(user.id),
+        "username": user.username or "",
+        "full_name": user.full_name or "",
+        "reason": "Bio có link seller bị chặn",
+        "source": "bio_link",
+        "is_active": True,
+        "raw_data": {"bio": str(bio or "")[:500]},
+    }
+    if supabase_store.enabled:
+        try:
+            saved = supabase_store.upsert_blacklist(entry)
+            if saved:
+                return saved[0]
+        except Exception as exc:
+            print(f"⚠️ Không lưu được blacklist bio link: {exc}")
+    return entry
 
 def strip_html_tags(text):
     return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
@@ -60,6 +137,19 @@ async def check_protection(event):
         alert_spam = db.get_config("ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
         if isinstance(event, CallbackQuery):
             await event.answer(alert_spam, show_alert=False)
+        return False
+
+    blocked = await blacklist_entry_for_user(event.from_user)
+    if blocked:
+        msg = db.get_config(
+            "MSG_BLACKLIST_BLOCKED",
+            "⛔ Tài khoản của bạn đang bị chặn sử dụng bot. Vui lòng liên hệ admin nếu cần hỗ trợ.",
+        ).replace("\\n", "\n")
+        alert = strip_html_tags(msg)[:180] or "Tài khoản của bạn đang bị chặn."
+        if isinstance(event, CallbackQuery):
+            await event.answer(alert, show_alert=True)
+        elif config_enabled("BLACKLIST_NOTIFY_USER", "ON"):
+            await event.answer(msg, parse_mode="HTML")
         return False
         
     return True

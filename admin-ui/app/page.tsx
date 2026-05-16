@@ -22,6 +22,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ConfigRow,
+  BlacklistEntry,
   Coupon,
   MenuPage,
   Order,
@@ -30,10 +31,12 @@ import {
   WebhookInfo,
   createCoupon,
   deleteConfig,
+  deleteBlacklist,
   deleteCoupon,
   deleteMenuPage,
   deleteSaleRule,
   getConfig,
+  getBlacklist,
   getCoupons,
   getMenuPages,
   getOrders,
@@ -44,10 +47,11 @@ import {
   updateConfig,
   updateMenuPage,
   updateOrderStatus,
+  upsertBlacklist,
   upsertSaleRule,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "content" | "coupons" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "content" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "plans" | "support" | "currency" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
@@ -121,6 +125,158 @@ const BOT_FIELDS: ConfigField[] = [
     label: "Giảm giá gia hạn sớm",
     placeholder: "10",
     help: "Phần trăm giảm khi khách gia hạn sớm.",
+  },
+];
+
+const SECURITY_FIELDS: ConfigField[] = [
+  {
+    key: "BLACKLIST_ENABLED",
+    label: "Bật blacklist",
+    placeholder: "ON",
+    help: "Bật ON để bot chặn các Telegram ID trong danh sách blacklist.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "BLACKLIST_NOTIFY_USER",
+    label: "Thông báo khi bị chặn",
+    placeholder: "ON",
+    help: "Nếu bật, bot gửi tin nhắn chặn trong private chat. Callback luôn hiện alert ngắn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "MSG_BLACKLIST_BLOCKED",
+    label: "Tin nhắn bị blacklist",
+    placeholder: "⛔ Tài khoản của bạn đang bị chặn sử dụng bot.",
+    help: "Tin gửi khi user nằm trong blacklist.",
+    kind: "textarea",
+  },
+  {
+    key: "SELLER_BIO_LINK_BLOCK_ENABLED",
+    label: "Tự chặn bio có link",
+    placeholder: "OFF",
+    help: "Bot sẽ đọc bio theo khả năng Telegram cho phép. Nếu bio chứa pattern bên dưới, user sẽ được thêm vào blacklist.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
+    key: "SELLER_BIO_LINK_PATTERNS",
+    label: "Pattern link bio cần chặn",
+    placeholder: "http://,https://,t.me/,telegram.me/,linktr.ee",
+    help: "Cách nhau bằng dấu phẩy. Nên để cụ thể để tránh chặn nhầm.",
+  },
+  {
+    key: "BIO_LINK_CHECK_TTL_SECONDS",
+    label: "Chu kỳ kiểm tra bio",
+    placeholder: "86400",
+    help: "Số giây cache kiểm tra bio mỗi user. 86400 = 1 ngày.",
+  },
+  {
+    key: "COUPON_MENU_ENABLED",
+    label: "Hiện nút nhập coupon trong menu",
+    placeholder: "OFF",
+    help: "OFF sẽ ẩn các nút Menu Builder có action coupon_enter, coupon_code, redeem_code.",
+    kind: "select",
+    options: [
+      { label: "Ẩn", value: "OFF" },
+      { label: "Hiện", value: "ON" },
+    ],
+  },
+  {
+    key: "COUPON_COMMAND_ENABLED",
+    label: "Hiện lệnh /coupon",
+    placeholder: "OFF",
+    help: "OFF sẽ không đưa /coupon vào danh sách lệnh Telegram và bỏ qua lệnh này từ khách.",
+    kind: "select",
+    options: [
+      { label: "Ẩn", value: "OFF" },
+      { label: "Hiện", value: "ON" },
+    ],
+  },
+  {
+    key: "COUPON_AUTO_REDEEM_ENABLED",
+    label: "Tự nhận diện mã coupon",
+    placeholder: "ON",
+    help: "Bật ON để khách chỉ cần nhắn mã bắt đầu bằng prefix, không cần bấm menu nhập mã.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "COUPON_AUTO_REDEEM_PREFIXES",
+    label: "Prefix tự nhận diện coupon",
+    placeholder: "HANGCU_",
+    help: "Nhiều prefix thì cách nhau bằng dấu phẩy. Ví dụ: HANGCU_,VIP_",
+  },
+  {
+    key: "COUPON_ABUSE_ENABLED",
+    label: "Chống dò coupon",
+    placeholder: "ON",
+    help: "Giới hạn số lần nhập coupon theo cửa sổ thời gian.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "COUPON_MAX_ATTEMPTS",
+    label: "Số lần nhập tối đa",
+    placeholder: "5",
+    help: "Vượt số lần này trong cửa sổ thời gian sẽ bị khóa tạm.",
+  },
+  {
+    key: "COUPON_WINDOW_SECONDS",
+    label: "Cửa sổ tính lượt nhập",
+    placeholder: "600",
+    help: "600 giây = 10 phút.",
+  },
+  {
+    key: "COUPON_LOCK_MINUTES",
+    label: "Thời gian khóa nhập coupon",
+    placeholder: "30",
+    help: "Số phút chặn nhập coupon khi vượt giới hạn.",
+  },
+  {
+    key: "COUPON_ABUSE_NOTIFY_USER",
+    label: "Báo khách khi bị khóa coupon",
+    placeholder: "ON",
+    help: "Bật để gửi tin nhắn khi user bị giới hạn nhập coupon.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "MSG_COUPON_RATE_LIMITED",
+    label: "Tin giới hạn coupon",
+    placeholder: "⛔ Bạn nhập mã quá nhiều lần. Vui lòng thử lại sau {minutes} phút.",
+    help: "Dùng biến {minutes}.",
+    kind: "textarea",
+  },
+  {
+    key: "COUPON_ABUSE_AUTO_BLACKLIST",
+    label: "Tự blacklist khi dò coupon",
+    placeholder: "OFF",
+    help: "Chỉ bật nếu muốn tự đưa user vượt giới hạn vào blacklist.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
   },
 ];
 
@@ -542,6 +698,7 @@ export default function Home() {
   const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -560,6 +717,7 @@ export default function Home() {
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
+  const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
 
   useEffect(() => {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
@@ -569,7 +727,7 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...SECURITY_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
@@ -604,13 +762,14 @@ export default function Home() {
     setLoading(true);
     setNotice(null);
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
         getMenuPages(activeSecret),
         getSaleRules(activeSecret),
         getCoupons(activeSecret),
+        getBlacklist(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
@@ -619,6 +778,7 @@ export default function Home() {
       setMenuPages(menuRes.data);
       setSaleRules(salesRes.data);
       setCoupons(couponsRes.data);
+      setBlacklist(blacklistRes.data);
       setWebhook(webhookRes.data);
       setOrderPage(1);
     } catch (err) {
@@ -803,6 +963,32 @@ export default function Home() {
     });
   }
 
+  async function saveBlacklistEntry() {
+    await runAction("blacklist", async () => {
+      const telegramId = blacklistForm.telegram_user_id.trim();
+      if (!telegramId) {
+        throw new Error("Cần nhập Telegram ID để chặn.");
+      }
+      await upsertBlacklist(savedSecret, {
+        ...blacklistForm,
+        telegram_user_id: telegramId,
+        source: "dashboard",
+        reason: blacklistForm.reason || "Chặn thủ công từ dashboard",
+      });
+      setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" });
+      await loadAll();
+    });
+  }
+
+  async function removeBlacklistEntry(telegramUserId = blacklistForm.telegram_user_id) {
+    if (!telegramUserId || !window.confirm(`Gỡ Telegram ID "${telegramUserId}" khỏi blacklist?`)) return;
+    await runAction(`blacklist-delete-${telegramUserId}`, async () => {
+      await deleteBlacklist(savedSecret, telegramUserId);
+      setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" });
+      await loadAll();
+    });
+  }
+
   async function changeOrderStatus(orderId: string, status: string) {
     await runAction(`order-${orderId}`, async () => {
       await updateOrderStatus(savedSecret, orderId, status);
@@ -938,6 +1124,7 @@ export default function Home() {
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
           <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}><Ticket size={18} /> Coupon</button>
+          <button className={tab === "security" ? "active" : ""} onClick={() => setTab("security")}><ShieldCheck size={18} /> Bảo mật</button>
           <button className={tab === "sales" ? "active" : ""} onClick={() => setTab("sales")}><BadgePercent size={18} /> Sale</button>
           <button className={tab === "system" ? "active" : ""} onClick={() => setTab("system")}><Settings size={18} /> Hệ thống</button>
         </nav>
@@ -1264,6 +1451,62 @@ export default function Home() {
               )}
             />
           </section>
+        ) : null}
+
+        {tab === "security" ? (
+          <div className="stack">
+            <ConfigEditor
+              title="Bảo mật bot và coupon"
+              subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
+              fields={SECURITY_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={() => saveFields(SECURITY_FIELDS)}
+            />
+            <section className="panel">
+              <PanelHead
+                title="Blacklist user"
+                subtitle="Thêm Telegram ID cần chặn. User trong danh sách sẽ không dùng được bot, trừ admin."
+                action={
+                  <div className="panel-actions">
+                    <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
+                    <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
+                  </div>
+                }
+              />
+              <div className="form-grid">
+                <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
+                <label className="field"><span>Username</span><input value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" /></label>
+                <label className="field"><span>Tên hiển thị</span><input value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" /></label>
+                <label className="field"><span>Lý do</span><input value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" /></label>
+              </div>
+              <SimpleTable
+                headers={["Telegram ID", "Username", "Tên", "Nguồn", "Lý do", "Trạng thái"]}
+                rows={blacklist.map((item) => [
+                  item.telegram_user_id,
+                  item.username || "-",
+                  item.full_name || "-",
+                  item.source || "-",
+                  item.reason || "-",
+                  item.is_active ? "Đang chặn" : "Tắt",
+                ])}
+                onRow={(idx) => {
+                  const item = blacklist[idx];
+                  setBlacklistForm({
+                    telegram_user_id: item.telegram_user_id,
+                    username: item.username || "",
+                    full_name: item.full_name || "",
+                    reason: item.reason || "",
+                  });
+                }}
+                actions={(idx) => (
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(blacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              />
+            </section>
+          </div>
         ) : null}
 
         {tab === "sales" ? (

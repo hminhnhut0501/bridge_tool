@@ -66,6 +66,15 @@ def page_exists(page_id):
 def strip_html_tags(text):
     return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
 
+def config_enabled(key, default="OFF"):
+    return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
+
+def menu_action_enabled(action):
+    coupon_actions = {"coupon_enter", "coupon_code", "redeem_code"}
+    if action in coupon_actions and not config_enabled("COUPON_MENU_ENABLED", "OFF"):
+        return False
+    return True
+
 def build_dynamic_keyboard(layout_str):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
     kb = InlineKeyboardBuilder()
@@ -84,6 +93,8 @@ def build_dynamic_keyboard(layout_str):
             # 🔥 Dịch các biến {PRICE...} trong Tên Nút
             final_text = process_dynamic_text(raw_text.strip())
             action = action.strip()
+            if not menu_action_enabled(action):
+                continue
             
             if action.startswith('url:'):
                 row_btns.append(InlineKeyboardButton(text=final_text, url=action.replace('url:', '').strip()))

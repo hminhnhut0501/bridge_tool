@@ -195,6 +195,8 @@ async def admin_set_config(key: str, request: Request):
     body = await request.json()
     data = supabase_store.set_config(key, body.get("value", ""))
     db.cache_config[str(key).strip().upper()] = str(body.get("value", ""))
+    if str(key).strip().upper() == "COUPON_COMMAND_ENABLED":
+        await set_commands()
     return {"data": data}
 
 
@@ -264,3 +266,23 @@ async def admin_create_coupon(request: Request):
 @app.delete("/admin-api/coupons/{code}", dependencies=[Depends(require_admin)])
 async def admin_delete_coupon(code: str):
     return {"data": supabase_store.delete_coupon(code)}
+
+
+@app.get("/admin-api/blacklist", dependencies=[Depends(require_admin)])
+async def admin_blacklist(limit: int = 500):
+    try:
+        return {"data": supabase_store.list_blacklist(limit=limit)}
+    except Exception as exc:
+        print(f"⚠️ Không đọc được security_blacklist: {exc}")
+        return {"data": []}
+
+
+@app.post("/admin-api/blacklist", dependencies=[Depends(require_admin)])
+async def admin_upsert_blacklist(request: Request):
+    body = await request.json()
+    return {"data": supabase_store.upsert_blacklist(body)}
+
+
+@app.delete("/admin-api/blacklist/{telegram_user_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_blacklist(telegram_user_id: str):
+    return {"data": supabase_store.delete_blacklist(telegram_user_id)}
