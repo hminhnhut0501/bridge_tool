@@ -38,30 +38,29 @@ async def cmd_reload(message: Message):
         db.reload_config(force=True)
         await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!"))
     else:
-        await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+        await message.reply(db.get_config("MSG_ADMIN_ONLY", "⚠️ Lệnh này chỉ dành cho Admin."))
 
 @router.message(Command("check_expiry"))
 async def cmd_check_expiry(message: Message):
     if not is_admin_user(message.from_user.id):
-        await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+        await message.reply(db.get_config("MSG_ADMIN_ONLY", "⚠️ Lệnh này chỉ dành cho Admin."))
         return
 
-    await message.reply("⏳ Đang quét hạn dùng ngay bây giờ...")
+    await message.reply(db.get_config("MSG_CHECK_EXPIRY_STARTED", "⏳ Đang quét hạn dùng ngay bây giờ..."))
     await check_expirations_professional()
-    await message.reply("✅ Đã chạy xong một vòng quét hạn dùng. Xem log server để biết dòng nào đã gửi/kick hoặc bị bỏ qua.")
+    await message.reply(db.get_config("MSG_CHECK_EXPIRY_DONE", "✅ Đã chạy xong một vòng quét hạn dùng. Xem log server để biết dòng nào đã gửi/kick hoặc bị bỏ qua."))
 
 @router.message(Command("early_renew"))
 async def cmd_early_renew(message: Message):
     if not is_admin_user(message.from_user.id):
-        await message.reply("⚠️ Lệnh này chỉ dành cho Admin.")
+        await message.reply(db.get_config("MSG_ADMIN_ONLY", "⚠️ Lệnh này chỉ dành cho Admin."))
         return
 
     parts = (message.text or "").split()
     if len(parts) < 2:
         status = "ON" if is_early_renew_enabled() else "OFF"
         await message.reply(
-            f"EARLY_RENEW hiện đang: <b>{status}</b>\n"
-            "Dùng: /early_renew on hoặc /early_renew off",
+            db.get_config("MSG_EARLY_RENEW_STATUS", "EARLY_RENEW hiện đang: <b>{status}</b>\\nDùng: /early_renew on hoặc /early_renew off").replace("\\n", "\n").replace("{status}", status),
             parse_mode="HTML",
         )
         return
@@ -69,12 +68,12 @@ async def cmd_early_renew(message: Message):
     action = parts[1].strip().lower()
     if action in {"on", "1", "true", "yes", "bat", "bật"}:
         db.set_config("EARLY_RENEW_ENABLED", "ON")
-        await message.reply("✅ Đã bật EARLY_RENEW. Tin nhắc gia hạn sẽ kèm ưu đãi nếu đủ điều kiện.")
+        await message.reply(db.get_config("MSG_EARLY_RENEW_ON", "✅ Đã bật EARLY_RENEW. Tin nhắc gia hạn sẽ kèm ưu đãi nếu đủ điều kiện."))
     elif action in {"off", "0", "false", "no", "tat", "tắt"}:
         db.set_config("EARLY_RENEW_ENABLED", "OFF")
-        await message.reply("✅ Đã tắt EARLY_RENEW. Tin nhắc gia hạn sẽ dùng nội dung và nút gia hạn thường.")
+        await message.reply(db.get_config("MSG_EARLY_RENEW_OFF", "✅ Đã tắt EARLY_RENEW. Tin nhắc gia hạn sẽ dùng nội dung và nút gia hạn thường."))
     else:
-        await message.reply("Cú pháp: /early_renew on hoặc /early_renew off")
+        await message.reply(db.get_config("MSG_EARLY_RENEW_USAGE", "Cú pháp: /early_renew on hoặc /early_renew off"))
 
 async def send_sale_announcement(message: Message):
     enabled = str(db.get_config("SALE_ANNOUNCE_ENABLED", "ON")).strip().upper()
@@ -140,12 +139,12 @@ async def view_policy(event):
 
     try:
         text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
     except Exception as e:
         print(f"❌ Lỗi fallback /policy: {e}")
         if isinstance(event, CallbackQuery):
-            await event.answer("Không thể mở trang quy định lúc này.", show_alert=True)
+            await event.answer(db.get_config("ALERT_POLICY_UNAVAILABLE", "Không thể mở trang quy định lúc này."), show_alert=True)
 
 # [5] TRANG HỖ TRỢ (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("support"))
@@ -169,12 +168,12 @@ async def view_support(event):
 
     try:
         text = db.get_config("MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
     except Exception as e:
         print(f"❌ Lỗi fallback /support: {e}")
         if isinstance(event, CallbackQuery):
-            await event.answer("Không thể mở trang hỗ trợ lúc này.", show_alert=True)
+            await event.answer(db.get_config("ALERT_SUPPORT_UNAVAILABLE", "Không thể mở trang hỗ trợ lúc này."), show_alert=True)
 
 # [6] TRANG THÔNG TIN TÀI KHOẢN (/ME)
 @router.message(Command("me"))

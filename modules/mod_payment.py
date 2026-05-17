@@ -203,26 +203,26 @@ async def process_early_renew(callback: CallbackQuery):
         try:
             row_index = int(callback.data.split("_", 1)[1])
         except Exception:
-            await callback.answer("Mã gia hạn không hợp lệ.", show_alert=True)
+            await callback.answer(db.get_config("ALERT_RENEW_CODE_INVALID", "Mã gia hạn không hợp lệ."), show_alert=True)
             return
 
         users_data = db.users_sheet.get_all_values()
         if row_index < 2 or row_index > len(users_data):
-            await callback.answer("Ưu đãi gia hạn không còn hợp lệ.", show_alert=True)
+            await callback.answer(db.get_config("ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
             return
         row = users_data[row_index - 1]
 
     if not row:
-        await callback.answer("Ưu đãi gia hạn không còn hợp lệ.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
         return
 
     if len(row) < 8 or str(row[1]).strip() != str(callback.from_user.id):
-        await callback.answer("Ưu đãi này không thuộc tài khoản của bạn.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_RENEW_NOT_OWNER", "Ưu đãi này không thuộc tài khoản của bạn."), show_alert=True)
         return
 
     offer = build_early_renew_offer(row, row_index)
     if not offer:
-        await callback.answer("Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
         return
 
     user_id = callback.from_user.id
@@ -371,7 +371,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     try:
         _, code, plan_key = callback.data.split("|", 2)
     except ValueError:
-        await callback.answer("Mã giảm giá không hợp lệ.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_DISCOUNT_INVALID", "Mã giảm giá không hợp lệ."), show_alert=True)
         return
 
     from modules.mod_coupon import (
@@ -390,7 +390,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(reason, show_alert=True)
         return
     if coupon_type(coupon) != "DISCOUNT" or not coupon_matches_plan(coupon, plan_key):
-        await callback.answer("Mã này không áp dụng cho gói đã chọn.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_DISCOUNT_NOT_APPLICABLE", "Mã này không áp dụng cho gói đã chọn."), show_alert=True)
         return
 
     user_id = callback.from_user.id
@@ -402,7 +402,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
 
     buy_data = buy_data_from_plan_key(plan_key)
     if not buy_data:
-        await callback.answer("Gói áp dụng không hợp lệ.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
         return
 
     offer = resolve_purchase_offer(buy_data)
@@ -411,7 +411,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     discount_amount = int(round(before_coupon * percent / 100))
     amount = max(0, before_coupon - discount_amount)
     if amount <= 0:
-        await callback.answer("Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
         return
 
     msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))

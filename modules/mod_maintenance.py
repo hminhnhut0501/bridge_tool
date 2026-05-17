@@ -2,6 +2,7 @@ import asyncio
 import time
 import logging
 from aiogram import Router
+from config_utils import config_int
 from database import db
 from supabase_store import supabase_store
 
@@ -13,9 +14,13 @@ async def maintenance_worker():
     logging.info("🛠 [MODULE] Maintenance (Lao công) đã sẵn sàng. Sẽ bắt đầu dọn dẹp sau 5 phút...")
     
     # Đợi 5 phút sau khi boot để nhường RAM/CPU cho các tính năng chính khởi động trước
-    await asyncio.sleep(300) 
+    await asyncio.sleep(config_int("MAINTENANCE_INITIAL_DELAY_SECONDS", 300, minimum=0))
 
     while True:
+        interval_seconds = config_int("MAINTENANCE_INTERVAL_SECONDS", 43200, minimum=60)
+        pending_max_age_seconds = config_int("PENDING_ORDER_MAX_AGE_SECONDS", 2592000, minimum=3600)
+        sheet_delete_delay_seconds = config_int("SHEET_DELETE_DELAY_SECONDS", 2, minimum=0)
+        sheet_append_delay_seconds = config_int("SHEET_APPEND_DELAY_SECONDS", 1, minimum=0)
         try:
             logging.info("🧹 Bắt đầu chu kỳ dọn dẹp Database...")
 
@@ -27,12 +32,12 @@ async def maintenance_worker():
                     except ValueError:
                         continue
                     status = str(order.get("status") or "").upper()
-                    if status == "PENDING" and (current_time - order_id > 2592000):
+                    if status == "PENDING" and (current_time - order_id > pending_max_age_seconds):
                         supabase_store.update_order_status(order_id, "CANCELLED")
                         logging.info(f"🗑 Đã chuyển đơn PENDING quá hạn sang CANCELLED: {order_id}")
 
                 logging.info("💤 Dọn dẹp Supabase xong! Module Maintenance sẽ ngủ 12 tiếng.")
-                await asyncio.sleep(43200)
+                await asyncio.sleep(interval_seconds)
                 continue
             
             # Kết nối thẳng vào Sheet (Không dùng cache vì thao tác này cần dữ liệu realtime)
@@ -72,12 +77,12 @@ async def maintenance_worker():
                 # NHIỆM VỤ 1: XÓA ĐƠN PENDING QUÁ 30 NGÀY
                 # 30 ngày = 30 * 24 * 60 * 60 = 2,592,000 giây
                 # ---------------------------------------------------------
-                if status == "PENDING" and (current_time - order_id > 2592000):
+                if status == "PENDING" and (current_time - order_id > pending_max_age_seconds):
                     users_sheet.delete_rows(row_number_in_sheet)
                     logging.info(f"🗑 Đã xóa vĩnh viễn đơn PENDING quá hạn rác: {order_id}")
                     
                     # Nghỉ 2 giây sau khi xóa để không bị Google chửi là Spam API
-                    await asyncio.sleep(2) 
+                    await asyncio.sleep(sheet_delete_delay_seconds)
                     continue # Xóa rồi thì bỏ qua không xét tiếp nữa
                 
                 # ---------------------------------------------------------
@@ -87,17 +92,17 @@ async def maintenance_worker():
                     if vip_sheet:
                         # 1. Ghi khách này sang tab VIP
                         vip_sheet.append_row(row)
-                        await asyncio.sleep(1) # Nghỉ tí
+                        await asyncio.sleep(sheet_append_delay_seconds)
                         
                         # 2. Xóa khỏi tab Users (Giúp tab Users nhẹ như lông hồng)
                         users_sheet.delete_rows(row_number_in_sheet)
                         logging.info(f"💎 Đã nâng cấp & chuyển đơn VIP Trọn Đời sang tab LifetimeUsers: {order_id}")
                         
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(sheet_delete_delay_seconds)
 
         except Exception as e:
             logging.error(f"❌ Lỗi vòng lặp Maintenance: {e}")
 
         # Làm việc xong, cho Lao công đi ngủ 12 tiếng (43200 giây) rồi mới quét lại
         logging.info("💤 Dọn dẹp xong! Module Maintenance sẽ ngủ 12 tiếng.")
-        await asyncio.sleep(43200)
+        await asyncio.sleep(interval_seconds)

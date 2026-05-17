@@ -6,6 +6,7 @@ from database import db
 from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
+from config_utils import config_int, group_numbers
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
 from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, support_group_grace_days, support_group_mute_enabled, unmute_member
@@ -16,16 +17,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
 
-BOT_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
-
 def now_local():
-    return datetime.now(BOT_TIMEZONE).replace(tzinfo=None)
-
-def parse_int_config(value, default):
+    timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
     try:
-        return int(float(str(value).strip()))
-    except (TypeError, ValueError):
-        return default
+        timezone = ZoneInfo(timezone_name)
+    except Exception:
+        timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+    return datetime.now(timezone).replace(tzinfo=None)
 
 def config_enabled(key, default="ON"):
     return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
@@ -82,7 +80,7 @@ def group_matches_plan(group_no, plan_name):
 
 def plan_group_ids(plan_name):
     groups = []
-    for group_no in range(1, 21):
+    for group_no in group_numbers():
         if not group_matches_plan(group_no, plan_name):
             continue
         gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
@@ -126,7 +124,7 @@ async def check_expirations_professional():
             users_data = db.users_sheet.get_all_values()[1:]
         
         # Lấy số ngày báo trước từ Sheet (Mặc định báo trước 3 ngày)
-        days_notice = parse_int_config(db.get_config("REMINDER_DAYS", "3"), 3)
+        days_notice = config_int("REMINDER_DAYS", 3, minimum=0)
         
         now = now_local()
         today_str = now.strftime("%Y-%m-%d")
@@ -287,7 +285,7 @@ async def main():
     print("🚀 [MODULE] Scheduler (Quản gia: Nhắc hạn/Kick) đã khởi động!")
     if not supabase_store.enabled and not db.users_sheet:
         db.connect()
-    await asyncio.sleep(10) 
+    await asyncio.sleep(config_int("SCHEDULER_INITIAL_DELAY_SECONDS", 10, minimum=0))
     
     while True:
         await check_expirations_professional()
@@ -299,7 +297,7 @@ async def main():
             
         # Bot ngủ 4 tiếng rồi mới quét Sheet lại 1 lần (Cho nhẹ máy chủ)
         logging.info("💤 Hoàn tất chu kỳ quét. Quản gia đi ngủ 4 tiếng...")
-        await asyncio.sleep(14400)
+        await asyncio.sleep(config_int("SCHEDULER_INTERVAL_SECONDS", 14400, minimum=60))
 
 if __name__ == "__main__":
     asyncio.run(main())

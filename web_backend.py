@@ -200,7 +200,8 @@ async def admin_set_config(key: str, request: Request):
     body = await request.json()
     data = supabase_store.set_config(key, body.get("value", ""))
     db.cache_config[str(key).strip().upper()] = str(body.get("value", ""))
-    if str(key).strip().upper() == "COUPON_COMMAND_ENABLED":
+    normalized_key = str(key).strip().upper()
+    if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
         await set_commands()
     return {"data": data}
 

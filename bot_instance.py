@@ -19,17 +19,21 @@ async def set_commands():
         from database import db
 
         coupon_enabled = str(db.get_config("COUPON_COMMAND_ENABLED", "OFF") or "OFF").strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
+        def command_desc(key, fallback):
+            return db.get_config(key, fallback)
     except Exception:
         coupon_enabled = False
+        def command_desc(key, fallback):
+            return fallback
 
     commands = [
-        BotCommand(command="start", description="Trang chủ / Mua gói"),
-        BotCommand(command="me", description="Kiểm tra gói & Hạn dùng"),
-        BotCommand(command="support", description="Liên hệ hỗ trợ Admin"),
-        BotCommand(command="policy", description="Đọc quy định nhóm"), # Thêm dòng này!
+        BotCommand(command="start", description=command_desc("BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")),
+        BotCommand(command="me", description=command_desc("BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")),
+        BotCommand(command="support", description=command_desc("BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")),
+        BotCommand(command="policy", description=command_desc("BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")),
     ]
     if coupon_enabled:
-        commands.insert(2, BotCommand(command="coupon", description="Nhập mã giảm giá / mã kích hoạt"))
+        commands.insert(2, BotCommand(command="coupon", description=command_desc("BOT_COMMAND_DESC_COUPON", "Nhập mã giảm giá / mã kích hoạt")))
     await bot.set_my_commands(commands)
 
 # Lưu trữ lịch sử bấm nút của User {user_id: timestamp}

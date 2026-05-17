@@ -13,6 +13,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot_instance import bot
+from config_utils import config_int, group_numbers
 from database import db, normalize_key
 from helpers import check_protection, is_admin_user
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
@@ -170,7 +171,7 @@ def normalize_plan_key(value):
 
 def all_coupon_plan_keys():
     keys = ["FULL_1M", "FULL_LIFE"]
-    for group_no in range(1, 21):
+    for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") or db.get_config(f"ID_G{group_no}"):
             keys.extend([f"G{group_no}_1M", f"G{group_no}_LIFE"])
     return keys
@@ -180,7 +181,7 @@ def selectable_group_plan_keys(plan_name):
     key = normalize_plan_key(plan_name)
     suffix = "_LIFE" if key == SELECT_GROUP_LIFE else "_1M"
     keys = []
-    for group_no in range(1, 21):
+    for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") and db.get_config(f"ID_G{group_no}"):
             keys.append(f"G{group_no}{suffix}")
     return keys
@@ -375,7 +376,7 @@ def resolve_plan_name(plan_key):
     if key in plan_map:
         return plan_map[key]
 
-    for group_no in range(1, 21):
+    for group_no in group_numbers():
         if key == f"G{group_no}_1M":
             return f"{db.get_config('PLAN_G_1M', 'Gói 1 tháng')} - {db.get_config(f'BTN_G{group_no}', f'Nhóm {group_no}')}"
         if key == f"G{group_no}_LIFE":
@@ -478,7 +479,7 @@ def build_activation_group_keyboard(code, coupon):
 
 async def send_activation_group_options(message: Message, code, coupon):
     if not selectable_group_plan_keys(coupon.get("Plan_Name")):
-        await message.answer("❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn. Vui lòng báo admin kiểm tra BTN_G/ID_G.", parse_mode="HTML")
+        await message.answer(db.get_config("MSG_COUPON_NO_SELECTABLE_GROUPS", "❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn. Vui lòng báo admin kiểm tra BTN_G/ID_G."), parse_mode="HTML")
         return
 
     text = db.get_config(
@@ -503,13 +504,13 @@ def resolve_groups(plan_name):
     plan_upper = str(plan_name or "").upper()
 
     if "FULL" in plan_upper or "SVIP" in plan_upper:
-        for group_no in range(1, 21):
+        for group_no in group_numbers():
             gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
             if gid:
                 groups.append((gid, db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")))
         return groups
 
-    for group_no in range(1, 21):
+    for group_no in group_numbers():
         btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
         if str(btn_name).upper() in plan_upper or f"G{group_no}" in plan_upper:
             gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
@@ -618,7 +619,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
 
     links_msg, group_names = await build_invite_links(user.id, plan_name)
     if not links_msg.strip():
-        await message.answer("❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link. Vui lòng báo admin kiểm tra Plan_Name/ID_G.", parse_mode="HTML")
+        await message.answer(db.get_config("MSG_COUPON_PLAN_NOT_CONFIGURED", "❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link. Vui lòng báo admin kiểm tra Plan_Name/ID_G."), parse_mode="HTML")
         return
 
     order_id = int(datetime.now().timestamp() * 1000)
@@ -730,7 +731,7 @@ async def cmd_coupon(message: Message, state: FSMContext):
     if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
         return
     if message.chat.type != "private":
-        await message.answer("Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.")
+        await message.answer(db.get_config("MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
         return
     await send_coupon_prompt(message, state)
 
@@ -740,10 +741,10 @@ async def coupon_button(callback: CallbackQuery, state: FSMContext):
     if not await check_protection(callback):
         return
     if not config_enabled("COUPON_MENU_ENABLED", "OFF"):
-        await callback.answer("Chức năng nhập mã trên menu đang được ẩn.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_COUPON_MENU_DISABLED", "Chức năng nhập mã trên menu đang được ẩn."), show_alert=True)
         return
     if callback.message.chat.type != "private":
-        await callback.answer("Vui lòng nhắn riêng với bot để nhập mã.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã."), show_alert=True)
         return
     await send_coupon_prompt(callback, state)
 
@@ -756,7 +757,7 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
     try:
         _, code, selected_plan_key = callback.data.split("|", 2)
     except ValueError:
-        await callback.answer("Lựa chọn coupon không hợp lệ.", show_alert=True)
+        await callback.answer(db.get_config("ALERT_COUPON_SELECTION_INVALID", "Lựa chọn coupon không hợp lệ."), show_alert=True)
         return
 
     async with coupon_lock:
@@ -769,12 +770,12 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
             await callback.answer(reason, show_alert=True)
             return
         if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-            await callback.answer("Mã này không phải coupon chọn group.", show_alert=True)
+            await callback.answer(db.get_config("ALERT_COUPON_NOT_GROUP_SELECT", "Mã này không phải coupon chọn group."), show_alert=True)
             return
 
         selected_plan_key = normalize_plan_key(selected_plan_key)
         if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
-            await callback.answer("Group này không nằm trong phạm vi coupon.", show_alert=True)
+            await callback.answer(db.get_config("ALERT_COUPON_GROUP_OUT_OF_SCOPE", "Group này không nằm trong phạm vi coupon."), show_alert=True)
             return
 
         await callback.answer()
@@ -797,7 +798,7 @@ async def coupon_code_received(message: Message, state: FSMContext):
 
     code = normalize_code(message.text)
     if not code or len(code) < 3:
-        await message.answer("Mã không hợp lệ. Vui lòng nhập lại mã bạn nhận được.")
+        await message.answer(db.get_config("MSG_COUPON_INVALID_FORMAT", "Mã không hợp lệ. Vui lòng nhập lại mã bạn nhận được."))
         return
 
     await state.clear()
@@ -815,7 +816,7 @@ async def coupon_auto_code_received(message: Message):
     if not await check_protection(message):
         return
     if message.chat.type != "private":
-        await message.answer("Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.")
+        await message.answer(db.get_config("MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
         return
     await redeem_coupon(message, message.text)
 
@@ -894,18 +895,19 @@ async def cmd_gen_coupon(message: Message):
 
 
 async def coupon_cleanup_worker():
-    await asyncio.sleep(30)
+    await asyncio.sleep(config_int("COUPON_CLEANUP_INITIAL_DELAY_SECONDS", 30, minimum=0))
     while True:
+        interval_seconds = config_int("COUPON_CLEANUP_INTERVAL_HOURS", 12, minimum=1) * 60 * 60
         try:
             if supabase_store.enabled:
                 log.info("Coupon cleanup skipped: Supabase retains coupon history.")
-                await asyncio.sleep(12 * 60 * 60)
+                await asyncio.sleep(interval_seconds)
                 continue
             db.connect()
             cleanup_coupon_sheets()
         except Exception as err:
             log.error("Coupon cleanup failed: %s", err)
-        await asyncio.sleep(12 * 60 * 60)
+        await asyncio.sleep(interval_seconds)
 
 
 def cleanup_coupon_sheets():

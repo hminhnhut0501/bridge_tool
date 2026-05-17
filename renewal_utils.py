@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from config_utils import group_numbers
 from database import db, normalize_key
 
 
@@ -83,7 +84,7 @@ def resolve_price_key(plan_name):
     if "FULL" in plan or "SVIP" in plan:
         return "PRICE_SVIP_30D"
 
-    for group in range(1, 21):
+    for group in group_numbers():
         btn_name = normalize_key(db.get_config(f"BTN_G{group}", f"Nhóm {group}")).upper()
         if btn_name and (btn_name in plan or f"G{group}" in plan):
             return f"PRICE_G{group}_1M"

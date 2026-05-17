@@ -54,7 +54,7 @@ import {
 } from "@/lib/api";
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
-type ContentSubTab = "bot" | "plans" | "currency" | "buttons" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
+type ContentSubTab = "bot" | "plans" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 
@@ -72,7 +72,7 @@ type ConfigField = {
   options?: { label: string; value: string }[];
 };
 
-const GROUP_COUNT = 20;
+const DEFAULT_GROUP_COUNT = 20;
 
 const BOT_FIELDS: ConfigField[] = [
   {
@@ -104,6 +104,18 @@ const BOT_FIELDS: ConfigField[] = [
     placeholder: "Hệ thống đang bảo trì, vui lòng quay lại sau.",
     help: "Tin nhắn gửi cho khách khi bot đang bảo trì.",
     kind: "textarea",
+  },
+  {
+    key: "BOT_TIMEZONE",
+    label: "Timezone bot",
+    placeholder: "Asia/Ho_Chi_Minh",
+    help: "Dùng cho scheduler nhắc hạn, hết hạn và dashboard theo ngày.",
+  },
+  {
+    key: "GROUP_COUNT",
+    label: "Số group tối đa",
+    placeholder: "20",
+    help: "Số lượng G1, G2... dashboard và bot sẽ quét. Tăng nếu bạn bán hơn 20 nhóm.",
   },
 ];
 
@@ -148,10 +160,33 @@ const RENEWAL_FIELDS: ConfigField[] = [
     ],
   },
   {
+    key: "EARLY_RENEW",
+    label: "Gia hạn sớm legacy",
+    placeholder: "ON",
+    help: "Key tương thích cũ. Nếu không dùng, đặt giống Ưu đãi gia hạn sớm.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "EARLY_RENEW_DISCOUNT_PERCENT",
     label: "Giảm giá gia hạn sớm",
     placeholder: "10",
     help: "Phần trăm giảm khi khách gia hạn sớm.",
+  },
+  {
+    key: "EARLY_RENEW_DAYS",
+    label: "Số ngày được gia hạn sớm",
+    placeholder: "3",
+    help: "Số ngày trước khi hết hạn sẽ hiện offer gia hạn sớm. Để cùng REMINDER_DAYS nếu muốn đồng bộ.",
+  },
+  {
+    key: "RENEWAL_DISCOUNT_PERCENT",
+    label: "Giảm giá gia hạn legacy",
+    placeholder: "10",
+    help: "Key tương thích cũ. Nếu không dùng, đặt giống Giảm giá gia hạn sớm.",
   },
   {
     key: "MSG_REMINDER",
@@ -184,6 +219,13 @@ const RENEWAL_FIELDS: ConfigField[] = [
     label: "Nút gia hạn group",
     placeholder: "🔄 Gia hạn / Mở rộng gói",
     help: "Text nút gia hạn cho gói group lẻ.",
+  },
+  {
+    key: "MSG_EARLY_RENEW_OFFER",
+    label: "Block ưu đãi gia hạn sớm",
+    placeholder: "🔥 <b>ƯU ĐÃI GIA HẠN SỚM</b>\\nGói hiện tại: <b>{plan}</b>\\nGiá gốc: <s>{old_price}</s>\\nGiá gia hạn sớm: <b>{renew_price}</b> (-{discount_percent}%)",
+    help: "Dùng biến {plan}, {old_price}, {renew_price}, {discount_percent}, {date}, {countdown}.",
+    kind: "textarea",
   },
 ];
 
@@ -337,6 +379,83 @@ const SECURITY_FIELDS: ConfigField[] = [
       { label: "Bật", value: "ON" },
     ],
   },
+];
+
+const SYSTEM_FIELDS: ConfigField[] = [
+  {
+    key: "SCHEDULER_INITIAL_DELAY_SECONDS",
+    label: "Delay scheduler khi boot",
+    placeholder: "10",
+    help: "Số giây chờ trước vòng quét hạn đầu tiên sau khi backend khởi động.",
+  },
+  {
+    key: "SCHEDULER_INTERVAL_SECONDS",
+    label: "Chu kỳ quét hạn",
+    placeholder: "14400",
+    help: "Số giây giữa các vòng quét hạn/gia hạn. 14400 = 4 tiếng.",
+  },
+  {
+    key: "MAINTENANCE_INITIAL_DELAY_SECONDS",
+    label: "Delay maintenance khi boot",
+    placeholder: "300",
+    help: "Số giây chờ trước vòng dọn dẹp đầu tiên.",
+  },
+  {
+    key: "MAINTENANCE_INTERVAL_SECONDS",
+    label: "Chu kỳ maintenance",
+    placeholder: "43200",
+    help: "Số giây giữa các vòng dọn dẹp. 43200 = 12 tiếng.",
+  },
+  {
+    key: "PENDING_ORDER_MAX_AGE_SECONDS",
+    label: "Tuổi tối đa đơn pending",
+    placeholder: "2592000",
+    help: "Đơn pending quá số giây này sẽ bị huỷ/dọn. 2592000 = 30 ngày.",
+  },
+  {
+    key: "SHEET_DELETE_DELAY_SECONDS",
+    label: "Delay xoá dòng Sheet",
+    placeholder: "2",
+    help: "Chỉ dùng khi chạy Google Sheet fallback.",
+  },
+  {
+    key: "SHEET_APPEND_DELAY_SECONDS",
+    label: "Delay ghi dòng Sheet",
+    placeholder: "1",
+    help: "Chỉ dùng khi chạy Google Sheet fallback.",
+  },
+  {
+    key: "COUPON_CLEANUP_INITIAL_DELAY_SECONDS",
+    label: "Delay cleanup coupon khi boot",
+    placeholder: "30",
+    help: "Số giây chờ trước worker cleanup coupon.",
+  },
+  {
+    key: "COUPON_CLEANUP_INTERVAL_HOURS",
+    label: "Chu kỳ cleanup coupon",
+    placeholder: "12",
+    help: "Số giờ giữa các lần cleanup coupon khi dùng Sheet fallback.",
+  },
+  {
+    key: "COUPON_CLEANUP_AFTER_DAYS",
+    label: "Số ngày giữ coupon đã dùng",
+    placeholder: "7",
+    help: "Dùng cho cleanup coupon ở Sheet fallback.",
+  },
+  {
+    key: "ANALYTICS_DAILY_RETENTION_DAYS",
+    label: "Số ngày giữ analytics ngày",
+    placeholder: "120",
+    help: "Giới hạn dữ liệu analytics daily giữ lại.",
+  },
+];
+
+const COMMAND_FIELDS: ConfigField[] = [
+  { key: "BOT_COMMAND_DESC_START", label: "Mô tả /start", placeholder: "Trang chủ / Mua gói", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_ME", label: "Mô tả /me", placeholder: "Kiểm tra gói & Hạn dùng", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
+  { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Liên hệ hỗ trợ Admin", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
 ];
 
 const ADMIN_FIELDS: ConfigField[] = [
@@ -540,6 +659,110 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Fallback khi nội dung trang trống.",
     kind: "textarea",
   },
+  {
+    key: "MSG_RELOAD_DONE",
+    label: "Tin admin reload xong",
+    placeholder: "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!",
+    help: "Tin trả về khi admin dùng /reload.",
+  },
+  {
+    key: "MSG_ADMIN_ONLY",
+    label: "Tin lệnh chỉ admin",
+    placeholder: "⚠️ Lệnh này chỉ dành cho Admin.",
+    help: "Dùng khi user thường gọi lệnh admin.",
+  },
+  {
+    key: "MSG_CHECK_EXPIRY_STARTED",
+    label: "Tin bắt đầu quét hạn",
+    placeholder: "⏳ Đang quét hạn dùng ngay bây giờ...",
+    help: "Tin trả về khi admin chạy /check_expiry.",
+  },
+  {
+    key: "MSG_CHECK_EXPIRY_DONE",
+    label: "Tin quét hạn xong",
+    placeholder: "✅ Đã chạy xong một vòng quét hạn dùng.",
+    help: "Tin trả về khi /check_expiry hoàn tất.",
+  },
+  {
+    key: "MSG_EARLY_RENEW_STATUS",
+    label: "Tin trạng thái early renew",
+    placeholder: "EARLY_RENEW hiện đang: <b>{status}</b>\\nDùng: /early_renew on hoặc /early_renew off",
+    help: "Dùng biến {status}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_EARLY_RENEW_ON",
+    label: "Tin bật early renew",
+    placeholder: "✅ Đã bật EARLY_RENEW. Tin nhắc gia hạn sẽ kèm ưu đãi nếu đủ điều kiện.",
+    help: "Tin trả về khi admin bật /early_renew.",
+  },
+  {
+    key: "MSG_EARLY_RENEW_OFF",
+    label: "Tin tắt early renew",
+    placeholder: "✅ Đã tắt EARLY_RENEW. Tin nhắc gia hạn sẽ dùng nội dung và nút gia hạn thường.",
+    help: "Tin trả về khi admin tắt /early_renew.",
+  },
+  {
+    key: "MSG_EARLY_RENEW_USAGE",
+    label: "Tin cú pháp early renew",
+    placeholder: "Cú pháp: /early_renew on hoặc /early_renew off",
+    help: "Tin trả về khi sai cú pháp /early_renew.",
+  },
+  {
+    key: "MSG_COUPON_NO_SELECTABLE_GROUPS",
+    label: "Tin coupon thiếu group chọn",
+    placeholder: "❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn.",
+    help: "Dùng khi coupon chọn group nhưng dashboard chưa cấu hình group.",
+  },
+  {
+    key: "MSG_COUPON_PLAN_NOT_CONFIGURED",
+    label: "Tin coupon thiếu group cấp link",
+    placeholder: "❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link.",
+    help: "Dùng khi coupon hợp lệ nhưng không tạo được link vì thiếu group.",
+  },
+  {
+    key: "MSG_COUPON_PRIVATE_ONLY",
+    label: "Tin coupon chỉ private",
+    placeholder: "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.",
+    help: "Tin gửi khi khách nhập coupon trong group.",
+  },
+  {
+    key: "MSG_COUPON_INVALID_FORMAT",
+    label: "Tin format coupon sai",
+    placeholder: "Mã không hợp lệ. Vui lòng nhập lại mã bạn nhận được.",
+    help: "Tin gửi khi mã quá ngắn hoặc rỗng.",
+  },
+  {
+    key: "TXT_SVIP_DESCRIPTION",
+    label: "Mô tả trang SVIP",
+    placeholder: "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
+    help: "Nội dung trang gói SVIP fallback nếu chưa dùng Menu Builder.",
+    kind: "textarea",
+  },
+  {
+    key: "IMG_SVIP_PAGE",
+    label: "Ảnh trang SVIP",
+    placeholder: "File ID Telegram hoặc URL ảnh",
+    help: "Ảnh cover trang SVIP fallback.",
+  },
+  {
+    key: "IMG_POLICY",
+    label: "Ảnh trang policy",
+    placeholder: "File ID Telegram hoặc URL ảnh",
+    help: "Ảnh fallback cho trang policy.",
+  },
+  {
+    key: "IMG_SUPPORT",
+    label: "Ảnh trang support",
+    placeholder: "File ID Telegram hoặc URL ảnh",
+    help: "Ảnh fallback cho trang support.",
+  },
+  {
+    key: "IMG_ME",
+    label: "Ảnh trang /me",
+    placeholder: "File ID Telegram hoặc URL ảnh",
+    help: "Ảnh fallback cho trang tài khoản /me.",
+  },
 ];
 
 const BUTTON_FIELDS: ConfigField[] = [
@@ -565,6 +788,21 @@ const ALERT_FIELDS: ConfigField[] = [
   { key: "ALERT_NOT_PAID", label: "Cảnh báo chưa nhận tiền", placeholder: "⏳ Hệ thống chưa nhận được tiền!", help: "Khi khách bấm đã chuyển khoản nhưng PayOS chưa PAID." },
   { key: "ALERT_CANCELLED", label: "Cảnh báo hủy đơn", placeholder: "🚫 Đã hủy đơn.", help: "Khi khách bấm hủy QR." },
   { key: "ALERT_EARLY_RENEW_OFF", label: "Cảnh báo gia hạn sớm tắt", placeholder: "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường.", help: "Khi khách bấm offer đã tắt." },
+  { key: "ALERT_POLICY_UNAVAILABLE", label: "Không mở được policy", placeholder: "Không thể mở trang quy định lúc này.", help: "Alert khi trang policy lỗi." },
+  { key: "ALERT_SUPPORT_UNAVAILABLE", label: "Không mở được support", placeholder: "Không thể mở trang hỗ trợ lúc này.", help: "Alert khi trang support lỗi." },
+  { key: "ALERT_COUPON_MENU_DISABLED", label: "Coupon menu đang ẩn", placeholder: "Chức năng nhập mã trên menu đang được ẩn.", help: "Khi khách bấm nút coupon đã ẩn." },
+  { key: "ALERT_COUPON_PRIVATE_ONLY", label: "Coupon chỉ private", placeholder: "Vui lòng nhắn riêng với bot để nhập mã.", help: "Alert khi bấm coupon trong group." },
+  { key: "ALERT_COUPON_SELECTION_INVALID", label: "Coupon chọn group lỗi", placeholder: "Lựa chọn coupon không hợp lệ.", help: "Callback chọn group coupon sai format." },
+  { key: "ALERT_COUPON_NOT_GROUP_SELECT", label: "Không phải coupon chọn group", placeholder: "Mã này không phải coupon chọn group.", help: "Callback chọn group không hợp lệ." },
+  { key: "ALERT_COUPON_GROUP_OUT_OF_SCOPE", label: "Group ngoài phạm vi coupon", placeholder: "Group này không nằm trong phạm vi coupon.", help: "Khi coupon không áp dụng cho group đã chọn." },
+  { key: "ALERT_RENEW_CODE_INVALID", label: "Mã gia hạn không hợp lệ", placeholder: "Mã gia hạn không hợp lệ.", help: "Khi callback gia hạn sai format." },
+  { key: "ALERT_RENEW_OFFER_INVALID", label: "Offer gia hạn không hợp lệ", placeholder: "Ưu đãi gia hạn không còn hợp lệ.", help: "Khi offer không còn dữ liệu." },
+  { key: "ALERT_RENEW_NOT_OWNER", label: "Offer không thuộc user", placeholder: "Ưu đãi này không thuộc tài khoản của bạn.", help: "Khi user bấm offer của người khác." },
+  { key: "ALERT_RENEW_EXPIRED", label: "Offer gia hạn hết hạn", placeholder: "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ.", help: "Khi offer không đủ điều kiện." },
+  { key: "ALERT_DISCOUNT_INVALID", label: "Mã giảm giá lỗi", placeholder: "Mã giảm giá không hợp lệ.", help: "Callback coupon giảm giá sai format." },
+  { key: "ALERT_DISCOUNT_NOT_APPLICABLE", label: "Coupon không áp dụng", placeholder: "Mã này không áp dụng cho gói đã chọn.", help: "Khi coupon không match gói." },
+  { key: "ALERT_DISCOUNT_PLAN_INVALID", label: "Gói coupon không hợp lệ", placeholder: "Gói áp dụng không hợp lệ.", help: "Khi plan key không đọc được." },
+  { key: "ALERT_DISCOUNT_ZERO_AMOUNT", label: "Coupon về 0đ", placeholder: "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá.", help: "Chặn coupon giảm giá làm đơn còn 0đ." },
 ];
 
 const SALE_CONTENT_FIELDS: ConfigField[] = [
@@ -821,7 +1059,7 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
@@ -906,7 +1144,7 @@ export default function Home() {
 
   function resetGroupForm(nextGroupNo?: string) {
     const used = new Set(config.filter((item) => item.key.startsWith("BTN_G")).map((item) => item.key.replace("BTN_G", "")));
-    const firstEmpty = Array.from({ length: GROUP_COUNT }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
+    const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
     setGroupNo(nextGroupNo || firstEmpty);
     setGroupName("");
     setGroupId("");
@@ -1109,14 +1347,15 @@ export default function Home() {
   const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
   const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
 
-  const configuredGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config]);
-  const visibleGroups = useMemo(() => Array.from({ length: GROUP_COUNT }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config]);
+  const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
+  const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
+  const visibleGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config, maxGroups]);
   const groupSelectOptions = useMemo(() => {
     const selected = Number(groupNo);
     const values = new Set(visibleGroups);
-    if (selected >= 1 && selected <= GROUP_COUNT) values.add(selected);
+    if (selected >= 1 && selected <= maxGroups) values.add(selected);
     return Array.from(values).sort((a, b) => a - b);
-  }, [groupNo, visibleGroups]);
+  }, [groupNo, visibleGroups, maxGroups]);
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
@@ -1528,6 +1767,7 @@ export default function Home() {
                 <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
                 <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
                 <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
+                <button className={contentTab === "commands" ? "active" : ""} onClick={() => setContentTab("commands")}>Lệnh bot</button>
                 <button className={contentTab === "alerts" ? "active" : ""} onClick={() => setContentTab("alerts")}>Cảnh báo</button>
                 <button className={contentTab === "messages" ? "active" : ""} onClick={() => setContentTab("messages")}>Tin nhắn</button>
                 <button className={contentTab === "saleContent" ? "active" : ""} onClick={() => setContentTab("saleContent")}>Flash sale</button>
@@ -1539,6 +1779,7 @@ export default function Home() {
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
             {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
+            {contentTab === "commands" ? <ConfigEditor title="Lệnh Telegram" subtitle="Mô tả các lệnh hiển thị trong menu command của Telegram." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_FIELDS)} /> : null}
             {contentTab === "alerts" ? <ConfigEditor title="Cảnh báo nhanh" subtitle="Các alert ngắn khi khách bấm nút, spam, hủy đơn, check QR." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
             {contentTab === "messages" ? <ConfigEditor title="Tin nhắn tự động" subtitle="Các mẫu tin bot gửi cho khách. Placeholder được ghi rõ dưới từng ô." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}
             {contentTab === "saleContent" ? <ConfigEditor title="Nội dung flash sale" subtitle="Bật/tắt thông báo sale, chỉnh banner, mẫu tin và nút dưới thông báo sale." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_FIELDS)} /> : null}
@@ -1764,6 +2005,14 @@ export default function Home() {
 
         {tab === "system" ? (
           <div className="stack">
+            <ConfigEditor
+              title="Cài đặt hệ thống"
+              subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
+              fields={SYSTEM_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={() => saveFields(SYSTEM_FIELDS)}
+            />
             <section className="panel">
               <PanelHead title="Telegram webhook" subtitle="Nếu bot không phản hồi, kiểm tra và reset webhook tại đây." action={<button className="btn" onClick={handleWebhookReset}><RefreshCw size={16} /> Reset webhook</button>} />
               <div className="system-list">
