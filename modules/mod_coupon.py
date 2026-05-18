@@ -16,7 +16,7 @@ from bot_instance import bot
 from config_utils import config_int, group_numbers
 from database import db, normalize_key
 from helpers import check_protection, is_admin_user
-from i18n import t
+from i18n import get_user_language, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
@@ -194,14 +194,18 @@ def is_selectable_group_coupon_plan(plan_name):
     return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_LIFE}
 
 
-def duration_label(coupon):
+def duration_label(coupon, user_id=None):
     custom = str((coupon or {}).get("Duration_Label") or (coupon or {}).get("Activation_Label") or "").strip()
     if custom:
         return custom
 
     days = safe_int((coupon or {}).get("Duration_Days"), 30)
     if days >= 3650:
+        if get_user_language(user_id) == "en":
+            return "lifetime"
         return "trọn đời"
+    if get_user_language(user_id) == "en":
+        return f"{days} day" if days == 1 else f"{days} days"
     return f"{days} ngày"
 
 
@@ -318,26 +322,26 @@ def has_user_redeemed(code, user_id):
 
 def validate_coupon_base(item, user_id):
     if not item:
-        return False, "Mã giảm giá không tồn tại hoặc đã được dọn khỏi hệ thống."
+        return False, t(user_id, "ALERT_COUPON_NOT_FOUND", "Mã giảm giá không tồn tại hoặc đã được dọn khỏi hệ thống.")
 
     if not truthy(item.get("Enabled", "ON")):
-        return False, "Mã này đang tắt, vui lòng kiểm tra lại mã khác."
+        return False, t(user_id, "ALERT_COUPON_DISABLED", "Mã này đang tắt, vui lòng kiểm tra lại mã khác.")
 
     now = datetime.now()
     valid_from = parse_expire_datetime(item.get("Valid_From"))
     valid_until = parse_expire_datetime(item.get("Valid_Until"))
     if valid_from and now < valid_from:
-        return False, f"Mã này chỉ bắt đầu dùng từ {valid_from.strftime(TIME_FMT)}."
+        return False, t(user_id, "ALERT_COUPON_NOT_STARTED", "Mã này chỉ bắt đầu dùng từ {date}.").replace("{date}", valid_from.strftime(TIME_FMT))
     if valid_until and now > valid_until:
-        return False, "Mã này đã hết hạn sử dụng."
+        return False, t(user_id, "ALERT_COUPON_EXPIRED", "Mã này đã hết hạn sử dụng.")
 
     max_uses = safe_int(item.get("Max_Uses"), 1)
     used_count = safe_int(item.get("Used_Count"), 0)
     if max_uses > 0 and used_count >= max_uses:
-        return False, "Mã này đã hết số lượt sử dụng."
+        return False, t(user_id, "ALERT_COUPON_MAXED", "Mã này đã hết số lượt sử dụng.")
 
     if has_user_redeemed(item.get("Code"), user_id):
-        return False, "Bạn đã sử dụng mã này trước đó rồi."
+        return False, t(user_id, "ALERT_COUPON_ALREADY_USED", "Bạn đã sử dụng mã này trước đó rồi.")
 
     return True, ""
 
@@ -349,17 +353,17 @@ def validate_coupon(item, user_id):
 
     if coupon_type(item) == "DISCOUNT":
         if coupon_discount_percent(item) <= 0:
-            return False, "Mã giảm giá chưa cấu hình phần trăm giảm."
+            return False, t(user_id, "ALERT_COUPON_DISCOUNT_NOT_CONFIGURED", "Mã giảm giá chưa cấu hình phần trăm giảm.")
         if not coupon_applies_to(item):
-            return False, "Mã giảm giá chưa chọn gói áp dụng."
+            return False, t(user_id, "ALERT_COUPON_APPLIES_EMPTY", "Mã giảm giá chưa chọn gói áp dụng.")
         return True, ""
 
     plan_name = str(item.get("Plan_Name") or "").strip()
     duration_days = safe_int(item.get("Duration_Days"), 0)
     if not plan_name:
-        return False, "Mã này chưa gắn gói thành viên trên sheet."
+        return False, t(user_id, "ALERT_COUPON_PLAN_EMPTY", "Mã này chưa gắn gói thành viên trên sheet.")
     if duration_days <= 0:
-        return False, "Mã này chưa có số ngày sử dụng hợp lệ."
+        return False, t(user_id, "ALERT_COUPON_DURATION_INVALID", "Mã này chưa có số ngày sử dụng hợp lệ.")
 
     return True, ""
 
@@ -400,10 +404,10 @@ def group_name_from_plan_key(plan_key):
     return db.get_config(f"BTN_G{match}", f"Nhóm {match}")
 
 
-def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name=""):
+def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="", user_id=None):
     group_name = group_name_from_plan_key(plan_key)
     days = str(safe_int((coupon or {}).get("Duration_Days"), 30))
-    label = duration_label(coupon)
+    label = duration_label(coupon, user_id)
     plan_name = fallback_plan_name or resolve_plan_name(plan_key)
     values = {
         "{group}": group_name,
@@ -420,27 +424,27 @@ def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="")
     return rendered.strip()
 
 
-def activation_coupon_plan_name(plan_key, coupon):
+def activation_coupon_plan_name(plan_key, coupon, user_id=None):
     purchase_plan_name = resolve_plan_name(plan_key)
     template = (
         (coupon or {}).get("Plan_Name_Template")
         or (coupon or {}).get("Activation_Plan_Template")
-        or db.get_config("COUPON_ACTIVATION_PLAN_TEMPLATE", "VIP {duration_label} - {group}")
+        or t(user_id, "COUPON_ACTIVATION_PLAN_TEMPLATE", "VIP {duration_label} - {group}")
     )
-    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=purchase_plan_name) or purchase_plan_name
+    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=purchase_plan_name, user_id=user_id) or purchase_plan_name
 
 
-def activation_coupon_button_label(plan_key, coupon):
-    plan_name = activation_coupon_plan_name(plan_key, coupon)
+def activation_coupon_button_label(plan_key, coupon, user_id=None):
+    plan_name = activation_coupon_plan_name(plan_key, coupon, user_id=user_id)
     template = (
         (coupon or {}).get("Button_Template")
         or (coupon or {}).get("Activation_Button_Template")
-        or db.get_config("COUPON_ACTIVATION_BUTTON_TEMPLATE", "{plan_name}")
+        or t(user_id, "COUPON_ACTIVATION_BUTTON_TEMPLATE", "{plan_name}")
     )
-    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=plan_name) or plan_name
+    return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=plan_name, user_id=user_id) or plan_name
 
 
-def discount_plan_label(plan_key):
+def discount_plan_label(plan_key, user_id=None):
     return resolve_plan_name(plan_key)
 
 
@@ -450,7 +454,7 @@ def build_discount_coupon_keyboard(code, coupon, user_id=None):
     kb = InlineKeyboardBuilder()
     for plan_key in plan_keys:
         kb.row(InlineKeyboardButton(
-            text=f"{discount_plan_label(plan_key)} (-{coupon_discount_percent(coupon)}%)",
+            text=f"{discount_plan_label(plan_key, user_id=user_id)} (-{coupon_discount_percent(coupon)}%)",
             callback_data=f"couponbuy|{code}|{plan_key}",
         ))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
@@ -474,7 +478,7 @@ def build_activation_group_keyboard(code, coupon, user_id=None):
     kb = InlineKeyboardBuilder()
     for plan_key in selectable_group_plan_keys(coupon.get("Plan_Name")):
         kb.row(InlineKeyboardButton(
-            text=activation_coupon_button_label(plan_key, coupon),
+            text=activation_coupon_button_label(plan_key, coupon, user_id=user_id),
             callback_data=f"cact|{code}|{plan_key}",
         ))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
@@ -498,8 +502,8 @@ async def send_activation_group_options(message: Message, code, coupon):
         text
         .replace("{code}", escape_html(code))
         .replace("{days}", str(safe_int(coupon.get("Duration_Days"), 30)))
-        .replace("{duration_label}", escape_html(duration_label(coupon)))
-        .replace("{duration}", escape_html(duration_label(coupon)))
+        .replace("{duration_label}", escape_html(duration_label(coupon, message.from_user.id)))
+        .replace("{duration}", escape_html(duration_label(coupon, message.from_user.id)))
     )
     await message.answer(text, reply_markup=build_activation_group_keyboard(code, coupon, message.from_user.id), parse_mode="HTML")
 
@@ -549,7 +553,8 @@ async def build_invite_links(user_id, plan_name):
             except Exception as unmute_err:
                 log.warning("Cannot unmute coupon user %s in %s: %s", user_id, gid, unmute_err)
         except Exception as err:
-            links_msg += f"👉 <b>{escape_html(group_name)}</b>: <i>Không tạo được link ({escape_html(err)})</i>\n\n"
+            template = t(user_id, "MSG_INVITE_LINK_ERROR", "👉 <b>{group}</b>: <i>Không tạo được link ({error})</i>\\n\\n").replace("\\n", "\n")
+            links_msg += template.replace("{group}", escape_html(group_name)).replace("{error}", escape_html(err))
 
     return links_msg, ", ".join(group_names)
 
@@ -609,7 +614,7 @@ async def redeem_coupon_locked(message: Message, code):
 async def redeem_activation_coupon(message: Message, user, code, coupon, coupons_sheet, headers, row_index, selected_plan_key=None):
     plan_key = selected_plan_key or coupon.get("Plan_Name")
     if selected_plan_key and is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-        plan_name = activation_coupon_plan_name(plan_key, coupon)
+        plan_name = activation_coupon_plan_name(plan_key, coupon, user_id=user.id)
     else:
         plan_name = resolve_plan_name(plan_key)
     duration_days = safe_int(coupon.get("Duration_Days"), 30)
