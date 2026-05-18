@@ -12,6 +12,7 @@ from bot_instance import bot
 from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
+from i18n import t
 from modules.mod_engine import render_page
 from sale_utils import format_price_label, get_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
@@ -162,18 +163,18 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
     safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
     
-    caption = db.get_config("MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
+    caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
     caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_currency(amount)).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
     caption += extra_caption
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
     
     try:
         sent = await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url, caption=caption, reply_markup=kb.as_markup(), parse_mode="HTML")
     except:
-        kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_QR", "🖼 Xem QR"), url=qr_url))
         sent = await bot.send_message(chat_id=callback.message.chat.id, text=caption, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
     if supabase_store.enabled and sent:
         try:
@@ -187,7 +188,7 @@ async def process_early_renew(callback: CallbackQuery):
     if not await check_protection(callback): return
 
     if not is_early_renew_enabled():
-        await callback.answer(db.get_config("ALERT_EARLY_RENEW_OFF", "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_EARLY_RENEW_OFF", "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường."), show_alert=True)
         await render_page(callback, "main_menu")
         return
 
@@ -203,43 +204,43 @@ async def process_early_renew(callback: CallbackQuery):
         try:
             row_index = int(callback.data.split("_", 1)[1])
         except Exception:
-            await callback.answer(db.get_config("ALERT_RENEW_CODE_INVALID", "Mã gia hạn không hợp lệ."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_RENEW_CODE_INVALID", "Mã gia hạn không hợp lệ."), show_alert=True)
             return
 
         users_data = db.users_sheet.get_all_values()
         if row_index < 2 or row_index > len(users_data):
-            await callback.answer(db.get_config("ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
             return
         row = users_data[row_index - 1]
 
     if not row:
-        await callback.answer(db.get_config("ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_RENEW_OFFER_INVALID", "Ưu đãi gia hạn không còn hợp lệ."), show_alert=True)
         return
 
     if len(row) < 8 or str(row[1]).strip() != str(callback.from_user.id):
-        await callback.answer(db.get_config("ALERT_RENEW_NOT_OWNER", "Ưu đãi này không thuộc tài khoản của bạn."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_RENEW_NOT_OWNER", "Ưu đãi này không thuộc tài khoản của bạn."), show_alert=True)
         return
 
     offer = build_early_renew_offer(row, row_index)
     if not offer:
-        await callback.answer(db.get_config("ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
         return
 
     user_id = callback.from_user.id
     current_time = time.time()
     if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
         return
     user_cooldowns[user_id] = current_time
 
-    msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     amount = offer["renew_price"]
 
     pay_data = payos_manager.create_payment_link(order_id, amount, description)
     if not pay_data:
-        await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
 
     create_pending_order(
@@ -273,11 +274,11 @@ async def view_group_detail(callback: CallbackQuery):
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000")
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_1M', '💎 VIP 1 THÁNG')} • {format_price_label(f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"{db.get_config('BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_price_label(f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 1 THÁNG')} • {format_price_label(f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_price_label(f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang SVIP Page
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
-    kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
     
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
@@ -299,10 +300,10 @@ async def show_svip_page(callback: CallbackQuery):
     description += sale_text_for_price("PRICE_SVIP_LIFE", "3000")
     description += sale_text_for_price("PRICE_SVIP_30D", "2000")
     
-    btn_life_text = db.get_config("BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
-    btn_30d_text = db.get_config("BTN_BUY_SVIP_30D", "💎 MUA 1 THÁNG")
+    btn_life_text = t(callback.from_user.id, "BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
+    btn_30d_text = t(callback.from_user.id, "BTN_BUY_SVIP_30D", "💎 MUA 1 THÁNG")
     
-    btn_back_text = db.get_config("BTN_BACK", "🔙 Quay lại")
+    btn_back_text = t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại")
 
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
@@ -323,7 +324,7 @@ async def process_buy_request(callback: CallbackQuery):
     user_id = callback.from_user.id
     current_time = time.time()
     if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
         return
     user_cooldowns[user_id] = current_time
 
@@ -335,7 +336,7 @@ async def process_buy_request(callback: CallbackQuery):
     sale_info = offer["sale_info"]
     original_amount = offer["original_amount"]
 
-    msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     
@@ -360,7 +361,7 @@ async def process_buy_request(callback: CallbackQuery):
         await safe_delete_private_message(callback.message)
             
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
-    else: await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+    else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
 
 
 @router.callback_query(F.data.startswith("couponbuy|"))
@@ -371,7 +372,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     try:
         _, code, plan_key = callback.data.split("|", 2)
     except ValueError:
-        await callback.answer(db.get_config("ALERT_DISCOUNT_INVALID", "Mã giảm giá không hợp lệ."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_INVALID", "Mã giảm giá không hợp lệ."), show_alert=True)
         return
 
     from modules.mod_coupon import (
@@ -390,19 +391,19 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(reason, show_alert=True)
         return
     if coupon_type(coupon) != "DISCOUNT" or not coupon_matches_plan(coupon, plan_key):
-        await callback.answer(db.get_config("ALERT_DISCOUNT_NOT_APPLICABLE", "Mã này không áp dụng cho gói đã chọn."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_NOT_APPLICABLE", "Mã này không áp dụng cho gói đã chọn."), show_alert=True)
         return
 
     user_id = callback.from_user.id
     current_time = time.time()
     if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(db.get_config("ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
         return
     user_cooldowns[user_id] = current_time
 
     buy_data = buy_data_from_plan_key(plan_key)
     if not buy_data:
-        await callback.answer(db.get_config("ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
         return
 
     offer = resolve_purchase_offer(buy_data)
@@ -411,16 +412,16 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     discount_amount = int(round(before_coupon * percent / 100))
     amount = max(0, before_coupon - discount_amount)
     if amount <= 0:
-        await callback.answer(db.get_config("ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
         return
 
-    msg_wait = await callback.message.answer(db.get_config("MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     pay_data = payos_manager.create_payment_link(order_id, amount, description)
 
     if not pay_data:
-        await msg_wait.edit_text(db.get_config("MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
 
     sale_info = offer["sale_info"]
@@ -454,7 +455,7 @@ async def manual_check_payment(callback: CallbackQuery):
     qr_ttl_seconds = max(60, parse_int_config("QR_TTL_SECONDS", 300))
     try:
         if int(time.time()) - int(order_id) > qr_ttl_seconds:
-            await callback.answer(db.get_config("ALERT_QR_EXPIRED", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_QR_EXPIRED", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới."), show_alert=True)
             await expire_pending_payment(order_id, callback.from_user.id)
             await safe_delete_private_message(callback.message)
             return
@@ -462,10 +463,10 @@ async def manual_check_payment(callback: CallbackQuery):
         pass
     
     if payos_manager.get_payment_status(order_id) == "PAID":
-        await callback.answer(db.get_config("ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)
         await process_successful_payment(order_id)
         await safe_delete_private_message(callback.message)
-    else: await callback.answer(db.get_config("ALERT_NOT_PAID", "⏳ Hệ thống chưa nhận được tiền!").replace("\\n", "\n"), show_alert=True)
+    else: await callback.answer(t(callback.from_user.id, "ALERT_NOT_PAID", "⏳ Hệ thống chưa nhận được tiền!").replace("\\n", "\n"), show_alert=True)
 
 @router.callback_query(F.data.startswith("cancel_order_"))
 async def cancel_order_handler(callback: CallbackQuery):
@@ -477,5 +478,5 @@ async def cancel_order_handler(callback: CallbackQuery):
         except Exception as e:
             print(f"⚠️ Không thể cập nhật CANCELLED cho đơn {order_id}: {e}")
     await safe_delete_private_message(callback.message)
-    await callback.answer(db.get_config("ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
+    await callback.answer(t(callback.from_user.id, "ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
     await render_page(callback, "main_menu")

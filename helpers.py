@@ -7,6 +7,7 @@ import time
 
 from database import db
 from bot_instance import bot, is_spamming
+from i18n import t
 from supabase_store import supabase_store
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
@@ -125,8 +126,8 @@ async def check_protection(event):
     maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
     
     if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and not is_admin_user(user_id):
-        msg = db.get_config("MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
-        alert_main = db.get_config("ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
+        msg = t(user_id, "MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
+        alert_main = t(user_id, "ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
         if isinstance(event, Message): 
             await event.answer(msg, parse_mode="HTML")
         else: 
@@ -134,14 +135,15 @@ async def check_protection(event):
         return False
         
     if is_spamming(user_id) and not is_admin_user(user_id):
-        alert_spam = db.get_config("ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
+        alert_spam = t(user_id, "ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
         if isinstance(event, CallbackQuery):
             await event.answer(alert_spam, show_alert=False)
         return False
 
     blocked = await blacklist_entry_for_user(event.from_user)
     if blocked:
-        msg = db.get_config(
+        msg = t(
+            user_id,
             "MSG_BLACKLIST_BLOCKED",
             "⛔ Tài khoản của bạn đang bị chặn sử dụng bot. Vui lòng liên hệ admin nếu cần hỗ trợ.",
         ).replace("\\n", "\n")

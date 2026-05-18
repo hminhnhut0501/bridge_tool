@@ -54,7 +54,7 @@ import {
 } from "@/lib/api";
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
-type ContentSubTab = "bot" | "plans" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
+type ContentSubTab = "bot" | "plans" | "language" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 
@@ -456,6 +456,49 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Liên hệ hỗ trợ Admin", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
+];
+
+const LANGUAGE_FIELDS: ConfigField[] = [
+  {
+    key: "BOT_DEFAULT_LANGUAGE",
+    label: "Ngôn ngữ mặc định",
+    placeholder: "vi",
+    help: "User mới sẽ dùng ngôn ngữ này. Khuyến nghị giữ vi.",
+    kind: "select",
+    options: [
+      { label: "Tiếng Việt", value: "vi" },
+      { label: "English", value: "en" },
+    ],
+  },
+  {
+    key: "BOT_LANGUAGE_SWITCH_ENABLED",
+    label: "Hiện nút đổi ngôn ngữ",
+    placeholder: "ON",
+    help: "Bật ON để main menu/welcome có nút chuyển English/Tiếng Việt.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  { key: "BTN_LANGUAGE_SWITCH_TO_EN", label: "Nút chuyển English", placeholder: "🇬🇧 English", help: "Hiện khi user đang dùng tiếng Việt." },
+  { key: "BTN_LANGUAGE_SWITCH_TO_VI", label: "Nút chuyển Tiếng Việt", placeholder: "🇻🇳 Tiếng Việt", help: "Hiện khi user đang dùng English." },
+  { key: "ALERT_LANGUAGE_CHANGED_EN", label: "Alert đổi sang English", placeholder: "Language updated.", help: "Tin ngắn sau khi chọn English." },
+  { key: "ALERT_LANGUAGE_CHANGED_VI", label: "Alert đổi sang Tiếng Việt", placeholder: "Đã đổi ngôn ngữ.", help: "Tin ngắn sau khi chọn Tiếng Việt." },
+  { key: "BTN_BACK_EN", label: "EN nút quay lại", placeholder: "Back to menu", help: "Bản English của BTN_BACK." },
+  { key: "BTN_CHECK_PAYMENT_EN", label: "EN nút đã thanh toán", placeholder: "I have paid", help: "Bản English của BTN_CHECK_PAYMENT." },
+  { key: "BTN_CANCEL_ORDER_EN", label: "EN nút hủy đơn", placeholder: "Cancel", help: "Bản English của BTN_CANCEL_ORDER." },
+  { key: "BTN_VIEW_QR_EN", label: "EN nút xem QR", placeholder: "View QR", help: "Bản English của BTN_VIEW_QR." },
+  { key: "MSG_ME_TITLE_EN", label: "EN tiêu đề /me", placeholder: "👤 <b>YOUR MEMBERSHIPS:</b>\\n\\n", help: "Bản English của MSG_ME_TITLE.", kind: "textarea" },
+  { key: "MSG_ME_EMPTY_EN", label: "EN /me chưa có gói", placeholder: "❌ You do not have any active VIP plan yet.", help: "Bản English của MSG_ME_EMPTY." },
+  { key: "MSG_ME_ITEM_EN", label: "EN từng gói /me", placeholder: "🎁 Plan: <b>{plan}</b>\\n📅 Expiry: <code>{date}</code>\\n\\n", help: "Dùng {plan}, {date}.", kind: "textarea" },
+  { key: "MSG_COUPON_PROMPT_EN", label: "EN tin nhập coupon", placeholder: "<b>Enter activation code / coupon</b>\\n\\nSend your code here.", help: "Bản English của MSG_COUPON_PROMPT.", kind: "textarea" },
+  { key: "MSG_COUPON_SUCCESS_EN", label: "EN coupon thành công", placeholder: "<b>✅ ACTIVATION SUCCESSFUL</b>\\n\\nCode: <code>{code}</code>\\nPlan: <b>{plan}</b>\\nExpires at: <b>{expire}</b>\\n\\nYour invite links:\\n{links}", help: "Dùng {code}, {plan}, {expire}, {links}.", kind: "textarea" },
+  { key: "MSG_BILL_TEMPLATE_EN", label: "EN bill QR", placeholder: "Order: {desc}\\nAmount: {amount}\\nBank: {bank}", help: "Dùng {plan}, {amount}, {bank}, {name}, {stk}, {desc}.", kind: "textarea" },
+  { key: "MSG_WAIT_QR_EN", label: "EN đang tạo QR", placeholder: "⏳ Creating payment QR...", help: "Bản English của MSG_WAIT_QR." },
+  { key: "MSG_QR_ERROR_EN", label: "EN lỗi QR", placeholder: "❌ Payment gateway error.", help: "Bản English của MSG_QR_ERROR." },
+  { key: "ALERT_NOT_PAID_EN", label: "EN chưa nhận tiền", placeholder: "⏳ Payment has not been received yet.", help: "Bản English của ALERT_NOT_PAID." },
+  { key: "ALERT_PAID_SUCCESS_EN", label: "EN thanh toán thành công", placeholder: "✅ Payment received.", help: "Bản English của ALERT_PAID_SUCCESS." },
 ];
 
 const ADMIN_FIELDS: ConfigField[] = [
@@ -1059,7 +1102,7 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...LANGUAGE_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
       nextValues[field.key] = getConfigValue(config, field.key);
     });
     setFieldValues(nextValues);
@@ -1765,6 +1808,7 @@ export default function Home() {
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
                 <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
+                <button className={contentTab === "language" ? "active" : ""} onClick={() => setContentTab("language")}>Ngôn ngữ</button>
                 <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
                 <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
                 <button className={contentTab === "commands" ? "active" : ""} onClick={() => setContentTab("commands")}>Lệnh bot</button>
@@ -1777,6 +1821,7 @@ export default function Home() {
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
+            {contentTab === "language" ? <ConfigEditor title="Ngôn ngữ Bot UI" subtitle="Mặc định tiếng Việt. User có thể bấm nút English trên welcome/main menu để đổi ngôn ngữ riêng theo tài khoản." fields={LANGUAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(LANGUAGE_FIELDS)} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
             {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
             {contentTab === "commands" ? <ConfigEditor title="Lệnh Telegram" subtitle="Mô tả các lệnh hiển thị trong menu command của Telegram." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_FIELDS)} /> : null}

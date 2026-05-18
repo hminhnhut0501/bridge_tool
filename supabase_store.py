@@ -237,6 +237,31 @@ class SupabaseStore:
             prefer="resolution=merge-duplicates,return=representation",
         )
 
+    def get_user_preference(self, telegram_user_id):
+        rows = self._request(
+            "GET",
+            "user_preferences",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{_clean_text(telegram_user_id)}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def upsert_user_preference(self, telegram_user_id, language):
+        payload = {
+            "telegram_user_id": _clean_text(telegram_user_id),
+            "language": _clean_text(language).lower() or "vi",
+        }
+        return self._request(
+            "POST",
+            "user_preferences",
+            params={"on_conflict": "telegram_user_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
     def delete_config(self, key):
         return self._request(
             "DELETE",

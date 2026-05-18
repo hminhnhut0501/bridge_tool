@@ -33,6 +33,12 @@ create table if not exists public.bot_config (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.user_preferences (
+  telegram_user_id text primary key,
+  language text not null default 'vi',
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.menu_pages (
   page_id text primary key,
   image_url text,
@@ -142,6 +148,11 @@ create trigger touch_bot_config_updated_at
 before update on public.bot_config
 for each row execute function public.touch_updated_at();
 
+drop trigger if exists touch_user_preferences_updated_at on public.user_preferences;
+create trigger touch_user_preferences_updated_at
+before update on public.user_preferences
+for each row execute function public.touch_updated_at();
+
 drop trigger if exists touch_menu_pages_updated_at on public.menu_pages;
 create trigger touch_menu_pages_updated_at
 before update on public.menu_pages
@@ -164,6 +175,7 @@ for each row execute function public.touch_updated_at();
 
 alter table public.orders enable row level security;
 alter table public.bot_config enable row level security;
+alter table public.user_preferences enable row level security;
 alter table public.menu_pages enable row level security;
 alter table public.sale_rules enable row level security;
 alter table public.coupons enable row level security;
@@ -182,6 +194,13 @@ with check (true);
 drop policy if exists "service_role_full_access_bot_config" on public.bot_config;
 create policy "service_role_full_access_bot_config"
 on public.bot_config for all
+to service_role
+using (true)
+with check (true);
+
+drop policy if exists "service_role_full_access_user_preferences" on public.user_preferences;
+create policy "service_role_full_access_user_preferences"
+on public.user_preferences for all
 to service_role
 using (true)
 with check (true);

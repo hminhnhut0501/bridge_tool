@@ -2,6 +2,7 @@ from aiogram.types import ChatPermissions, InlineKeyboardButton
 
 from bot_instance import bot
 from database import db
+from i18n import t
 from supabase_store import supabase_store
 
 
@@ -84,12 +85,13 @@ async def add_support_join_button(keyboard_builder, user_id):
     link, error = await create_support_invite_link(user_id)
     if link:
         keyboard_builder.row(InlineKeyboardButton(
-            text=db.get_config("SUPPORT_GROUP_BUTTON_TEXT", "💬 Join nhóm hỗ trợ"),
+            text=t(user_id, "SUPPORT_GROUP_BUTTON_TEXT", "💬 Join nhóm hỗ trợ"),
             url=link,
         ))
         return ""
     if error:
-        return f"\n💬 <b>{escape_html(support_group_name())}</b>: <i>Không tạo được link hỗ trợ ({escape_html(error)})</i>\n"
+        template = t(user_id, "MSG_SUPPORT_LINK_ERROR", "\n💬 <b>{group}</b>: <i>Không tạo được link hỗ trợ ({error})</i>\n")
+        return template.replace("{group}", escape_html(support_group_name())).replace("{error}", escape_html(error))
     return ""
 
 

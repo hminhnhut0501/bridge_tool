@@ -8,6 +8,7 @@ from database import db
 from bot_instance import bot
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
+from i18n import get_user_language, language_switch_target, language_switch_text, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
@@ -90,6 +91,11 @@ async def send_sale_announcement(message: Message):
         "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 1 Tháng => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
     ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
+    if reply_markup and str(db.get_config("BOT_LANGUAGE_SWITCH_ENABLED", "ON")).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}:
+        lang = get_user_language(message.from_user.id)
+        reply_markup.inline_keyboard.append([
+            InlineKeyboardButton(text=language_switch_text(lang), callback_data=f"set_lang|{language_switch_target(lang)}")
+        ])
 
     try:
         if img and len(img) > 10:
@@ -116,6 +122,15 @@ async def back_to_main(callback: CallbackQuery):
     if not await check_protection(callback): return
     await render_page(callback, "main_menu")
 
+@router.callback_query(F.data.startswith("set_lang|"))
+async def change_language(callback: CallbackQuery):
+    if not await check_protection(callback):
+        return
+    _, lang = callback.data.split("|", 1)
+    lang = set_user_language(callback.from_user.id, lang)
+    await callback.answer(t(callback.from_user.id, "ALERT_LANGUAGE_CHANGED", "Language updated." if lang == "en" else "Đã đổi ngôn ngữ."), show_alert=False)
+    await render_page(callback, "main_menu")
+
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("policy"))
 @router.callback_query(F.data == "policy")
@@ -138,13 +153,13 @@ async def view_policy(event):
         print(f"❌ Lỗi render policy_page: {e}")
 
     try:
-        text = db.get_config("MSG_POLICY", "Chính sách đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+        text = t(event.from_user.id, "MSG_POLICY", "Chính sách đang cập nhật...")
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
     except Exception as e:
         print(f"❌ Lỗi fallback /policy: {e}")
         if isinstance(event, CallbackQuery):
-            await event.answer(db.get_config("ALERT_POLICY_UNAVAILABLE", "Không thể mở trang quy định lúc này."), show_alert=True)
+            await event.answer(t(event.from_user.id, "ALERT_POLICY_UNAVAILABLE", "Không thể mở trang quy định lúc này."), show_alert=True)
 
 # [5] TRANG HỖ TRỢ (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
 @router.message(Command("support"))
@@ -167,13 +182,13 @@ async def view_support(event):
         print(f"❌ Lỗi render support_page: {e}")
 
     try:
-        text = db.get_config("MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+        text = t(event.from_user.id, "MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
     except Exception as e:
         print(f"❌ Lỗi fallback /support: {e}")
         if isinstance(event, CallbackQuery):
-            await event.answer(db.get_config("ALERT_SUPPORT_UNAVAILABLE", "Không thể mở trang hỗ trợ lúc này."), show_alert=True)
+            await event.answer(t(event.from_user.id, "ALERT_SUPPORT_UNAVAILABLE", "Không thể mở trang hỗ trợ lúc này."), show_alert=True)
 
 # [6] TRANG THÔNG TIN TÀI KHOẢN (/ME)
 @router.message(Command("me"))
@@ -194,14 +209,14 @@ async def cmd_me(event):
         all_data = db.users_sheet.get_all_values()
         my_plans = [row for row in all_data if len(row) > 7 and str(row[1]) == user_id and row[5] == "PAID"]
     
-    text = db.get_config("MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
+    text = t(event.from_user.id, "MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
     if not my_plans: 
-        text += db.get_config("MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
+        text += t(event.from_user.id, "MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
     else:
         for p in my_plans: 
-            text += db.get_config("MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", str(p[7]))
+            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", str(p[7]))
             
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     
     await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME", ""))
 
