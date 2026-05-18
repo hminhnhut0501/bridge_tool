@@ -24,3 +24,5 @@ on public.support_events for all
 to service_role
 using (true)
 with check (true);
+
+notify pgrst, 'reload schema';

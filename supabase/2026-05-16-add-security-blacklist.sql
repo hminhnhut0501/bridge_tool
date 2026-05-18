@@ -1,3 +1,11 @@
+create or replace function public.touch_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
 create table if not exists public.security_blacklist (
   id uuid primary key default gen_random_uuid(),
   telegram_user_id text not null unique,
@@ -27,3 +35,5 @@ on public.security_blacklist for all
 to service_role
 using (true)
 with check (true);
+
+notify pgrst, 'reload schema';

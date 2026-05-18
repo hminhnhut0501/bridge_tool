@@ -1,3 +1,11 @@
+create or replace function public.touch_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
 create table if not exists public.user_preferences (
   telegram_user_id text primary key,
   language text not null default 'vi',
@@ -17,3 +25,5 @@ on public.user_preferences for all
 to service_role
 using (true)
 with check (true);
+
+notify pgrst, 'reload schema';
