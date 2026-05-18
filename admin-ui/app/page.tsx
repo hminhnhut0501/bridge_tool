@@ -30,6 +30,7 @@ import {
   SupportEvent,
   UserRow,
   WebhookInfo,
+  checkSupportGroup,
   createCoupon,
   deleteConfig,
   deleteBlacklist,
@@ -51,6 +52,7 @@ import {
   updateOrderStatus,
   upsertBlacklist,
   upsertSaleRule,
+  type SupportGroupCheck,
 } from "@/lib/api";
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
@@ -1102,6 +1104,7 @@ export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
+  const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1260,6 +1263,18 @@ export default function Home() {
     await runAction("menu", async () => {
       await updateMenuPage(savedSecret, menuForm.page_id, menuForm);
       await loadAll();
+    });
+  }
+
+  async function runSupportGroupCheck() {
+    await runAction("support-check", async () => {
+      const res = await checkSupportGroup(savedSecret);
+      setSupportCheck(res.data);
+      if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
+        showNotice("ok", "Group hỗ trợ tạo link OK.");
+      } else {
+        showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
+      }
     });
   }
 
@@ -1797,6 +1812,26 @@ export default function Home() {
               setValues={setFieldValues}
               onSave={() => saveFields(SUPPORT_FIELDS)}
             />
+            <section className="panel">
+              <PanelHead
+                title="Kiểm tra link support"
+                subtitle="Test trực tiếp với Telegram để biết sai group ID, bot chưa vào group, hay thiếu quyền tạo link."
+                action={<button className="btn" onClick={runSupportGroupCheck} disabled={saving === "support-check"}>{saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra</button>}
+              />
+              {supportCheck ? (
+                <SimpleTable
+                  headers={["Hạng mục", "Trạng thái", "Chi tiết"]}
+                  rows={[
+                    ["Cấu hình", supportCheck.enabled ? "ON" : "OFF", `${supportCheck.group_name || "-"} / ${supportCheck.group_id || "chưa có ID"}`],
+                    ["Telegram getChat", supportCheck.get_chat.ok ? "OK" : "Lỗi", supportCheck.get_chat.message || "-"],
+                    ["Bot trong group", supportCheck.bot_member.ok ? "OK" : "Lỗi", supportCheck.bot_member.message || "-"],
+                    ["Tạo link mời", supportCheck.invite_link.ok ? "OK" : "Lỗi", supportCheck.invite_link.message || "-"],
+                  ]}
+                />
+              ) : (
+                <div className="muted">Bấm kiểm tra sau khi lưu Support group ID.</div>
+              )}
+            </section>
             <section className="panel">
               <PanelHead title="Sự kiện support hôm nay" subtitle="Ai vừa join group hỗ trợ, ai bị mute hoặc bị kick hôm nay." />
               <SimpleTable

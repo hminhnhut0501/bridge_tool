@@ -17,6 +17,28 @@ def normalize_chat_id(value):
     return raw
 
 
+def mask_chat_id(value):
+    raw = normalize_chat_id(value)
+    if len(raw) <= 8:
+        return raw
+    return f"{raw[:5]}...{raw[-4:]}"
+
+
+def explain_support_invite_error(error, gid):
+    err = str(error or "")
+    lower = err.lower()
+    if "chat not found" in lower:
+        return (
+            f"{err}. Kiểm tra SUPPORT_GROUP_ID={mask_chat_id(gid)}: phải là chat_id thật của group/supergroup "
+            "dạng -100..., bot phải đang ở trong đúng group hỗ trợ."
+        )
+    if "not enough rights" in lower or "administrator" in lower or "can't invite" in lower:
+        return (
+            f"{err}. Bot cần được đặt làm admin trong group hỗ trợ và có quyền tạo link mời/thêm thành viên."
+        )
+    return err
+
+
 def support_group_enabled():
     return str(db.get_config("SUPPORT_GROUP_ENABLED", "OFF")).strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
@@ -78,7 +100,8 @@ async def create_support_invite_link(user_id):
         )
         return invite.invite_link, ""
     except Exception as exc:
-        return None, str(exc)
+        print(f"⚠️ Không tạo được support invite link group={mask_chat_id(gid)} user={user_id}: {exc}")
+        return None, explain_support_invite_error(exc, gid)
 
 
 async def add_support_join_button(keyboard_builder, user_id):

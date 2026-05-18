@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from bot_instance import bot, dp, set_commands
 from database import db
 from supabase_store import supabase_store
+from support_utils import explain_support_invite_error, mask_chat_id, support_group_enabled, support_group_id, support_group_name
 
 load_dotenv()
 
@@ -301,3 +302,53 @@ async def admin_support_events(limit: int = 500):
     except Exception as exc:
         print(f"⚠️ Không đọc được support_events: {exc}")
         return {"data": []}
+
+
+@app.get("/admin-api/support-group-check", dependencies=[Depends(require_admin)])
+async def admin_support_group_check():
+    db.reload_config(force=True)
+    gid = support_group_id()
+    result = {
+        "enabled": support_group_enabled(),
+        "group_id": mask_chat_id(gid),
+        "group_name": support_group_name(),
+        "get_chat": {"ok": False, "message": ""},
+        "bot_member": {"ok": False, "message": ""},
+        "invite_link": {"ok": False, "message": ""},
+    }
+    if not gid:
+        result["get_chat"]["message"] = "SUPPORT_GROUP_ID đang trống."
+        return {"data": result}
+
+    try:
+        chat = await bot.get_chat(gid)
+        result["get_chat"] = {
+            "ok": True,
+            "message": f"{getattr(chat, 'type', '')}: {getattr(chat, 'title', '') or getattr(chat, 'username', '') or gid}",
+        }
+    except Exception as exc:
+        result["get_chat"]["message"] = explain_support_invite_error(exc, gid)
+        return {"data": result}
+
+    try:
+        me = await bot.get_me()
+        member = await bot.get_chat_member(gid, me.id)
+        result["bot_member"] = {"ok": True, "message": str(getattr(member, "status", ""))}
+    except Exception as exc:
+        result["bot_member"]["message"] = explain_support_invite_error(exc, gid)
+
+    try:
+        invite = await bot.create_chat_invite_link(
+            chat_id=gid,
+            member_limit=1,
+            creates_join_request=False,
+            name="support-dashboard-check",
+        )
+        result["invite_link"] = {"ok": True, "message": "Tạo link OK"}
+        try:
+            await bot.revoke_chat_invite_link(gid, invite.invite_link)
+        except Exception as revoke_exc:
+            print(f"⚠️ Không revoke được support diagnostic invite {mask_chat_id(gid)}: {revoke_exc}")
+    except Exception as exc:
+        result["invite_link"]["message"] = explain_support_invite_error(exc, gid)
+    return {"data": result}

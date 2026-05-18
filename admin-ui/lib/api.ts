@@ -87,6 +87,15 @@ export type SupportEvent = {
   created_at: string;
 };
 
+export type SupportGroupCheck = {
+  enabled: boolean;
+  group_id: string;
+  group_name: string;
+  get_chat: { ok: boolean; message: string };
+  bot_member: { ok: boolean; message: string };
+  invite_link: { ok: boolean; message: string };
+};
+
 export type WebhookInfo = {
   url: string;
   has_custom_certificate: boolean;
@@ -220,6 +229,10 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
 
 export async function getSupportEvents(secret: string) {
   return request<{ data: SupportEvent[] }>("/admin-api/support-events", secret);
+}
+
+export async function checkSupportGroup(secret: string) {
+  return request<{ data: SupportGroupCheck }>("/admin-api/support-group-check", secret);
 }
 
 export async function getWebhookInfo(secret: string) {
