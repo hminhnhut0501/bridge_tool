@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import secrets
 import string
 import time
@@ -32,6 +33,7 @@ REDEMPTIONS_SHEET = "CouponRedemptions"
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 SELECT_GROUP_1M = "SELECT_GROUP_1M"
 SELECT_GROUP_LIFE = "SELECT_GROUP_LIFE"
+PLACEHOLDER_RE = re.compile(r"\{\s*([a-zA-Z0-9_]+)\s*\}")
 
 COUPON_HEADERS = [
     "Code",
@@ -88,6 +90,16 @@ def safe_int(value, default=0):
 
 def normalize_code(value):
     return normalize_key(value).upper().replace(" ", "")
+
+
+def render_named_template(template, values):
+    normalized = {str(key).strip().lower(): str(value) for key, value in (values or {}).items()}
+
+    def replace(match):
+        key = match.group(1).strip().lower()
+        return normalized.get(key, match.group(0))
+
+    return PLACEHOLDER_RE.sub(replace, str(template or "")).strip()
 
 
 def truthy(value):
@@ -409,19 +421,15 @@ def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="",
     days = str(safe_int((coupon or {}).get("Duration_Days"), 30))
     label = duration_label(coupon, user_id)
     plan_name = fallback_plan_name or resolve_plan_name(plan_key)
-    values = {
-        "{group}": group_name,
-        "{group_name}": group_name,
-        "{duration_label}": label,
-        "{duration}": label,
-        "{days}": days,
-        "{plan}": plan_name,
-        "{plan_name}": plan_name,
-    }
-    rendered = str(template or "")
-    for key, value in values.items():
-        rendered = rendered.replace(key, str(value))
-    return rendered.strip()
+    return render_named_template(template, {
+        "group": group_name,
+        "group_name": group_name,
+        "duration_label": label,
+        "duration": label,
+        "days": days,
+        "plan": plan_name,
+        "plan_name": plan_name,
+    })
 
 
 def activation_coupon_plan_name(plan_key, coupon, user_id=None):
@@ -462,6 +470,7 @@ def build_discount_coupon_keyboard(code, coupon, user_id=None):
 
 
 async def send_discount_coupon_options(message: Message, code, coupon):
+    percent = str(coupon_discount_percent(coupon))
     text = t(
         message.from_user.id,
         "MSG_COUPON_DISCOUNT_OPTIONS",
@@ -470,7 +479,12 @@ async def send_discount_coupon_options(message: Message, code, coupon):
         "Giảm: <b>{percent}%</b>\\n\\n"
         "Chọn gói muốn mua bên dưới, bot sẽ tạo QR đã trừ giảm giá.",
     ).replace("\\n", "\n")
-    text = text.replace("{code}", escape_html(code)).replace("{percent}", str(coupon_discount_percent(coupon)))
+    text = render_named_template(text, {
+        "code": escape_html(code),
+        "percent": percent,
+        "discount": percent,
+        "discount_percent": percent,
+    })
     await message.answer(text, reply_markup=build_discount_coupon_keyboard(code, coupon, message.from_user.id), parse_mode="HTML")
 
 
@@ -498,13 +512,13 @@ async def send_activation_group_options(message: Message, code, coupon):
         "Thời hạn: <b>{days} ngày</b>\\n\\n"
         "Chọn group bạn muốn kích hoạt bên dưới.",
     ).replace("\\n", "\n")
-    text = (
-        text
-        .replace("{code}", escape_html(code))
-        .replace("{days}", str(safe_int(coupon.get("Duration_Days"), 30)))
-        .replace("{duration_label}", escape_html(duration_label(coupon, message.from_user.id)))
-        .replace("{duration}", escape_html(duration_label(coupon, message.from_user.id)))
-    )
+    duration = escape_html(duration_label(coupon, message.from_user.id))
+    text = render_named_template(text, {
+        "code": escape_html(code),
+        "days": str(safe_int(coupon.get("Duration_Days"), 30)),
+        "duration_label": duration,
+        "duration": duration,
+    })
     await message.answer(text, reply_markup=build_activation_group_keyboard(code, coupon, message.from_user.id), parse_mode="HTML")
 
 
@@ -704,13 +718,14 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
         "Hạn dùng đến: <b>{expire}</b>\\n\\n"
         "Link tham gia của bạn:\\n{links}",
     ).replace("\\n", "\n")
-    text = (
-        template
-        .replace("{code}", escape_html(code))
-        .replace("{plan}", escape_html(plan_name))
-        .replace("{expire}", expire_text)
-        .replace("{links}", links_msg)
-    )
+    text = render_named_template(template, {
+        "code": escape_html(code),
+        "plan": escape_html(plan_name),
+        "plan_name": escape_html(plan_name),
+        "expire": expire_text,
+        "expire_at": expire_text,
+        "links": links_msg,
+    })
     kb = InlineKeyboardBuilder()
     support_error = await add_support_join_button(kb, user.id)
     if support_error:
