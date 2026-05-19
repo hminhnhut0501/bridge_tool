@@ -12,7 +12,7 @@ from bot_instance import bot
 from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
-from i18n import t
+from i18n import get_user_language, t
 from modules.mod_engine import render_page
 from sale_utils import format_price_label, get_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
@@ -101,14 +101,18 @@ def buy_data_from_plan_key(plan_key):
     return ""
 
 
-def resolve_purchase_offer(data):
+def config_text(user_id, key, default=""):
+    return t(user_id, key, default) if user_id else db.get_config(key, default)
+
+
+def resolve_purchase_offer(data, user_id=None):
     sale_info = None
     original_amount = None
     price_key = ""
     data = data.replace("confirm_", "buy_")
 
     if "upsell_full" in data:
-        plan_name = db.get_config("PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
+        plan_name = config_text(user_id, "PLAN_UPSELL_FULL", "SVIP+ Lifetime (Upgrade)" if get_user_language(user_id) == "en" else "SVIP+ Trọn Đời (Nâng cấp)")
         price_life, sale_life = get_price("PRICE_SVIP_LIFE", "999")
         price_1m, sale_1m = get_price("PRICE_SVIP_30D", "999")
         amount = max(0, price_life - price_1m)
@@ -116,7 +120,7 @@ def resolve_purchase_offer(data):
         original_amount = max(0, safe_int(db.get_config("PRICE_SVIP_LIFE", "999")) - safe_int(db.get_config("PRICE_SVIP_30D", "999")))
     elif "upsell_G" in data:
         num = data.split("_")[1][1:]
-        plan_name = f"{db.get_config('PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {db.get_config(f'BTN_G{num}', f'Nhóm {num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_UPSELL_G', 'VIP Lifetime (Upgrade)' if get_user_language(user_id) == 'en' else 'VIP Trọn Đời (Nâng cấp)')} - {config_text(user_id, f'BTN_G{num}', f'Group {num}' if get_user_language(user_id) == 'en' else f'Nhóm {num}')}"
         price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", "149000")
         price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", "50000")
         amount = max(0, price_life - price_1m)
@@ -124,14 +128,14 @@ def resolve_purchase_offer(data):
         original_amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
     elif "full" in data:
         is_1m = "1m" in data
-        plan_name = db.get_config("PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ Full Nhóm")
+        plan_name = config_text(user_id, "PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ All Groups")
         price_key = "PRICE_SVIP_30D" if is_1m else "PRICE_SVIP_LIFE"
         amount, sale_info = get_price(price_key, "999")
         original_amount = safe_int(db.get_config(price_key, "999"))
     else:
         parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
-        plan_name = f"{db.get_config('PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {db.get_config(f'BTN_G{num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {config_text(user_id, f'BTN_G{num}', f'Group {num}' if get_user_language(user_id) == 'en' else f'Nhóm {num}')}"
         price_key = f"PRICE_G{num}_{type_p}"
         amount, sale_info = get_price(price_key, "50000")
         original_amount = safe_int(db.get_config(price_key, "50000"))
@@ -155,6 +159,34 @@ def sale_caption(sale_info, original_amount, amount):
     if sale_info["countdown"]:
         text += f"\n⏳ Sale còn: {sale_info['countdown']}"
     return text
+
+
+def english_vietqr_payment_enabled():
+    return str(db.get_config("EN_VIETQR_PAYMENT_ENABLED", "OFF")).strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+async def block_english_vietqr_if_needed(callback):
+    if get_user_language(callback.from_user.id) != "en" or english_vietqr_payment_enabled():
+        return False
+
+    text = t(
+        callback.from_user.id,
+        "MSG_EN_VIETQR_UNAVAILABLE",
+        "<b>VietQR payment is currently supported only for Vietnam bank transfers.</b>\\n\\n"
+        "Please switch to Vietnamese to pay by VietQR, or contact admin to pay by PayPal or crypto.",
+    ).replace("\\n", "\n")
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(
+        text=t(callback.from_user.id, "BTN_SWITCH_TO_VIETNAMESE", "🇻🇳 Switch to Vietnamese"),
+        callback_data="set_lang|vi",
+    ))
+    kb.row(InlineKeyboardButton(
+        text=t(callback.from_user.id, "BTN_CONTACT_ADMIN_PAYMENT", "Contact admin"),
+        callback_data="nav:support_page",
+    ))
+    await callback.message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    await callback.answer()
+    return True
 
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
     raw_bin = str(pay_data.get('bin', ''))
@@ -186,6 +218,7 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
 @router.callback_query(F.data.startswith("renew_"))
 async def process_early_renew(callback: CallbackQuery):
     if not await check_protection(callback): return
+    if await block_english_vietqr_if_needed(callback): return
 
     if not is_early_renew_enabled():
         await callback.answer(t(callback.from_user.id, "ALERT_EARLY_RENEW_OFF", "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường."), show_alert=True)
@@ -269,7 +302,7 @@ async def view_group_detail(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     num = callback.data.split("_")[1]
-    desc = db.get_config(f"DESC_G{num}", "Đang cập nhật...").replace("\\n", "\n")
+    desc = t(callback.from_user.id, f"DESC_G{num}", "Updating..." if get_user_language(callback.from_user.id) == "en" else "Đang cập nhật...").replace("\\n", "\n")
     desc += sale_text_for_price(f"PRICE_G{num}_1M", "50000")
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000")
     
@@ -296,7 +329,7 @@ async def show_svip_page(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     img_url = db.get_config("IMG_SVIP_PAGE", "https://via.placeholder.com/800x450.png?text=SVIP+PRO")
-    description = db.get_config("TXT_SVIP_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
+    description = t(callback.from_user.id, "TXT_SVIP_DESCRIPTION", "🔥 <b>ALL-IN SVIP+ ACCESS</b> 🔥\n\n✅ Access all private groups.\n✅ New content updated daily.\n✅ Priority support.\n\n👇 <i>Choose a plan below:</i>" if get_user_language(callback.from_user.id) == "en" else "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
     description += sale_text_for_price("PRICE_SVIP_LIFE", "3000")
     description += sale_text_for_price("PRICE_SVIP_30D", "2000")
     
@@ -319,6 +352,7 @@ async def show_svip_page(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("confirm_") | F.data.startswith("buy_") | F.data.startswith("upsell_"))
 async def process_buy_request(callback: CallbackQuery):
     if not await check_protection(callback): return
+    if await block_english_vietqr_if_needed(callback): return
     
     # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
     user_id = callback.from_user.id
@@ -330,7 +364,7 @@ async def process_buy_request(callback: CallbackQuery):
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    offer = resolve_purchase_offer(callback.data)
+    offer = resolve_purchase_offer(callback.data, callback.from_user.id)
     plan_name = offer["plan_name"]
     amount = offer["amount"]
     sale_info = offer["sale_info"]
@@ -367,6 +401,8 @@ async def process_buy_request(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("couponbuy|"))
 async def process_coupon_buy_request(callback: CallbackQuery):
     if not await check_protection(callback):
+        return
+    if await block_english_vietqr_if_needed(callback):
         return
 
     try:
@@ -406,7 +442,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
         return
 
-    offer = resolve_purchase_offer(buy_data)
+    offer = resolve_purchase_offer(buy_data, callback.from_user.id)
     percent = coupon_discount_percent(coupon)
     before_coupon = offer["amount"]
     discount_amount = int(round(before_coupon * percent / 100))

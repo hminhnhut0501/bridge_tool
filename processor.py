@@ -10,6 +10,7 @@ from bot_instance import bot
 from payment import payos_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, unmute_member
+from i18n import t
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -115,13 +116,14 @@ async def expire_pending_payment(order_code, user_id):
         supabase_store.expire_pending_order(order_code)
         await delete_payment_message(order)
 
-    msg_timeout = db.get_config(
+    msg_timeout = t(
+        user_id,
         "MSG_TIMEOUT_QR",
         "⏳ Mã QR đã hết hạn sau {minutes} phút. Vui lòng tạo đơn mới để thanh toán.",
     ).replace("\\n", "\n")
     qr_ttl_seconds = parse_int_config("QR_TTL_SECONDS", 300)
     msg_timeout = msg_timeout.replace("{minutes}", str(max(1, qr_ttl_seconds // 60)))
-    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     try:
         await bot.send_message(chat_id=user_id, text=msg_timeout, reply_markup=kb_timeout.as_markup(), parse_mode="HTML")
     except Exception:
@@ -233,7 +235,7 @@ async def process_successful_payment(order_code: str):
             db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])
 
         # Gửi tin nhắn thành công
-        msg_template = db.get_config("MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
+        msg_template = t(user_id, "MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
         final_msg = msg_template.replace("{plan}", escape_html(plan_name)).replace("{date}", expire_date).replace("{links}", links_msg)
         
         # Tạo nút điều hướng về UI chính bằng cơ chế mới
@@ -241,7 +243,7 @@ async def process_successful_payment(order_code: str):
         support_error = await add_support_join_button(kb, user_id)
         if support_error:
             final_msg += support_error
-        kb.row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
 
         try:
             await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)

@@ -458,6 +458,11 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Liên hệ hỗ trợ Admin", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_START_EN", label: "EN /start", placeholder: "Home / Buy plan", help: "Mô tả lệnh Telegram khi app/user dùng English." },
+  { key: "BOT_COMMAND_DESC_ME_EN", label: "EN /me", placeholder: "Check memberships & expiry", help: "Mô tả lệnh Telegram khi app/user dùng English." },
+  { key: "BOT_COMMAND_DESC_COUPON_EN", label: "EN /coupon", placeholder: "Enter discount / activation code", help: "Chỉ hiện khi bật lệnh /coupon." },
+  { key: "BOT_COMMAND_DESC_SUPPORT_EN", label: "EN /support", placeholder: "Contact admin support", help: "Mô tả lệnh Telegram khi app/user dùng English." },
+  { key: "BOT_COMMAND_DESC_POLICY_EN", label: "EN /policy", placeholder: "Read group rules", help: "Mô tả lệnh Telegram khi app/user dùng English." },
 ];
 
 const LANGUAGE_FIELDS: ConfigField[] = [
@@ -487,6 +492,26 @@ const LANGUAGE_FIELDS: ConfigField[] = [
   { key: "BTN_LANGUAGE_SWITCH_TO_VI", label: "Nút chuyển Tiếng Việt", placeholder: "🇻🇳 Tiếng Việt", help: "Hiện khi user đang dùng English." },
   { key: "ALERT_LANGUAGE_CHANGED_EN", label: "Alert đổi sang English", placeholder: "Language updated.", help: "Tin ngắn sau khi chọn English." },
   { key: "ALERT_LANGUAGE_CHANGED_VI", label: "Alert đổi sang Tiếng Việt", placeholder: "Đã đổi ngôn ngữ.", help: "Tin ngắn sau khi chọn Tiếng Việt." },
+  {
+    key: "EN_VIETQR_PAYMENT_ENABLED",
+    label: "Cho English user thanh toán VietQR",
+    placeholder: "OFF",
+    help: "OFF: user đang dùng English bấm mua sẽ thấy cảnh báo VietQR chỉ hỗ trợ chuyển khoản Việt Nam và gợi ý PayPal/crypto.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
+    key: "MSG_EN_VIETQR_UNAVAILABLE",
+    label: "EN chặn thanh toán VietQR",
+    placeholder: "<b>VietQR payment is currently supported only for Vietnam bank transfers.</b>\\n\\nPlease switch to Vietnamese to pay by VietQR, or contact admin to pay by PayPal or crypto.",
+    help: "Hiện khi EN_VIETQR_PAYMENT_ENABLED=OFF và user English bấm mua.",
+    kind: "textarea",
+  },
+  { key: "BTN_SWITCH_TO_VIETNAMESE", label: "EN nút chuyển VI để thanh toán", placeholder: "🇻🇳 Switch to Vietnamese", help: "Nút trong cảnh báo VietQR cho English user." },
+  { key: "BTN_CONTACT_ADMIN_PAYMENT", label: "EN nút liên hệ admin thanh toán", placeholder: "Contact admin", help: "Nút dẫn tới support_page trong cảnh báo PayPal/crypto." },
   { key: "BTN_BACK_EN", label: "EN nút quay lại", placeholder: "Back to menu", help: "Bản English của BTN_BACK." },
   { key: "BTN_CHECK_PAYMENT_EN", label: "EN nút đã thanh toán", placeholder: "I have paid", help: "Bản English của BTN_CHECK_PAYMENT." },
   { key: "BTN_CANCEL_ORDER_EN", label: "EN nút hủy đơn", placeholder: "Cancel", help: "Bản English của BTN_CANCEL_ORDER." },
@@ -917,10 +942,17 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
 const PLAN_FIELDS: ConfigField[] = [
   { key: "PLAN_FULL_1M", label: "Tên gói SVIP 1 tháng", placeholder: "SVIP+ 1 THÁNG", help: "Tên gói hiển thị khi khách mua SVIP 1 tháng." },
   { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
+  { key: "PLAN_FULL_1M_EN", label: "EN tên SVIP 30 ngày", placeholder: "SVIP+ 30 days", help: "Tên gói khi user dùng English." },
+  { key: "PLAN_FULL_LIFE_EN", label: "EN tên SVIP trọn đời", placeholder: "SVIP+ Lifetime", help: "Tên gói khi user dùng English." },
+  { key: "PLAN_G_1M_EN", label: "EN tiền tố gói group 30 ngày", placeholder: "VIP 30 days", help: "Dùng cho gói lẻ/coupon chọn group." },
+  { key: "PLAN_G_LIFE_EN", label: "EN tiền tố gói group trọn đời", placeholder: "VIP lifetime", help: "Dùng cho gói lẻ/coupon chọn group." },
+  { key: "TXT_SVIP_DESCRIPTION_EN", label: "EN mô tả trang SVIP", placeholder: "🔥 <b>ALL-IN SVIP+ ACCESS</b> 🔥\\n\\n✅ Access all private groups.\\n✅ New content updated daily.\\n\\n👇 <i>Choose a plan below:</i>", help: "Bản English của TXT_SVIP_DESCRIPTION.", kind: "textarea" },
   { key: "PRICE_SVIP_30D", label: "Giá SVIP 1 tháng", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 1 tháng", placeholder: "MUA 1 THÁNG", help: "Text nút trong bot." },
   { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
+  { key: "BTN_BUY_SVIP_30D_EN", label: "EN nút mua SVIP 30 ngày", placeholder: "BUY 30 DAYS", help: "Text nút trong bot khi user dùng English." },
+  { key: "BTN_BUY_SVIP_LIFE_EN", label: "EN nút mua SVIP trọn đời", placeholder: "BUY LIFETIME", help: "Text nút trong bot khi user dùng English." },
 ];
 
 const PRICE_KEY_OPTIONS = [
@@ -1088,7 +1120,7 @@ function hasAnyGroupConfig(config: ConfigRow[], groupNo: number) {
 }
 
 function groupConfigKeys(groupNo: string) {
-  return [`BTN_G${groupNo}`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `DESC_G${groupNo}`, `IMG_G${groupNo}`];
+  return [`BTN_G${groupNo}`, `BTN_G${groupNo}_EN`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `DESC_G${groupNo}`, `DESC_G${groupNo}_EN`, `IMG_G${groupNo}`];
 }
 
 export default function Home() {
@@ -1116,6 +1148,7 @@ export default function Home() {
   const [orderPage, setOrderPage] = useState(1);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
+  const [groupNameEn, setGroupNameEn] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groupPrice1m, setGroupPrice1m] = useState("");
   const [groupPriceLife, setGroupPriceLife] = useState("");
@@ -1217,10 +1250,11 @@ export default function Home() {
   }
 
   function resetGroupForm(nextGroupNo?: string) {
-    const used = new Set(config.filter((item) => item.key.startsWith("BTN_G")).map((item) => item.key.replace("BTN_G", "")));
+    const used = new Set(config.filter((item) => /^BTN_G\d+$/.test(item.key)).map((item) => item.key.replace("BTN_G", "")));
     const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
     setGroupNo(nextGroupNo || firstEmpty);
     setGroupName("");
+    setGroupNameEn("");
     setGroupId("");
     setGroupPrice1m("");
     setGroupPriceLife("");
@@ -1229,6 +1263,7 @@ export default function Home() {
   function fillGroupForm(nextGroupNo: string) {
     setGroupNo(nextGroupNo);
     setGroupName(getConfigValue(config, `BTN_G${nextGroupNo}`));
+    setGroupNameEn(getConfigValue(config, `BTN_G${nextGroupNo}_EN`));
     setGroupId(getConfigValue(config, `ID_G${nextGroupNo}`));
     setGroupPrice1m(getConfigValue(config, `PRICE_G${nextGroupNo}_1M`));
     setGroupPriceLife(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE`));
@@ -1237,10 +1272,12 @@ export default function Home() {
   async function saveGroupConfig() {
     await runAction("group", async () => {
       await updateConfig(savedSecret, `BTN_G${groupNo}`, groupName);
+      await updateConfig(savedSecret, `BTN_G${groupNo}_EN`, groupNameEn);
       await updateConfig(savedSecret, `ID_G${groupNo}`, groupId);
       await updateConfig(savedSecret, `PRICE_G${groupNo}_1M`, groupPrice1m);
       await updateConfig(savedSecret, `PRICE_G${groupNo}_LIFE`, groupPriceLife);
       setGroupName("");
+      setGroupNameEn("");
       setGroupId("");
       setGroupPrice1m("");
       setGroupPriceLife("");
@@ -1673,6 +1710,7 @@ export default function Home() {
                   <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown, không cần nhớ mã kỹ thuật.</small>
                 </label>
                 <label className="field"><span>Tên nhóm hiển thị</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Nhóm 1 Privé+"} /></label>
+                <label className="field"><span>EN tên nhóm</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
                 <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
                 <label className="field"><span>Giá 1 tháng</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
                 <label className="field"><span>Giá trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
@@ -1906,10 +1944,10 @@ export default function Home() {
                   }
                 />
                 <div className="form-grid two">
-                  <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder="VD: main_menu, support_page, policy_page" /></label>
+                  <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder="VD: main_menu, main_menu_en, support_page_en" /><small>Tạo thêm bản `_en` như `main_menu_en`, `policy_page_en`, `support_page_en` để user English thấy menu tiếng Anh.</small></label>
                   <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
                   <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
-                  <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /></label>
+                  <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nBuy SVIP => buy_full_1m | Support => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}; khi user English bot sẽ ưu tiên cấu hình {"{BTN_BUY_SVIP_30D_EN}"}.</small></label>
                 </div>
                 <SimpleTable
                   headers={["Trang", "Nội dung", "Nút"]}

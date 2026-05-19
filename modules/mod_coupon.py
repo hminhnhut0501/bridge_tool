@@ -380,31 +380,36 @@ def validate_coupon(item, user_id):
     return True, ""
 
 
-def resolve_plan_name(plan_key):
+def localized_config(user_id, key, default=""):
+    return t(user_id, key, default) if user_id else db.get_config(key, default)
+
+
+def resolve_plan_name(plan_key, user_id=None):
     raw = str(plan_key or "").strip()
     key = raw.upper()
+    english = get_user_language(user_id) == "en"
 
     plan_map = {
-        "FULL_1M": db.get_config("PLAN_FULL_1M", "SVIP+ 1 THÁNG"),
-        "FULL_LIFE": db.get_config("PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
-        "SVIP_1M": db.get_config("PLAN_FULL_1M", "SVIP+ 1 THÁNG"),
-        "SVIP_LIFE": db.get_config("PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
-        SELECT_GROUP_1M: "Khách tự chọn group lẻ - 1 tháng",
-        SELECT_GROUP_LIFE: "Khách tự chọn group lẻ - trọn đời",
+        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 1 THÁNG"),
+        "FULL_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
+        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 1 THÁNG"),
+        "SVIP_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
+        SELECT_GROUP_1M: "Customer selects a group - 30 days" if english else "Khách tự chọn group lẻ - 1 tháng",
+        SELECT_GROUP_LIFE: "Customer selects a group - lifetime" if english else "Khách tự chọn group lẻ - trọn đời",
     }
     if key in plan_map:
         return plan_map[key]
 
     for group_no in group_numbers():
         if key == f"G{group_no}_1M":
-            return f"{db.get_config('PLAN_G_1M', 'Gói 1 tháng')} - {db.get_config(f'BTN_G{group_no}', f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 days' if english else 'Gói 1 tháng')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
         if key == f"G{group_no}_LIFE":
-            return f"{db.get_config('PLAN_G_LIFE', 'Gói trọn đời')} - {db.get_config(f'BTN_G{group_no}', f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_G_LIFE', 'VIP lifetime' if english else 'Gói trọn đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
 
     return raw.replace("_", " ")
 
 
-def group_name_from_plan_key(plan_key):
+def group_name_from_plan_key(plan_key, user_id=None):
     key = normalize_plan_key(plan_key)
     match = None
     if key.startswith("G") and key.endswith("_1M"):
@@ -413,14 +418,15 @@ def group_name_from_plan_key(plan_key):
         match = key[1:-5]
     if not match:
         return ""
-    return db.get_config(f"BTN_G{match}", f"Nhóm {match}")
+    english = get_user_language(user_id) == "en"
+    return localized_config(user_id, f"BTN_G{match}", f"Group {match}" if english else f"Nhóm {match}")
 
 
 def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="", user_id=None):
-    group_name = group_name_from_plan_key(plan_key)
+    group_name = group_name_from_plan_key(plan_key, user_id)
     days = str(safe_int((coupon or {}).get("Duration_Days"), 30))
     label = duration_label(coupon, user_id)
-    plan_name = fallback_plan_name or resolve_plan_name(plan_key)
+    plan_name = fallback_plan_name or resolve_plan_name(plan_key, user_id)
     return render_named_template(template, {
         "group": group_name,
         "group_name": group_name,
@@ -433,7 +439,7 @@ def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="",
 
 
 def activation_coupon_plan_name(plan_key, coupon, user_id=None):
-    purchase_plan_name = resolve_plan_name(plan_key)
+    purchase_plan_name = resolve_plan_name(plan_key, user_id)
     template = (
         (coupon or {}).get("Plan_Name_Template")
         or (coupon or {}).get("Activation_Plan_Template")
@@ -453,7 +459,7 @@ def activation_coupon_button_label(plan_key, coupon, user_id=None):
 
 
 def discount_plan_label(plan_key, user_id=None):
-    return resolve_plan_name(plan_key)
+    return resolve_plan_name(plan_key, user_id)
 
 
 def build_discount_coupon_keyboard(code, coupon, user_id=None):

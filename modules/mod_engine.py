@@ -18,7 +18,7 @@ def format_currency(amount):
     except:
         return f"{amount}Đ"
 
-def process_dynamic_text(text):
+def process_dynamic_text(text, language=None):
     """Hàm quét và thay thế biến {KEY} thành giá trị thật từ tab Config"""
     # Tìm tất cả các chữ nằm trong ngoặc nhọn, VD: {PRICE_SVIP_LIFE}
     matches = re.findall(r'\{([A-Z0-9_]+)\}', text)
@@ -31,7 +31,7 @@ def process_dynamic_text(text):
         elif key.startswith("SALE_"):
             val = process_sale_placeholder(key)
         else:
-            val = db.get_config(key, "???")
+            val = t_for_lang(language, key, "???") if language else db.get_config(key, "???")
             # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
             if "PRICE" in key and val != "???":
                 val = format_currency(val)
@@ -90,7 +90,7 @@ def append_language_switch(kb_markup, language):
     ])
     return kb_markup
 
-def build_dynamic_keyboard(layout_str):
+def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
     kb = InlineKeyboardBuilder()
     lines = layout_str.strip().split('\n')
@@ -106,7 +106,7 @@ def build_dynamic_keyboard(layout_str):
             raw_text, action = btn.split('=>', 1)
             
             # 🔥 Dịch các biến {PRICE...} trong Tên Nút
-            final_text = process_dynamic_text(raw_text.strip())
+            final_text = process_dynamic_text(raw_text.strip(), language)
             action = action.strip()
             if not menu_action_enabled(action):
                 continue
@@ -169,9 +169,9 @@ async def render_page(target, page_id):
 
     # 🔥 Dịch các biến {PRICE...} trong Nội dung bài viết
     raw_text = page['text'].replace('\\n', '\n')
-    text = process_dynamic_text(raw_text)
+    text = process_dynamic_text(raw_text, language)
     
-    kb_markup = build_dynamic_keyboard(page['layout'])
+    kb_markup = build_dynamic_keyboard(page['layout'], language)
     if requested_page_id == "main_menu":
         kb_markup = append_language_switch(kb_markup, language)
     img_url = page['img']
@@ -203,9 +203,10 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
         return False
 
     text_key, default_text, img_key = fallback
-    text = db.get_config(text_key, default_text).replace("\\n", "\n")
+    language = get_user_language(callback.from_user.id)
+    text = t_for_lang(language, text_key, default_text).replace("\\n", "\n")
     img_url = db.get_config(img_key, "")
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t_for_lang(language, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
 
     await safe_delete_private_message(callback.message)
 
@@ -219,8 +220,11 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
 @router.callback_query(F.data.startswith("nav:"))
 async def handle_navigation(callback: CallbackQuery):
     page_id = normalize_key(callback.data.split("nav:", 1)[1])
-    if not page_exists(page_id):
+    language = get_user_language(callback.from_user.id)
+    localized_page = localize_page_id(page_id, language)
+    if not page_exists(page_id) and not page_exists(localized_page):
         db.reload_config(force=True)
-    if not page_exists(page_id) and await render_static_fallback(callback, page_id):
+        localized_page = localize_page_id(page_id, language)
+    if not page_exists(page_id) and not page_exists(localized_page) and await render_static_fallback(callback, page_id):
         return
     await render_page(callback, page_id)
