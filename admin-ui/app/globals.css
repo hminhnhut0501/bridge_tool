@@ -414,6 +414,26 @@ tbody tr:hover {
   accent-color: var(--accent);
 }
 
+.coupon-code-copy {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 0;
+  text-align: left;
+}
+
+.coupon-code-copy:hover {
+  text-decoration: underline;
+}
+
+.coupon-code-copy:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .icon-danger {
   align-items: center;
   background: #fff1f0;

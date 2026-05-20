@@ -1484,6 +1484,28 @@ export default function Home() {
     });
   }
 
+  async function copyCouponAndMarkSent(coupon: Coupon) {
+    setSaving(`coupon-copy-${coupon.code}`);
+    setNotice(null);
+    try {
+      await navigator.clipboard.writeText(coupon.code);
+      if (!isCouponSent(coupon)) {
+        await createCoupon(savedSecret, {
+          ...(coupon.raw_data || {}),
+          Code: coupon.code,
+          Sent_Status: "SENT",
+          Sent_At: new Date().toISOString(),
+        });
+        await loadAll();
+      }
+      showNotice("ok", `Đã copy ${coupon.code} và đánh dấu đã gửi.`);
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không copy được mã coupon.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function saveBlacklistEntry() {
     await runAction("blacklist", async () => {
       const telegramId = blacklistForm.telegram_user_id.trim();
@@ -2098,7 +2120,17 @@ export default function Home() {
             <SimpleTable
               headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Tối đa"]}
               rows={visibleCoupons.map((item) => [
-                item.code,
+                <button
+                  className="coupon-code-copy"
+                  disabled={saving === `coupon-copy-${item.code}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyCouponAndMarkSent(item);
+                  }}
+                  title="Copy mã và đánh dấu đã gửi"
+                >
+                  {item.code}
+                </button>,
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : planOptionLabel(item.raw_data?.Plan_Name || item.plan_name || "-"),
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? `${item.raw_data?.Discount_Percent || 0}%` : "-",
@@ -2382,7 +2414,7 @@ function Pagination({ page, totalPages, totalItems, onPage }: { page: number; to
   );
 }
 
-function SimpleTable({ headers, rows, onRow, actions }: { headers: string[]; rows: string[][]; onRow?: (index: number) => void; actions?: (index: number) => ReactNode }) {
+function SimpleTable({ headers, rows, onRow, actions }: { headers: string[]; rows: ReactNode[][]; onRow?: (index: number) => void; actions?: (index: number) => ReactNode }) {
   return (
     <div className="table-wrap">
       <table>
