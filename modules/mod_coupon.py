@@ -5,6 +5,7 @@ import secrets
 import string
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -76,7 +77,19 @@ class CouponState(StatesGroup):
 
 
 def now_text():
-    return datetime.now().strftime(TIME_FMT)
+    return now_local().strftime(TIME_FMT)
+
+
+def bot_timezone():
+    timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def now_local():
+    return datetime.now(bot_timezone()).replace(tzinfo=None)
 
 
 def safe_int(value, default=0):
@@ -84,6 +97,9 @@ def safe_int(value, default=0):
         raw = str(value or "").strip().replace(",", ".")
         if not raw:
             return default
+        match = re.search(r"-?\d+(?:\.\d+)?", raw)
+        if match:
+            raw = match.group(0)
         return int(float(raw))
     except Exception:
         return default
@@ -360,7 +376,7 @@ def validate_coupon_base(item, user_id):
     if not truthy(item.get("Enabled", "ON")):
         return False, t(user_id, "ALERT_COUPON_DISABLED", "Mã này đang tắt, vui lòng kiểm tra lại mã khác.")
 
-    now = datetime.now()
+    now = now_local()
     valid_from = parse_expire_datetime(item.get("Valid_From"))
     valid_until = parse_expire_datetime(item.get("Valid_Until"))
     if valid_from and now < valid_from:
@@ -466,6 +482,10 @@ def activation_coupon_plan_name(plan_key, coupon, user_id=None):
         or (coupon or {}).get("Activation_Plan_Template")
         or t(user_id, "COUPON_ACTIVATION_PLAN_TEMPLATE", "VIP {duration_label} - {group}")
     )
+    template_text = str(template or "")
+    label = duration_label(coupon, user_id, plan_key)
+    if "{duration" not in template_text.lower() and "{days" not in template_text.lower() and label.lower() not in template_text.lower():
+        template = "VIP {duration_label} - {group}"
     return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=purchase_plan_name, user_id=user_id) or purchase_plan_name
 
 
@@ -654,17 +674,14 @@ async def redeem_coupon_locked(message: Message, code):
 
 async def redeem_activation_coupon(message: Message, user, code, coupon, coupons_sheet, headers, row_index, selected_plan_key=None):
     plan_key = selected_plan_key or coupon.get("Plan_Name")
-    if selected_plan_key and is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-        plan_name = activation_coupon_plan_name(plan_key, coupon, user_id=user.id)
-    else:
-        plan_name = resolve_plan_name(plan_key)
+    plan_name = activation_coupon_plan_name(plan_key, coupon, user_id=user.id)
     duration_days = coupon_duration_days(coupon, plan_key)
     if supabase_store.enabled:
         paid_orders = supabase_store.list_paid_orders_for_user(user.id, limit=200)
-        base_date = find_current_expire_from_orders(paid_orders, user.id, plan_name) or datetime.now()
+        base_date = find_current_expire_from_orders(paid_orders, user.id, plan_name) or now_local()
     else:
         users_data = db.users_sheet.get_all_values()
-        base_date = find_current_expire(users_data, user.id, plan_name) or datetime.now()
+        base_date = find_current_expire(users_data, user.id, plan_name) or now_local()
     expire_at = base_date + timedelta(days=duration_days)
     expire_text = expire_at.strftime(TIME_FMT)
 
@@ -974,7 +991,7 @@ def cleanup_coupon_sheets():
         normalize_code(item.get("Code")): item
         for _, item in coupon_rows
     }
-    now = datetime.now()
+    now = now_local()
     active_or_retained_codes = set()
     redemption_rows_to_delete = []
 

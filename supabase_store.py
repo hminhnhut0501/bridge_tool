@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -25,7 +26,11 @@ def _parse_datetime(value):
         return None
 
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).isoformat()
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            return parsed.isoformat()
+        timezone = _bot_timezone()
+        return parsed.replace(tzinfo=timezone).isoformat()
     except ValueError:
         pass
 
@@ -39,10 +44,22 @@ def _parse_datetime(value):
     )
     for fmt in formats:
         try:
-            return datetime.strptime(raw, fmt).isoformat()
+            return datetime.strptime(raw, fmt).replace(tzinfo=_bot_timezone()).isoformat()
         except ValueError:
             continue
     return None
+
+
+def _bot_timezone():
+    timezone_name = os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _now_local_text():
+    return datetime.now(_bot_timezone()).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class SupabaseStore:
@@ -535,7 +552,7 @@ class SupabaseStore:
 
         raw = dict(coupon.get("raw_data") or {})
         used_count = _parse_int(raw.get("Used_Count") or coupon.get("used_count"), 0) + 1
-        used_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        used_at = _now_local_text()
         raw.update({
             "Used_Count": str(used_count),
             "Last_Used_At": used_at,

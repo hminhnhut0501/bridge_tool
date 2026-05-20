@@ -1,6 +1,7 @@
 import asyncio
 import math
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -15,6 +16,18 @@ from i18n import t
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
 
+
+def bot_timezone():
+    timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def now_local():
+    return datetime.now(bot_timezone()).replace(tzinfo=None)
+
 # Hàm lọc ký tự đặc biệt chống sập định dạng HTML
 def escape_html(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -27,7 +40,7 @@ def parse_expire_datetime(value):
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if parsed.tzinfo:
-            parsed = parsed.astimezone().replace(tzinfo=None)
+            parsed = parsed.astimezone(bot_timezone()).replace(tzinfo=None)
         return parsed
     except ValueError:
         pass
@@ -60,7 +73,7 @@ def parse_int_config(key, default):
         return default
 
 def find_current_expire(users_data, user_id, plan_name):
-    now = datetime.now()
+    now = now_local()
     best_expire = None
     target_plan = plan_name.upper()
     for row in users_data[1:]:
@@ -79,7 +92,7 @@ def find_current_expire(users_data, user_id, plan_name):
     return best_expire
 
 def find_current_expire_from_orders(orders, user_id, plan_name):
-    now = datetime.now()
+    now = now_local()
     best_expire = None
     target_plan = plan_name.upper()
     for order in orders:
@@ -178,9 +191,9 @@ async def process_successful_payment(order_code: str):
         is_lifetime = is_lifetime_plan(plan_name)
         days_to_add = 3650 if is_lifetime else 30
         if supabase_store.enabled:
-            base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or datetime.now()
+            base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or now_local()
         else:
-            base_date = find_current_expire(users_data, user_id, plan_name) or datetime.now()
+            base_date = find_current_expire(users_data, user_id, plan_name) or now_local()
         expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
@@ -222,7 +235,7 @@ async def process_successful_payment(order_code: str):
                 links_msg += f"👉 <b>{escape_html(gname)}</b>: <i>❌ Lỗi tạo link ({e})</i>\n\n"
 
         # Cập nhật trạng thái đơn
-        paid_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        paid_at = now_local().strftime("%Y-%m-%d %H:%M:%S")
         if supabase_store.enabled:
             supabase_store.mark_order_paid(target_code, paid_at=paid_at, expire_at=expire_date)
             if order.get("coupon_code"):

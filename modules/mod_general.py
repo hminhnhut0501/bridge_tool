@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
@@ -34,7 +35,12 @@ def format_membership_expire(value, user_id=None):
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if parsed.tzinfo:
-            parsed = parsed.replace(tzinfo=None)
+            timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+            try:
+                timezone = ZoneInfo(timezone_name)
+            except Exception:
+                timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+            parsed = parsed.astimezone(timezone).replace(tzinfo=None)
     except ValueError:
         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
             try:

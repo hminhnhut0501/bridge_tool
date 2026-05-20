@@ -36,7 +36,12 @@ def parse_expire_datetime(value):
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if parsed.tzinfo:
-            parsed = parsed.astimezone().replace(tzinfo=None)
+            timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+            try:
+                timezone = ZoneInfo(timezone_name)
+            except Exception:
+                timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+            parsed = parsed.astimezone(timezone).replace(tzinfo=None)
         return parsed
     except ValueError:
         pass
@@ -291,7 +296,7 @@ async def main():
         await check_expirations_professional()
         
         # Cuối ngày dọn dẹp RAM xóa các record của ngày hôm trước
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = now_local().strftime("%Y-%m-%d")
         to_remove = [k for k in notified_users if not k.endswith(today_str)]
         for k in to_remove: notified_users.remove(k)
             
