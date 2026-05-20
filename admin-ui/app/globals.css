@@ -390,7 +390,28 @@ tbody tr:hover {
 }
 
 .table-action {
-  width: 92px;
+  width: 132px;
+}
+
+.coupon-row-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sent-toggle {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.sent-toggle input {
+  accent-color: var(--accent);
 }
 
 .icon-danger {

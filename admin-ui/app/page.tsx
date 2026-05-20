@@ -1001,6 +1001,12 @@ function isLifetimeCouponPlan(planName: string) {
   return key === "FULL_LIFE" || key === "SVIP_LIFE" || key === "SELECT_GROUP_LIFE" || key.endsWith("_LIFE");
 }
 
+function isCouponSent(coupon: Coupon) {
+  const raw = coupon.raw_data || {};
+  const status = String(raw.Sent_Status || raw.Sent || raw.Is_Sent || "").trim().toUpperCase();
+  return status === "SENT" || status === "YES" || status === "TRUE" || status === "1" || status === "ON";
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
@@ -1434,7 +1440,13 @@ export default function Home() {
 
   const usedCoupons = useMemo(() => coupons.filter((item) => item.max_uses && item.used_count >= item.max_uses), [coupons]);
   const [showUsedCoupons, setShowUsedCoupons] = useState(true);
-  const visibleCoupons = useMemo(() => showUsedCoupons ? coupons : coupons.filter((item) => !(item.max_uses && item.used_count >= item.max_uses)), [coupons, showUsedCoupons]);
+  const [showSentCoupons, setShowSentCoupons] = useState(true);
+  const sentCoupons = useMemo(() => coupons.filter((item) => isCouponSent(item)), [coupons]);
+  const visibleCoupons = useMemo(() => coupons.filter((item) => {
+    if (!showUsedCoupons && item.max_uses && item.used_count >= item.max_uses) return false;
+    if (!showSentCoupons && isCouponSent(item)) return false;
+    return true;
+  }), [coupons, showUsedCoupons, showSentCoupons]);
 
   async function removeCoupon(code = couponForm.Code) {
     if (!code || !window.confirm(`Xoá coupon "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
@@ -1456,6 +1468,18 @@ export default function Home() {
         await deleteCoupon(savedSecret, coupon.code);
       }
       resetCouponForm();
+      await loadAll();
+    });
+  }
+
+  async function toggleCouponSent(coupon: Coupon, sent: boolean) {
+    await runAction(`coupon-sent-${coupon.code}`, async () => {
+      await createCoupon(savedSecret, {
+        ...(coupon.raw_data || {}),
+        Code: coupon.code,
+        Sent_Status: sent ? "SENT" : "",
+        Sent_At: sent ? new Date().toISOString() : "",
+      });
       await loadAll();
     });
   }
@@ -2021,6 +2045,7 @@ export default function Home() {
                   <input className="mini-input" value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" title="Số lượng mã cần gen cùng điều kiện" />
                   <button className="btn secondary" onClick={generateManyCoupons}><RefreshCw size={16} /> Gen nhiều</button>
                   <button className="btn secondary" onClick={() => setShowUsedCoupons(!showUsedCoupons)}>{showUsedCoupons ? "Ẩn đã dùng" : "Hiện đã dùng"}</button>
+                  <button className="btn secondary" onClick={() => setShowSentCoupons(!showSentCoupons)}>{showSentCoupons ? `Ẩn đã gửi (${sentCoupons.length})` : `Hiện đã gửi (${sentCoupons.length})`}</button>
                   <button className="btn danger" onClick={removeUsedCoupons} disabled={!usedCoupons.length}><Trash2 size={16} /> Xoá đã dùng</button>
                   <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
                   <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
@@ -2071,13 +2096,14 @@ export default function Home() {
               </div>
             ) : null}
             <SimpleTable
-              headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã dùng", "Tối đa"]}
+              headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Tối đa"]}
               rows={visibleCoupons.map((item) => [
                 item.code,
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : planOptionLabel(item.raw_data?.Plan_Name || item.plan_name || "-"),
                 item.raw_data?.Coupon_Type === "DISCOUNT" ? `${item.raw_data?.Discount_Percent || 0}%` : "-",
                 item.status,
+                isCouponSent(item) ? `Đã gửi${item.raw_data?.Sent_At ? ` • ${dateText(item.raw_data.Sent_At)}` : ""}` : "Chưa gửi",
                 String(item.used_count),
                 String(item.max_uses || "-"),
               ])}
@@ -2099,9 +2125,24 @@ export default function Home() {
                 });
               }}
               actions={(idx) => (
-                <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(visibleCoupons[idx].code); }} title="Xoá coupon">
-                  <Trash2 size={16} />
-                </button>
+                <div className="coupon-row-actions">
+                  <label className="sent-toggle" title="Đánh dấu đã gửi coupon">
+                    <input
+                      type="checkbox"
+                      checked={isCouponSent(visibleCoupons[idx])}
+                      disabled={saving === `coupon-sent-${visibleCoupons[idx].code}`}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        toggleCouponSent(visibleCoupons[idx], event.target.checked);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                    <span>Gửi</span>
+                  </label>
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(visibleCoupons[idx].code); }} title="Xoá coupon">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               )}
             />
           </section>
