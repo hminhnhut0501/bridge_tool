@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -15,6 +16,28 @@ from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 
 router = Router()
+
+def format_membership_expire(value, user_id=None):
+    raw = str(value or "").strip()
+    if not raw:
+        return "-"
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            parsed = parsed.replace(tzinfo=None)
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+            try:
+                parsed = datetime.strptime(raw, fmt)
+                break
+            except ValueError:
+                parsed = None
+        if not parsed:
+            return raw.replace("T", " ").replace("+00:00", "")
+
+    if get_user_language(user_id) == "en":
+        return parsed.strftime("%Y-%m-%d %H:%M")
+    return parsed.strftime("%d/%m/%Y %H:%M")
 
 def order_to_me_item(order):
     return [
@@ -214,7 +237,8 @@ async def cmd_me(event):
         text += t(event.from_user.id, "MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
     else:
         for p in my_plans: 
-            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", str(p[7]))
+            expire_text = format_membership_expire(p[7], event.from_user.id)
+            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", expire_text)
             
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     
