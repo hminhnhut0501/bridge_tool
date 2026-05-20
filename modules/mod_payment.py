@@ -307,7 +307,7 @@ async def view_group_detail(callback: CallbackQuery):
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000")
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 1 THÁNG')} • {format_price_label(f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 30 NGÀY')} • {format_price_label(f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_price_label(f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang SVIP Page
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
@@ -334,7 +334,7 @@ async def show_svip_page(callback: CallbackQuery):
     description += sale_text_for_price("PRICE_SVIP_30D", "2000")
     
     btn_life_text = t(callback.from_user.id, "BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
-    btn_30d_text = t(callback.from_user.id, "BTN_BUY_SVIP_30D", "💎 MUA 1 THÁNG")
+    btn_30d_text = t(callback.from_user.id, "BTN_BUY_SVIP_30D", "💎 MUA 30 NGÀY")
     
     btn_back_text = t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại")
 

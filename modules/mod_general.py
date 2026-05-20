@@ -121,7 +121,7 @@ async def send_sale_announcement(message: Message):
     img = str(db.get_config("IMG_SALE_BANNER", "")).strip()
     layout = db.get_config(
         "SALE_ANNOUNCE_BUTTONS",
-        "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 1 Tháng => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
+        "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
     ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
     if reply_markup and str(db.get_config("BOT_LANGUAGE_SWITCH_ENABLED", "ON")).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}:

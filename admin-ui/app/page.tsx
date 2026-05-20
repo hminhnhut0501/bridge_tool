@@ -868,7 +868,7 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_CHECK_PAYMENT", label: "Nút đã chuyển khoản", placeholder: "🔄 Đã chuyển khoản", help: "Nút dưới QR để khách check thủ công." },
   { key: "BTN_CANCEL_ORDER", label: "Nút hủy đơn", placeholder: "❌ Hủy", help: "Nút dưới QR để hủy đơn pending." },
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
-  { key: "BTN_BUY_1M", label: "Nút mua nhóm 1 tháng", placeholder: "💎 VIP 1 THÁNG", help: "Nút trên trang chi tiết nhóm." },
+  { key: "BTN_BUY_1M", label: "Nút mua nhóm 30 ngày", placeholder: "💎 VIP 30 NGÀY", help: "Nút trên trang chi tiết nhóm." },
   { key: "BTN_BUY_LIFE", label: "Nút mua nhóm trọn đời", placeholder: "👑 VIP TRỌN ĐỜI", help: "Nút trên trang chi tiết nhóm." },
   { key: "BTN_VIEW_SVIP_PAGE", label: "Nút xem SVIP", placeholder: "🌟 XEM GÓI SVIP+", help: "Nút từ nhóm riêng sang trang SVIP." },
   { key: "BTN_RENEW", label: "Nút gia hạn", placeholder: "🔄 Gia hạn ngay", help: "Nút khi gói hết hạn." },
@@ -933,23 +933,23 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
   {
     key: "SALE_ANNOUNCE_BUTTONS",
     label: "Nút dưới thông báo flash sale",
-    placeholder: "🔥 Mua SVIP Trọn Đời => buy_full_life\\n💎 Mua SVIP 1 Tháng => buy_full_1m",
+    placeholder: "🔥 Mua SVIP Trọn Đời => buy_full_life\\n💎 Mua SVIP 30 Ngày => buy_full_1m",
     help: "Mỗi dòng là một nút. Dùng cú pháp Text => callback.",
     kind: "textarea",
   },
 ];
 
 const PLAN_FIELDS: ConfigField[] = [
-  { key: "PLAN_FULL_1M", label: "Tên gói SVIP 1 tháng", placeholder: "SVIP+ 1 THÁNG", help: "Tên gói hiển thị khi khách mua SVIP 1 tháng." },
+  { key: "PLAN_FULL_1M", label: "Tên gói SVIP 30 ngày", placeholder: "SVIP+ 30 Ngày", help: "Tên gói hiển thị khi khách mua SVIP 30 ngày." },
   { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
   { key: "PLAN_FULL_1M_EN", label: "EN tên SVIP 30 ngày", placeholder: "SVIP+ 30 days", help: "Tên gói khi user dùng English." },
   { key: "PLAN_FULL_LIFE_EN", label: "EN tên SVIP trọn đời", placeholder: "SVIP+ Lifetime", help: "Tên gói khi user dùng English." },
   { key: "PLAN_G_1M_EN", label: "EN tiền tố gói group 30 ngày", placeholder: "VIP 30 days", help: "Dùng cho gói lẻ/coupon chọn group." },
   { key: "PLAN_G_LIFE_EN", label: "EN tiền tố gói group trọn đời", placeholder: "VIP lifetime", help: "Dùng cho gói lẻ/coupon chọn group." },
   { key: "TXT_SVIP_DESCRIPTION_EN", label: "EN mô tả trang SVIP", placeholder: "🔥 <b>ALL-IN SVIP+ ACCESS</b> 🔥\\n\\n✅ Access all private groups.\\n✅ New content updated daily.\\n\\n👇 <i>Choose a plan below:</i>", help: "Bản English của TXT_SVIP_DESCRIPTION.", kind: "textarea" },
-  { key: "PRICE_SVIP_30D", label: "Giá SVIP 1 tháng", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_SVIP_30D", label: "Giá SVIP 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
-  { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 1 tháng", placeholder: "MUA 1 THÁNG", help: "Text nút trong bot." },
+  { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
   { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
   { key: "BTN_BUY_SVIP_30D_EN", label: "EN nút mua SVIP 30 ngày", placeholder: "BUY 30 DAYS", help: "Text nút trong bot khi user dùng English." },
   { key: "BTN_BUY_SVIP_LIFE_EN", label: "EN nút mua SVIP trọn đời", placeholder: "BUY LIFETIME", help: "Text nút trong bot khi user dùng English." },
@@ -1538,23 +1538,23 @@ export default function Home() {
   }, [query, orderStatus, orderPeriod, orderGroupMode]);
 
   function planOptionLabel(value: string) {
-    if (value === "FULL_1M") return "SVIP chung - 1 tháng";
+    if (value === "FULL_1M") return "SVIP chung - 30 ngày";
     if (value === "FULL_LIFE") return "SVIP chung - trọn đời";
-    if (value === "SELECT_GROUP_1M") return "Khách tự chọn group lẻ - 1 tháng";
+    if (value === "SELECT_GROUP_1M") return "Khách tự chọn group lẻ - 30 ngày";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn group lẻ - trọn đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "1 tháng" : "trọn đời"}`;
+    return `${name} - ${match[2] === "1M" ? "30 ngày" : "trọn đời"}`;
   }
 
   function priceOptionLabel(value: string) {
-    if (value === "PRICE_SVIP_30D") return "Giá SVIP chung - 1 tháng";
+    if (value === "PRICE_SVIP_30D") return "Giá SVIP chung - 30 ngày";
     if (value === "PRICE_SVIP_LIFE") return "Giá SVIP chung - trọn đời";
     const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "giá 1 tháng" : "giá trọn đời"}`;
+    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : "giá trọn đời"}`;
   }
 
   function appliesLabel(value: string | undefined) {
@@ -1712,7 +1712,7 @@ export default function Home() {
                 <label className="field"><span>Tên nhóm hiển thị</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Nhóm 1 Privé+"} /></label>
                 <label className="field"><span>EN tên nhóm</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
                 <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
-                <label className="field"><span>Giá 1 tháng</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
+                <label className="field"><span>Giá 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
                 <label className="field"><span>Giá trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
               </div>
               <div className="hint">

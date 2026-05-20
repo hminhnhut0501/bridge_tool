@@ -390,11 +390,11 @@ def resolve_plan_name(plan_key, user_id=None):
     english = get_user_language(user_id) == "en"
 
     plan_map = {
-        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 1 THÁNG"),
+        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 30 Ngày"),
         "FULL_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
-        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 1 THÁNG"),
+        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 30 Ngày"),
         "SVIP_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
-        SELECT_GROUP_1M: "Customer selects a group - 30 days" if english else "Khách tự chọn group lẻ - 1 tháng",
+        SELECT_GROUP_1M: "Customer selects a group - 30 days" if english else "Khách tự chọn group lẻ - 30 ngày",
         SELECT_GROUP_LIFE: "Customer selects a group - lifetime" if english else "Khách tự chọn group lẻ - trọn đời",
     }
     if key in plan_map:
@@ -402,7 +402,7 @@ def resolve_plan_name(plan_key, user_id=None):
 
     for group_no in group_numbers():
         if key == f"G{group_no}_1M":
-            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 days' if english else 'Gói 1 tháng')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 days' if english else 'VIP 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
         if key == f"G{group_no}_LIFE":
             return f"{localized_config(user_id, 'PLAN_G_LIFE', 'VIP lifetime' if english else 'Gói trọn đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
 
