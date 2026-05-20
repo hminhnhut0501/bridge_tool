@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import CommandStart, Command
@@ -16,6 +17,15 @@ from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 
 router = Router()
+
+async def safe_callback_answer(callback: CallbackQuery, text=None, show_alert=False):
+    try:
+        await callback.answer(text, show_alert=show_alert)
+    except TelegramBadRequest as exc:
+        if "query is too old" in str(exc).lower() or "query id is invalid" in str(exc).lower():
+            print(f"⚠️ Bỏ qua callback answer quá hạn: {exc}")
+            return
+        raise
 
 def format_membership_expire(value, user_id=None):
     raw = str(value or "").strip()
@@ -150,8 +160,12 @@ async def change_language(callback: CallbackQuery):
     if not await check_protection(callback):
         return
     _, lang = callback.data.split("|", 1)
+    await safe_callback_answer(
+        callback,
+        "Language updated." if lang == "en" else "Đã đổi ngôn ngữ.",
+        show_alert=False,
+    )
     lang = set_user_language(callback.from_user.id, lang)
-    await callback.answer(t(callback.from_user.id, "ALERT_LANGUAGE_CHANGED", "Language updated." if lang == "en" else "Đã đổi ngôn ngữ."), show_alert=False)
     await render_page(callback, "main_menu")
 
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)

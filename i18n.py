@@ -6,6 +6,15 @@ SUPPORTED_LANGUAGES = {"vi", "en"}
 _language_cache = {}
 
 
+def user_language_config_key(user_key):
+    return f"USER_LANGUAGE_{str(user_key or '').strip()}"
+
+
+def is_missing_user_preferences_error(exc):
+    text = str(exc)
+    return "user_preferences" in text and ("PGRST205" in text or "Could not find the table" in text)
+
+
 def normalize_language(value):
     lang = str(value or "").strip().lower()
     if lang in {"english", "eng", "gb", "us"}:
@@ -27,13 +36,19 @@ def get_user_language(user_id):
         return _language_cache[user_key]
 
     lang = default_language()
+    has_user_pref = False
     if supabase_store.enabled:
         try:
             pref = supabase_store.get_user_preference(user_key)
             if pref:
                 lang = normalize_language(pref.get("language") or lang)
+                has_user_pref = True
         except Exception as exc:
-            print(f"⚠️ Không đọc được language preference user {user_key}: {exc}")
+            if not is_missing_user_preferences_error(exc):
+                print(f"⚠️ Không đọc được language preference user {user_key}: {exc}")
+    fallback_lang = db.get_config(user_language_config_key(user_key), "") if not has_user_pref else ""
+    if fallback_lang:
+        lang = normalize_language(fallback_lang)
     _language_cache[user_key] = lang
     return lang
 
@@ -48,7 +63,12 @@ def set_user_language(user_id, language):
         try:
             supabase_store.upsert_user_preference(user_key, lang)
         except Exception as exc:
-            print(f"⚠️ Không lưu được language preference user {user_key}: {exc}")
+            if not is_missing_user_preferences_error(exc):
+                print(f"⚠️ Không lưu được language preference user {user_key}: {exc}")
+            try:
+                db.set_config(user_language_config_key(user_key), lang)
+            except Exception as config_exc:
+                print(f"⚠️ Không lưu được fallback language preference user {user_key}: {config_exc}")
     return lang
 
 

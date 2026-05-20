@@ -11,6 +11,15 @@ from sale_utils import format_price_label, sale_banner, sale_placeholder
 
 router = Router()
 
+async def safe_callback_answer(callback: CallbackQuery, text=None, show_alert=False):
+    try:
+        await callback.answer(text, show_alert=show_alert)
+    except TelegramBadRequest as exc:
+        if "query is too old" in str(exc).lower() or "query id is invalid" in str(exc).lower():
+            print(f"⚠️ Bỏ qua callback answer quá hạn: {exc}")
+            return
+        raise
+
 def format_currency(amount):
     """Định dạng tiền tệ VNĐ (VD: 3000 -> 3.000Đ)"""
     try:
@@ -162,7 +171,7 @@ async def render_page(target, page_id):
         err = t_for_lang(language, "MSG_MENU_PAGE_NOT_FOUND", "⚠️ LỖI: Không tìm thấy trang `{page_id}` trên tab MenuBuilder!").replace("{page_id}", requested_page_id)
         if isinstance(target, CallbackQuery):
             await target.message.answer(err)
-            await target.answer()
+            await safe_callback_answer(target)
         else:
             await target.answer(err)
         return False
@@ -183,7 +192,7 @@ async def render_page(target, page_id):
             await send_with_html_fallback(target.message, photo=img_url, text=text, reply_markup=kb_markup)
         else:
             await send_with_html_fallback(target.message, text=text, reply_markup=kb_markup)
-        await target.answer()
+        await safe_callback_answer(target)
         
     else:
         if img_url and len(str(img_url)) > 10:
@@ -214,7 +223,7 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
         await send_with_html_fallback(callback.message, photo=img_url, text=text, reply_markup=kb.as_markup())
     else:
         await send_with_html_fallback(callback.message, text=text, reply_markup=kb.as_markup())
-    await callback.answer()
+    await safe_callback_answer(callback)
     return True
 
 @router.callback_query(F.data.startswith("nav:"))
