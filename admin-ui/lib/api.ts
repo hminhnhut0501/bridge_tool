@@ -146,6 +146,13 @@ export async function updateConfig(secret: string, key: string, value: string) {
   });
 }
 
+export async function updateConfigs(secret: string, items: { key: string; value: string }[]) {
+  return request<{ data: ConfigRow[] }>("/admin-api/config", secret, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
 export async function deleteConfig(secret: string, key: string) {
   return request<{ data: ConfigRow[] }>(`/admin-api/config/${encodeURIComponent(key)}`, secret, {
     method: "DELETE",

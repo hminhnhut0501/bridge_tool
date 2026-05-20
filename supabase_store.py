@@ -237,6 +237,22 @@ class SupabaseStore:
             prefer="resolution=merge-duplicates,return=representation",
         )
 
+    def set_configs(self, items):
+        payload = [
+            {"key": _clean_text(item.get("key")).upper(), "value": str(item.get("value", ""))}
+            for item in (items or [])
+            if _clean_text(item.get("key"))
+        ]
+        if not payload:
+            return []
+        return self._request(
+            "POST",
+            "bot_config",
+            params={"on_conflict": "key"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
     def get_user_preference(self, telegram_user_id):
         rows = self._request(
             "GET",

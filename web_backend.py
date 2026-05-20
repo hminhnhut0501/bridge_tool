@@ -207,6 +207,24 @@ async def admin_set_config(key: str, request: Request):
     return {"data": data}
 
 
+@app.post("/admin-api/config", dependencies=[Depends(require_admin)])
+async def admin_set_config_batch(request: Request):
+    body = await request.json()
+    items = body.get("items", body if isinstance(body, list) else [])
+    data = supabase_store.set_configs(items)
+    command_changed = False
+    for item in items:
+        normalized_key = str(item.get("key", "")).strip().upper()
+        if not normalized_key:
+            continue
+        db.cache_config[normalized_key] = str(item.get("value", ""))
+        if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
+            command_changed = True
+    if command_changed:
+        await set_commands()
+    return {"data": data}
+
+
 @app.delete("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
 async def admin_delete_config(key: str):
     data = supabase_store.delete_config(key)

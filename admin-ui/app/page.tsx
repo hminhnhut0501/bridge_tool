@@ -48,6 +48,7 @@ import {
   getWebhookInfo,
   resetWebhook,
   updateConfig,
+  updateConfigs,
   updateMenuPage,
   updateOrderStatus,
   upsertBlacklist,
@@ -1242,9 +1243,7 @@ export default function Home() {
 
   async function saveFields(fields: ConfigField[]) {
     await runAction("fields", async () => {
-      for (const field of fields) {
-        await updateConfig(savedSecret, field.key, fieldValues[field.key] || "");
-      }
+      await updateConfigs(savedSecret, fields.map((field) => ({ key: field.key, value: fieldValues[field.key] || "" })));
       await loadAll();
     });
   }
@@ -1271,11 +1270,13 @@ export default function Home() {
 
   async function saveGroupConfig() {
     await runAction("group", async () => {
-      await updateConfig(savedSecret, `BTN_G${groupNo}`, groupName);
-      await updateConfig(savedSecret, `BTN_G${groupNo}_EN`, groupNameEn);
-      await updateConfig(savedSecret, `ID_G${groupNo}`, groupId);
-      await updateConfig(savedSecret, `PRICE_G${groupNo}_1M`, groupPrice1m);
-      await updateConfig(savedSecret, `PRICE_G${groupNo}_LIFE`, groupPriceLife);
+      await updateConfigs(savedSecret, [
+        { key: `BTN_G${groupNo}`, value: groupName },
+        { key: `BTN_G${groupNo}_EN`, value: groupNameEn },
+        { key: `ID_G${groupNo}`, value: groupId },
+        { key: `PRICE_G${groupNo}_1M`, value: groupPrice1m },
+        { key: `PRICE_G${groupNo}_LIFE`, value: groupPriceLife },
+      ]);
       setGroupName("");
       setGroupNameEn("");
       setGroupId("");
