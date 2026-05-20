@@ -480,10 +480,10 @@ class SupabaseStore:
         rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
         return rows[0] if rows else None
 
-    def create_coupon_from_sheet_row(self, raw):
+    def _coupon_payload_from_sheet_row(self, raw):
         code = _clean_text(raw.get("Code") or raw.get("code")).upper()
         if not code:
-            return []
+            return None
         canonical = dict(raw)
         canonical.setdefault("Code", code)
         canonical.setdefault("Enabled", raw.get("enabled") or raw.get("status") or "ON")
@@ -510,7 +510,19 @@ class SupabaseStore:
         valid_until = canonical.get("Valid_Until")
         if valid_until:
             payload["expires_at"] = _parse_datetime(valid_until) or valid_until
+        return payload
+
+    def create_coupon_from_sheet_row(self, raw):
+        payload = self._coupon_payload_from_sheet_row(raw)
+        if not payload:
+            return []
         return self.upsert_coupon(payload)
+
+    def create_coupons_from_sheet_rows(self, rows):
+        payloads = [payload for payload in (self._coupon_payload_from_sheet_row(row or {}) for row in rows or []) if payload]
+        if not payloads:
+            return []
+        return self.upsert_coupon(payloads)
 
     def consume_coupon_for_order(self, order):
         code = _clean_text((order or {}).get("coupon_code")).upper()

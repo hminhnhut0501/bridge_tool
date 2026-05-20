@@ -32,6 +32,7 @@ import {
   WebhookInfo,
   checkSupportGroup,
   createCoupon,
+  createCoupons,
   deleteConfig,
   deleteBlacklist,
   deleteCoupon,
@@ -985,7 +986,20 @@ const EMPTY_COUPON_FORM = {
   Enabled: "ON",
 };
 
+const DEFAULT_LIFETIME_DAYS = "36500";
+
 const ORDER_PAGE_SIZE = 25;
+
+function randomHangcuCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const suffix = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  return `HANGCU_${suffix}`;
+}
+
+function isLifetimeCouponPlan(planName: string) {
+  const key = String(planName || "").trim().toUpperCase().replace(/\s+/g, "");
+  return key === "FULL_LIFE" || key === "SVIP_LIFE" || key === "SELECT_GROUP_LIFE" || key.endsWith("_LIFE");
+}
 
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
@@ -1157,6 +1171,7 @@ export default function Home() {
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
+  const [couponBatchCount, setCouponBatchCount] = useState("10");
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
 
   useEffect(() => {
@@ -1349,28 +1364,34 @@ export default function Home() {
     });
   }
 
+  function normalizeCouponPayload(source: typeof EMPTY_COUPON_FORM, codeOverride?: string) {
+    const payload = { ...source, Code: (codeOverride || source.Code || randomHangcuCode()).trim().toUpperCase() };
+    if (payload.Code.length > 32) {
+      throw new Error("Mã coupon nên tối đa 32 ký tự để nút Telegram hoạt động ổn định.");
+    }
+    if (payload.Coupon_Type === "DISCOUNT") {
+      const percent = Number(payload.Discount_Percent || 0);
+      if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
+        throw new Error("Coupon giảm giá cần phần trăm từ 1 đến 99. Muốn miễn phí hãy dùng loại Kích hoạt miễn phí.");
+      }
+      return payload;
+    }
+
+    if (isLifetimeCouponPlan(payload.Plan_Name)) {
+      payload.Duration_Days = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
+      return payload;
+    }
+
+    const days = Number(payload.Duration_Days || 0);
+    if (!Number.isFinite(days) || days <= 0) {
+      throw new Error("Coupon kích hoạt theo ngày cần số ngày sử dụng lớn hơn 0.");
+    }
+    return payload;
+  }
+
   async function saveCoupon() {
     await runAction("coupon", async () => {
-      const payload = { ...couponForm };
-      if (!payload.Code) {
-        const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        const suffix = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
-        payload.Code = `HANGCU_${suffix}`;
-      }
-      if (payload.Code.length > 32) {
-        throw new Error("Mã coupon nên tối đa 32 ký tự để nút Telegram hoạt động ổn định.");
-      }
-      if (payload.Coupon_Type === "DISCOUNT") {
-        const percent = Number(payload.Discount_Percent || 0);
-        if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
-          throw new Error("Coupon giảm giá cần phần trăm từ 1 đến 99. Muốn miễn phí hãy dùng loại Kích hoạt miễn phí.");
-        }
-      } else {
-        const days = Number(payload.Duration_Days || 0);
-        if (!Number.isFinite(days) || days <= 0) {
-          throw new Error("Coupon kích hoạt cần số ngày sử dụng lớn hơn 0.");
-        }
-      }
+      const payload = normalizeCouponPayload(couponForm);
       await createCoupon(savedSecret, payload);
       setCouponForm({ ...EMPTY_COUPON_FORM });
       await loadAll();
@@ -1382,9 +1403,27 @@ export default function Home() {
   }
 
   function generateCouponCode() {
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    const suffix = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
-    setCouponForm({ ...couponForm, Code: `HANGCU_${suffix}` });
+    setCouponForm({ ...couponForm, Code: randomHangcuCode() });
+  }
+
+  async function generateManyCoupons() {
+    const count = Number(couponBatchCount || 0);
+    if (!Number.isInteger(count) || count < 2 || count > 200) {
+      showNotice("error", "Số lượng gen nhiều nên từ 2 đến 200 mã mỗi lần.");
+      return;
+    }
+    await runAction("coupon-bulk", async () => {
+      const existing = new Set(coupons.map((item) => item.code.toUpperCase()));
+      const generated = new Set<string>();
+      while (generated.size < count) {
+        const code = randomHangcuCode();
+        if (!existing.has(code) && !generated.has(code)) generated.add(code);
+      }
+      const items = Array.from(generated).map((code) => normalizeCouponPayload({ ...couponForm, Code: "" }, code));
+      await createCoupons(savedSecret, items);
+      setCouponForm({ ...EMPTY_COUPON_FORM });
+      await loadAll();
+    });
   }
 
   function toggleCouponPlan(planKey: string) {
@@ -1533,6 +1572,8 @@ export default function Home() {
   const supportJoinedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "support_joined"), [supportTodayEvents]);
   const supportMutedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_muted"), [supportTodayEvents]);
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
+  const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
+  const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
 
   useEffect(() => {
     setOrderPage(1);
@@ -1977,6 +2018,8 @@ export default function Home() {
                 <div className="panel-actions">
                   <button className="btn secondary" onClick={resetCouponForm}><Plus size={16} /> Thêm mới</button>
                   <button className="btn secondary" onClick={generateCouponCode}><RefreshCw size={16} /> Gen mã HANGCU_</button>
+                  <input className="mini-input" value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" title="Số lượng mã cần gen cùng điều kiện" />
+                  <button className="btn secondary" onClick={generateManyCoupons}><RefreshCw size={16} /> Gen nhiều</button>
                   <button className="btn secondary" onClick={() => setShowUsedCoupons(!showUsedCoupons)}>{showUsedCoupons ? "Ẩn đã dùng" : "Hiện đã dùng"}</button>
                   <button className="btn danger" onClick={removeUsedCoupons} disabled={!usedCoupons.length}><Trash2 size={16} /> Xoá đã dùng</button>
                   <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
@@ -1991,9 +2034,16 @@ export default function Home() {
                 <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
               ) : (
                 <>
-                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name: event.target.value })}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
-                  <label className="field"><span>Số ngày sử dụng</span><input value={couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" /></label>
-                  <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 1 ngày, 7 ngày, dùng thử" /><small>Để trống thì bot tự dùng “N ngày”.</small></label>
+                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => {
+                    const nextPlan = event.target.value;
+                    setCouponForm({
+                      ...couponForm,
+                      Plan_Name: nextPlan,
+                      Duration_Days: isLifetimeCouponPlan(nextPlan) ? lifetimeCouponDays : couponForm.Duration_Days,
+                    });
+                  }}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
+                  <label className="field"><span>Số ngày sử dụng</span><input value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} /><small>{lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."}</small></label>
+                  <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" /><small>{lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."}</small></label>
                   <label className="field"><span>Mẫu tên gói</span><input value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" /><small>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</small></label>
                   <label className="field"><span>Mẫu nút chọn group</span><input value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" /><small>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</small></label>
                 </>

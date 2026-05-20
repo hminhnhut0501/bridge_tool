@@ -288,6 +288,13 @@ async def admin_create_coupon(request: Request):
     return {"data": supabase_store.create_coupon_from_sheet_row(body)}
 
 
+@app.post("/admin-api/coupons/bulk", dependencies=[Depends(require_admin)])
+async def admin_create_coupons_bulk(request: Request):
+    body = await request.json()
+    rows = body.get("items") if isinstance(body, dict) else body
+    return {"data": supabase_store.create_coupons_from_sheet_rows(rows or [])}
+
+
 @app.delete("/admin-api/coupons/{code}", dependencies=[Depends(require_admin)])
 async def admin_delete_coupon(code: str):
     return {"data": supabase_store.delete_coupon(code)}

@@ -188,6 +188,17 @@ select:disabled {
   justify-content: flex-end;
 }
 
+.mini-input {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  min-height: 39px;
+  outline: none;
+  padding: 8px 10px;
+  width: 72px;
+}
+
 .panel-head strong {
   display: block;
   font-size: 16px;

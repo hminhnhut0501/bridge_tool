@@ -34,6 +34,7 @@ TIME_FMT = "%Y-%m-%d %H:%M:%S"
 SELECT_GROUP_1M = "SELECT_GROUP_1M"
 SELECT_GROUP_LIFE = "SELECT_GROUP_LIFE"
 PLACEHOLDER_RE = re.compile(r"\{\s*([a-zA-Z0-9_]+)\s*\}")
+DEFAULT_LIFETIME_DAYS = 36500
 
 COUPON_HEADERS = [
     "Code",
@@ -206,13 +207,28 @@ def is_selectable_group_coupon_plan(plan_name):
     return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_LIFE}
 
 
-def duration_label(coupon, user_id=None):
+def coupon_lifetime_days():
+    return max(config_int("COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS), 3650)
+
+
+def is_lifetime_coupon_plan(plan_name):
+    key = normalize_plan_key(plan_name)
+    return key in {"FULL_LIFE", "SVIP_LIFE", SELECT_GROUP_LIFE} or key.endswith("_LIFE")
+
+
+def coupon_duration_days(coupon, plan_key=None):
+    if is_lifetime_coupon_plan(plan_key or (coupon or {}).get("Plan_Name")):
+        return coupon_lifetime_days()
+    return safe_int((coupon or {}).get("Duration_Days"), 30)
+
+
+def duration_label(coupon, user_id=None, plan_key=None):
     custom = str((coupon or {}).get("Duration_Label") or (coupon or {}).get("Activation_Label") or "").strip()
     if custom:
         return custom
 
-    days = safe_int((coupon or {}).get("Duration_Days"), 30)
-    if days >= 3650:
+    days = coupon_duration_days(coupon, plan_key)
+    if is_lifetime_coupon_plan(plan_key or (coupon or {}).get("Plan_Name")) or days >= 3650:
         if get_user_language(user_id) == "en":
             return "lifetime"
         return "trọn đời"
@@ -371,9 +387,9 @@ def validate_coupon(item, user_id):
         return True, ""
 
     plan_name = str(item.get("Plan_Name") or "").strip()
-    duration_days = safe_int(item.get("Duration_Days"), 0)
     if not plan_name:
         return False, t(user_id, "ALERT_COUPON_PLAN_EMPTY", "Mã này chưa gắn gói thành viên trên sheet.")
+    duration_days = coupon_duration_days(item, plan_name)
     if duration_days <= 0:
         return False, t(user_id, "ALERT_COUPON_DURATION_INVALID", "Mã này chưa có số ngày sử dụng hợp lệ.")
 
@@ -424,8 +440,8 @@ def group_name_from_plan_key(plan_key, user_id=None):
 
 def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="", user_id=None):
     group_name = group_name_from_plan_key(plan_key, user_id)
-    days = str(safe_int((coupon or {}).get("Duration_Days"), 30))
-    label = duration_label(coupon, user_id)
+    days = str(coupon_duration_days(coupon, plan_key))
+    label = duration_label(coupon, user_id, plan_key)
     plan_name = fallback_plan_name or resolve_plan_name(plan_key, user_id)
     return render_named_template(template, {
         "group": group_name,
@@ -521,7 +537,7 @@ async def send_activation_group_options(message: Message, code, coupon):
     duration = escape_html(duration_label(coupon, message.from_user.id))
     text = render_named_template(text, {
         "code": escape_html(code),
-        "days": str(safe_int(coupon.get("Duration_Days"), 30)),
+        "days": str(coupon_duration_days(coupon)),
         "duration_label": duration,
         "duration": duration,
     })
@@ -637,7 +653,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
         plan_name = activation_coupon_plan_name(plan_key, coupon, user_id=user.id)
     else:
         plan_name = resolve_plan_name(plan_key)
-    duration_days = safe_int(coupon.get("Duration_Days"), 30)
+    duration_days = coupon_duration_days(coupon, plan_key)
     if supabase_store.enabled:
         paid_orders = supabase_store.list_paid_orders_for_user(user.id, limit=200)
         base_date = find_current_expire_from_orders(paid_orders, user.id, plan_name) or datetime.now()

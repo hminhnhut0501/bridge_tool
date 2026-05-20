@@ -211,6 +211,13 @@ export async function createCoupon(secret: string, payload: Record<string, strin
   });
 }
 
+export async function createCoupons(secret: string, items: Record<string, string>[]) {
+  return request<{ data: Coupon[] }>("/admin-api/coupons/bulk", secret, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
 export async function deleteCoupon(secret: string, code: string) {
   return request<{ data: Coupon[] }>(`/admin-api/coupons/${encodeURIComponent(code)}`, secret, {
     method: "DELETE",
