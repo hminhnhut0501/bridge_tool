@@ -16,6 +16,7 @@ load_dotenv()
 
 app = FastAPI(title="Prive Bot Backend")
 _booted = False
+_missing_table_warnings: set[str] = set()
 
 
 def _allowed_origins():
@@ -40,6 +41,18 @@ def require_admin(x_admin_secret: str | None = Header(default=None)):
     if x_admin_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid admin secret")
     return True
+
+
+def is_missing_supabase_table_error(exc: Exception, table_name: str) -> bool:
+    text = str(exc)
+    return table_name in text and ("PGRST205" in text or "Could not find the table" in text)
+
+
+def warn_missing_table_once(table_name: str, exc: Exception):
+    if table_name in _missing_table_warnings:
+        return
+    _missing_table_warnings.add(table_name)
+    print(f"⚠️ Supabase thiếu bảng {table_name}. Hãy chạy migration SQL trong thư mục supabase. Chi tiết: {exc}")
 
 
 def load_all_modules():
@@ -305,7 +318,10 @@ async def admin_blacklist(limit: int = 500):
     try:
         return {"data": supabase_store.list_blacklist(limit=limit)}
     except Exception as exc:
-        print(f"⚠️ Không đọc được security_blacklist: {exc}")
+        if is_missing_supabase_table_error(exc, "security_blacklist"):
+            warn_missing_table_once("security_blacklist", exc)
+        else:
+            print(f"⚠️ Không đọc được security_blacklist: {exc}")
         return {"data": []}
 
 
@@ -325,7 +341,10 @@ async def admin_support_events(limit: int = 500):
     try:
         return {"data": supabase_store.list_support_events(limit=limit)}
     except Exception as exc:
-        print(f"⚠️ Không đọc được support_events: {exc}")
+        if is_missing_supabase_table_error(exc, "support_events"):
+            warn_missing_table_once("support_events", exc)
+        else:
+            print(f"⚠️ Không đọc được support_events: {exc}")
         return {"data": []}
 
 
