@@ -113,7 +113,12 @@ def config_enabled(key, default="OFF"):
 
 def coupon_auto_prefixes():
     raw = db.get_config("COUPON_AUTO_REDEEM_PREFIXES", "HANGCU_")
-    return [item.strip().upper() for item in str(raw or "").replace("\n", ",").split(",") if item.strip()]
+    prefixes = {"HANGCU_"}
+    for item in str(raw or "").replace("\n", ",").split(","):
+        normalized = normalize_code(item)
+        if normalized:
+            prefixes.add(normalized)
+    return sorted(prefixes, key=len, reverse=True)
 
 
 def code_has_auto_prefix(text):
@@ -857,11 +862,12 @@ async def coupon_code_received(message: Message, state: FSMContext):
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def coupon_auto_code_received(message: Message):
-    if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
-        return
     if not message.text:
         return
     if not code_has_auto_prefix(message.text):
+        return
+    if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
+        await message.answer(t(message.from_user.id, "MSG_COUPON_AUTO_DISABLED", "Tự nhận diện coupon đang tắt. Vui lòng bật lại trong dashboard hoặc dùng /coupon nếu admin cho phép."))
         return
     if not await check_protection(message):
         return
