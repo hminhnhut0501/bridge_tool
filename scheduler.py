@@ -93,7 +93,8 @@ def plan_group_ids(plan_name):
             groups.append(gid)
     return groups
 
-def user_has_active_renewal(user_id, plan_name, current_order_id, users_data, now):
+def user_active_group_ids(user_id, current_order_id, users_data, now):
+    active_groups = set()
     for row in users_data:
         if row_value(row, 0) == current_order_id:
             continue
@@ -101,12 +102,17 @@ def user_has_active_renewal(user_id, plan_name, current_order_id, users_data, no
             continue
         if row_value(row, 5).upper() != "PAID":
             continue
-        if row_value(row, 3).upper() != str(plan_name).upper():
+        other_plan = row_value(row, 3)
+        other_groups = set(plan_group_ids(other_plan))
+        if not other_groups:
+            continue
+        if is_lifetime_plan(other_plan):
+            active_groups.update(other_groups)
             continue
         expire_date = parse_expire_datetime(row_value(row, 7))
         if expire_date and expire_date > now:
-            return True
-    return False
+            active_groups.update(other_groups)
+    return active_groups
 
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
@@ -124,7 +130,8 @@ async def check_expirations_professional():
             db.connect()
 
         if use_supabase:
-            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_paid_orders(limit=1000)]
+            order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
+            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_paid_orders(limit=order_limit)]
         else:
             users_data = db.users_sheet.get_all_values()[1:]
         
@@ -168,14 +175,26 @@ async def check_expirations_professional():
             # ==========================================
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
-                if user_has_active_renewal(user_id, plan_name, order_id, users_data, now):
-                    for gid in plan_group_ids(plan_name):
+                current_group_ids = plan_group_ids(plan_name)
+                active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
+                retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
+                expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
+
+                if retained_group_ids:
+                    logging.info(
+                        "✅ User %s vẫn còn quyền ở %s group từ đơn khác, không xử lý kick/mute các group đó.",
+                        user_id,
+                        len(retained_group_ids),
+                    )
+                    for gid in retained_group_ids:
                         try:
                             await unmute_member(gid, user_id)
                             record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"reason": "active_renewal"})
                             logging.info(f"🔊 User {user_id} đã gia hạn, mở mute lại ở group {gid}.")
                         except Exception as e:
                             logging.error(f"❌ Lỗi mở mute User {user_id} ở group {gid}: {e}")
+
+                if not expired_group_ids:
                     try:
                         if use_supabase:
                             supabase_store.mark_order_expired(order_id, expired_notice_at=row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S"))
@@ -202,7 +221,7 @@ async def check_expirations_professional():
                         logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
                     except Exception as e:
                         logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
-                    for gid in plan_group_ids(plan_name):
+                    for gid in expired_group_ids:
                         if not support_group_mute_enabled():
                             logging.info(f"⏭ Bỏ qua mute User {user_id} ở group {gid}: SUPPORT_GROUP_MUTE_ENABLED=OFF")
                             continue
@@ -222,7 +241,7 @@ async def check_expirations_professional():
                 expired_notice_at = parse_expire_datetime(row_value(row, 11)) or now
                 kick_at = expire_date + timedelta(days=support_group_grace_days())
                 if now >= kick_at:
-                    for gid in plan_group_ids(plan_name):
+                    for gid in expired_group_ids:
                         try:
                             await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
                             await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
@@ -239,6 +258,14 @@ async def check_expirations_professional():
                         logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
                     except Exception as e:
                         logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
+                else:
+                    logging.info(
+                        "⏳ User %s đã được báo hết hạn nhưng chưa tới ngày kick. Hết hạn: %s, grace_days=%s, kick_at=%s.",
+                        user_id,
+                        expire_date.strftime("%Y-%m-%d %H:%M:%S"),
+                        support_group_grace_days(),
+                        kick_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    )
                 continue
 
             # ==========================================

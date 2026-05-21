@@ -408,6 +408,12 @@ const SYSTEM_FIELDS: ConfigField[] = [
     help: "Số giây giữa các vòng quét hạn/gia hạn. 14400 = 4 tiếng.",
   },
   {
+    key: "SCHEDULER_ORDER_LIMIT",
+    label: "Số đơn PAID quét mỗi vòng",
+    placeholder: "5000",
+    help: "Tăng nếu dữ liệu lớn để scheduler vẫn thấy cả đơn cũ hết hạn và đơn gia hạn/trọn đời mới.",
+  },
+  {
     key: "MAINTENANCE_INITIAL_DELAY_SECONDS",
     label: "Delay maintenance khi boot",
     placeholder: "300",
