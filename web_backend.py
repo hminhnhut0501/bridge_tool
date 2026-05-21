@@ -343,6 +343,18 @@ async def admin_support_events(limit: int = 500):
         return {"data": []}
 
 
+@app.get("/admin-api/activity-events", dependencies=[Depends(require_admin)])
+async def admin_activity_events(limit: int = 500):
+    try:
+        return {"data": supabase_store.list_analytics_events(limit=limit)}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "analytics_events"):
+            warn_missing_table_once("analytics_events", exc)
+        else:
+            print(f"⚠️ Không đọc được analytics_events: {exc}")
+        return {"data": []}
+
+
 @app.get("/admin-api/support-group-check", dependencies=[Depends(require_admin)])
 async def admin_support_group_check():
     db.reload_config(force=True)

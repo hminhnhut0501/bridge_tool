@@ -661,5 +661,12 @@ class SupabaseStore:
             return []
         return self._request("POST", "analytics_events", json=payload)
 
+    def list_analytics_events(self, limit=500):
+        return self._request(
+            "GET",
+            "analytics_events",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+
 
 supabase_store = SupabaseStore()

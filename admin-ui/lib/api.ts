@@ -87,6 +87,14 @@ export type SupportEvent = {
   created_at: string;
 };
 
+export type ActivityEvent = {
+  id: string;
+  event_name: string;
+  telegram_user_id: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 export type SupportGroupCheck = {
   enabled: boolean;
   group_id: string;
@@ -250,6 +258,10 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
 
 export async function getSupportEvents(secret: string) {
   return request<{ data: SupportEvent[] }>("/admin-api/support-events", secret);
+}
+
+export async function getActivityEvents(secret: string) {
+  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events", secret);
 }
 
 export async function checkSupportGroup(secret: string) {

@@ -5,6 +5,7 @@ import {
   BadgePercent,
   BarChart3,
   CheckCircle2,
+  ClipboardList,
   FileText,
   Gift,
   Loader2,
@@ -22,6 +23,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityEvent,
   ConfigRow,
   BlacklistEntry,
   Coupon,
@@ -40,6 +42,7 @@ import {
   deleteMenuPage,
   deleteSaleRule,
   getConfig,
+  getActivityEvents,
   getBlacklist,
   getCoupons,
   getMenuPages,
@@ -59,11 +62,12 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "plans" | "language" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
+type LogDirectionFilter = "all" | "user" | "bot";
 
 type Notice = {
   type: "ok" | "error";
@@ -1060,6 +1064,29 @@ function uniqueValues(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function payloadText(payload: Record<string, unknown>, key: string) {
+  const value = payload?.[key];
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function describeActivityEvent(event: ActivityEvent) {
+  const payload = event.payload || {};
+  const eventType = payloadText(payload, "event_type") || event.event_name;
+  if (eventType === "message") {
+    const command = payloadText(payload, "command");
+    return command ? `User gửi lệnh /${command}` : "User gửi tin nhắn cho bot";
+  }
+  if (eventType === "callback") {
+    const callback = payloadText(payload, "callback_data");
+    return callback ? `User bấm nút: ${callback}` : "User bấm nút trong bot";
+  }
+  return eventType || "Tương tác user";
+}
+
+function describeSupportEvent(event: SupportEvent) {
+  return supportEventLabel(event.event_type);
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
@@ -1210,6 +1237,7 @@ export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -1225,6 +1253,8 @@ export default function Home() {
   const [customerPlanKind, setCustomerPlanKind] = useState("ALL");
   const [customerCouponFilter, setCustomerCouponFilter] = useState("ALL");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
+  const [logType, setLogType] = useState("ALL");
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1281,7 +1311,7 @@ export default function Home() {
     setLoading(true);
     setNotice(null);
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, activityEventsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -1290,6 +1320,7 @@ export default function Home() {
         getCoupons(activeSecret),
         getBlacklist(activeSecret),
         getSupportEvents(activeSecret),
+        getActivityEvents(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
@@ -1300,6 +1331,7 @@ export default function Home() {
       setCoupons(couponsRes.data);
       setBlacklist(blacklistRes.data);
       setSupportEvents(supportEventsRes.data);
+      setActivityEvents(activityEventsRes.data);
       setWebhook(webhookRes.data);
       setOrderPage(1);
     } catch (err) {
@@ -1743,6 +1775,44 @@ export default function Home() {
   const supportJoinedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "support_joined"), [supportTodayEvents]);
   const supportMutedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_muted"), [supportTodayEvents]);
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
+  const logEntries = useMemo(() => {
+    const userEvents = activityEvents.map((event) => {
+      const payload = event.payload || {};
+      return {
+        id: `a-${event.id}`,
+        direction: "user" as const,
+        type: payloadText(payload, "event_type") || event.event_name || "event",
+        userId: event.telegram_user_id || payloadText(payload, "user_id"),
+        username: payloadText(payload, "username"),
+        fullName: payloadText(payload, "full_name"),
+        title: describeActivityEvent(event),
+        detail: payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type"),
+        createdAt: event.created_at,
+      };
+    });
+    const botEvents = supportEvents.map((event) => ({
+      id: `s-${event.id}`,
+      direction: "bot" as const,
+      type: event.event_type,
+      userId: event.telegram_user_id || "",
+      username: event.username || "",
+      fullName: event.full_name || "",
+      title: describeSupportEvent(event),
+      detail: [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
+      createdAt: event.created_at,
+    }));
+    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [activityEvents, supportEvents]);
+  const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
+  const filteredLogEntries = useMemo(() => {
+    const q = query.toLowerCase();
+    return logEntries.filter((entry) => {
+      if (logDirection !== "all" && entry.direction !== logDirection) return false;
+      if (logType !== "ALL" && entry.type !== logType) return false;
+      const text = `${entry.type} ${entry.userId} ${entry.username} ${entry.fullName} ${entry.title} ${entry.detail}`.toLowerCase();
+      return !q || text.includes(q);
+    });
+  }, [logEntries, logDirection, logType, query]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
 
@@ -1815,6 +1885,7 @@ export default function Home() {
           <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
           <button className={tab === "customers" ? "active" : ""} onClick={() => setTab("customers")}><Users size={18} /> Khách hàng</button>
+          <button className={tab === "activityLog" ? "active" : ""} onClick={() => setTab("activityLog")}><ClipboardList size={18} /> Nhật ký</button>
           <button className={tab === "renewals" ? "active" : ""} onClick={() => setTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
           <button className={tab === "supportGroup" ? "active" : ""} onClick={() => setTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
@@ -2068,6 +2139,43 @@ export default function Home() {
                   ) : <div className="empty-card">Chọn một khách để xem chi tiết.</div>}
                 </div>
               </div>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "activityLog" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Tổng event" value={String(filteredLogEntries.length)} />
+              <Metric label="User → Bot" value={String(logEntries.filter((item) => item.direction === "user").length)} />
+              <Metric label="Bot → User" value={String(logEntries.filter((item) => item.direction === "bot").length)} />
+              <Metric label="Hôm nay" value={String(logEntries.filter((item) => isTodayDate(item.createdAt)).length)} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Nhật ký tương tác" subtitle="Tổng hợp user đã nhắn/bấm gì với bot và các hành động bot đã gửi hoặc xử lý cho user." />
+              <div className="toolbar orders-toolbar">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, Telegram ID, event, callback, gói, đơn..." />
+                <select value={logDirection} onChange={(event) => setLogDirection(event.target.value as LogDirectionFilter)}>
+                  <option value="all">Tất cả hướng</option>
+                  <option value="user">User → Bot</option>
+                  <option value="bot">Bot → User</option>
+                </select>
+                <select value={logType} onChange={(event) => setLogType(event.target.value)}>
+                  <option value="ALL">Tất cả loại event</option>
+                  {logTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+              <SimpleTable
+                headers={["Thời điểm", "Hướng", "Khách", "Loại", "Nội dung", "Chi tiết"]}
+                rows={filteredLogEntries.slice(0, 500).map((item) => [
+                  dateText(item.createdAt),
+                  item.direction === "user" ? "User → Bot" : "Bot → User",
+                  <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
+                  item.type,
+                  item.title,
+                  item.detail || "-",
+                ])}
+              />
             </section>
           </div>
         ) : null}
