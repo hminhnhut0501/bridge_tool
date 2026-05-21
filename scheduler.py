@@ -171,7 +171,9 @@ async def check_expirations_professional():
             notif_key = f"{user_id}_{offer_ref}_{today_str}"
 
             # ==========================================
-            # 1. HẾT HẠN -> MUTE, SAU GRACE DAYS MỚI KICK
+            # 1. HẾT HẠN -> KICK NGAY KHỎI GROUP VIP CHÍNH
+            # SUPPORT_GROUP_GRACE_DAYS chỉ áp dụng cho group hỗ trợ/bảo hành.
+            # plan_group_ids() đã loại support group, nên các group ở đây là group VIP chính.
             # ==========================================
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
@@ -239,33 +241,29 @@ async def check_expirations_professional():
                     logging.info(f"✅ Đã cập nhật mốc mute/hết hạn tại đơn/dòng {offer_ref}.")
 
                 expired_notice_at = parse_expire_datetime(row_value(row, 11)) or now
-                kick_at = expire_date + timedelta(days=support_group_grace_days())
-                if now >= kick_at:
-                    for gid in expired_group_ids:
-                        try:
-                            await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
-                            await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
-                            record_support_event("member_kicked", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"expired_notice_at": expired_notice_at.strftime("%Y-%m-%d %H:%M:%S")})
-                            logging.info(f"🚪 Đã kick User {user_id} khỏi group {gid} sau grace period.")
-                        except Exception as e:
-                            logging.error(f"❌ Lỗi kick User {user_id} khỏi group {gid}: {e}")
-
+                kick_errors = []
+                for gid in expired_group_ids:
                     try:
-                        if use_supabase:
-                            supabase_store.mark_order_expired(order_id, expired_notice_at=expired_notice_at.strftime("%Y-%m-%d %H:%M:%S"))
-                        else:
-                            db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), expired_notice_at.strftime("%Y-%m-%d %H:%M:%S")]])
-                        logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
+                        await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
+                        await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
+                        record_support_event("member_kicked", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"expired_notice_at": expired_notice_at.strftime("%Y-%m-%d %H:%M:%S"), "reason": "vip_expired"})
+                        logging.info(f"🚪 Đã kick User {user_id} khỏi group VIP {gid} vì gói đã hết hạn.")
                     except Exception as e:
-                        logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
-                else:
-                    logging.info(
-                        "⏳ User %s đã được báo hết hạn nhưng chưa tới ngày kick. Hết hạn: %s, grace_days=%s, kick_at=%s.",
-                        user_id,
-                        expire_date.strftime("%Y-%m-%d %H:%M:%S"),
-                        support_group_grace_days(),
-                        kick_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    )
+                        kick_errors.append(str(e))
+                        logging.error(f"❌ Lỗi kick User {user_id} khỏi group {gid}: {e}")
+
+                if kick_errors:
+                    logging.error(f"⏭ Chưa đóng EXPIRED đơn/dòng {offer_ref} vì còn lỗi kick: {kick_errors}")
+                    continue
+
+                try:
+                    if use_supabase:
+                        supabase_store.mark_order_expired(order_id, expired_notice_at=expired_notice_at.strftime("%Y-%m-%d %H:%M:%S"))
+                    else:
+                        db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), expired_notice_at.strftime("%Y-%m-%d %H:%M:%S")]])
+                    logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
+                except Exception as e:
+                    logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
                 continue
 
             # ==========================================
