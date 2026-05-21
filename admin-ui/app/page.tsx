@@ -27,6 +27,7 @@ import {
   ConfigRow,
   BlacklistEntry,
   Coupon,
+  ManualOrderResult,
   MenuPage,
   Order,
   SaleRule,
@@ -36,6 +37,7 @@ import {
   checkSupportGroup,
   createCoupon,
   createCoupons,
+  createManualOrder,
   deleteConfig,
   deleteBlacklist,
   deleteCoupon,
@@ -993,6 +995,17 @@ const EMPTY_COUPON_FORM = {
   Enabled: "ON",
 };
 
+const EMPTY_MANUAL_ORDER_FORM = {
+  telegram_user_id: "",
+  full_name: "",
+  plan_key: "FULL_1M",
+  plan_name: "",
+  amount: "0",
+  duration_days: "30",
+  expire_at: "",
+  coupon_code: "",
+};
+
 const DEFAULT_LIFETIME_DAYS = "36500";
 
 const ORDER_PAGE_SIZE = 25;
@@ -1016,6 +1029,17 @@ function isCouponSent(coupon: Coupon) {
 
 function orderCouponCode(order: Order) {
   return order.coupon_code || (Number(order.amount || 0) === 0 && order.sale_id ? order.sale_id : "");
+}
+
+function stripHtml(value: string) {
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
 }
 
 function isLifetimeText(value: string | null | undefined) {
@@ -1266,6 +1290,8 @@ export default function Home() {
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
   const [couponBatchCount, setCouponBatchCount] = useState("10");
+  const [manualOrderForm, setManualOrderForm] = useState({ ...EMPTY_MANUAL_ORDER_FORM });
+  const [manualOrderResult, setManualOrderResult] = useState<ManualOrderResult | null>(null);
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
 
   useEffect(() => {
@@ -1675,6 +1701,10 @@ export default function Home() {
     ...PLAN_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
   ], [configuredGroups]);
+  const manualPlanKeyOptions = useMemo(() => [
+    ...discountPlanKeyOptions,
+    "CUSTOM",
+  ], [discountPlanKeyOptions]);
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`]),
@@ -1844,6 +1874,71 @@ export default function Home() {
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
     return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : "giá trọn đời"}`;
+  }
+
+  function manualPlanNameFromKey(value: string) {
+    if (value === "FULL_1M") return getConfigValue(config, "PLAN_FULL_1M", "SVIP+ 30 Ngày") || "SVIP+ 30 Ngày";
+    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_FULL_LIFE", "SVIP+ Trọn Đời") || "SVIP+ Trọn Đời";
+    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    if (!match) return "";
+    const prefixKey = match[2] === "1M" ? "PLAN_G_1M" : "PLAN_G_LIFE";
+    const fallbackPrefix = match[2] === "1M" ? "VIP 30 Ngày" : "VIP Trọn Đời";
+    const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
+    const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
+    return `${prefix} - ${groupName}`;
+  }
+
+  function manualPriceFromKey(value: string) {
+    if (value === "FULL_1M") return getConfigValue(config, "PRICE_SVIP_30D", "0");
+    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_SVIP_LIFE", "0");
+    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    if (!match) return "";
+    return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
+  }
+
+  function changeManualPlanKey(value: string) {
+    const lifetime = isLifetimeCouponPlan(value);
+    setManualOrderForm({
+      ...manualOrderForm,
+      plan_key: value,
+      plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
+      amount: manualPriceFromKey(value) || manualOrderForm.amount,
+      duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
+    });
+  }
+
+  async function saveManualOrder() {
+    const planName = manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key);
+    await runAction("manual-order", async () => {
+      const res = await createManualOrder(savedSecret, {
+        telegram_user_id: manualOrderForm.telegram_user_id.trim(),
+        full_name: manualOrderForm.full_name.trim(),
+        plan_name: planName,
+        amount: manualOrderForm.amount,
+        duration_days: manualOrderForm.duration_days,
+        expire_at: manualOrderForm.expire_at,
+        coupon_code: manualOrderForm.coupon_code.trim(),
+        sale_id: "MANUAL",
+      });
+      setManualOrderResult(res.data);
+      setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
+      await loadAll();
+    });
+  }
+
+  async function copyManualLinks() {
+    if (!manualOrderResult) return;
+    const text = [
+      `Đơn thủ công: ${manualOrderResult.order_id}`,
+      `Telegram ID: ${manualOrderResult.telegram_user_id}`,
+      `Gói: ${manualOrderResult.plan_name}`,
+      `Hạn sử dụng: ${manualOrderResult.expire_at}`,
+      "",
+      stripHtml(manualOrderResult.links_text),
+      manualOrderResult.support_text,
+    ].filter(Boolean).join("\n");
+    await navigator.clipboard.writeText(text);
+    showNotice("ok", "Đã copy link đơn thủ công.");
   }
 
   function appliesLabel(value: string | undefined) {
@@ -2037,6 +2132,74 @@ export default function Home() {
               <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} />
               <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} />
             </div>
+            <section className="panel">
+              <PanelHead
+                title="Thêm đơn thủ công"
+                subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Sau khi lưu, bot sẽ tạo link join group chính và group hỗ trợ."
+                action={<button className="btn" onClick={saveManualOrder} disabled={saving === "manual-order"}>{saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />} Tạo đơn & gen link</button>}
+              />
+              <div className="form-grid">
+                <label className="field">
+                  <span>Telegram ID</span>
+                  <input value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" />
+                  <small>ID số của khách. Không dùng username @.</small>
+                </label>
+                <label className="field">
+                  <span>Tên khách</span>
+                  <input value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" />
+                </label>
+                <label className="field">
+                  <span>Gói cấp cho khách</span>
+                  <select value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)}>
+                    {manualPlanKeyOptions.map((item) => <option key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</option>)}
+                  </select>
+                  <small>Tên gói phải khớp group để bot tạo được link.</small>
+                </label>
+                <label className="field wide">
+                  <span>Tên gói lưu vào đơn</span>
+                  <input value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" />
+                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Setup nhóm.</small>
+                </label>
+                <label className="field">
+                  <span>Số tiền</span>
+                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="numeric" />
+                </label>
+                <label className="field">
+                  <span>Số ngày sử dụng</span>
+                  <input value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" />
+                  <small>Chỉ dùng khi ô ngày hết hạn đang trống.</small>
+                </label>
+                <label className="field">
+                  <span>Ngày hết hạn cụ thể</span>
+                  <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
+                  <small>Nếu nhập ô này, hệ thống bỏ qua số ngày.</small>
+                </label>
+                <label className="field">
+                  <span>Coupon / ghi chú mã</span>
+                  <input value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" />
+                  <small>Sẽ hiện ở cột coupon trong Đơn hàng và Khách hàng.</small>
+                </label>
+              </div>
+              {manualOrderResult ? (
+                <div className="form-grid two">
+                  <label className="field wide">
+                    <span>Link đã tạo</span>
+                    <textarea readOnly value={[
+                      `Order: ${manualOrderResult.order_id}`,
+                      `Gói: ${manualOrderResult.plan_name}`,
+                      `Hết hạn: ${manualOrderResult.expire_at}`,
+                      "",
+                      stripHtml(manualOrderResult.links_text),
+                      manualOrderResult.support_text,
+                    ].filter(Boolean).join("\n")} />
+                  </label>
+                  <div className="field wide">
+                    <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
+                    {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID và link chỉ dùng được 1 người.</small>}
+                  </div>
+                </div>
+              ) : null}
+            </section>
             <section className="panel">
               <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
               <div className="toolbar orders-toolbar">

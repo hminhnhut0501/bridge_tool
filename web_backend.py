@@ -1,6 +1,9 @@
 import asyncio
 import importlib
 import os
+import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from aiogram.types import Update
 from dotenv import load_dotenv
@@ -10,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from bot_instance import bot, dp, set_commands
 from database import db
 from supabase_store import supabase_store
-from support_utils import explain_support_invite_error, mask_chat_id, support_group_enabled, support_group_id, support_group_name
+from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, support_group_enabled, support_group_id, support_group_name
 
 load_dotenv()
 
@@ -53,6 +56,21 @@ def warn_missing_table_once(table_name: str, exc: Exception):
         return
     _missing_table_warnings.add(table_name)
     print(f"⚠️ Supabase thiếu bảng {table_name}. Hãy chạy migration SQL trong thư mục supabase. Chi tiết: {exc}")
+
+
+def now_local():
+    return datetime.now(ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
+
+
+def parse_manual_expire_at(value: str | None):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
+    return parsed.astimezone(ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
 
 
 def load_all_modules():
@@ -192,6 +210,110 @@ async def admin_update_order(order_id: str, request: Request):
     body = await request.json()
     data = supabase_store.update_order_fields(order_id, body)
     return {"data": data}
+
+
+@app.post("/admin-api/manual-orders", dependencies=[Depends(require_admin)])
+async def admin_create_manual_order(request: Request):
+    body = await request.json()
+    telegram_user_id = str(body.get("telegram_user_id", "")).strip()
+    full_name = str(body.get("full_name", "")).strip()
+    plan_name = str(body.get("plan_name", "")).strip()
+    coupon_code = str(body.get("coupon_code", "")).strip().upper()
+
+    if not telegram_user_id:
+        raise HTTPException(status_code=400, detail="Cần nhập Telegram ID.")
+    if not plan_name:
+        raise HTTPException(status_code=400, detail="Cần chọn hoặc nhập tên gói.")
+    try:
+        user_id = int(telegram_user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Telegram ID phải là số.")
+
+    from modules.mod_coupon import build_invite_links, resolve_groups
+
+    db.reload_config(force=True)
+    groups = resolve_groups(plan_name)
+    if not groups:
+        raise HTTPException(status_code=400, detail="Tên gói chưa khớp group nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
+
+    try:
+        amount = int(float(str(body.get("amount", "0") or 0)))
+    except (TypeError, ValueError):
+        amount = 0
+
+    expire_at = parse_manual_expire_at(body.get("expire_at"))
+    if expire_at is None:
+        try:
+            duration_days = int(float(str(body.get("duration_days", "30") or 30)))
+        except (TypeError, ValueError):
+            duration_days = 30
+        if duration_days <= 0:
+            raise HTTPException(status_code=400, detail="Số ngày sử dụng phải lớn hơn 0, hoặc nhập ngày hết hạn cụ thể.")
+        expire_at = now_local() + timedelta(days=duration_days)
+
+    paid_at = now_local()
+    order_id = str(int(time.time() * 1000))
+    sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
+    supabase_store.create_order(
+        order_id=order_id,
+        telegram_user_id=telegram_user_id,
+        full_name=full_name or telegram_user_id,
+        plan_name=plan_name,
+        amount=amount,
+        sale_id=sale_id,
+        original_amount=body.get("original_amount", amount),
+        coupon_code=coupon_code,
+    )
+    order_data = supabase_store.mark_order_paid(
+        order_id,
+        paid_at=paid_at.isoformat(timespec="seconds"),
+        expire_at=expire_at.isoformat(timespec="seconds"),
+    )
+
+    links_text, group_names = await build_invite_links(user_id, plan_name)
+    support_link, support_error = await create_support_invite_link(user_id)
+    support_text = ""
+    if support_link:
+        support_text = f"💬 {support_group_name()}:\n{support_link}\n"
+    elif support_error:
+        support_text = f"💬 {support_group_name()}: Không tạo được link hỗ trợ ({support_error})"
+
+    try:
+        supabase_store.record_support_event(
+            "manual_order_created",
+            telegram_user_id,
+            full_name=full_name,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={
+                "amount": amount,
+                "coupon_code": coupon_code,
+                "group_names": group_names,
+                "support_link_created": bool(support_link),
+                "support_error": support_error,
+            },
+        )
+    except Exception as exc:
+        if not is_missing_supabase_table_error(exc, "support_events"):
+            print(f"⚠️ Không ghi được manual_order_created: {exc}")
+
+    return {
+        "data": {
+            "order_id": order_id,
+            "order": order_data[0] if isinstance(order_data, list) and order_data else None,
+            "telegram_user_id": telegram_user_id,
+            "full_name": full_name,
+            "plan_name": plan_name,
+            "amount": amount,
+            "paid_at": paid_at.isoformat(timespec="seconds"),
+            "expire_at": expire_at.isoformat(timespec="seconds"),
+            "group_names": group_names,
+            "links_text": links_text,
+            "support_link": support_link,
+            "support_error": support_error,
+            "support_text": support_text,
+        }
+    }
 
 
 @app.get("/admin-api/users", dependencies=[Depends(require_admin)])

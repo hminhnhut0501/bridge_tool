@@ -114,6 +114,32 @@ export type WebhookInfo = {
   allowed_updates?: string[];
 };
 
+export type ManualOrderPayload = {
+  telegram_user_id: string;
+  full_name?: string;
+  plan_name: string;
+  amount?: string;
+  duration_days?: string;
+  expire_at?: string;
+  coupon_code?: string;
+  sale_id?: string;
+};
+
+export type ManualOrderResult = {
+  order_id: string;
+  telegram_user_id: string;
+  full_name: string;
+  plan_name: string;
+  amount: number;
+  paid_at: string;
+  expire_at: string;
+  group_names: string;
+  links_text: string;
+  support_link: string | null;
+  support_error: string;
+  support_text: string;
+};
+
 const baseUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, secret: string, init?: RequestInit): Promise<T> {
@@ -177,6 +203,13 @@ export async function updateOrderStatus(secret: string, orderId: string, status:
 export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code">>) {
   return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
     method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createManualOrder(secret: string, payload: ManualOrderPayload) {
+  return request<{ data: ManualOrderResult }>("/admin-api/manual-orders", secret, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
