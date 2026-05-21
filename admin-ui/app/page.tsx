@@ -1007,6 +1007,10 @@ function isCouponSent(coupon: Coupon) {
   return status === "SENT" || status === "YES" || status === "TRUE" || status === "1" || status === "ON";
 }
 
+function orderCouponCode(order: Order) {
+  return order.coupon_code || (Number(order.amount || 0) === 0 && order.sale_id ? order.sale_id : "");
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
@@ -1588,7 +1592,7 @@ export default function Home() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      const text = `${order.order_id} ${order.full_name || ""} ${order.telegram_user_id} ${order.plan_name} ${order.coupon_code || ""}`.toLowerCase();
+      const text = `${order.order_id} ${order.full_name || ""} ${order.telegram_user_id} ${order.plan_name} ${orderCouponCode(order)}`.toLowerCase();
       const matchQuery = !query || text.includes(query.toLowerCase());
       const matchStatus = orderStatus === "ALL" || order.status === orderStatus;
       const matchPeriod = isWithinPeriod(order.created_at, orderPeriod);
@@ -2355,7 +2359,7 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
               <td><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></td>
               <td>{order.plan_name}</td>
               <td>{money(order.amount)}</td>
-              <td>{order.coupon_code ? <><strong>{order.coupon_code}</strong><div className="muted">-{order.coupon_discount_percent || 0}% / {money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
+              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : `-${order.coupon_discount_percent || 0}% / ${money(order.coupon_discount_amount || 0)}`}</div></> : "-"}</td>
               <td><span className={statusClass(order.status)}>{order.status}</span></td>
               <td>{dateText(order.created_at)}</td>
               <td>

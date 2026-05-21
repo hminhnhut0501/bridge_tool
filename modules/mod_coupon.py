@@ -704,6 +704,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
             amount=0,
             sale_id=code,
             original_amount=0,
+            coupon_code=code,
         )
         supabase_store.mark_order_paid(order_id, paid_at=paid_at, expire_at=expire_text)
     else:
