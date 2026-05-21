@@ -725,7 +725,14 @@ td select {
   gap: 8px;
 }
 
-.expire-editor input {
+.plan-editor {
+  display: grid;
+  gap: 8px;
+  min-width: 320px;
+}
+
+.expire-editor input,
+.plan-editor input {
   border: 1px solid var(--line);
   border-radius: 6px;
   min-height: 34px;
@@ -960,6 +967,10 @@ td select {
   .expire-editor {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .plan-editor {
+    min-width: 0;
   }
 
   .modal-backdrop {

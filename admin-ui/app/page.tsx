@@ -1682,6 +1682,18 @@ export default function Home() {
     });
   }
 
+  async function changeOrderPlan(orderId: string, planName: string) {
+    const nextPlanName = planName.trim();
+    if (!nextPlanName) {
+      showNotice("error", "Tên gói không được để trống.");
+      return;
+    }
+    await runAction(`order-plan-${orderId}`, async () => {
+      await updateOrder(savedSecret, orderId, { plan_name: nextPlanName });
+      await loadAll();
+    });
+  }
+
   async function handleWebhookReset() {
     await runAction("webhook", async () => {
       const res = await resetWebhook(savedSecret);
@@ -2837,7 +2849,7 @@ export default function Home() {
                   {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
                   {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
                 </div>
-                <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onStatusChange={changeOrderStatus} />
+                <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onPlanChange={changeOrderPlan} onStatusChange={changeOrderStatus} />
               </div>
             </section>
           </div>
@@ -2888,17 +2900,26 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   );
 }
 
-function CustomerOrdersTable({ orders, saving, onExpireChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
+function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders].sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr><th>Đơn</th><th>Gói / Group</th><th>Coupon</th><th>Hạn dùng</th><th>Trạng thái</th><th>Cập nhật hạn</th></tr></thead>
+        <thead><tr><th>Đơn</th><th>Gói / Group</th><th>Coupon</th><th>Hạn dùng</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead>
         <tbody>
           {sorted.map((order) => (
             <tr key={order.order_id}>
               <td><strong>{order.order_id}</strong><div className="muted">{dateText(order.created_at)}</div></td>
-              <td><strong>{order.plan_name}</strong><div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div></td>
+              <td>
+                <div className="plan-editor">
+                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
+                  <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+                    const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
+                    onPlanChange(order.order_id, input?.value || "");
+                  }}>Lưu tên gói</button>
+                </div>
+                <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
+              </td>
               <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
               <td>{dateText(order.expire_at)}<div className="muted">{isOrderActive(order) ? "Còn hạn" : "Không active"}</div></td>
               <td>
