@@ -166,6 +166,13 @@ export async function updateOrderStatus(secret: string, orderId: string, status:
   });
 }
 
+export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code">>) {
+  return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getMenuPages(secret: string) {
   return request<{ data: MenuPage[] }>("/admin-api/menu-pages", secret);
 }

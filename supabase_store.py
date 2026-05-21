@@ -346,6 +346,25 @@ class SupabaseStore:
             payload["expire_at"] = _parse_datetime(expire_at) or expire_at
         return self.patch_order(order_id, payload)
 
+    def update_order_fields(self, order_id, raw):
+        payload = {}
+        if "status" in raw:
+            payload["status"] = _clean_text(raw.get("status")).upper()
+        if "paid_at" in raw:
+            payload["paid_at"] = _parse_datetime(raw.get("paid_at")) or raw.get("paid_at")
+        if "expire_at" in raw:
+            payload["expire_at"] = _parse_datetime(raw.get("expire_at")) or raw.get("expire_at")
+        if "expired_notice_at" in raw:
+            value = raw.get("expired_notice_at")
+            payload["expired_notice_at"] = (_parse_datetime(value) or value) if value else None
+        if "plan_name" in raw:
+            payload["plan_name"] = _clean_text(raw.get("plan_name"))
+        if "coupon_code" in raw:
+            payload["coupon_code"] = _clean_text(raw.get("coupon_code")).upper()
+        if not payload:
+            return []
+        return self.patch_order(order_id, payload)
+
     def mark_order_paid(self, order_id, paid_at, expire_at):
         return self.update_order_status(order_id, "PAID", paid_at=paid_at, expire_at=expire_at)
 

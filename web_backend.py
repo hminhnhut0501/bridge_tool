@@ -190,12 +190,7 @@ async def admin_orders(limit: int = 200):
 @app.patch("/admin-api/orders/{order_id}", dependencies=[Depends(require_admin)])
 async def admin_update_order(order_id: str, request: Request):
     body = await request.json()
-    data = supabase_store.update_order_status(
-        order_id=order_id,
-        status=body.get("status", "PENDING"),
-        paid_at=body.get("paid_at"),
-        expire_at=body.get("expire_at"),
-    )
+    data = supabase_store.update_order_fields(order_id, body)
     return {"data": data}
 
 

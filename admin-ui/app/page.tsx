@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   Ticket,
   Trash2,
+  Users,
   XCircle,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -51,16 +52,18 @@ import {
   updateConfig,
   updateConfigs,
   updateMenuPage,
+  updateOrder,
   updateOrderStatus,
   upsertBlacklist,
   upsertSaleRule,
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "plans" | "language" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
+type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 
 type Notice = {
   type: "ok" | "error";
@@ -1011,6 +1014,52 @@ function orderCouponCode(order: Order) {
   return order.coupon_code || (Number(order.amount || 0) === 0 && order.sale_id ? order.sale_id : "");
 }
 
+function isLifetimeText(value: string | null | undefined) {
+  const text = String(value || "").toLowerCase();
+  return text.includes("trọn đời") || text.includes("tron doi") || text.includes("lifetime");
+}
+
+function isOrderActive(order: Order) {
+  if (order.status !== "PAID") return false;
+  if (isLifetimeText(order.plan_name)) return true;
+  if (!order.expire_at) return false;
+  const expire = new Date(order.expire_at);
+  return !Number.isNaN(expire.getTime()) && expire.getTime() > Date.now();
+}
+
+function orderPlanKind(order: Order) {
+  const plan = String(order.plan_name || "").toLowerCase();
+  if (isLifetimeText(plan)) return "Trọn đời";
+  if (plan.includes("1 ngày") || plan.includes("1 day")) return "1 ngày";
+  if (plan.includes("30")) return "30 ngày";
+  return "Khác";
+}
+
+function orderExpireValue(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function groupNamesForOrder(order: Order) {
+  const plan = String(order.plan_name || "");
+  if (!plan) return [];
+  const lowerPlan = plan.toLowerCase();
+  if (lowerPlan.includes("full") || lowerPlan.includes("svip")) return ["Full nhóm"];
+  const afterDash = plan.includes(" - ") ? plan.split(" - ").slice(1).join(" - ").trim() : "";
+  return afterDash ? [afterDash] : [];
+}
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
 function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
@@ -1171,6 +1220,11 @@ export default function Home() {
   const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("month");
   const [orderGroupMode, setOrderGroupMode] = useState<GroupMode>("day");
   const [orderPage, setOrderPage] = useState(1);
+  const [customerStatus, setCustomerStatus] = useState<CustomerStatusFilter>("all");
+  const [customerGroup, setCustomerGroup] = useState("ALL");
+  const [customerPlanKind, setCustomerPlanKind] = useState("ALL");
+  const [customerCouponFilter, setCustomerCouponFilter] = useState("ALL");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1543,6 +1597,17 @@ export default function Home() {
     });
   }
 
+  async function changeOrderExpire(orderId: string, expireAt: string) {
+    if (!expireAt) {
+      showNotice("error", "Vui lòng chọn ngày giờ hết hạn.");
+      return;
+    }
+    await runAction(`order-expire-${orderId}`, async () => {
+      await updateOrder(savedSecret, orderId, { expire_at: expireAt, status: "PAID", expired_notice_at: null });
+      await loadAll();
+    });
+  }
+
   async function handleWebhookReset() {
     await runAction("webhook", async () => {
       const res = await resetWebhook(savedSecret);
@@ -1607,6 +1672,62 @@ export default function Home() {
     const start = (safePage - 1) * ORDER_PAGE_SIZE;
     return filteredOrders.slice(start, start + ORDER_PAGE_SIZE);
   }, [filteredOrders, orderPage, totalOrderPages]);
+  const customerSummaries = useMemo(() => {
+    const grouped = new Map<string, { id: string; name: string; orders: Order[] }>();
+    for (const order of orders) {
+      const id = String(order.telegram_user_id || "").trim();
+      if (!id) continue;
+      const current = grouped.get(id) || { id, name: order.full_name || "-", orders: [] };
+      if (order.full_name) current.name = order.full_name;
+      current.orders.push(order);
+      grouped.set(id, current);
+    }
+    return Array.from(grouped.values()).map((customer) => {
+      const paidOrders = customer.orders.filter((item) => item.status === "PAID");
+      const activeOrders = customer.orders.filter((item) => isOrderActive(item));
+      const latestExpire = paidOrders
+        .map((item) => item.expire_at)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b || "").getTime() - new Date(a || "").getTime())[0] || "";
+      const coupons = uniqueValues(customer.orders.map(orderCouponCode));
+      const groups = uniqueValues(customer.orders.flatMap(groupNamesForOrder));
+      const plans = uniqueValues(customer.orders.map((item) => item.plan_name));
+      const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
+      return {
+        ...customer,
+        paidOrders,
+        activeOrders,
+        latestExpire,
+        coupons,
+        groups,
+        plans,
+        revenue,
+        lastOrderAt,
+        status: activeOrders.length ? "active" : paidOrders.length ? "expired" : "no_paid",
+      };
+    }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
+  }, [orders]);
+  const customerGroupOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.groups)).sort(), [customerSummaries]);
+  const customerCouponOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.coupons)).sort(), [customerSummaries]);
+  const filteredCustomers = useMemo(() => {
+    const q = query.toLowerCase();
+    return customerSummaries.filter((customer) => {
+      const text = `${customer.id} ${customer.name} ${customer.plans.join(" ")} ${customer.groups.join(" ")} ${customer.coupons.join(" ")}`.toLowerCase();
+      if (q && !text.includes(q)) return false;
+      if (customerStatus === "active" && !customer.activeOrders.length) return false;
+      if (customerStatus === "expired" && customer.activeOrders.length) return false;
+      if (customerStatus === "paid" && !customer.paidOrders.length) return false;
+      if (customerStatus === "coupon" && !customer.coupons.length) return false;
+      if (customerGroup !== "ALL" && !customer.groups.includes(customerGroup)) return false;
+      if (customerCouponFilter !== "ALL" && !customer.coupons.includes(customerCouponFilter)) return false;
+      if (customerPlanKind !== "ALL" && !customer.orders.some((order) => orderPlanKind(order) === customerPlanKind)) return false;
+      return true;
+    });
+  }, [customerSummaries, query, customerStatus, customerGroup, customerCouponFilter, customerPlanKind]);
+  const selectedCustomer = useMemo(() => {
+    return customerSummaries.find((item) => item.id === selectedCustomerId) || filteredCustomers[0] || null;
+  }, [customerSummaries, filteredCustomers, selectedCustomerId]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
@@ -1628,6 +1749,12 @@ export default function Home() {
   useEffect(() => {
     setOrderPage(1);
   }, [query, orderStatus, orderPeriod, orderGroupMode]);
+
+  useEffect(() => {
+    if (selectedCustomerId && !filteredCustomers.some((item) => item.id === selectedCustomerId)) {
+      setSelectedCustomerId("");
+    }
+  }, [filteredCustomers, selectedCustomerId]);
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 30 ngày";
@@ -1687,6 +1814,7 @@ export default function Home() {
           <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")}><BarChart3 size={18} /> Thống kê</button>
           <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
+          <button className={tab === "customers" ? "active" : ""} onClick={() => setTab("customers")}><Users size={18} /> Khách hàng</button>
           <button className={tab === "renewals" ? "active" : ""} onClick={() => setTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
           <button className={tab === "supportGroup" ? "active" : ""} onClick={() => setTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
@@ -1865,6 +1993,81 @@ export default function Home() {
               {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
               <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} saving={saving} />
               <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "customers" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} />
+              <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item) => item.activeOrders.length).length)} />
+              <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item) => item.coupons.length).length)} />
+              <Metric label="Doanh thu khách lọc" value={money(filteredCustomers.reduce((sum, item) => sum + item.revenue, 0))} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Khách hàng" subtitle="Theo dõi khách đã mua/kích hoạt, group, gói VIP, coupon và hạn dùng. Chọn một khách để xem chi tiết và chỉnh hạn từng đơn." />
+              <div className="toolbar orders-toolbar">
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
+                <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as CustomerStatusFilter)}>
+                  <option value="all">Tất cả khách</option>
+                  <option value="active">Đang còn hạn</option>
+                  <option value="expired">Không còn gói active</option>
+                  <option value="paid">Đã mua/kích hoạt thành công</option>
+                  <option value="coupon">Có dùng coupon</option>
+                </select>
+                <select value={customerGroup} onChange={(event) => setCustomerGroup(event.target.value)}>
+                  <option value="ALL">Tất cả group</option>
+                  {customerGroupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                <select value={customerPlanKind} onChange={(event) => setCustomerPlanKind(event.target.value)}>
+                  <option value="ALL">Tất cả gói</option>
+                  <option value="1 ngày">1 ngày</option>
+                  <option value="30 ngày">30 ngày</option>
+                  <option value="Trọn đời">Trọn đời</option>
+                  <option value="Khác">Khác</option>
+                </select>
+                <select value={customerCouponFilter} onChange={(event) => setCustomerCouponFilter(event.target.value)}>
+                  <option value="ALL">Tất cả coupon</option>
+                  {customerCouponOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+              <div className="customer-layout">
+                <div className="customer-list">
+                  {filteredCustomers.length ? filteredCustomers.map((customer) => (
+                    <button className={selectedCustomer?.id === customer.id ? "customer-card active" : "customer-card"} key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}>
+                      <strong>{customer.name}</strong>
+                      <span>{customer.id}</span>
+                      <em>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Không còn gói active" : "Chưa PAID"}</em>
+                      <small>{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</small>
+                    </button>
+                  )) : <div className="empty-card">Không có khách nào khớp bộ lọc.</div>}
+                </div>
+                <div className="customer-detail">
+                  {selectedCustomer ? (
+                    <>
+                      <div className="customer-head">
+                        <div>
+                          <h3>{selectedCustomer.name}</h3>
+                          <p className="muted">Telegram ID: {selectedCustomer.id}</p>
+                        </div>
+                        <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Không active"}</span>
+                      </div>
+                      <div className="customer-facts">
+                        <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
+                        <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
+                        <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
+                        <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
+                      </div>
+                      <div className="customer-tags">
+                        {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
+                        {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
+                      </div>
+                      <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onStatusChange={changeOrderStatus} />
+                    </>
+                  ) : <div className="empty-card">Chọn một khách để xem chi tiết.</div>}
+                </div>
+              </div>
             </section>
           </div>
         ) : null}
@@ -2344,6 +2547,44 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
         ))}
       </div>
     </section>
+  );
+}
+
+function CustomerOrdersTable({ orders, saving, onExpireChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
+  const sorted = [...orders].sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Đơn</th><th>Gói / Group</th><th>Coupon</th><th>Hạn dùng</th><th>Trạng thái</th><th>Cập nhật hạn</th></tr></thead>
+        <tbody>
+          {sorted.map((order) => (
+            <tr key={order.order_id}>
+              <td><strong>{order.order_id}</strong><div className="muted">{dateText(order.created_at)}</div></td>
+              <td><strong>{order.plan_name}</strong><div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div></td>
+              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
+              <td>{dateText(order.expire_at)}<div className="muted">{isOrderActive(order) ? "Còn hạn" : "Không active"}</div></td>
+              <td>
+                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
+                  <option value="PENDING">PENDING</option>
+                  <option value="PAID">PAID</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                  <option value="EXPIRED">EXPIRED</option>
+                </select>
+              </td>
+              <td>
+                <div className="expire-editor">
+                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
+                  <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+                    const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
+                    onExpireChange(order.order_id, input?.value || "");
+                  }}>Lưu hạn</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

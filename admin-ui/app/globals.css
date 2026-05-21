@@ -621,6 +621,112 @@ td select {
   padding: 2px 5px;
 }
 
+.customer-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  padding: 16px;
+}
+
+.customer-list {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  max-height: 720px;
+  overflow: auto;
+}
+
+.customer-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.customer-card.active,
+.customer-card:hover {
+  background: #eef6f3;
+  border-color: #9ed5c8;
+}
+
+.customer-card span,
+.customer-card small,
+.customer-card em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.customer-detail {
+  min-width: 0;
+}
+
+.customer-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.customer-head h3 {
+  margin: 0 0 4px;
+}
+
+.customer-facts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.customer-facts div {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.customer-facts span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.customer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.customer-tags span {
+  background: #eef2f6;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
+.expire-editor {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.expire-editor input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
 .status-grid {
   display: grid;
   gap: 12px;
@@ -751,6 +857,10 @@ td select {
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .customer-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 820px) {
@@ -789,5 +899,14 @@ td select {
   .group-row,
   .info-row {
     grid-template-columns: 1fr;
+  }
+
+  .customer-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .expire-editor {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
