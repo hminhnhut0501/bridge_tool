@@ -1009,6 +1009,8 @@ const EMPTY_MANUAL_ORDER_FORM = {
 const DEFAULT_LIFETIME_DAYS = "36500";
 
 const ORDER_PAGE_SIZE = 25;
+const CUSTOMER_PAGE_SIZE = 25;
+const LOG_PAGE_SIZE = 80;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1149,6 +1151,16 @@ function dayKey(value: string | null | undefined) {
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(value));
 }
 
+function isoDayKey(value: string | null | undefined) {
+  if (!value) return "UNKNOWN";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "UNKNOWN";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function monthKey(value: string | null | undefined) {
   if (!value) return "Không rõ tháng";
   return new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "numeric" }).format(new Date(value));
@@ -1272,13 +1284,16 @@ export default function Home() {
   const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("month");
   const [orderGroupMode, setOrderGroupMode] = useState<GroupMode>("day");
   const [orderPage, setOrderPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
   const [customerStatus, setCustomerStatus] = useState<CustomerStatusFilter>("all");
   const [customerGroup, setCustomerGroup] = useState("ALL");
   const [customerPlanKind, setCustomerPlanKind] = useState("ALL");
-  const [customerCouponFilter, setCustomerCouponFilter] = useState("ALL");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
+  const [logDate, setLogDate] = useState("ALL");
+  const [logPage, setLogPage] = useState(1);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1292,6 +1307,7 @@ export default function Home() {
   const [couponBatchCount, setCouponBatchCount] = useState("10");
   const [manualOrderForm, setManualOrderForm] = useState({ ...EMPTY_MANUAL_ORDER_FORM });
   const [manualOrderResult, setManualOrderResult] = useState<ManualOrderResult | null>(null);
+  const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
 
   useEffect(() => {
@@ -1771,7 +1787,6 @@ export default function Home() {
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
   }, [orders]);
   const customerGroupOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.groups)).sort(), [customerSummaries]);
-  const customerCouponOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.coupons)).sort(), [customerSummaries]);
   const filteredCustomers = useMemo(() => {
     const q = query.toLowerCase();
     return customerSummaries.filter((customer) => {
@@ -1782,14 +1797,19 @@ export default function Home() {
       if (customerStatus === "paid" && !customer.paidOrders.length) return false;
       if (customerStatus === "coupon" && !customer.coupons.length) return false;
       if (customerGroup !== "ALL" && !customer.groups.includes(customerGroup)) return false;
-      if (customerCouponFilter !== "ALL" && !customer.coupons.includes(customerCouponFilter)) return false;
       if (customerPlanKind !== "ALL" && !customer.orders.some((order) => orderPlanKind(order) === customerPlanKind)) return false;
       return true;
     });
-  }, [customerSummaries, query, customerStatus, customerGroup, customerCouponFilter, customerPlanKind]);
+  }, [customerSummaries, query, customerStatus, customerGroup, customerPlanKind]);
+  const totalCustomerPages = Math.max(1, Math.ceil(filteredCustomers.length / CUSTOMER_PAGE_SIZE));
+  const pagedCustomers = useMemo(() => {
+    const safePage = Math.min(customerPage, totalCustomerPages);
+    const start = (safePage - 1) * CUSTOMER_PAGE_SIZE;
+    return filteredCustomers.slice(start, start + CUSTOMER_PAGE_SIZE);
+  }, [filteredCustomers, customerPage, totalCustomerPages]);
   const selectedCustomer = useMemo(() => {
-    return customerSummaries.find((item) => item.id === selectedCustomerId) || filteredCustomers[0] || null;
-  }, [customerSummaries, filteredCustomers, selectedCustomerId]);
+    return customerSummaries.find((item) => item.id === selectedCustomerId) || null;
+  }, [customerSummaries, selectedCustomerId]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
@@ -1834,15 +1854,27 @@ export default function Home() {
     return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [activityEvents, supportEvents]);
   const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
+  const logDateOptions = useMemo(() => uniqueValues(logEntries.map((item) => isoDayKey(item.createdAt))).sort((a, b) => {
+    if (a === "UNKNOWN") return 1;
+    if (b === "UNKNOWN") return -1;
+    return b.localeCompare(a);
+  }), [logEntries]);
   const filteredLogEntries = useMemo(() => {
     const q = query.toLowerCase();
     return logEntries.filter((entry) => {
       if (logDirection !== "all" && entry.direction !== logDirection) return false;
       if (logType !== "ALL" && entry.type !== logType) return false;
+      if (logDate !== "ALL" && isoDayKey(entry.createdAt) !== logDate) return false;
       const text = `${entry.type} ${entry.userId} ${entry.username} ${entry.fullName} ${entry.title} ${entry.detail}`.toLowerCase();
       return !q || text.includes(q);
     });
-  }, [logEntries, logDirection, logType, query]);
+  }, [logEntries, logDirection, logType, logDate, query]);
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogEntries.length / LOG_PAGE_SIZE));
+  const pagedLogEntries = useMemo(() => {
+    const safePage = Math.min(logPage, totalLogPages);
+    const start = (safePage - 1) * LOG_PAGE_SIZE;
+    return filteredLogEntries.slice(start, start + LOG_PAGE_SIZE);
+  }, [filteredLogEntries, logPage, totalLogPages]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
 
@@ -1851,10 +1883,19 @@ export default function Home() {
   }, [query, orderStatus, orderPeriod, orderGroupMode]);
 
   useEffect(() => {
-    if (selectedCustomerId && !filteredCustomers.some((item) => item.id === selectedCustomerId)) {
+    setCustomerPage(1);
+  }, [query, customerStatus, customerGroup, customerPlanKind]);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [query, logDirection, logType, logDate]);
+
+  useEffect(() => {
+    if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
       setSelectedCustomerId("");
+      setCustomerModalOpen(false);
     }
-  }, [filteredCustomers, selectedCustomerId]);
+  }, [customerSummaries, selectedCustomerId]);
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 30 ngày";
@@ -2135,70 +2176,10 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Thêm đơn thủ công"
-                subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Sau khi lưu, bot sẽ tạo link join group chính và group hỗ trợ."
-                action={<button className="btn" onClick={saveManualOrder} disabled={saving === "manual-order"}>{saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />} Tạo đơn & gen link</button>}
+                subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link."
+                action={<button className="btn" onClick={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}><Plus size={18} /> Mở form tạo đơn</button>}
               />
-              <div className="form-grid">
-                <label className="field">
-                  <span>Telegram ID</span>
-                  <input value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" />
-                  <small>ID số của khách. Không dùng username @.</small>
-                </label>
-                <label className="field">
-                  <span>Tên khách</span>
-                  <input value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" />
-                </label>
-                <label className="field">
-                  <span>Gói cấp cho khách</span>
-                  <select value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)}>
-                    {manualPlanKeyOptions.map((item) => <option key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</option>)}
-                  </select>
-                  <small>Tên gói phải khớp group để bot tạo được link.</small>
-                </label>
-                <label className="field wide">
-                  <span>Tên gói lưu vào đơn</span>
-                  <input value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" />
-                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Setup nhóm.</small>
-                </label>
-                <label className="field">
-                  <span>Số tiền</span>
-                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="numeric" />
-                </label>
-                <label className="field">
-                  <span>Số ngày sử dụng</span>
-                  <input value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" />
-                  <small>Chỉ dùng khi ô ngày hết hạn đang trống.</small>
-                </label>
-                <label className="field">
-                  <span>Ngày hết hạn cụ thể</span>
-                  <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
-                  <small>Nếu nhập ô này, hệ thống bỏ qua số ngày.</small>
-                </label>
-                <label className="field">
-                  <span>Coupon / ghi chú mã</span>
-                  <input value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" />
-                  <small>Sẽ hiện ở cột coupon trong Đơn hàng và Khách hàng.</small>
-                </label>
-              </div>
-              {manualOrderResult ? (
-                <div className="form-grid two">
-                  <label className="field wide">
-                    <span>Link đã tạo</span>
-                    <textarea readOnly value={[
-                      `Order: ${manualOrderResult.order_id}`,
-                      `Gói: ${manualOrderResult.plan_name}`,
-                      `Hết hạn: ${manualOrderResult.expire_at}`,
-                      "",
-                      stripHtml(manualOrderResult.links_text),
-                      manualOrderResult.support_text,
-                    ].filter(Boolean).join("\n")} />
-                  </label>
-                  <div className="field wide">
-                    <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
-                    {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID và link chỉ dùng được 1 người.</small>}
-                  </div>
-                </div>
-              ) : null}
+              <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
             </section>
             <section className="panel">
               <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
@@ -2240,7 +2221,7 @@ export default function Home() {
               <Metric label="Doanh thu khách lọc" value={money(filteredCustomers.reduce((sum, item) => sum + item.revenue, 0))} />
             </div>
             <section className="panel">
-              <PanelHead title="Khách hàng" subtitle="Theo dõi khách đã mua/kích hoạt, group, gói VIP, coupon và hạn dùng. Chọn một khách để xem chi tiết và chỉnh hạn từng đơn." />
+              <PanelHead title="Khách hàng" subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái." />
               <div className="toolbar orders-toolbar">
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
                 <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as CustomerStatusFilter)}>
@@ -2261,47 +2242,26 @@ export default function Home() {
                   <option value="Trọn đời">Trọn đời</option>
                   <option value="Khác">Khác</option>
                 </select>
-                <select value={customerCouponFilter} onChange={(event) => setCustomerCouponFilter(event.target.value)}>
-                  <option value="ALL">Tất cả coupon</option>
-                  {customerCouponOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
               </div>
-              <div className="customer-layout">
-                <div className="customer-list">
-                  {filteredCustomers.length ? filteredCustomers.map((customer) => (
-                    <button className={selectedCustomer?.id === customer.id ? "customer-card active" : "customer-card"} key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}>
-                      <strong>{customer.name}</strong>
-                      <span>{customer.id}</span>
-                      <em>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Không còn gói active" : "Chưa PAID"}</em>
-                      <small>{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</small>
-                    </button>
-                  )) : <div className="empty-card">Không có khách nào khớp bộ lọc.</div>}
-                </div>
-                <div className="customer-detail">
-                  {selectedCustomer ? (
-                    <>
-                      <div className="customer-head">
-                        <div>
-                          <h3>{selectedCustomer.name}</h3>
-                          <p className="muted">Telegram ID: {selectedCustomer.id}</p>
-                        </div>
-                        <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Không active"}</span>
-                      </div>
-                      <div className="customer-facts">
-                        <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
-                        <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
-                        <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
-                        <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
-                      </div>
-                      <div className="customer-tags">
-                        {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
-                        {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
-                      </div>
-                      <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onStatusChange={changeOrderStatus} />
-                    </>
-                  ) : <div className="empty-card">Chọn một khách để xem chi tiết.</div>}
-                </div>
-              </div>
+              <SimpleTable
+                headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
+                rows={pagedCustomers.map((customer) => [
+                  <><strong>{customer.name}</strong><div className="muted">{customer.id}</div></>,
+                  <span className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Không active" : "Chưa PAID"}</span>,
+                  String(customer.paidOrders.length),
+                  <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
+                  dateText(customer.latestExpire),
+                  money(customer.revenue),
+                ])}
+                actions={(idx) => (
+                  <button className="btn secondary" onClick={() => {
+                    const customer = pagedCustomers[idx];
+                    setSelectedCustomerId(customer.id);
+                    setCustomerModalOpen(true);
+                  }}>Chi tiết</button>
+                )}
+              />
+              <Pagination page={customerPage} totalPages={totalCustomerPages} totalItems={filteredCustomers.length} onPage={setCustomerPage} label="khách" />
             </section>
           </div>
         ) : null}
@@ -2327,10 +2287,14 @@ export default function Home() {
                   <option value="ALL">Tất cả loại event</option>
                   {logTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
+                <select value={logDate} onChange={(event) => setLogDate(event.target.value)}>
+                  <option value="ALL">Tất cả ngày</option>
+                  {logDateOptions.map((item) => <option key={item} value={item}>{item === "UNKNOWN" ? "Không rõ ngày" : dayKey(item)}</option>)}
+                </select>
               </div>
               <SimpleTable
                 headers={["Thời điểm", "Hướng", "Khách", "Loại", "Nội dung", "Chi tiết"]}
-                rows={filteredLogEntries.slice(0, 500).map((item) => [
+                rows={pagedLogEntries.map((item) => [
                   dateText(item.createdAt),
                   item.direction === "user" ? "User → Bot" : "Bot → User",
                   <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
@@ -2339,6 +2303,7 @@ export default function Home() {
                   item.detail || "-",
                 ])}
               />
+              <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredLogEntries.length} onPage={setLogPage} label="event" />
             </section>
           </div>
         ) : null}
@@ -2775,6 +2740,108 @@ export default function Home() {
             </section>
           </div>
         ) : null}
+
+        {manualOrderModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Tạo đơn thủ công"
+                subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
+                action={<button className="icon-danger" onClick={() => setManualOrderModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid">
+                <label className="field">
+                  <span>Telegram ID</span>
+                  <input value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" />
+                  <small>ID số của khách. Không dùng username @.</small>
+                </label>
+                <label className="field">
+                  <span>Tên khách</span>
+                  <input value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" />
+                </label>
+                <label className="field">
+                  <span>Gói cấp cho khách</span>
+                  <select value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)}>
+                    {manualPlanKeyOptions.map((item) => <option key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</option>)}
+                  </select>
+                </label>
+                <label className="field wide">
+                  <span>Tên gói lưu vào đơn</span>
+                  <input value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" />
+                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Setup nhóm.</small>
+                </label>
+                <label className="field">
+                  <span>Số tiền</span>
+                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="numeric" />
+                </label>
+                <label className="field">
+                  <span>Số ngày sử dụng</span>
+                  <input value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" />
+                  <small>Chỉ dùng khi ngày hết hạn trống.</small>
+                </label>
+                <label className="field">
+                  <span>Ngày hết hạn cụ thể</span>
+                  <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Coupon / ghi chú mã</span>
+                  <input value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" />
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setManualOrderModalOpen(false)}>Đóng</button>
+                <button className="btn" onClick={saveManualOrder} disabled={saving === "manual-order"}>{saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />} Tạo đơn & gen link</button>
+              </div>
+              {manualOrderResult ? (
+                <div className="form-grid two">
+                  <label className="field wide">
+                    <span>Link đã tạo</span>
+                    <textarea readOnly value={[
+                      `Order: ${manualOrderResult.order_id}`,
+                      `Gói: ${manualOrderResult.plan_name}`,
+                      `Hết hạn: ${manualOrderResult.expire_at}`,
+                      "",
+                      stripHtml(manualOrderResult.links_text),
+                      manualOrderResult.support_text,
+                    ].filter(Boolean).join("\n")} />
+                  </label>
+                  <div className="field wide">
+                    <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
+                    {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID và link chỉ dùng được 1 người.</small>}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
+
+        {customerModalOpen && selectedCustomer ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel customer-modal">
+              <PanelHead
+                title={selectedCustomer.name}
+                subtitle={`Telegram ID: ${selectedCustomer.id}`}
+                action={<button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="customer-detail modal-content">
+                <div className="customer-head">
+                  <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Không active"}</span>
+                </div>
+                <div className="customer-facts">
+                  <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
+                  <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
+                  <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
+                  <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
+                </div>
+                <div className="customer-tags">
+                  {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
+                  {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
+                </div>
+                <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onStatusChange={changeOrderStatus} />
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     </main>
   );
@@ -2917,11 +2984,11 @@ function SummaryTable({ groups }: { groups: { label: string; items: Order[]; sta
   );
 }
 
-function Pagination({ page, totalPages, totalItems, onPage }: { page: number; totalPages: number; totalItems: number; onPage: (page: number) => void }) {
+function Pagination({ page, totalPages, totalItems, onPage, label = "đơn" }: { page: number; totalPages: number; totalItems: number; onPage: (page: number) => void; label?: string }) {
   const safePage = Math.min(page, totalPages);
   return (
     <div className="pagination">
-      <span>{totalItems} đơn • Trang {safePage}/{totalPages}</span>
+      <span>{totalItems} {label} • Trang {safePage}/{totalPages}</span>
       <div>
         <button className="btn secondary" disabled={safePage <= 1} onClick={() => onPage(safePage - 1)}>Trước</button>
         <button className="btn secondary" disabled={safePage >= totalPages} onClick={() => onPage(safePage + 1)}>Sau</button>

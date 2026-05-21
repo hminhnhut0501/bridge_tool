@@ -615,6 +615,11 @@ td select {
   margin: 0 16px 16px;
 }
 
+.hint.compact {
+  border: 1px solid #c7ded7;
+  margin-top: 16px;
+}
+
 .hint code {
   background: #dceee8;
   border-radius: 4px;
@@ -725,6 +730,53 @@ td select {
   border-radius: 6px;
   min-height: 34px;
   padding: 6px 8px;
+}
+
+.modal-backdrop {
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.48);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: auto;
+  padding: 48px 18px;
+  position: fixed;
+  z-index: 50;
+}
+
+.modal-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  max-width: 920px;
+  overflow: hidden;
+  width: min(100%, 920px);
+}
+
+.modal-panel.wide-modal {
+  max-width: 980px;
+}
+
+.modal-panel.customer-modal {
+  max-width: 1120px;
+}
+
+.modal-actions {
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+}
+
+.modal-content {
+  padding: 16px;
+}
+
+.danger-text {
+  color: var(--danger);
+  font-weight: 800;
 }
 
 .status-grid {
@@ -907,6 +959,15 @@ td select {
 
   .expire-editor {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .modal-backdrop {
+    padding: 18px 10px;
+  }
+
+  .modal-actions {
+    align-items: stretch;
     flex-direction: column;
   }
 }
