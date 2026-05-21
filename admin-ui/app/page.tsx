@@ -70,6 +70,7 @@ type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
+type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked";
 
 type Notice = {
   type: "ok" | "error";
@@ -1017,6 +1018,7 @@ const DEFAULT_LIFETIME_DAYS = "36500";
 const ORDER_PAGE_SIZE = 25;
 const CUSTOMER_PAGE_SIZE = 25;
 const LOG_PAGE_SIZE = 80;
+const RENEWAL_PAGE_SIZE = 25;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1126,6 +1128,18 @@ function money(value: number) {
 function dateText(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function datePlusDaysText(value: string | null | undefined, days: number) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  date.setDate(date.getDate() + days);
+  return dateText(date.toISOString());
+}
+
+function dateMinusDaysText(value: string | null | undefined, days: number) {
+  return datePlusDaysText(value, -days);
 }
 
 function dateOnly(value: string | null | undefined) {
@@ -1300,6 +1314,9 @@ export default function Home() {
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
+  const [renewalTab, setRenewalTab] = useState<RenewalSubTab>("soon");
+  const [renewalPage, setRenewalPage] = useState(1);
+  const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1829,20 +1846,97 @@ export default function Home() {
     return customerSummaries.find((item) => item.id === selectedCustomerId) || null;
   }, [customerSummaries, selectedCustomerId]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
+  const reminderNoticeDays = useMemo(() => Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3, [config]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
-    const noticeDays = Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3;
     return paidMemberOrders.filter((item) => {
       const days = daysUntil(item.expire_at);
-      return days >= 0 && days <= noticeDays;
+      return days >= 0 && days <= reminderNoticeDays;
     });
-  }, [paidMemberOrders, config]);
+  }, [paidMemberOrders, reminderNoticeDays]);
   const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
-  const expiredNoticeToday = useMemo(() => orders.filter((item) => item.expired_notice_at && isTodayDate(item.expired_notice_at)), [orders]);
   const supportTodayEvents = useMemo(() => supportEvents.filter((item) => isTodayDate(item.created_at)), [supportEvents]);
   const supportJoinedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "support_joined"), [supportTodayEvents]);
   const supportMutedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_muted"), [supportTodayEvents]);
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
+  const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
+  const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
+  const kickedEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "member_kicked"), [supportEvents]);
+  const latestReminderByOrder = useMemo(() => {
+    const map = new Map<string, SupportEvent>();
+    for (const event of renewalReminderEvents) {
+      const orderId = event.order_id || "";
+      if (!orderId) continue;
+      const current = map.get(orderId);
+      if (!current || new Date(event.created_at).getTime() > new Date(current.created_at).getTime()) {
+        map.set(orderId, event);
+      }
+    }
+    return map;
+  }, [renewalReminderEvents]);
+  const renewalRows = useMemo(() => {
+    const rows: Record<RenewalSubTab, ReactNode[][]> = {
+      soon: expiringSoon.map((item) => {
+        const reminderEvent = latestReminderByOrder.get(item.order_id);
+        return [
+          item.full_name || "-",
+          item.telegram_user_id,
+          item.plan_name,
+          dateText(item.expire_at),
+          `${daysUntil(item.expire_at)} ngày`,
+          dateMinusDaysText(item.expire_at, reminderNoticeDays),
+          reminderEvent ? dateText(reminderEvent.created_at) : item.last_reminder_date || "-",
+        ];
+      }),
+      today: expiringToday.map((item) => [
+        item.full_name || "-",
+        item.telegram_user_id,
+        item.plan_name,
+        dateText(item.expire_at),
+        item.status,
+        item.expired_notice_at ? dateText(item.expired_notice_at) : "-",
+      ]),
+      reminded: renewalReminderEvents.map((item) => [
+        item.full_name || "-",
+        item.telegram_user_id || "-",
+        item.plan_name || "-",
+        item.order_id || "-",
+        dateText(item.created_at),
+        item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
+      ]),
+      expiredNotice: expiredNoticeEvents.map((item) => [
+        item.full_name || "-",
+        item.telegram_user_id || "-",
+        item.plan_name || "-",
+        item.order_id || "-",
+        dateText(item.created_at),
+        item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
+      ]),
+      kicked: kickedEvents.map((item) => [
+        item.full_name || "-",
+        item.telegram_user_id || "-",
+        item.plan_name || "-",
+        item.order_id || "-",
+        item.chat_title || item.chat_id || "-",
+        dateText(item.created_at),
+      ]),
+    };
+    return rows;
+  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, kickedEvents, latestReminderByOrder, reminderNoticeDays]);
+  const renewalHeaders: Record<RenewalSubTab, string[]> = {
+    soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
+    today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
+    reminded: ["Khách", "Telegram ID", "Gói", "Đơn", "Giờ nhắc", "Hạn dùng"],
+    expiredNotice: ["Khách", "Telegram ID", "Gói", "Đơn", "Giờ báo hết hạn", "Hạn dùng"],
+    kicked: ["Khách", "Telegram ID", "Gói", "Đơn", "Group", "Giờ kick"],
+  };
+  const currentRenewalRows = renewalRows[renewalTab] || [];
+  const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalRows.length / RENEWAL_PAGE_SIZE));
+  const pagedRenewalRows = useMemo(() => {
+    const safePage = Math.min(renewalPage, totalRenewalPages);
+    const start = (safePage - 1) * RENEWAL_PAGE_SIZE;
+    return currentRenewalRows.slice(start, start + RENEWAL_PAGE_SIZE);
+  }, [currentRenewalRows, renewalPage, totalRenewalPages]);
   const logEntries = useMemo(() => {
     const userEvents = activityEvents.map((event) => {
       const payload = event.payload || {};
@@ -1907,6 +2001,10 @@ export default function Home() {
   useEffect(() => {
     setLogPage(1);
   }, [query, logDirection, logType, logDate]);
+
+  useEffect(() => {
+    setRenewalPage(1);
+  }, [renewalTab]);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -2331,54 +2429,24 @@ export default function Home() {
             <div className="grid">
               <Metric label="Hết hạn hôm nay" value={String(expiringToday.length)} />
               <Metric label="Sắp hết hạn" value={String(expiringSoon.length)} />
-              <Metric label="Đã nhắc hôm nay" value={String(remindedToday.length)} />
-              <Metric label="Đã báo hết hạn hôm nay" value={String(expiredNoticeToday.length)} />
+              <Metric label="Đã nhắc hôm nay" value={String(renewalReminderEvents.filter((item) => isTodayDate(item.created_at)).length || remindedToday.length)} />
+              <Metric label="Đã kick hôm nay" value={String(supportKickedToday.length)} />
             </div>
-            <ConfigEditor
-              title="Cài đặt gia hạn"
-              subtitle="Bật/tắt nhắc gia hạn, tin báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên."
-              fields={RENEWAL_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={() => saveFields(RENEWAL_FIELDS)}
-            />
             <section className="panel">
-              <PanelHead title="User sắp hết hạn" subtitle="Dựa trên các đơn PAID còn hạn, theo số ngày nhắc cấu hình." />
-              <SimpleTable
-                headers={["Khách", "Telegram ID", "Gói", "Hết hạn", "Còn lại", "Nhắc gần nhất"]}
-                rows={expiringSoon.map((item) => [
-                  item.full_name || "-",
-                  item.telegram_user_id,
-                  item.plan_name,
-                  dateText(item.expire_at),
-                  `${daysUntil(item.expire_at)} ngày`,
-                  item.last_reminder_date || "-",
-                ])}
+              <PanelHead
+                title="Quản lý gia hạn"
+                subtitle="Theo dõi hạn dùng, lịch nhắc, báo hết hạn và lịch sử kick theo từng tab để danh sách không bị quá dài."
+                action={<button className="btn" onClick={() => setRenewalSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>}
               />
-            </section>
-            <section className="panel">
-              <PanelHead title="Hết hạn hôm nay" subtitle="Danh sách user có hạn dùng rơi vào hôm nay." />
-              <SimpleTable
-                headers={["Khách", "Telegram ID", "Gói", "Hết hạn", "Trạng thái", "Đã báo hết hạn"]}
-                rows={expiringToday.map((item) => [
-                  item.full_name || "-",
-                  item.telegram_user_id,
-                  item.plan_name,
-                  dateText(item.expire_at),
-                  item.status,
-                  item.expired_notice_at ? dateText(item.expired_notice_at) : "-",
-                ])}
-              />
-            </section>
-            <section className="panel">
-              <PanelHead title="Vừa gửi nhắc / báo hết hạn" subtitle="Theo dõi những user đã được scheduler xử lý hôm nay." />
-              <SimpleTable
-                headers={["Loại", "Khách", "Telegram ID", "Gói", "Đơn", "Thời điểm"]}
-                rows={[
-                  ...remindedToday.map((item) => ["Nhắc gia hạn", item.full_name || "-", item.telegram_user_id, item.plan_name, item.order_id, item.last_reminder_date || "-"]),
-                  ...expiredNoticeToday.map((item) => ["Báo hết hạn", item.full_name || "-", item.telegram_user_id, item.plan_name, item.order_id, dateText(item.expired_notice_at)]),
-                ]}
-              />
+              <div className="subtabs">
+                <button className={renewalTab === "soon" ? "active" : ""} onClick={() => setRenewalTab("soon")}>Sắp hết hạn ({expiringSoon.length})</button>
+                <button className={renewalTab === "today" ? "active" : ""} onClick={() => setRenewalTab("today")}>Hết hạn hôm nay ({expiringToday.length})</button>
+                <button className={renewalTab === "reminded" ? "active" : ""} onClick={() => setRenewalTab("reminded")}>Đã nhắc ({renewalReminderEvents.length})</button>
+                <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => setRenewalTab("expiredNotice")}>Báo hết hạn ({expiredNoticeEvents.length})</button>
+                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => setRenewalTab("kicked")}>Đã kick ({kickedEvents.length})</button>
+              </div>
+              <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
+              <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />
             </section>
           </div>
         ) : null}
@@ -2755,6 +2823,39 @@ export default function Home() {
             <section className="panel">
               <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />
               <SimpleTable headers={["Tên kỹ thuật", "Giá trị"]} rows={config.map((item) => [item.key, item.value])} />
+            </section>
+          </div>
+        ) : null}
+
+        {renewalSettingsOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Cài đặt gia hạn"
+                subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên."
+                action={<button className="icon-danger" onClick={() => setRenewalSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                {RENEWAL_FIELDS.map((field) => (
+                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
+                    <span>{field.label}</span>
+                    {field.kind === "textarea" ? (
+                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    ) : field.kind === "select" ? (
+                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
+                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    )}
+                    <small>{field.help}</small>
+                  </label>
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setRenewalSettingsOpen(false)}>Đóng</button>
+                <button className="btn" onClick={async () => { await saveFields(RENEWAL_FIELDS); setRenewalSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
+              </div>
             </section>
           </div>
         ) : null}
