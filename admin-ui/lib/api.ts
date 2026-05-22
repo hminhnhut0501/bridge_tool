@@ -59,7 +59,15 @@ export type Coupon = {
   max_uses: number | null;
   used_count: number;
   expires_at: string | null;
-  raw_data: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+  redemption_count?: number;
+  last_redeemed_at?: string | null;
+  last_redeemed_by?: string | null;
+  last_redeemed_order_id?: string | null;
+  last_redeemed_full_name?: string | null;
+  last_redeemed_username?: string | null;
+  raw_data: Record<string, unknown>;
 };
 
 export type BlacklistEntry = {
@@ -252,14 +260,14 @@ export async function getCoupons(secret: string) {
   return request<{ data: Coupon[] }>("/admin-api/coupons", secret);
 }
 
-export async function createCoupon(secret: string, payload: Record<string, string>) {
+export async function createCoupon(secret: string, payload: Record<string, unknown>) {
   return request<{ data: Coupon[] }>("/admin-api/coupons", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function createCoupons(secret: string, items: Record<string, string>[]) {
+export async function createCoupons(secret: string, items: Record<string, unknown>[]) {
   return request<{ data: Coupon[] }>("/admin-api/coupons/bulk", secret, {
     method: "POST",
     body: JSON.stringify({ items }),

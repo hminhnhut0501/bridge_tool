@@ -72,6 +72,7 @@ type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked";
 type SupportSubTab = "all" | "joined" | "left";
+type CouponTab = "unsent" | "sent" | "used" | "expired";
 
 type Notice = {
   type: "ok" | "error";
@@ -1021,6 +1022,7 @@ const CUSTOMER_PAGE_SIZE = 25;
 const LOG_PAGE_SIZE = 80;
 const RENEWAL_PAGE_SIZE = 25;
 const SUPPORT_PAGE_SIZE = 25;
+const COUPON_PAGE_SIZE = 20;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1037,6 +1039,57 @@ function isCouponSent(coupon: Coupon) {
   const raw = coupon.raw_data || {};
   const status = String(raw.Sent_Status || raw.Sent || raw.Is_Sent || "").trim().toUpperCase();
   return status === "SENT" || status === "YES" || status === "TRUE" || status === "1" || status === "ON";
+}
+
+function couponSentAt(coupon: Coupon) {
+  const raw = coupon.raw_data || {};
+  return String(raw.Sent_At || raw.sent_at || "").trim() || null;
+}
+
+function couponLastUserName(coupon: Coupon) {
+  const raw = coupon.raw_data || {};
+  return String(
+    coupon.last_redeemed_full_name ||
+    coupon.last_redeemed_username ||
+    raw.Last_Redeemed_Full_Name ||
+    raw.Last_Redeemed_Username ||
+    coupon.last_redeemed_by ||
+    raw.Last_Used_By ||
+    raw.Last_Redeemed_By ||
+    "",
+  ).trim() || "-";
+}
+
+function couponLastUserDetail(coupon: Coupon) {
+  const raw = coupon.raw_data || {};
+  const parts = [
+    coupon.last_redeemed_by || raw.Last_Used_By || raw.Last_Redeemed_By ? `ID ${coupon.last_redeemed_by || raw.Last_Used_By || raw.Last_Redeemed_By}` : "",
+    coupon.last_redeemed_order_id ? `Đơn ${coupon.last_redeemed_order_id}` : "",
+  ].filter(Boolean);
+  return parts.join(" • ") || "-";
+}
+
+function couponLastUsedAt(coupon: Coupon) {
+  const raw = coupon.raw_data || {};
+  return coupon.last_redeemed_at || String(raw.Last_Used_At || raw.Last_Redeemed_At || "").trim() || couponSentAt(coupon);
+}
+
+function couponIsExpired(coupon: Coupon) {
+  if (String(coupon.status || "").toUpperCase() !== "ACTIVE") return true;
+  if (!coupon.expires_at) return false;
+  const expire = new Date(coupon.expires_at);
+  return !Number.isNaN(expire.getTime()) && expire.getTime() <= Date.now();
+}
+
+function couponIsUsed(coupon: Coupon) {
+  return (coupon.redemption_count || coupon.used_count || 0) > 0;
+}
+
+function couponTabOf(coupon: Coupon): CouponTab {
+  if (couponIsExpired(coupon)) return "expired";
+  if (couponIsUsed(coupon)) return "used";
+  if (isCouponSent(coupon)) return "sent";
+  return "unsent";
 }
 
 function orderCouponCode(order: Order) {
@@ -1341,6 +1394,9 @@ export default function Home() {
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
   const [couponBatchCount, setCouponBatchCount] = useState("10");
+  const [couponTab, setCouponTab] = useState<CouponTab>("unsent");
+  const [couponPage, setCouponPage] = useState(1);
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [manualOrderForm, setManualOrderForm] = useState({ ...EMPTY_MANUAL_ORDER_FORM });
   const [manualOrderResult, setManualOrderResult] = useState<ManualOrderResult | null>(null);
   const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
@@ -1412,6 +1468,7 @@ export default function Home() {
       setActivityEvents(activityEventsRes.data);
       setWebhook(webhookRes.data);
       setOrderPage(1);
+      setCouponPage(1);
     } catch (err) {
       showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
@@ -1568,12 +1625,36 @@ export default function Home() {
       const payload = normalizeCouponPayload(couponForm);
       await createCoupon(savedSecret, payload);
       setCouponForm({ ...EMPTY_COUPON_FORM });
+      setCouponModalOpen(false);
       await loadAll();
     });
   }
 
   function resetCouponForm() {
     setCouponForm({ ...EMPTY_COUPON_FORM });
+  }
+
+  function openNewCouponModal() {
+    resetCouponForm();
+    setCouponModalOpen(true);
+  }
+
+  function editCoupon(item: Coupon) {
+    setCouponForm({
+      ...EMPTY_COUPON_FORM,
+      Code: item.code,
+      Coupon_Type: String(item.raw_data?.Coupon_Type || "ACTIVATION"),
+      Plan_Name: String(item.raw_data?.Plan_Name || item.plan_name || "SELECT_GROUP_1M"),
+      Duration_Days: String(item.raw_data?.Duration_Days || "30"),
+      Duration_Label: String(item.raw_data?.Duration_Label || item.raw_data?.Activation_Label || ""),
+      Plan_Name_Template: String(item.raw_data?.Plan_Name_Template || item.raw_data?.Activation_Plan_Template || ""),
+      Button_Template: String(item.raw_data?.Button_Template || item.raw_data?.Activation_Button_Template || ""),
+      Discount_Percent: String(item.raw_data?.Discount_Percent || "10"),
+      Applies_To: String(item.raw_data?.Applies_To || "ALL"),
+      Max_Uses: String(item.max_uses || 1),
+      Enabled: item.status === "ACTIVE" ? "ON" : "OFF",
+    });
+    setCouponModalOpen(true);
   }
 
   function generateCouponCode() {
@@ -1596,6 +1677,7 @@ export default function Home() {
       const items = Array.from(generated).map((code) => normalizeCouponPayload({ ...couponForm, Code: "" }, code));
       await createCoupons(savedSecret, items);
       setCouponForm({ ...EMPTY_COUPON_FORM });
+      setCouponModalOpen(false);
       await loadAll();
     });
   }
@@ -1606,36 +1688,49 @@ export default function Home() {
     setCouponForm({ ...couponForm, Applies_To: next.length ? next.join(",") : "ALL" });
   }
 
-  const usedCoupons = useMemo(() => coupons.filter((item) => item.max_uses && item.used_count >= item.max_uses), [coupons]);
-  const [showUsedCoupons, setShowUsedCoupons] = useState(true);
-  const [showSentCoupons, setShowSentCoupons] = useState(true);
-  const sentCoupons = useMemo(() => coupons.filter((item) => isCouponSent(item)), [coupons]);
-  const visibleCoupons = useMemo(() => coupons.filter((item) => {
-    if (!showUsedCoupons && item.max_uses && item.used_count >= item.max_uses) return false;
-    if (!showSentCoupons && isCouponSent(item)) return false;
-    return true;
-  }), [coupons, showUsedCoupons, showSentCoupons]);
+  const couponsByTab = useMemo(() => {
+    const buckets: Record<CouponTab, Coupon[]> = { unsent: [], sent: [], used: [], expired: [] };
+    for (const coupon of coupons) {
+      buckets[couponTabOf(coupon)].push(coupon);
+    }
+    const sortForTab = (list: Coupon[], tabKey: CouponTab) => {
+      return [...list].sort((a, b) => {
+        if (tabKey === "used") {
+          return new Date(couponLastUsedAt(b) || b.created_at || "").getTime() - new Date(couponLastUsedAt(a) || a.created_at || "").getTime();
+        }
+        if (tabKey === "expired") {
+          return new Date(b.expires_at || b.created_at || "").getTime() - new Date(a.expires_at || a.created_at || "").getTime();
+        }
+        return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      });
+    };
+    return {
+      unsent: sortForTab(buckets.unsent, "unsent"),
+      sent: sortForTab(buckets.sent, "sent"),
+      used: sortForTab(buckets.used, "used"),
+      expired: sortForTab(buckets.expired, "expired"),
+    };
+  }, [coupons]);
+  const couponTabCounts = useMemo(() => ({
+    unsent: couponsByTab.unsent.length,
+    sent: couponsByTab.sent.length,
+    used: couponsByTab.used.length,
+    expired: couponsByTab.expired.length,
+  }), [couponsByTab]);
+  const visibleCoupons = useMemo(() => couponsByTab[couponTab] || [], [couponTab, couponsByTab]);
+  const totalCouponPages = Math.max(1, Math.ceil(visibleCoupons.length / COUPON_PAGE_SIZE));
+  const pagedCoupons = useMemo(() => {
+    const safePage = Math.min(couponPage, totalCouponPages);
+    const start = (safePage - 1) * COUPON_PAGE_SIZE;
+    return visibleCoupons.slice(start, start + COUPON_PAGE_SIZE);
+  }, [visibleCoupons, couponPage, totalCouponPages]);
 
   async function removeCoupon(code = couponForm.Code) {
     if (!code || !window.confirm(`Xoá coupon "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
     await runAction(`coupon-delete-${code}`, async () => {
       await deleteCoupon(savedSecret, code);
       resetCouponForm();
-      await loadAll();
-    });
-  }
-
-  async function removeUsedCoupons() {
-    if (!usedCoupons.length) {
-      showNotice("ok", "Không có coupon đã dùng hết để xoá.");
-      return;
-    }
-    if (!window.confirm(`Xoá ${usedCoupons.length} coupon đã dùng hết? Lịch sử redemption vẫn được giữ riêng.`)) return;
-    await runAction("coupon-delete-used", async () => {
-      for (const coupon of usedCoupons) {
-        await deleteCoupon(savedSecret, coupon.code);
-      }
-      resetCouponForm();
+      setCouponModalOpen(false);
       await loadAll();
     });
   }
@@ -2056,6 +2151,10 @@ export default function Home() {
   useEffect(() => {
     setSupportPage(1);
   }, [supportTab]);
+
+  useEffect(() => {
+    setCouponPage(1);
+  }, [couponTab]);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -2620,67 +2719,28 @@ export default function Home() {
           <section className="panel">
             <PanelHead
               title="Coupon"
-              subtitle="Tạo mã giảm giá hoặc mã kích hoạt. Chọn dòng bên dưới để sửa, hoặc bấm Thêm mới để tạo mã khác."
+              subtitle="Danh sách coupon được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong popup."
               action={
                 <div className="panel-actions">
-                  <button className="btn secondary" onClick={resetCouponForm}><Plus size={16} /> Thêm mới</button>
-                  <button className="btn secondary" onClick={generateCouponCode}><RefreshCw size={16} /> Gen mã HANGCU_</button>
-                  <input className="mini-input" value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" title="Số lượng mã cần gen cùng điều kiện" />
-                  <button className="btn secondary" onClick={generateManyCoupons}><RefreshCw size={16} /> Gen nhiều</button>
-                  <button className="btn secondary" onClick={() => setShowUsedCoupons(!showUsedCoupons)}>{showUsedCoupons ? "Ẩn đã dùng" : "Hiện đã dùng"}</button>
-                  <button className="btn secondary" onClick={() => setShowSentCoupons(!showSentCoupons)}>{showSentCoupons ? `Ẩn đã gửi (${sentCoupons.length})` : `Hiện đã gửi (${sentCoupons.length})`}</button>
-                  <button className="btn danger" onClick={removeUsedCoupons} disabled={!usedCoupons.length}><Trash2 size={16} /> Xoá đã dùng</button>
-                  <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
-                  <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
+                  <button className="btn" onClick={openNewCouponModal}><Plus size={16} /> Thêm coupon</button>
                 </div>
               }
             />
-            <div className="form-grid">
-              <label className="field"><span>Mã coupon</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" /></label>
-              <label className="field"><span>Loại coupon</span><select value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })}><option value="DISCOUNT">Giảm giá khi mua QR</option><option value="ACTIVATION">Kích hoạt miễn phí</option></select><small>Giảm giá: khách nhập mã rồi chọn gói để tạo QR đã trừ tiền. Kích hoạt: nhập mã là cấp link ngay.</small></label>
-              {couponForm.Coupon_Type === "DISCOUNT" ? (
-                <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
-              ) : (
-                <>
-                  <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => {
-                    const nextPlan = event.target.value;
-                    setCouponForm({
-                      ...couponForm,
-                      Plan_Name: nextPlan,
-                      Duration_Days: isLifetimeCouponPlan(nextPlan) ? lifetimeCouponDays : couponForm.Duration_Days,
-                    });
-                  }}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
-                  <label className="field"><span>Số ngày sử dụng</span><input value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} /><small>{lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."}</small></label>
-                  <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" /><small>{lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."}</small></label>
-                  <label className="field"><span>Mẫu tên gói</span><input value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" /><small>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</small></label>
-                  <label className="field"><span>Mẫu nút chọn group</span><input value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" /><small>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</small></label>
-                </>
-              )}
-              <label className="field"><span>Số lượt dùng tối đa</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" /></label>
-              <label className="field"><span>Trạng thái</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
+            <div className="grid">
+              <Metric label="Chưa gửi" value={String(couponTabCounts.unsent)} />
+              <Metric label="Đã gửi" value={String(couponTabCounts.sent)} />
+              <Metric label="Đã sử dụng" value={String(couponTabCounts.used)} />
+              <Metric label="Đã hết hạn" value={String(couponTabCounts.expired)} />
             </div>
-            {couponForm.Coupon_Type === "DISCOUNT" ? (
-              <div className="coupon-scope">
-                <div className="coupon-scope-head">
-                  <strong>Gói được áp dụng</strong>
-                  <button className={couponForm.Applies_To === "ALL" ? "scope-pill active" : "scope-pill"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</button>
-                </div>
-                <div className="check-grid">
-                  {discountPlanKeyOptions.map((item) => {
-                    const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
-                    return (
-                      <label className={selected ? "check-card active" : "check-card"} key={item}>
-                        <input type="checkbox" checked={selected} onChange={() => toggleCouponPlan(item)} />
-                        <span>{planOptionLabel(item)}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
+            <div className="subtabs">
+              <button className={couponTab === "unsent" ? "active" : ""} onClick={() => setCouponTab("unsent")}>Chưa gửi ({couponTabCounts.unsent})</button>
+              <button className={couponTab === "sent" ? "active" : ""} onClick={() => setCouponTab("sent")}>Đã gửi ({couponTabCounts.sent})</button>
+              <button className={couponTab === "used" ? "active" : ""} onClick={() => setCouponTab("used")}>Đã sử dụng ({couponTabCounts.used})</button>
+              <button className={couponTab === "expired" ? "active" : ""} onClick={() => setCouponTab("expired")}>Đã hết hạn ({couponTabCounts.expired})</button>
+            </div>
             <SimpleTable
-              headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Tối đa"]}
-              rows={visibleCoupons.map((item) => [
+              headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Người dùng gần nhất"]}
+              rows={pagedCoupons.map((item) => [
                 <button
                   className="coupon-code-copy"
                   disabled={saving === `coupon-copy-${item.code}`}
@@ -2692,52 +2752,39 @@ export default function Home() {
                 >
                   {item.code}
                 </button>,
-                item.raw_data?.Coupon_Type === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
-                item.raw_data?.Coupon_Type === "DISCOUNT" ? appliesLabel(item.raw_data?.Applies_To) : planOptionLabel(item.raw_data?.Plan_Name || item.plan_name || "-"),
-                item.raw_data?.Coupon_Type === "DISCOUNT" ? `${item.raw_data?.Discount_Percent || 0}%` : "-",
-                item.status,
-                isCouponSent(item) ? `Đã gửi${item.raw_data?.Sent_At ? ` • ${dateText(item.raw_data.Sent_At)}` : ""}` : "Chưa gửi",
-                String(item.used_count),
-                String(item.max_uses || "-"),
+                String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
+                String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? appliesLabel(String(item.raw_data?.Applies_To || "")) : planOptionLabel(String(item.raw_data?.Plan_Name || item.plan_name || "-")),
+                String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? `${String(item.raw_data?.Discount_Percent || 0)}%` : "-",
+                <><strong>{couponIsExpired(item) ? "Hết hạn" : item.status}</strong><div className="muted">HSD: {dateText(item.expires_at)}</div></>,
+                isCouponSent(item) ? <><strong>Đã gửi</strong><div className="muted">{dateText(couponSentAt(item))}</div></> : "Chưa gửi",
+                <><strong>{item.used_count}</strong><div className="muted">Tối đa {item.max_uses || "-"}</div></>,
+                <><strong>{couponLastUserName(item)}</strong><div className="muted">{couponLastUserDetail(item)}{item.last_redeemed_at ? ` • ${dateText(item.last_redeemed_at)}` : ""}</div></>,
               ])}
               onRow={(idx) => {
-                const item = visibleCoupons[idx];
-                setCouponForm({
-                  ...EMPTY_COUPON_FORM,
-                  Code: item.code,
-                  Coupon_Type: item.raw_data?.Coupon_Type || "ACTIVATION",
-                  Plan_Name: item.raw_data?.Plan_Name || item.plan_name || "SELECT_GROUP_1M",
-                  Duration_Days: item.raw_data?.Duration_Days || "30",
-                  Duration_Label: item.raw_data?.Duration_Label || item.raw_data?.Activation_Label || "",
-                  Plan_Name_Template: item.raw_data?.Plan_Name_Template || item.raw_data?.Activation_Plan_Template || "",
-                  Button_Template: item.raw_data?.Button_Template || item.raw_data?.Activation_Button_Template || "",
-                  Discount_Percent: item.raw_data?.Discount_Percent || "10",
-                  Applies_To: item.raw_data?.Applies_To || "ALL",
-                  Max_Uses: String(item.max_uses || 1),
-                  Enabled: item.status === "ACTIVE" ? "ON" : "OFF",
-                });
+                editCoupon(pagedCoupons[idx]);
               }}
               actions={(idx) => (
                 <div className="coupon-row-actions">
                   <label className="sent-toggle" title="Đánh dấu đã gửi coupon">
                     <input
                       type="checkbox"
-                      checked={isCouponSent(visibleCoupons[idx])}
-                      disabled={saving === `coupon-sent-${visibleCoupons[idx].code}`}
+                      checked={isCouponSent(pagedCoupons[idx])}
+                      disabled={saving === `coupon-sent-${pagedCoupons[idx].code}`}
                       onChange={(event) => {
                         event.stopPropagation();
-                        toggleCouponSent(visibleCoupons[idx], event.target.checked);
+                        toggleCouponSent(pagedCoupons[idx], event.target.checked);
                       }}
                       onClick={(event) => event.stopPropagation()}
                     />
                     <span>Gửi</span>
                   </label>
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(visibleCoupons[idx].code); }} title="Xoá coupon">
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(pagedCoupons[idx].code); }} title="Xoá coupon">
                     <Trash2 size={16} />
                   </button>
                 </div>
               )}
             />
+            <Pagination page={couponPage} totalPages={totalCouponPages} totalItems={visibleCoupons.length} onPage={setCouponPage} label="coupon" />
           </section>
         ) : null}
 
@@ -2850,6 +2897,73 @@ export default function Home() {
             <section className="panel">
               <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />
               <SimpleTable headers={["Tên kỹ thuật", "Giá trị"]} rows={config.map((item) => [item.key, item.value])} />
+            </section>
+          </div>
+        ) : null}
+
+        {couponModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"}
+                subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này."
+                action={<button className="icon-danger" onClick={() => setCouponModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="modal-content">
+                <div className="panel-actions modal-toolbar">
+                  <button className="btn secondary" onClick={generateCouponCode}><RefreshCw size={16} /> Gen mã HANGCU_</button>
+                  <input className="mini-input" value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" title="Số lượng mã cần gen cùng điều kiện" />
+                  <button className="btn secondary" onClick={generateManyCoupons}><RefreshCw size={16} /> Gen nhiều cùng điều kiện</button>
+                </div>
+                <div className="form-grid">
+                  <label className="field"><span>Mã coupon</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" /></label>
+                  <label className="field"><span>Loại coupon</span><select value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })}><option value="DISCOUNT">Giảm giá khi mua QR</option><option value="ACTIVATION">Kích hoạt miễn phí</option></select><small>Giảm giá: khách nhập mã rồi chọn gói để tạo QR đã trừ tiền. Kích hoạt: nhập mã là cấp link ngay.</small></label>
+                  {couponForm.Coupon_Type === "DISCOUNT" ? (
+                    <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
+                  ) : (
+                    <>
+                      <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => {
+                        const nextPlan = event.target.value;
+                        setCouponForm({
+                          ...couponForm,
+                          Plan_Name: nextPlan,
+                          Duration_Days: isLifetimeCouponPlan(nextPlan) ? lifetimeCouponDays : couponForm.Duration_Days,
+                        });
+                      }}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
+                      <label className="field"><span>Số ngày sử dụng</span><input value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} /><small>{lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."}</small></label>
+                      <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" /><small>{lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."}</small></label>
+                      <label className="field"><span>Mẫu tên gói</span><input value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" /><small>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</small></label>
+                      <label className="field"><span>Mẫu nút chọn group</span><input value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" /><small>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</small></label>
+                    </>
+                  )}
+                  <label className="field"><span>Số lượt dùng tối đa</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" /></label>
+                  <label className="field"><span>Trạng thái</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
+                </div>
+                {couponForm.Coupon_Type === "DISCOUNT" ? (
+                  <div className="coupon-scope">
+                    <div className="coupon-scope-head">
+                      <strong>Gói được áp dụng</strong>
+                      <button className={couponForm.Applies_To === "ALL" ? "scope-pill active" : "scope-pill"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</button>
+                    </div>
+                    <div className="check-grid">
+                      {discountPlanKeyOptions.map((item) => {
+                        const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
+                        return (
+                          <label className={selected ? "check-card active" : "check-card"} key={item}>
+                            <input type="checkbox" checked={selected} onChange={() => toggleCouponPlan(item)} />
+                            <span>{planOptionLabel(item)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setCouponModalOpen(false)}>Đóng</button>
+                <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
+                <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
+              </div>
             </section>
           </div>
         ) : null}

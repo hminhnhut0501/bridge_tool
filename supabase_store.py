@@ -422,7 +422,38 @@ class SupabaseStore:
         )
 
     def list_coupons(self):
-        return self._request("GET", "coupons", params={"select": "*", "order": "created_at.desc"})
+        coupons = self._request("GET", "coupons", params={"select": "*", "order": "created_at.desc"})
+        try:
+            redemptions = self.list_coupon_redemptions(limit=5000)
+        except Exception:
+            redemptions = []
+        latest_redemption_by_code = {}
+        redemption_count_by_code = {}
+        for redemption in redemptions or []:
+            code = _clean_text(redemption.get("coupon_code")).upper()
+            if not code:
+                continue
+            redemption_count_by_code[code] = redemption_count_by_code.get(code, 0) + 1
+            current = latest_redemption_by_code.get(code)
+            if not current or str(redemption.get("redeemed_at") or "") > str(current.get("redeemed_at") or ""):
+                latest_redemption_by_code[code] = redemption
+        for coupon in coupons:
+            code = _clean_text(coupon.get("code")).upper()
+            latest = latest_redemption_by_code.get(code) or {}
+            raw = dict(coupon.get("raw_data") or {})
+            coupon["redemption_count"] = redemption_count_by_code.get(code, _parse_int(coupon.get("used_count"), 0))
+            coupon["last_redeemed_at"] = latest.get("redeemed_at")
+            coupon["last_redeemed_by"] = latest.get("telegram_user_id")
+            coupon["last_redeemed_order_id"] = latest.get("order_id")
+            latest_raw = dict(latest.get("raw_data") or {})
+            coupon["last_redeemed_full_name"] = latest_raw.get("Full_Name") or latest_raw.get("full_name") or ""
+            coupon["last_redeemed_username"] = latest_raw.get("Username") or latest_raw.get("username") or ""
+            raw.setdefault("Last_Redeemed_At", coupon["last_redeemed_at"] or "")
+            raw.setdefault("Last_Redeemed_By", coupon["last_redeemed_by"] or "")
+            raw.setdefault("Last_Redeemed_Full_Name", coupon["last_redeemed_full_name"] or "")
+            raw.setdefault("Last_Redeemed_Username", coupon["last_redeemed_username"] or "")
+            coupon["raw_data"] = raw
+        return coupons
 
     def delete_sale_rule(self, sale_id):
         return self._request(
@@ -642,8 +673,8 @@ class SupabaseStore:
         }
         return self._request("POST", "coupon_redemptions", json=payload, prefer="return=representation")
 
-    def list_coupon_redemptions(self, code=None):
-        params = {"select": "*", "order": "redeemed_at.desc"}
+    def list_coupon_redemptions(self, code=None, limit=500):
+        params = {"select": "*", "order": "redeemed_at.desc", "limit": str(limit)}
         if code:
             params["coupon_code"] = f"eq.{_clean_text(code).upper()}"
         return self._request("GET", "coupon_redemptions", params=params)
