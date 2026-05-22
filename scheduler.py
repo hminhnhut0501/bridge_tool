@@ -327,7 +327,11 @@ async def main():
             
         # Bot ngủ 4 tiếng rồi mới quét Sheet lại 1 lần (Cho nhẹ máy chủ)
         logging.info("💤 Hoàn tất chu kỳ quét. Quản gia đi ngủ 4 tiếng...")
-        await asyncio.sleep(config_int("SCHEDULER_INTERVAL_SECONDS", 14400, minimum=60))
+        interval_seconds = config_int("SCHEDULER_INTERVAL_SECONDS", 600, minimum=60)
+        if interval_seconds > 600:
+            logging.warning("⚠️ SCHEDULER_INTERVAL_SECONDS=%s quá lớn, giới hạn còn 600 giây để kick kịp thời.", interval_seconds)
+            interval_seconds = 600
+        await asyncio.sleep(interval_seconds)
 
 if __name__ == "__main__":
     asyncio.run(main())

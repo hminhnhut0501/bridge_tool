@@ -406,8 +406,8 @@ const SYSTEM_FIELDS: ConfigField[] = [
   {
     key: "SCHEDULER_INTERVAL_SECONDS",
     label: "Chu kỳ quét hạn",
-    placeholder: "14400",
-    help: "Số giây giữa các vòng quét hạn/gia hạn. 14400 = 4 tiếng.",
+    placeholder: "600",
+    help: "Số giây giữa các vòng quét hạn/gia hạn. 600 = 10 phút.",
   },
   {
     key: "SCHEDULER_ORDER_LIMIT",
@@ -2414,7 +2414,7 @@ export default function Home() {
                 headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
                 rows={pagedCustomers.map((customer) => [
                   <><strong>{customer.name}</strong><div className="muted">{customer.id}</div></>,
-                  <span className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Không active" : "Chưa PAID"}</span>,
+                  <span className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
                   String(customer.paidOrders.length),
                   <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
                   dateText(customer.latestExpire),
@@ -3070,7 +3070,7 @@ export default function Home() {
               />
               <div className="customer-detail modal-content">
                 <div className="customer-head">
-                  <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Không active"}</span>
+                  <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Hết hạn / chờ kick"}</span>
                 </div>
                 <div className="customer-facts">
                   <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
