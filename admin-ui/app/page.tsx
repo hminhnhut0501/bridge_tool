@@ -71,6 +71,7 @@ type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked";
+type SupportSubTab = "all" | "joined" | "left";
 
 type Notice = {
   type: "ok" | "error";
@@ -1019,6 +1020,7 @@ const ORDER_PAGE_SIZE = 25;
 const CUSTOMER_PAGE_SIZE = 25;
 const LOG_PAGE_SIZE = 80;
 const RENEWAL_PAGE_SIZE = 25;
+const SUPPORT_PAGE_SIZE = 25;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1140,6 +1142,12 @@ function datePlusDaysText(value: string | null | undefined, days: number) {
 
 function dateMinusDaysText(value: string | null | undefined, days: number) {
   return datePlusDaysText(value, -days);
+}
+
+function normalizeChatId(value: string | number | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return raw.endsWith(".0") ? raw.slice(0, -2) : raw;
 }
 
 function dateOnly(value: string | null | undefined) {
@@ -1317,6 +1325,11 @@ export default function Home() {
   const [renewalTab, setRenewalTab] = useState<RenewalSubTab>("soon");
   const [renewalPage, setRenewalPage] = useState(1);
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
+  const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
+  const [supportPage, setSupportPage] = useState(1);
+  const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
+  const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
+  const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1857,8 +1870,12 @@ export default function Home() {
   }, [paidMemberOrders, reminderNoticeDays]);
   const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
   const supportTodayEvents = useMemo(() => supportEvents.filter((item) => isTodayDate(item.created_at)), [supportEvents]);
-  const supportJoinedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "support_joined"), [supportTodayEvents]);
-  const supportMutedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_muted"), [supportTodayEvents]);
+  const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
+  const supportGroupEvents = useMemo(() => {
+    if (!supportGroupId) return [];
+    return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
+  }, [supportEvents, supportGroupId]);
+  const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
@@ -1943,6 +1960,30 @@ export default function Home() {
     const start = (safePage - 1) * RENEWAL_PAGE_SIZE;
     return currentRenewalRows.slice(start, start + RENEWAL_PAGE_SIZE);
   }, [currentRenewalRows, renewalPage, totalRenewalPages]);
+  const supportEventRows = useMemo(() => {
+    const filtered = supportGroupEvents.filter((item) => {
+      if (supportTab === "joined") return item.event_type === "support_joined";
+      if (supportTab === "left") return item.event_type === "support_left";
+      return true;
+    });
+    return filtered.map((item) => [
+      supportEventLabel(item.event_type),
+      item.full_name || item.username || "-",
+      item.telegram_user_id || "-",
+      item.chat_title || item.chat_id || "-",
+      dateText(item.created_at),
+      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || "-",
+    ]);
+  }, [supportGroupEvents, supportTab]);
+  const supportEventHeaders = useMemo(() => {
+    return ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"];
+  }, [supportTab]);
+  const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
+  const pagedSupportRows = useMemo(() => {
+    const safePage = Math.min(supportPage, totalSupportPages);
+    const start = (safePage - 1) * SUPPORT_PAGE_SIZE;
+    return supportEventRows.slice(start, start + SUPPORT_PAGE_SIZE);
+  }, [supportEventRows, supportPage, totalSupportPages]);
   const logEntries = useMemo(() => {
     const userEvents = activityEvents.map((event) => {
       const payload = event.payload || {};
@@ -2011,6 +2052,10 @@ export default function Home() {
   useEffect(() => {
     setRenewalPage(1);
   }, [renewalTab]);
+
+  useEffect(() => {
+    setSupportPage(1);
+  }, [supportTab]);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -2460,24 +2505,21 @@ export default function Home() {
         {tab === "supportGroup" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Join hôm nay" value={String(supportJoinedToday.length)} />
-              <Metric label="Mute hôm nay" value={String(supportMutedToday.length)} />
-              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} />
-              <Metric label="Sự kiện gần đây" value={String(supportEvents.length)} />
+              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} />
+              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} />
+              <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} />
+              <Metric label="Group hỗ trợ" value={supportCheck?.group_name || getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} />
             </div>
-            <ConfigEditor
-              title="Cài đặt group hỗ trợ"
-              subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick."
-              fields={SUPPORT_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={() => saveFields(SUPPORT_FIELDS)}
-            />
             <section className="panel">
               <PanelHead
-                title="Kiểm tra link support"
-                subtitle="Test trực tiếp với Telegram để biết sai group ID, bot chưa vào group, hay thiếu quyền tạo link."
-                action={<button className="btn" onClick={runSupportGroupCheck} disabled={saving === "support-check"}>{saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra</button>}
+                title="Group hỗ trợ"
+                subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn dữ liệu VIP."
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => setSupportSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                    <button className="btn" onClick={runSupportGroupCheck} disabled={saving === "support-check"}>{saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra</button>
+                  </div>
+                }
               />
               {supportCheck ? (
                 <SimpleTable
@@ -2494,33 +2536,17 @@ export default function Home() {
               )}
             </section>
             <section className="panel">
-              <PanelHead title="Sự kiện support hôm nay" subtitle="Ai vừa join group hỗ trợ, ai bị mute hoặc bị kick hôm nay." />
-              <SimpleTable
-                headers={["Loại", "Khách", "Telegram ID", "Group", "Gói", "Đơn", "Thời điểm"]}
-                rows={supportTodayEvents.map((item) => [
-                  supportEventLabel(item.event_type),
-                  item.full_name || item.username || "-",
-                  item.telegram_user_id || "-",
-                  item.chat_title || item.chat_id || "-",
-                  item.plan_name || "-",
-                  item.order_id || "-",
-                  dateText(item.created_at),
-                ])}
+              <PanelHead
+                title="Sự kiện support"
+                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu support group và không lẫn thông tin VIP."
               />
-            </section>
-            <section className="panel">
-              <PanelHead title="Log support gần đây" subtitle="Lưu lại các lần join, mute, unmute, kick, gửi nhắc và báo hết hạn." />
-              <SimpleTable
-                headers={["Loại", "Khách", "Telegram ID", "Group", "Gói", "Thời điểm"]}
-                rows={supportEvents.slice(0, 100).map((item) => [
-                  supportEventLabel(item.event_type),
-                  item.full_name || item.username || "-",
-                  item.telegram_user_id || "-",
-                  item.chat_title || item.chat_id || "-",
-                  item.plan_name || "-",
-                  dateText(item.created_at),
-                ])}
-              />
+              <div className="subtabs">
+                <button className={supportTab === "all" ? "active" : ""} onClick={() => setSupportTab("all")}>Tất cả ({supportGroupEvents.length})</button>
+                <button className={supportTab === "joined" ? "active" : ""} onClick={() => setSupportTab("joined")}>Join ({supportGroupEvents.filter((item) => item.event_type === "support_joined").length})</button>
+                <button className={supportTab === "left" ? "active" : ""} onClick={() => setSupportTab("left")}>Left ({supportGroupEvents.filter((item) => item.event_type === "support_left").length})</button>
+              </div>
+              <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
+              <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
             </section>
           </div>
         ) : null}
@@ -2717,25 +2743,19 @@ export default function Home() {
 
         {tab === "security" ? (
           <div className="stack">
-            <ConfigEditor
-              title="Bảo mật bot và coupon"
-              subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
-              fields={SECURITY_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={() => saveFields(SECURITY_FIELDS)}
-            />
             <section className="panel">
               <PanelHead
-                title="Blacklist user"
-                subtitle="Thêm Telegram ID cần chặn. User trong danh sách sẽ không dùng được bot, trừ admin."
+                title="Bảo mật bot và coupon"
+                subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
                 action={
                   <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => setSecuritySettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
                     <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
                     <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
                   </div>
                 }
               />
+              <div className="hint compact">Cấu hình bảo mật được tách vào popup để phần blacklist luôn gọn và dễ thao tác.</div>
               <div className="form-grid">
                 <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
                 <label className="field"><span>Username</span><input value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" /></label>
@@ -2810,16 +2830,17 @@ export default function Home() {
 
         {tab === "system" ? (
           <div className="stack">
-            <ConfigEditor
-              title="Cài đặt hệ thống"
-              subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
-              fields={SYSTEM_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={() => saveFields(SYSTEM_FIELDS)}
-            />
             <section className="panel">
-              <PanelHead title="Telegram webhook" subtitle="Nếu bot không phản hồi, kiểm tra và reset webhook tại đây." action={<button className="btn" onClick={handleWebhookReset}><RefreshCw size={16} /> Reset webhook</button>} />
+              <PanelHead
+                title="Cài đặt hệ thống"
+                subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => setSystemSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                    <button className="btn" onClick={handleWebhookReset}><RefreshCw size={16} /> Reset webhook</button>
+                  </div>
+                }
+              />
               <div className="system-list">
                 <Info label="Webhook URL" value={webhook?.url || "Chưa cấu hình"} />
                 <Info label="Update đang chờ" value={String(webhook?.pending_update_count ?? 0)} />
@@ -2861,6 +2882,105 @@ export default function Home() {
               <div className="modal-actions">
                 <button className="btn secondary" onClick={() => setRenewalSettingsOpen(false)}>Đóng</button>
                 <button className="btn" onClick={async () => { await saveFields(RENEWAL_FIELDS); setRenewalSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {supportSettingsOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Cài đặt group hỗ trợ"
+                subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick."
+                action={<button className="icon-danger" onClick={() => setSupportSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                {SUPPORT_FIELDS.map((field) => (
+                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
+                    <span>{field.label}</span>
+                    {field.kind === "textarea" ? (
+                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    ) : field.kind === "select" ? (
+                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
+                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    )}
+                    <small>{field.help}</small>
+                  </label>
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setSupportSettingsOpen(false)}>Đóng</button>
+                <button className="btn" onClick={async () => { await saveFields(SUPPORT_FIELDS); setSupportSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {securitySettingsOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Bảo mật bot và coupon"
+                subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
+                action={<button className="icon-danger" onClick={() => setSecuritySettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                {SECURITY_FIELDS.map((field) => (
+                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
+                    <span>{field.label}</span>
+                    {field.kind === "textarea" ? (
+                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    ) : field.kind === "select" ? (
+                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
+                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    )}
+                    <small>{field.help}</small>
+                  </label>
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setSecuritySettingsOpen(false)}>Đóng</button>
+                <button className="btn" onClick={async () => { await saveFields(SECURITY_FIELDS); setSecuritySettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {systemSettingsOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Cài đặt hệ thống"
+                subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
+                action={<button className="icon-danger" onClick={() => setSystemSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                {SYSTEM_FIELDS.map((field) => (
+                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
+                    <span>{field.label}</span>
+                    {field.kind === "textarea" ? (
+                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    ) : field.kind === "select" ? (
+                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
+                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    ) : (
+                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
+                    )}
+                    <small>{field.help}</small>
+                  </label>
+                ))}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setSystemSettingsOpen(false)}>Đóng</button>
+                <button className="btn" onClick={async () => { await saveFields(SYSTEM_FIELDS); setSystemSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
               </div>
             </section>
           </div>
