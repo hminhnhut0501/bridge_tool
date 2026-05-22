@@ -1821,6 +1821,7 @@ export default function Home() {
       };
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
   }, [orders]);
+  const customerNameById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item.name] as const)), [customerSummaries]);
   const customerGroupOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.groups)).sort(), [customerSummaries]);
   const filteredCustomers = useMemo(() => {
     const q = query.toLowerCase();
@@ -1874,12 +1875,17 @@ export default function Home() {
     }
     return map;
   }, [renewalReminderEvents]);
+  function renewalCustomerName(item: Order | SupportEvent) {
+    const telegramId = "telegram_user_id" in item ? String(item.telegram_user_id || "").trim() : "";
+    const fromOrder = "full_name" in item ? String(item.full_name || "").trim() : "";
+    return fromOrder || customerNameById.get(telegramId) || telegramId || "-";
+  }
   const renewalRows = useMemo(() => {
     const rows: Record<RenewalSubTab, ReactNode[][]> = {
       soon: expiringSoon.map((item) => {
         const reminderEvent = latestReminderByOrder.get(item.order_id);
         return [
-          item.full_name || "-",
+          renewalCustomerName(item),
           item.telegram_user_id,
           item.plan_name,
           dateText(item.expire_at),
@@ -1889,7 +1895,7 @@ export default function Home() {
         ];
       }),
       today: expiringToday.map((item) => [
-        item.full_name || "-",
+        renewalCustomerName(item),
         item.telegram_user_id,
         item.plan_name,
         dateText(item.expire_at),
@@ -1897,7 +1903,7 @@ export default function Home() {
         item.expired_notice_at ? dateText(item.expired_notice_at) : "-",
       ]),
       reminded: renewalReminderEvents.map((item) => [
-        item.full_name || "-",
+        renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
         item.order_id || "-",
@@ -1905,7 +1911,7 @@ export default function Home() {
         item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
       ]),
       expiredNotice: expiredNoticeEvents.map((item) => [
-        item.full_name || "-",
+        renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
         item.order_id || "-",
@@ -1913,7 +1919,7 @@ export default function Home() {
         item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
       ]),
       kicked: kickedEvents.map((item) => [
-        item.full_name || "-",
+        renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
         item.order_id || "-",
