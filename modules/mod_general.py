@@ -267,5 +267,7 @@ async def cmd_me(event):
 # [7] CÔNG CỤ ADMIN: LẤY FILE_ID CỦA ẢNH
 @router.message(F.photo)
 async def get_file_id(message: Message):
+    if message.chat.type != "private":
+        return
     if is_admin_user(message.from_user.id):
-        await message.reply(f"<code>{message.photo[-1].file_id}</code>")
+        await message.reply(f"<code>{message.photo[-1].file_id}</code>", parse_mode="HTML")
