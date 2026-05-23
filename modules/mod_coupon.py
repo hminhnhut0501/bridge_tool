@@ -18,7 +18,7 @@ from bot_instance import bot
 from config_utils import config_int, group_numbers
 from database import db, normalize_key
 from helpers import check_protection, is_admin_user
-from i18n import get_user_language, t
+from i18n import t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
@@ -250,11 +250,7 @@ def duration_label(coupon, user_id=None, plan_key=None):
 
     days = coupon_duration_days(coupon, plan_key)
     if is_lifetime_coupon_plan(plan_key or (coupon or {}).get("Plan_Name")) or days >= 3650:
-        if get_user_language(user_id) == "en":
-            return "lifetime"
         return "trọn đời"
-    if get_user_language(user_id) == "en":
-        return f"{days} day" if days == 1 else f"{days} days"
     return f"{days} ngày"
 
 
@@ -424,24 +420,23 @@ def localized_config(user_id, key, default=""):
 def resolve_plan_name(plan_key, user_id=None):
     raw = str(plan_key or "").strip()
     key = raw.upper()
-    english = get_user_language(user_id) == "en"
 
     plan_map = {
-        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 30 Ngày"),
-        "FULL_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
-        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 days" if english else "SVIP+ 30 Ngày"),
-        "SVIP_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ Lifetime" if english else "SVIP+ TRỌN ĐỜI"),
-        SELECT_GROUP_1M: "Customer selects a group - 30 days" if english else "Khách tự chọn group lẻ - 30 ngày",
-        SELECT_GROUP_LIFE: "Customer selects a group - lifetime" if english else "Khách tự chọn group lẻ - trọn đời",
+        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 Ngày"),
+        "FULL_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
+        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 Ngày"),
+        "SVIP_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
+        SELECT_GROUP_1M: "Khách tự chọn group lẻ - 30 ngày",
+        SELECT_GROUP_LIFE: "Khách tự chọn group lẻ - trọn đời",
     }
     if key in plan_map:
         return plan_map[key]
 
     for group_no in group_numbers():
         if key == f"G{group_no}_1M":
-            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 days' if english else 'VIP 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Nhóm {group_no}')}"
         if key == f"G{group_no}_LIFE":
-            return f"{localized_config(user_id, 'PLAN_G_LIFE', 'VIP lifetime' if english else 'Gói trọn đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Group {group_no}' if english else f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_G_LIFE', 'Gói trọn đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Nhóm {group_no}')}"
 
     return raw.replace("_", " ")
 
@@ -455,8 +450,7 @@ def group_name_from_plan_key(plan_key, user_id=None):
         match = key[1:-5]
     if not match:
         return ""
-    english = get_user_language(user_id) == "en"
-    return localized_config(user_id, f"BTN_G{match}", f"Group {match}" if english else f"Nhóm {match}")
+    return localized_config(user_id, f"BTN_G{match}", f"Nhóm {match}")
 
 
 def render_coupon_template(template, *, coupon, plan_key, fallback_plan_name="", user_id=None):

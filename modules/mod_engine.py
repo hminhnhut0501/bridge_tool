@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
-from i18n import get_user_language, language_switch_target, language_switch_text, localize_page_id, t_for_lang
+from i18n import t_for_lang
 from sale_utils import format_price_label, sale_banner, sale_placeholder
 
 router = Router()
@@ -79,25 +79,11 @@ def strip_html_tags(text):
 def config_enabled(key, default="OFF"):
     return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
 
-def language_switch_enabled():
-    return config_enabled("BOT_LANGUAGE_SWITCH_ENABLED", "ON")
-
 def menu_action_enabled(action):
     coupon_actions = {"coupon_enter", "coupon_code", "redeem_code"}
     if action in coupon_actions and not config_enabled("COUPON_MENU_ENABLED", "OFF"):
         return False
     return True
-
-def append_language_switch(kb_markup, language):
-    if not language_switch_enabled():
-        return kb_markup
-    kb_markup.inline_keyboard.append([
-        InlineKeyboardButton(
-            text=language_switch_text(language),
-            callback_data=f"set_lang|{language_switch_target(language)}",
-        )
-    ])
-    return kb_markup
 
 def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -162,10 +148,9 @@ async def send_with_html_fallback(sender, *, text=None, photo=None, reply_markup
 
 async def render_page(target, page_id):
     """Hàm lấy dữ liệu từ RAM và xuất ra giao diện"""
-    language = get_user_language(target.from_user.id)
+    language = "vi"
     page_id = normalize_key(page_id)
     requested_page_id = page_id
-    page_id = localize_page_id(page_id, language)
     page = db.get_page(page_id)
     if not page:
         err = t_for_lang(language, "MSG_MENU_PAGE_NOT_FOUND", "⚠️ LỖI: Không tìm thấy trang `{page_id}` trên tab MenuBuilder!").replace("{page_id}", requested_page_id)
@@ -181,8 +166,6 @@ async def render_page(target, page_id):
     text = process_dynamic_text(raw_text, language)
     
     kb_markup = build_dynamic_keyboard(page['layout'], language)
-    if requested_page_id == "main_menu":
-        kb_markup = append_language_switch(kb_markup, language)
     img_url = page['img']
 
     if isinstance(target, CallbackQuery):
@@ -212,7 +195,7 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
         return False
 
     text_key, default_text, img_key = fallback
-    language = get_user_language(callback.from_user.id)
+    language = "vi"
     text = t_for_lang(language, text_key, default_text).replace("\\n", "\n")
     img_url = db.get_config(img_key, "")
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t_for_lang(language, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
@@ -229,11 +212,8 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
 @router.callback_query(F.data.startswith("nav:"))
 async def handle_navigation(callback: CallbackQuery):
     page_id = normalize_key(callback.data.split("nav:", 1)[1])
-    language = get_user_language(callback.from_user.id)
-    localized_page = localize_page_id(page_id, language)
-    if not page_exists(page_id) and not page_exists(localized_page):
+    if not page_exists(page_id):
         db.reload_config(force=True)
-        localized_page = localize_page_id(page_id, language)
-    if not page_exists(page_id) and not page_exists(localized_page) and await render_static_fallback(callback, page_id):
+    if not page_exists(page_id) and await render_static_fallback(callback, page_id):
         return
     await render_page(callback, page_id)

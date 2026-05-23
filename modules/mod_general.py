@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from aiogram import Router, F
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import CommandStart, Command
@@ -11,22 +10,13 @@ from database import db
 from bot_instance import bot
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
-from i18n import get_user_language, language_switch_target, language_switch_text, set_user_language, t
+from i18n import t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 
 router = Router()
-
-async def safe_callback_answer(callback: CallbackQuery, text=None, show_alert=False):
-    try:
-        await callback.answer(text, show_alert=show_alert)
-    except TelegramBadRequest as exc:
-        if "query is too old" in str(exc).lower() or "query id is invalid" in str(exc).lower():
-            print(f"⚠️ Bỏ qua callback answer quá hạn: {exc}")
-            return
-        raise
 
 def format_membership_expire(value, user_id=None):
     raw = str(value or "").strip()
@@ -51,8 +41,6 @@ def format_membership_expire(value, user_id=None):
         if not parsed:
             return raw.replace("T", " ").replace("+00:00", "")
 
-    if get_user_language(user_id) == "en":
-        return parsed.strftime("%Y-%m-%d %H:%M")
     return parsed.strftime("%d/%m/%Y %H:%M")
 
 def order_to_me_item(order):
@@ -130,11 +118,6 @@ async def send_sale_announcement(message: Message):
         "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
     ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
-    if reply_markup and str(db.get_config("BOT_LANGUAGE_SWITCH_ENABLED", "ON")).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}:
-        lang = get_user_language(message.from_user.id)
-        reply_markup.inline_keyboard.append([
-            InlineKeyboardButton(text=language_switch_text(lang), callback_data=f"set_lang|{language_switch_target(lang)}")
-        ])
 
     try:
         if img and len(img) > 10:
@@ -159,19 +142,6 @@ async def cmd_start(message: Message):
 @router.callback_query(F.data == "back_main")
 async def back_to_main(callback: CallbackQuery):
     if not await check_protection(callback): return
-    await render_page(callback, "main_menu")
-
-@router.callback_query(F.data.startswith("set_lang|"))
-async def change_language(callback: CallbackQuery):
-    if not await check_protection(callback):
-        return
-    _, lang = callback.data.split("|", 1)
-    await safe_callback_answer(
-        callback,
-        "Language updated." if lang == "en" else "Đã đổi ngôn ngữ.",
-        show_alert=False,
-    )
-    lang = set_user_language(callback.from_user.id, lang)
     await render_page(callback, "main_menu")
 
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)
