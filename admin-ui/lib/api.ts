@@ -297,8 +297,8 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
   });
 }
 
-export async function getSupportEvents(secret: string) {
-  return request<{ data: SupportEvent[] }>("/admin-api/support-events", secret);
+export async function getSupportEvents(secret: string, limit = 5000) {
+  return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
 }
 
 export async function getActivityEvents(secret: string) {

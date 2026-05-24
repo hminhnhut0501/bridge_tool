@@ -1866,7 +1866,17 @@ export default function Home() {
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
-  const kickedEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "member_kicked"), [supportEvents]);
+  const uniqueKickedEvents = useMemo(() => {
+    const map = new Map<string, SupportEvent>();
+    for (const item of supportEvents.filter((event) => event.event_type === "member_kicked")) {
+      const key = [item.telegram_user_id || "", item.order_id || "", item.chat_id || ""].join("|");
+      const current = map.get(key);
+      if (!current || new Date(item.created_at).getTime() > new Date(current.created_at).getTime()) {
+        map.set(key, item);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [supportEvents]);
   const latestReminderByOrder = useMemo(() => {
     const map = new Map<string, SupportEvent>();
     for (const event of renewalReminderEvents) {
@@ -1922,7 +1932,7 @@ export default function Home() {
         dateText(item.created_at),
         item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
       ]),
-      kicked: kickedEvents.map((item) => [
+      kicked: uniqueKickedEvents.map((item) => [
         renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
@@ -1932,7 +1942,7 @@ export default function Home() {
       ]),
     };
     return rows;
-  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, kickedEvents, latestReminderByOrder, reminderNoticeDays]);
+  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, latestReminderByOrder, reminderNoticeDays]);
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
     today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
@@ -2486,7 +2496,7 @@ export default function Home() {
                 <button className={renewalTab === "today" ? "active" : ""} onClick={() => setRenewalTab("today")}>Hết hạn hôm nay ({expiringToday.length})</button>
                 <button className={renewalTab === "reminded" ? "active" : ""} onClick={() => setRenewalTab("reminded")}>Đã nhắc ({renewalReminderEvents.length})</button>
                 <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => setRenewalTab("expiredNotice")}>Báo hết hạn ({expiredNoticeEvents.length})</button>
-                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => setRenewalTab("kicked")}>Đã kick ({kickedEvents.length})</button>
+                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => setRenewalTab("kicked")}>Đã kick ({uniqueKickedEvents.length})</button>
               </div>
               <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
               <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />

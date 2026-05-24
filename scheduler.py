@@ -197,8 +197,9 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
 async def member_is_present(chat_id, user_id):
     try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=int(user_id))
-        status = getattr(member, "status", "")
-        if str(status) in {"left", "kicked"}:
+        raw_status = getattr(member, "status", "")
+        status = str(getattr(raw_status, "value", raw_status)).lower()
+        if status in {"left", "kicked", "banned"}:
             return False
         if hasattr(member, "is_member") and member.is_member is False:
             return False

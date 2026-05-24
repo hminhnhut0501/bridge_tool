@@ -454,7 +454,7 @@ async def admin_delete_blacklist(telegram_user_id: str):
 
 
 @app.get("/admin-api/support-events", dependencies=[Depends(require_admin)])
-async def admin_support_events(limit: int = 500):
+async def admin_support_events(limit: int = 5000):
     try:
         return {"data": supabase_store.list_support_events(limit=limit)}
     except Exception as exc:
