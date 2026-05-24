@@ -71,7 +71,7 @@ type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked";
-type SupportSubTab = "all" | "joined" | "left";
+type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 
 type Notice = {
@@ -1951,6 +1951,8 @@ export default function Home() {
     const filtered = supportGroupEvents.filter((item) => {
       if (supportTab === "joined") return item.event_type === "support_joined";
       if (supportTab === "left") return item.event_type === "support_left";
+      if (supportTab === "muted") return item.event_type === "member_muted";
+      if (supportTab === "kicked") return item.event_type === "member_kicked";
       return true;
     });
     return filtered.map((item) => [
@@ -1959,7 +1961,7 @@ export default function Home() {
       item.telegram_user_id || "-",
       item.chat_title || item.chat_id || "-",
       dateText(item.created_at),
-      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || "-",
+      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
     ]);
   }, [supportGroupEvents, supportTab]);
   const supportEventHeaders = useMemo(() => {
@@ -2497,6 +2499,8 @@ export default function Home() {
             <div className="grid">
               <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} />
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} />
+              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} />
+              <Metric label="Kick hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_kicked").length)} />
               <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} />
               <Metric label="Group hỗ trợ" value={supportCheck?.group_name || getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} />
             </div>
@@ -2534,6 +2538,8 @@ export default function Home() {
                 <button className={supportTab === "all" ? "active" : ""} onClick={() => setSupportTab("all")}>Tất cả ({supportGroupEvents.length})</button>
                 <button className={supportTab === "joined" ? "active" : ""} onClick={() => setSupportTab("joined")}>Join ({supportGroupEvents.filter((item) => item.event_type === "support_joined").length})</button>
                 <button className={supportTab === "left" ? "active" : ""} onClick={() => setSupportTab("left")}>Left ({supportGroupEvents.filter((item) => item.event_type === "support_left").length})</button>
+                <button className={supportTab === "muted" ? "active" : ""} onClick={() => setSupportTab("muted")}>Đã mute ({supportGroupEvents.filter((item) => item.event_type === "member_muted").length})</button>
+                <button className={supportTab === "kicked" ? "active" : ""} onClick={() => setSupportTab("kicked")}>Đã kick ({supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})</button>
               </div>
               <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
               <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />

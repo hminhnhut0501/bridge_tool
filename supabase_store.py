@@ -184,6 +184,18 @@ class SupabaseStore:
             },
         )
 
+    def list_scheduler_orders(self, limit=1000):
+        return self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "status": "in.(PAID,EXPIRED)",
+                "order": "expire_at.asc",
+                "limit": str(limit),
+            },
+        )
+
     def list_paid_orders_for_user(self, telegram_user_id, limit=100):
         return self._request(
             "GET",
@@ -542,6 +554,22 @@ class SupabaseStore:
             "support_events",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
+
+    def latest_support_event(self, event_type, telegram_user_id=None, order_id=None, chat_id=None):
+        params = {
+            "select": "*",
+            "event_type": f"eq.{_clean_text(event_type)}",
+            "order": "created_at.desc",
+            "limit": "1",
+        }
+        if telegram_user_id is not None:
+            params["telegram_user_id"] = f"eq.{_clean_text(telegram_user_id)}"
+        if order_id is not None:
+            params["order_id"] = f"eq.{_clean_text(order_id)}"
+        if chat_id is not None:
+            params["chat_id"] = f"eq.{_clean_text(chat_id)}"
+        rows = self._request("GET", "support_events", params=params)
+        return rows[0] if rows else None
 
     def get_coupon(self, code):
         rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})

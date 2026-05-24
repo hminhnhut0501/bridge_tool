@@ -92,6 +92,10 @@ async def create_support_invite_link(user_id):
             await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
         except Exception:
             pass
+        try:
+            await unmute_member(gid, user_id)
+        except Exception:
+            pass
         invite = await bot.create_chat_invite_link(
             chat_id=gid,
             member_limit=1,

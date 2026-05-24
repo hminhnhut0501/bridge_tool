@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardButton
 from config_utils import config_int, group_numbers
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
-from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, support_group_grace_days, support_group_mute_enabled, unmute_member
+from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -79,6 +79,9 @@ def should_skip_reminder(row, today_str):
 def should_skip_expired_notice(row):
     return bool(row_value(row, 11))
 
+def parse_event_datetime(event):
+    return parse_expire_datetime((event or {}).get("created_at"))
+
 def group_matches_plan(group_no, plan_name):
     btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
     return btn_name.upper() in plan_name.upper() or f"G{group_no}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper()
@@ -114,6 +117,22 @@ def user_active_group_ids(user_id, current_order_id, users_data, now):
             active_groups.update(other_groups)
     return active_groups
 
+def user_has_active_membership(user_id, current_order_id, users_data, now):
+    for row in users_data:
+        if row_value(row, 0) == current_order_id:
+            continue
+        if row_value(row, 1) != str(user_id):
+            continue
+        if row_value(row, 5).upper() != "PAID":
+            continue
+        other_plan = row_value(row, 3)
+        if is_lifetime_plan(other_plan):
+            return True
+        expire_date = parse_expire_datetime(row_value(row, 7))
+        if expire_date and expire_date > now:
+            return True
+    return False
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -121,6 +140,100 @@ async def send_html_message(chat_id, text, reply_markup=None):
         if "parse entities" not in str(e).lower() and "can't parse entities" not in str(e).lower():
             raise
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode=None)
+
+def latest_support_event(event_type, user_id, order_id, chat_id):
+    if not supabase_store.enabled:
+        return None
+    try:
+        return supabase_store.latest_support_event(event_type, telegram_user_id=user_id, order_id=order_id, chat_id=chat_id)
+    except Exception as exc:
+        logging.warning("⚠️ Không đọc được support event %s user=%s order=%s chat=%s: %s", event_type, user_id, order_id, chat_id, exc)
+        return None
+
+async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
+    gid = support_group_id()
+    if not (support_group_enabled() and support_group_mute_enabled() and gid):
+        return False
+    if latest_support_event("member_muted", user_id, order_id, gid):
+        return True
+    if latest_support_event("member_kicked", user_id, order_id, gid):
+        return True
+    try:
+        await mute_member(gid, user_id)
+        record_support_event(
+            "member_muted",
+            user_id,
+            chat_id=gid,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={"reason": "support_grace_started", "expire_at": expire_str, "grace_days": support_group_grace_days()},
+        )
+        logging.info("🔇 Đã mute User %s trong group hỗ trợ %s sau khi hết hạn.", user_id, gid)
+        return True
+    except Exception as exc:
+        logging.error("❌ Lỗi mute User %s trong group hỗ trợ %s: %s", user_id, gid, exc)
+        return False
+
+async def ensure_support_group_unmuted(user_id, order_id, plan_name):
+    gid = support_group_id()
+    if not (support_group_enabled() and gid):
+        return
+    if not latest_support_event("member_muted", user_id, order_id, gid):
+        return
+    try:
+        await unmute_member(gid, user_id)
+        record_support_event(
+            "member_unmuted",
+            user_id,
+            chat_id=gid,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={"reason": "active_membership"},
+        )
+        logging.info("🔊 User %s đang có gói active, đã mở mute trong group hỗ trợ %s.", user_id, gid)
+    except Exception as exc:
+        logging.warning("⚠️ Không thể mở mute User %s trong group hỗ trợ %s: %s", user_id, gid, exc)
+
+async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
+    if user_has_active_membership(user_id, order_id, users_data, now):
+        await ensure_support_group_unmuted(user_id, order_id, plan_name)
+        return
+    gid = support_group_id()
+    if not (support_group_enabled() and support_group_mute_enabled() and gid):
+        return
+    if latest_support_event("member_kicked", user_id, order_id, gid):
+        return
+
+    muted_event = latest_support_event("member_muted", user_id, order_id, gid)
+    if not muted_event:
+        await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
+        return
+
+    muted_at = parse_event_datetime(muted_event)
+    if not muted_at:
+        return
+    grace_days = support_group_grace_days()
+    if now < muted_at + timedelta(days=grace_days):
+        return
+
+    try:
+        await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
+        await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
+        record_support_event(
+            "member_kicked",
+            user_id,
+            chat_id=gid,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={
+                "reason": "support_grace_expired",
+                "muted_at": muted_event.get("created_at"),
+                "grace_days": grace_days,
+            },
+        )
+        logging.info("🚪 Đã kick User %s khỏi group hỗ trợ %s sau %s ngày mute.", user_id, gid, grace_days)
+    except Exception as exc:
+        logging.error("❌ Lỗi kick User %s khỏi group hỗ trợ %s: %s", user_id, gid, exc)
 
 async def check_expirations_professional():
     try:
@@ -131,7 +244,7 @@ async def check_expirations_professional():
 
         if use_supabase:
             order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
-            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_paid_orders(limit=order_limit)]
+            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_scheduler_orders(limit=order_limit)]
         else:
             users_data = db.users_sheet.get_all_values()[1:]
         
@@ -154,6 +267,10 @@ async def check_expirations_professional():
             plan_name = str(row[3]).strip()
             status = str(row[5]).strip().upper()
             expire_str = str(row[7]).strip()
+
+            if status == "EXPIRED" and expire_str:
+                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
+                continue
 
             if status != "PAID" or not expire_str: 
                 continue
@@ -197,6 +314,8 @@ async def check_expirations_professional():
                             logging.error(f"❌ Lỗi mở mute User {user_id} ở group {gid}: {e}")
 
                 if not expired_group_ids:
+                    if not user_has_active_membership(user_id, order_id, users_data, now):
+                        await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
                     try:
                         if use_supabase:
                             supabase_store.mark_order_expired(order_id, expired_notice_at=row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S"))
@@ -220,6 +339,9 @@ async def check_expirations_professional():
                 if kick_errors:
                     logging.error(f"⏭ Chưa đóng EXPIRED đơn/dòng {offer_ref} vì còn lỗi kick: {kick_errors}")
                     continue
+
+                if not user_has_active_membership(user_id, order_id, users_data, now):
+                    await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
 
                 if config_enabled("EXPIRED_NOTICE_ENABLED", "ON") and not should_skip_expired_notice(row):
                     msg_expired = (
