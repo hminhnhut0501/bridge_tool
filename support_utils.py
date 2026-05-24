@@ -40,7 +40,8 @@ def explain_support_invite_error(error, gid):
 
 
 def support_group_enabled():
-    return str(db.get_config("SUPPORT_GROUP_ENABLED", "OFF")).strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+    raw = str(db.get_config("SUPPORT_GROUP_ENABLED", "OFF") or "OFF").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
 def support_group_id():
@@ -58,7 +59,8 @@ def support_group_grace_days():
         return 14
 
 def support_group_mute_enabled():
-    return str(db.get_config("SUPPORT_GROUP_MUTE_ENABLED", "ON")).strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+    raw = str(db.get_config("SUPPORT_GROUP_MUTE_ENABLED", "ON") or "ON").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 def record_support_event(event_type, telegram_user_id=None, **kwargs):
     if not supabase_store.enabled:

@@ -194,6 +194,76 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
     except Exception as exc:
         logging.warning("⚠️ Không thể mở mute User %s trong group hỗ trợ %s: %s", user_id, gid, exc)
 
+async def member_is_present(chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=int(user_id))
+        status = getattr(member, "status", "")
+        if str(status) in {"left", "kicked"}:
+            return False
+        if hasattr(member, "is_member") and member.is_member is False:
+            return False
+        return True
+    except Exception as exc:
+        text = str(exc).lower()
+        if "user not found" in text or "participant_id_invalid" in text or "chat not found" in text:
+            return False
+        logging.warning("⚠️ Không kiểm tra được trạng thái user %s trong group %s: %s", user_id, chat_id, exc)
+        return True
+
+async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, raw_data=None):
+    existing_kick = latest_support_event("member_kicked", user_id, order_id, chat_id)
+    if existing_kick and not await member_is_present(chat_id, user_id):
+        return True
+
+    try:
+        await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))
+        await bot.unban_chat_member(chat_id=chat_id, user_id=int(user_id))
+        payload = {"reason": reason}
+        payload.update(raw_data or {})
+        if existing_kick:
+            payload["previous_kick_event_at"] = existing_kick.get("created_at")
+            payload["source"] = "recheck_member_present"
+        record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+        logging.info("🚪 Đã kick User %s khỏi group %s vì %s.", user_id, chat_id, reason)
+        return True
+    except Exception as exc:
+        logging.error("❌ Lỗi kick User %s khỏi group %s: %s", user_id, chat_id, exc)
+        return False
+
+async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
+    current_group_ids = plan_group_ids(plan_name)
+    active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
+    retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
+    expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
+
+    if retained_group_ids:
+        logging.info(
+            "✅ User %s vẫn còn quyền ở %s group từ đơn khác, không xử lý kick/mute các group đó.",
+            user_id,
+            len(retained_group_ids),
+        )
+        for gid in retained_group_ids:
+            try:
+                await unmute_member(gid, user_id)
+                record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"reason": "active_renewal"})
+                logging.info("🔊 User %s đã gia hạn, mở mute lại ở group %s.", user_id, gid)
+            except Exception as exc:
+                logging.error("❌ Lỗi mở mute User %s ở group %s: %s", user_id, gid, exc)
+
+    kick_errors = []
+    for gid in expired_group_ids:
+        ok = await ensure_member_kicked(
+            gid,
+            user_id,
+            order_id,
+            plan_name,
+            "vip_expired",
+            raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "expire_at": expire_str},
+        )
+        if not ok:
+            kick_errors.append(gid)
+    return expired_group_ids, kick_errors
+
 async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
     if user_has_active_membership(user_id, order_id, users_data, now):
         await ensure_support_group_unmuted(user_id, order_id, plan_name)
@@ -201,7 +271,7 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
     gid = support_group_id()
     if not (support_group_enabled() and support_group_mute_enabled() and gid):
         return
-    if latest_support_event("member_kicked", user_id, order_id, gid):
+    if latest_support_event("member_kicked", user_id, order_id, gid) and not await member_is_present(gid, user_id):
         return
 
     muted_event = latest_support_event("member_muted", user_id, order_id, gid)
@@ -217,21 +287,14 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
         return
 
     try:
-        await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
-        await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
-        record_support_event(
-            "member_kicked",
+        await ensure_member_kicked(
+            gid,
             user_id,
-            chat_id=gid,
-            order_id=order_id,
-            plan_name=plan_name,
-            raw_data={
-                "reason": "support_grace_expired",
-                "muted_at": muted_event.get("created_at"),
-                "grace_days": grace_days,
-            },
+            order_id,
+            plan_name,
+            "support_grace_expired",
+            raw_data={"muted_at": muted_event.get("created_at"), "grace_days": grace_days},
         )
-        logging.info("🚪 Đã kick User %s khỏi group hỗ trợ %s sau %s ngày mute.", user_id, gid, grace_days)
     except Exception as exc:
         logging.error("❌ Lỗi kick User %s khỏi group hỗ trợ %s: %s", user_id, gid, exc)
 
@@ -269,6 +332,7 @@ async def check_expirations_professional():
             expire_str = str(row[7]).strip()
 
             if status == "EXPIRED" and expire_str:
+                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
                 await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
                 continue
 
@@ -294,24 +358,7 @@ async def check_expirations_professional():
             # ==========================================
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
-                current_group_ids = plan_group_ids(plan_name)
-                active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
-                retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
-                expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
-
-                if retained_group_ids:
-                    logging.info(
-                        "✅ User %s vẫn còn quyền ở %s group từ đơn khác, không xử lý kick/mute các group đó.",
-                        user_id,
-                        len(retained_group_ids),
-                    )
-                    for gid in retained_group_ids:
-                        try:
-                            await unmute_member(gid, user_id)
-                            record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"reason": "active_renewal"})
-                            logging.info(f"🔊 User {user_id} đã gia hạn, mở mute lại ở group {gid}.")
-                        except Exception as e:
-                            logging.error(f"❌ Lỗi mở mute User {user_id} ở group {gid}: {e}")
+                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
 
                 if not expired_group_ids:
                     if not user_has_active_membership(user_id, order_id, users_data, now):
@@ -324,17 +371,6 @@ async def check_expirations_professional():
                     except Exception as e:
                         logging.error(f"❌ Lỗi đóng đơn cũ đã được gia hạn {offer_ref}: {e}")
                     continue
-
-                kick_errors = []
-                for gid in expired_group_ids:
-                    try:
-                        await bot.ban_chat_member(chat_id=gid, user_id=int(user_id))
-                        await bot.unban_chat_member(chat_id=gid, user_id=int(user_id))
-                        record_support_event("member_kicked", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "reason": "vip_expired"})
-                        logging.info(f"🚪 Đã kick User {user_id} khỏi group VIP {gid} vì gói đã hết hạn.")
-                    except Exception as e:
-                        kick_errors.append(str(e))
-                        logging.error(f"❌ Lỗi kick User {user_id} khỏi group {gid}: {e}")
 
                 if kick_errors:
                     logging.error(f"⏭ Chưa đóng EXPIRED đơn/dòng {offer_ref} vì còn lỗi kick: {kick_errors}")
