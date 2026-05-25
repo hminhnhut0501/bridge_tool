@@ -285,7 +285,17 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
     gid = support_group_id()
     if not (support_group_enabled() and support_group_mute_enabled() and gid):
         return
-    if latest_support_event("member_kicked", user_id, order_id, gid) and not await member_is_present(gid, user_id):
+    if latest_support_event("member_kicked", user_id, order_id, gid):
+        if not await member_is_present(gid, user_id):
+            return
+        await ensure_member_kicked(
+            gid,
+            user_id,
+            order_id,
+            plan_name,
+            "support_rejoined_after_kick",
+            raw_data={"expire_at": expire_str},
+        )
         return
 
     muted_event = latest_support_event("member_muted", user_id, order_id, gid)
