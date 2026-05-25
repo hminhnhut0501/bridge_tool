@@ -82,6 +82,11 @@ def should_skip_expired_notice(row):
 def parse_event_datetime(event):
     return parse_expire_datetime((event or {}).get("created_at"))
 
+def event_happened_after(candidate, reference):
+    candidate_at = parse_event_datetime(candidate)
+    reference_at = parse_event_datetime(reference)
+    return bool(candidate_at and reference_at and candidate_at >= reference_at)
+
 def group_matches_plan(group_no, plan_name):
     btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
     return btn_name.upper() in plan_name.upper() or f"G{group_no}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper()
@@ -178,7 +183,11 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
     gid = support_group_id()
     if not (support_group_enabled() and gid):
         return
-    if not latest_support_event("member_muted", user_id, order_id, gid):
+    muted_event = latest_support_event("member_muted", user_id, order_id, gid)
+    if not muted_event:
+        return
+    unmuted_event = latest_support_event("member_unmuted", user_id, order_id, gid)
+    if event_happened_after(unmuted_event, muted_event):
         return
     try:
         await unmute_member(gid, user_id)
@@ -244,6 +253,10 @@ async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expi
             len(retained_group_ids),
         )
         for gid in retained_group_ids:
+            muted_event = latest_support_event("member_muted", user_id, order_id, gid)
+            unmuted_event = latest_support_event("member_unmuted", user_id, order_id, gid)
+            if not muted_event or event_happened_after(unmuted_event, muted_event):
+                continue
             try:
                 await unmute_member(gid, user_id)
                 record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"reason": "active_renewal"})
