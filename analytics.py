@@ -93,13 +93,26 @@ def _extract_event(event):
     if isinstance(event, Message):
         text = event.text or event.caption or ""
         command = text.split()[0][1:].split("@")[0] if text.startswith("/") else ""
+        chat_type = event.chat.type if event.chat else ""
+
+        # Chỉ ghi message trong private, hoặc tương tác "có chủ đích" ở group/supergroup.
+        # Tránh spam log khi có user nhắn rác trong group.
+        if chat_type != "private":
+            is_command = bool(command)
+            is_reply_to_bot = bool(
+                event.reply_to_message
+                and getattr(getattr(event.reply_to_message, "from_user", None), "is_bot", False)
+            )
+            if not (is_command or is_reply_to_bot):
+                return None
+
         base.update(
             {
                 "user_id": str(event.from_user.id) if event.from_user else "",
                 "username": event.from_user.username or "" if event.from_user else "",
                 "full_name": event.from_user.full_name or "" if event.from_user else "",
                 "chat_id": str(event.chat.id) if event.chat else "",
-                "chat_type": event.chat.type if event.chat else "",
+                "chat_type": chat_type,
                 "event_type": "message",
                 "command": command,
             }
