@@ -1055,6 +1055,11 @@ function payloadText(payload: Record<string, unknown>, key: string) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function displayText(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value).trim();
+  return text === "-" ? "" : text;
+}
+
 function describeActivityEvent(event: ActivityEvent) {
   const payload = event.payload || {};
   const eventType = payloadText(payload, "event_type") || event.event_name;
@@ -1867,7 +1872,7 @@ export default function Home() {
     const map = new Map<string, string>();
     for (const item of supportEvents) {
       const id = String(item.telegram_user_id || "").trim();
-      const name = String(item.full_name || item.username || "").trim();
+      const name = displayText(item.full_name) || displayText(item.username);
       if (id && name && !map.has(id)) map.set(id, name);
     }
     return map;
@@ -1900,16 +1905,17 @@ export default function Home() {
   }, [renewalReminderEvents]);
   function renewalCustomerName(item: Order | SupportEvent) {
     const telegramId = "telegram_user_id" in item ? String(item.telegram_user_id || "").trim() : "";
-    const fromOrder = "full_name" in item ? String(item.full_name || "").trim() : "";
+    const fromOrder = "full_name" in item ? displayText(item.full_name) : "";
     return fromOrder || customerNameById.get(telegramId) || telegramId || "-";
   }
   function supportCustomerName(item: SupportEvent) {
     const telegramId = String(item.telegram_user_id || "").trim();
     const raw = item.raw_data || {};
     return (
-      String(item.full_name || "").trim() ||
-      String(item.username || "").trim() ||
-      String(raw.full_name || raw.Full_Name || "").trim() ||
+      displayText(item.full_name) ||
+      displayText(item.username) ||
+      displayText(raw.full_name) ||
+      displayText(raw.Full_Name) ||
       supportNameById.get(telegramId) ||
       customerNameById.get(telegramId) ||
       telegramId ||

@@ -12,6 +12,11 @@ def _clean_text(value):
     return str(value or "").strip()
 
 
+def _clean_display_text(value):
+    text = _clean_text(value)
+    return "" if text == "-" else text
+
+
 def _parse_int(value, default=0):
     try:
         raw = _clean_text(value).replace(".", "").replace(",", "")
@@ -538,8 +543,8 @@ class SupabaseStore:
         payload = {
             "event_type": _clean_text(event_type),
             "telegram_user_id": _clean_text(telegram_user_id),
-            "username": _clean_text(kwargs.get("username")),
-            "full_name": _clean_text(kwargs.get("full_name")),
+            "username": _clean_display_text(kwargs.get("username")),
+            "full_name": _clean_display_text(kwargs.get("full_name")),
             "chat_id": _clean_text(kwargs.get("chat_id")),
             "chat_title": _clean_text(kwargs.get("chat_title")),
             "order_id": _clean_text(kwargs.get("order_id")),
