@@ -595,12 +595,85 @@ class SupabaseStore:
 
         return {}
 
+    def _order_names_by_user_ids(self, telegram_user_ids):
+        ids = sorted({_clean_text(item) for item in telegram_user_ids if _clean_text(item)})
+        if not ids:
+            return {}
+
+        names = {}
+        chunk_size = 80
+        for start in range(0, len(ids), chunk_size):
+            chunk = ids[start:start + chunk_size]
+            try:
+                rows = self._request(
+                    "GET",
+                    "orders",
+                    params={
+                        "select": "telegram_user_id,full_name,created_at",
+                        "telegram_user_id": f"in.({','.join(chunk)})",
+                        "order": "created_at.desc",
+                        "limit": "1000",
+                    },
+                )
+            except Exception:
+                continue
+
+            for row in rows:
+                user_id = _clean_text(row.get("telegram_user_id"))
+                full_name = _clean_display_text(row.get("full_name"))
+                if user_id and full_name and user_id not in names:
+                    names[user_id] = full_name
+        return names
+
+    def _enrich_support_event_names(self, rows):
+        names_by_user_id = {}
+        usernames_by_user_id = {}
+
+        for row in rows:
+            user_id = _clean_text(row.get("telegram_user_id"))
+            if not user_id:
+                continue
+
+            full_name = _clean_display_text(row.get("full_name"))
+            username = _clean_display_text(row.get("username"))
+            raw = row.get("raw_data") or {}
+            raw_full_name = _clean_display_text(raw.get("full_name") or raw.get("Full_Name"))
+            raw_username = _clean_display_text(raw.get("username") or raw.get("Username"))
+
+            if full_name and user_id not in names_by_user_id:
+                names_by_user_id[user_id] = full_name
+            elif raw_full_name and user_id not in names_by_user_id:
+                names_by_user_id[user_id] = raw_full_name
+
+            if username and user_id not in usernames_by_user_id:
+                usernames_by_user_id[user_id] = username
+            elif raw_username and user_id not in usernames_by_user_id:
+                usernames_by_user_id[user_id] = raw_username
+
+        missing_name_ids = [
+            _clean_text(row.get("telegram_user_id"))
+            for row in rows
+            if _clean_text(row.get("telegram_user_id")) and not names_by_user_id.get(_clean_text(row.get("telegram_user_id")))
+        ]
+        names_by_user_id.update(self._order_names_by_user_ids(missing_name_ids))
+
+        for row in rows:
+            user_id = _clean_text(row.get("telegram_user_id"))
+            if not user_id:
+                continue
+            if not _clean_display_text(row.get("full_name")) and names_by_user_id.get(user_id):
+                row["full_name"] = names_by_user_id[user_id]
+            if not _clean_display_text(row.get("username")) and usernames_by_user_id.get(user_id):
+                row["username"] = usernames_by_user_id[user_id]
+        return rows
+
     def list_support_events(self, limit=500):
-        return self._request(
+        rows = self._request(
             "GET",
             "support_events",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
+        return self._enrich_support_event_names(rows)
 
     def latest_support_event(self, event_type, telegram_user_id=None, order_id=None, chat_id=None):
         params = {
