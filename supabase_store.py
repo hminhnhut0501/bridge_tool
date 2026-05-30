@@ -548,6 +548,48 @@ class SupabaseStore:
         }
         return self._request("POST", "support_events", json=payload, prefer="return=representation")
 
+    def get_user_identity(self, telegram_user_id):
+        user_id = _clean_text(telegram_user_id)
+        if not user_id:
+            return {}
+
+        try:
+            rows = self._request(
+                "GET",
+                "orders",
+                params={
+                    "select": "telegram_user_id,full_name",
+                    "telegram_user_id": f"eq.{user_id}",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+            if rows and _clean_text(rows[0].get("full_name")):
+                return {"full_name": _clean_text(rows[0].get("full_name"))}
+        except Exception:
+            pass
+
+        try:
+            rows = self._request(
+                "GET",
+                "support_events",
+                params={
+                    "select": "username,full_name",
+                    "telegram_user_id": f"eq.{user_id}",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+            if rows:
+                return {
+                    "username": _clean_text(rows[0].get("username")),
+                    "full_name": _clean_text(rows[0].get("full_name")),
+                }
+        except Exception:
+            pass
+
+        return {}
+
     def list_support_events(self, limit=500):
         return self._request(
             "GET",
@@ -721,11 +763,22 @@ class SupabaseStore:
         return self._request("POST", "analytics_events", json=payload)
 
     def list_analytics_events(self, limit=500):
-        return self._request(
+        fetch_limit = min(max(int(limit) * 5, int(limit)), 5000)
+        rows = self._request(
             "GET",
             "analytics_events",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params={"select": "*", "order": "created_at.desc", "limit": str(fetch_limit)},
         )
+        visible = []
+        for row in rows:
+            payload = row.get("payload") or {}
+            chat_type = _clean_text(payload.get("chat_type")).lower()
+            if chat_type in {"group", "supergroup", "channel"}:
+                continue
+            visible.append(row)
+            if len(visible) >= int(limit):
+                break
+        return visible
 
 
 supabase_store = SupabaseStore()

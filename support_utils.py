@@ -66,6 +66,20 @@ def record_support_event(event_type, telegram_user_id=None, **kwargs):
     if not supabase_store.enabled:
         return
     try:
+        if telegram_user_id and (not kwargs.get("full_name") or not kwargs.get("username")):
+            identity = supabase_store.get_user_identity(telegram_user_id)
+            if identity:
+                kwargs.setdefault("username", identity.get("username") or "")
+                kwargs.setdefault("full_name", identity.get("full_name") or "")
+                if not kwargs.get("username") and identity.get("username"):
+                    kwargs["username"] = identity.get("username")
+                if not kwargs.get("full_name") and identity.get("full_name"):
+                    kwargs["full_name"] = identity.get("full_name")
+
+        gid = support_group_id()
+        if gid and normalize_chat_id(kwargs.get("chat_id")) == gid and not kwargs.get("chat_title"):
+            kwargs["chat_title"] = support_group_name()
+
         supabase_store.record_support_event(event_type, telegram_user_id, **kwargs)
     except Exception as exc:
         print(f"⚠️ Không ghi được support event {event_type}: {exc}")

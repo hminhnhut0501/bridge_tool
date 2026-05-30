@@ -1863,6 +1863,15 @@ export default function Home() {
     return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
   }, [supportEvents, supportGroupId]);
   const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
+  const supportNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of supportEvents) {
+      const id = String(item.telegram_user_id || "").trim();
+      const name = String(item.full_name || item.username || "").trim();
+      if (id && name && !map.has(id)) map.set(id, name);
+    }
+    return map;
+  }, [supportEvents]);
   const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
@@ -1893,6 +1902,19 @@ export default function Home() {
     const telegramId = "telegram_user_id" in item ? String(item.telegram_user_id || "").trim() : "";
     const fromOrder = "full_name" in item ? String(item.full_name || "").trim() : "";
     return fromOrder || customerNameById.get(telegramId) || telegramId || "-";
+  }
+  function supportCustomerName(item: SupportEvent) {
+    const telegramId = String(item.telegram_user_id || "").trim();
+    const raw = item.raw_data || {};
+    return (
+      String(item.full_name || "").trim() ||
+      String(item.username || "").trim() ||
+      String(raw.full_name || raw.Full_Name || "").trim() ||
+      supportNameById.get(telegramId) ||
+      customerNameById.get(telegramId) ||
+      telegramId ||
+      "-"
+    );
   }
   const renewalRows = useMemo(() => {
     const rows: Record<RenewalSubTab, ReactNode[][]> = {
@@ -1967,13 +1989,13 @@ export default function Home() {
     });
     return filtered.map((item) => [
       supportEventLabel(item.event_type),
-      item.full_name || item.username || "-",
+      supportCustomerName(item),
       item.telegram_user_id || "-",
       item.chat_title || item.chat_id || "-",
       dateText(item.created_at),
       [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
     ]);
-  }, [supportGroupEvents, supportTab]);
+  }, [supportGroupEvents, supportTab, customerNameById, supportNameById]);
   const supportEventHeaders = useMemo(() => {
     return ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"];
   }, [supportTab]);
@@ -1984,7 +2006,11 @@ export default function Home() {
     return supportEventRows.slice(start, start + SUPPORT_PAGE_SIZE);
   }, [supportEventRows, supportPage, totalSupportPages]);
   const logEntries = useMemo(() => {
-    const userEvents = activityEvents.map((event) => {
+    const privateActivityEvents = activityEvents.filter((event) => {
+      const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
+      return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
+    });
+    const userEvents = privateActivityEvents.map((event) => {
       const payload = event.payload || {};
       return {
         id: `a-${event.id}`,
@@ -2004,13 +2030,13 @@ export default function Home() {
       type: event.event_type,
       userId: event.telegram_user_id || "",
       username: event.username || "",
-      fullName: event.full_name || "",
+      fullName: supportCustomerName(event),
       title: describeSupportEvent(event),
       detail: [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
       createdAt: event.created_at,
     }));
     return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [activityEvents, supportEvents]);
+  }, [activityEvents, supportEvents, customerNameById, supportNameById]);
   const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
   const logDateOptions = useMemo(() => uniqueValues(logEntries.map((item) => isoDayKey(item.createdAt))).sort((a, b) => {
     if (a === "UNKNOWN") return 1;
