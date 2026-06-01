@@ -37,6 +37,9 @@ class FakeStore:
     def __init__(self):
         self.events = []
 
+    def get_user_identity(self, telegram_user_id):
+        return {}
+
     def latest_support_event(self, event_type, telegram_user_id=None, order_id=None, chat_id=None):
         matches = [
             event
@@ -132,6 +135,19 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(expired_groups, [])
         self.assertEqual(errors, [])
         self.assertEqual(self.bot.kicked, [])
+
+    async def test_coupon_plan_matches_group_when_template_omits_prive_word(self):
+        self.db.config["BTN_G4"] = "Hang Cú Privé Asia"
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "PAID", "", "2026-05-25 21:19:00"]]
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [("-100444", "42")])
 
     async def test_support_group_mutes_once_before_grace_kick(self):
         now = datetime(2026, 5, 25, 12, 0, 0)

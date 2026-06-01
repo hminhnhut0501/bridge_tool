@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from database import db
@@ -87,9 +89,35 @@ def event_happened_after(candidate, reference):
     reference_at = parse_event_datetime(reference)
     return bool(candidate_at and reference_at and candidate_at >= reference_at)
 
+def normalize_match_text(value):
+    text = unicodedata.normalize("NFD", str(value or ""))
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = text.lower().replace("đ", "d")
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+def significant_group_tokens(value):
+    ignored = {
+        "vip", "svip", "full", "goi", "nhom", "group", "ngay", "thang",
+        "tron", "doi", "prive", "plus", "premium", "signature",
+    }
+    return [token for token in normalize_match_text(value).split() if token and token not in ignored and not token.isdigit()]
+
 def group_matches_plan(group_no, plan_name):
     btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
-    return btn_name.upper() in plan_name.upper() or f"G{group_no}" in plan_name or "FULL" in plan_name.upper() or "SVIP" in plan_name.upper()
+    plan_upper = str(plan_name or "").upper()
+    if "FULL" in plan_upper or "SVIP" in plan_upper:
+        return True
+    if f"G{group_no}" in plan_upper:
+        return True
+
+    plan_text = normalize_match_text(plan_name)
+    btn_text = normalize_match_text(btn_name)
+    if btn_text and (btn_text in plan_text or plan_text in btn_text):
+        return True
+
+    plan_tokens = set(significant_group_tokens(plan_name))
+    btn_tokens = set(significant_group_tokens(btn_name))
+    return bool(btn_tokens and btn_tokens.issubset(plan_tokens)) or bool(plan_tokens and plan_tokens.issubset(btn_tokens))
 
 def plan_group_ids(plan_name):
     groups = []
@@ -242,6 +270,17 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
 
 async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
     current_group_ids = plan_group_ids(plan_name)
+    if not current_group_ids:
+        logging.warning(
+            "⚠️ Đơn %s user %s đã hết hạn (%s) nhưng không map được group VIP từ plan_name='%s'. "
+            "Kiểm tra BTN_G/ID_G hoặc tên gói coupon; scheduler sẽ retry ở vòng sau.",
+            order_id,
+            user_id,
+            expire_str,
+            plan_name,
+        )
+        return [], []
+
     active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
     retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
     expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
