@@ -79,6 +79,10 @@ type Notice = {
   text: string;
 };
 
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "renewals", "supportGroup", "content", "coupons", "security", "sales", "system"];
+const TAB_STORAGE_KEY = "prive_admin_tab";
+const AUTO_REFRESH_SECONDS = 15;
+
 type ConfigField = {
   key: string;
   label: string;
@@ -1307,6 +1311,11 @@ export default function Home() {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
     setSavedSecret(stored);
     setSecret(stored);
+
+    const queryTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+    const storedTab = window.localStorage.getItem(TAB_STORAGE_KEY) as Tab | null;
+    const nextTab = queryTab && TAB_VALUES.includes(queryTab) ? queryTab : storedTab && TAB_VALUES.includes(storedTab) ? storedTab : null;
+    if (nextTab) setTab(nextTab);
   }, []);
 
   useEffect(() => {
@@ -1322,6 +1331,22 @@ export default function Home() {
       loadAll(savedSecret);
     }
   }, [savedSecret]);
+
+  useEffect(() => {
+    if (!savedSecret) return;
+    const interval = window.setInterval(() => {
+      loadAll(savedSecret, { silent: true, resetPages: false });
+    }, AUTO_REFRESH_SECONDS * 1000);
+    return () => window.clearInterval(interval);
+  }, [savedSecret]);
+
+  function selectTab(nextTab: Tab) {
+    setTab(nextTab);
+    window.localStorage.setItem(TAB_STORAGE_KEY, nextTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", nextTab);
+    window.history.replaceState(null, "", url.toString());
+  }
 
   function showNotice(type: Notice["type"], text: string) {
     setNotice({ type, text });
@@ -1341,10 +1366,14 @@ export default function Home() {
     }
   }
 
-  async function loadAll(activeSecret = savedSecret) {
+  async function loadAll(activeSecret = savedSecret, options: { silent?: boolean; resetPages?: boolean } = {}) {
     if (!activeSecret) return;
-    setLoading(true);
-    setNotice(null);
+    const silent = Boolean(options.silent);
+    const resetPages = options.resetPages ?? !silent;
+    if (!silent) {
+      setLoading(true);
+      setNotice(null);
+    }
     try {
       const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, activityEventsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
@@ -1368,12 +1397,14 @@ export default function Home() {
       setSupportEvents(supportEventsRes.data);
       setActivityEvents(activityEventsRes.data);
       setWebhook(webhookRes.data);
-      setOrderPage(1);
-      setCouponPage(1);
+      if (resetPages) {
+        setOrderPage(1);
+        setCouponPage(1);
+      }
     } catch (err) {
-      showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
+      if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -2218,19 +2249,19 @@ export default function Home() {
           {webhook?.url ? "Webhook đang bật" : "Webhook cần kiểm tra"}
         </div>
         <nav className="nav">
-          <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Activity size={18} /> Tổng quan</button>
-          <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")}><BarChart3 size={18} /> Thống kê</button>
-          <button className={tab === "setup" ? "active" : ""} onClick={() => setTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
-          <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
-          <button className={tab === "customers" ? "active" : ""} onClick={() => setTab("customers")}><Users size={18} /> Khách hàng</button>
-          <button className={tab === "activityLog" ? "active" : ""} onClick={() => setTab("activityLog")}><ClipboardList size={18} /> Nhật ký</button>
-          <button className={tab === "renewals" ? "active" : ""} onClick={() => setTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
-          <button className={tab === "supportGroup" ? "active" : ""} onClick={() => setTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
-          <button className={tab === "content" ? "active" : ""} onClick={() => setTab("content")}><FileText size={18} /> Nội dung bot</button>
-          <button className={tab === "coupons" ? "active" : ""} onClick={() => setTab("coupons")}><Ticket size={18} /> Coupon</button>
-          <button className={tab === "security" ? "active" : ""} onClick={() => setTab("security")}><ShieldCheck size={18} /> Bảo mật</button>
-          <button className={tab === "sales" ? "active" : ""} onClick={() => setTab("sales")}><BadgePercent size={18} /> Sale</button>
-          <button className={tab === "system" ? "active" : ""} onClick={() => setTab("system")}><Settings size={18} /> Hệ thống</button>
+          <button className={tab === "overview" ? "active" : ""} onClick={() => selectTab("overview")}><Activity size={18} /> Tổng quan</button>
+          <button className={tab === "analytics" ? "active" : ""} onClick={() => selectTab("analytics")}><BarChart3 size={18} /> Thống kê</button>
+          <button className={tab === "setup" ? "active" : ""} onClick={() => selectTab("setup")}><ShieldCheck size={18} /> Setup nhóm</button>
+          <button className={tab === "orders" ? "active" : ""} onClick={() => selectTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
+          <button className={tab === "customers" ? "active" : ""} onClick={() => selectTab("customers")}><Users size={18} /> Khách hàng</button>
+          <button className={tab === "activityLog" ? "active" : ""} onClick={() => selectTab("activityLog")}><ClipboardList size={18} /> Nhật ký</button>
+          <button className={tab === "renewals" ? "active" : ""} onClick={() => selectTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
+          <button className={tab === "supportGroup" ? "active" : ""} onClick={() => selectTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
+          <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><FileText size={18} /> Nội dung bot</button>
+          <button className={tab === "coupons" ? "active" : ""} onClick={() => selectTab("coupons")}><Ticket size={18} /> Coupon</button>
+          <button className={tab === "security" ? "active" : ""} onClick={() => selectTab("security")}><ShieldCheck size={18} /> Bảo mật</button>
+          <button className={tab === "sales" ? "active" : ""} onClick={() => selectTab("sales")}><BadgePercent size={18} /> Sale</button>
+          <button className={tab === "system" ? "active" : ""} onClick={() => selectTab("system")}><Settings size={18} /> Hệ thống</button>
         </nav>
       </aside>
 
