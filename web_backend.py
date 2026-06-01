@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from bot_instance import bot, dp, set_commands
 from database import db
 from supabase_store import supabase_store
-from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, support_group_enabled, support_group_id, support_group_name
+from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 
 load_dotenv()
 
@@ -71,6 +71,207 @@ def parse_manual_expire_at(value: str | None):
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
     return parsed.astimezone(ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
+
+
+def normalize_chat_id(value):
+    raw = str(value or "").strip()
+    if raw.endswith(".0"):
+        raw = raw[:-2]
+    return raw
+
+
+def support_event_time(event):
+    return str((event or {}).get("created_at") or "")
+
+
+def latest_event(events, event_type, user_id, order_id, chat_id):
+    user_id = str(user_id or "")
+    order_id = str(order_id or "")
+    chat_id = normalize_chat_id(chat_id)
+    matches = [
+        event
+        for event in events
+        if event.get("event_type") == event_type
+        and str(event.get("telegram_user_id") or "") == user_id
+        and str(event.get("order_id") or "") == order_id
+        and normalize_chat_id(event.get("chat_id")) == chat_id
+    ]
+    matches.sort(key=support_event_time, reverse=True)
+    return matches[0] if matches else None
+
+
+def support_event_error(event):
+    raw_data = (event or {}).get("raw_data") or {}
+    if isinstance(raw_data, dict):
+        return str(raw_data.get("error") or raw_data.get("message") or "").strip()
+    return str(raw_data or "").strip()
+
+
+def member_status_value(member):
+    raw_status = getattr(member, "status", "")
+    return str(getattr(raw_status, "value", raw_status)).lower()
+
+
+async def member_live_state(chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=int(user_id))
+        status = member_status_value(member)
+        present = status not in {"left", "kicked", "banned"}
+        if hasattr(member, "is_member") and member.is_member is False:
+            present = False
+        return {"checked": True, "present": present, "status": status, "error": ""}
+    except Exception as exc:
+        text = str(exc)
+        lower = text.lower()
+        if "user not found" in lower or "participant_id_invalid" in lower:
+            return {"checked": True, "present": False, "status": "left", "error": ""}
+        return {"checked": True, "present": None, "status": "unknown", "error": text}
+
+
+def group_label_for_chat_id(chat_id):
+    target = normalize_chat_id(chat_id)
+    for group_no in range(1, 101):
+        gid = normalize_chat_id(db.get_config(f"ID_G{group_no}", ""))
+        if gid and gid == target:
+            return db.get_config(f"BTN_G{group_no}", f"G{group_no}")
+    return target or "-"
+
+
+def order_display_name(order, support_events):
+    user_id = str(order.get("telegram_user_id") or "")
+    direct = str(order.get("full_name") or "").strip()
+    if direct and direct != "-":
+        return direct
+    for event in support_events:
+        if str(event.get("telegram_user_id") or "") != user_id:
+            continue
+        name = str(event.get("full_name") or event.get("username") or "").strip()
+        if name and name != "-":
+            return name
+    return user_id
+
+
+async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter=""):
+    from scheduler import parse_expire_datetime, plan_group_ids, user_active_group_ids
+
+    db.reload_config(force=True)
+    now = now_local().replace(tzinfo=None)
+    orders = supabase_store.list_scheduler_orders(limit=5000)
+    users_data = [supabase_store.order_to_sheet_row(order) for order in orders]
+    try:
+        support_events = supabase_store.list_support_events(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "support_events"):
+            warn_missing_table_once("support_events", exc)
+            support_events = []
+        else:
+            raise
+
+    rows = []
+    for order in orders:
+        order_id = str(order.get("order_id") or "")
+        user_id = str(order.get("telegram_user_id") or "")
+        if order_id_filter and order_id != str(order_id_filter):
+            continue
+        if user_id_filter and user_id != str(user_id_filter):
+            continue
+
+        expire_at = parse_expire_datetime(order.get("expire_at"))
+        if not expire_at or expire_at > now:
+            continue
+
+        plan_name = str(order.get("plan_name") or "")
+        current_group_ids = [normalize_chat_id(item) for item in plan_group_ids(plan_name)]
+        active_group_ids = {normalize_chat_id(item) for item in user_active_group_ids(user_id, order_id, users_data, now)}
+        display_name = order_display_name(order, support_events)
+
+        if not current_group_ids:
+            rows.append({
+                "audit_id": f"{order_id}:NO_GROUP",
+                "customer_name": display_name,
+                "telegram_user_id": user_id,
+                "order_id": order_id,
+                "plan_name": plan_name,
+                "expire_at": order.get("expire_at"),
+                "group_id": "",
+                "group_name": "Không map được group",
+                "status": "NO_GROUP",
+                "status_label": "Không map được group",
+                "needs_action": True,
+                "latest_kick_at": "",
+                "latest_error": "Tên gói không khớp BTN_G/ID_G.",
+                "live_checked": False,
+                "live_status": "",
+                "live_present": None,
+            })
+            continue
+
+        for gid in current_group_ids:
+            if chat_id_filter and normalize_chat_id(chat_id_filter) != gid:
+                continue
+
+            retained = gid in active_group_ids
+            latest_kick = latest_event(support_events, "member_kicked", user_id, order_id, gid)
+            latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
+
+            live_state = {"checked": False, "present": None, "status": "", "error": ""}
+            if live:
+                live_state = await member_live_state(gid, user_id)
+
+            status = "ACTIVE_RETAINED" if retained else "KICKED" if latest_kick else "WAITING_KICK"
+            status_label = "Còn quyền active" if retained else "Đã kick" if latest_kick else "Chờ kick"
+            needs_action = not retained and not latest_kick
+
+            if live_state["checked"]:
+                if live_state["error"]:
+                    status = "CHECK_ERROR"
+                    status_label = "Lỗi kiểm tra live"
+                    needs_action = True
+                elif not retained and latest_kick and live_state["present"]:
+                    status = "REJOINED"
+                    status_label = "Đã join lại / cần kick lại"
+                    needs_action = True
+                elif not retained and not latest_kick and live_state["present"] is False:
+                    status = "LEFT_NO_LOG"
+                    status_label = "Không còn trong group nhưng thiếu log kick"
+                    needs_action = False
+                elif not retained and not latest_kick and live_state["present"]:
+                    status = "WAITING_KICK"
+                    status_label = "Chờ kick"
+                    needs_action = True
+
+            rows.append({
+                "audit_id": f"{order_id}:{gid}",
+                "customer_name": display_name,
+                "telegram_user_id": user_id,
+                "order_id": order_id,
+                "plan_name": plan_name,
+                "expire_at": order.get("expire_at"),
+                "group_id": gid,
+                "group_name": group_label_for_chat_id(gid),
+                "status": status,
+                "status_label": status_label,
+                "needs_action": needs_action,
+                "latest_kick_at": (latest_kick or {}).get("created_at") or "",
+                "latest_error": support_event_error(latest_fail),
+                "live_checked": live_state["checked"],
+                "live_status": live_state["status"],
+                "live_present": live_state["present"],
+            })
+
+    priority = {"NO_GROUP": 0, "WAITING_KICK": 1, "REJOINED": 2, "CHECK_ERROR": 3, "LEFT_NO_LOG": 4, "ACTIVE_RETAINED": 5, "KICKED": 6}
+    rows.sort(key=lambda item: (priority.get(item["status"], 9), str(item.get("expire_at") or "")))
+    return rows
+
+
+def parse_chat_id(value):
+    raw = normalize_chat_id(value)
+    if not raw:
+        raise ValueError("Thiếu group ID.")
+    try:
+        return int(raw)
+    except ValueError:
+        return raw
 
 
 def load_all_modules():
@@ -463,6 +664,57 @@ async def admin_support_events(limit: int = 5000):
         else:
             print(f"⚠️ Không đọc được support_events: {exc}")
         return {"data": []}
+
+
+@app.get("/admin-api/kick-audit", dependencies=[Depends(require_admin)])
+async def admin_kick_audit(live: bool = False):
+    try:
+        return {"data": await build_kick_audit_rows(live=live)}
+    except Exception as exc:
+        print(f"⚠️ Không dựng được danh sách kiểm tra kick: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách kiểm tra kick: {exc}")
+
+
+@app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])
+async def admin_kick_audit_member(request: Request):
+    body = await request.json()
+    user_id = str(body.get("telegram_user_id") or "").strip()
+    order_id = str(body.get("order_id") or "").strip()
+    chat_id = normalize_chat_id(body.get("group_id"))
+    plan_name = str(body.get("plan_name") or "").strip()
+    customer_name = str(body.get("customer_name") or "").strip()
+
+    if not user_id or not order_id or not chat_id:
+        raise HTTPException(status_code=400, detail="Cần đủ Telegram ID, mã đơn và group ID để kick.")
+
+    try:
+        parsed_chat_id = parse_chat_id(chat_id)
+        await bot.ban_chat_member(chat_id=parsed_chat_id, user_id=int(user_id))
+        await bot.unban_chat_member(chat_id=parsed_chat_id, user_id=int(user_id))
+        record_support_event(
+            "member_kicked",
+            user_id,
+            full_name=customer_name,
+            chat_id=chat_id,
+            chat_title=group_label_for_chat_id(chat_id),
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard"},
+        )
+    except Exception as exc:
+        record_support_event(
+            "member_kick_failed",
+            user_id,
+            full_name=customer_name,
+            chat_id=chat_id,
+            chat_title=group_label_for_chat_id(chat_id),
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc)},
+        )
+        raise HTTPException(status_code=500, detail=f"Kick không thành công: {exc}")
+
+    return {"data": await build_kick_audit_rows(live=True, order_id_filter=order_id, user_id_filter=user_id, chat_id_filter=chat_id)}
 
 
 @app.get("/admin-api/activity-events", dependencies=[Depends(require_admin)])

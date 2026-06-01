@@ -266,6 +266,9 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
         return True
     except Exception as exc:
         logging.error("❌ Lỗi kick User %s khỏi group %s: %s", user_id, chat_id, exc)
+        payload = {"reason": reason, "error": str(exc)}
+        payload.update(raw_data or {})
+        record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
         return False
 
 async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):

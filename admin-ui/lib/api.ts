@@ -122,6 +122,33 @@ export type WebhookInfo = {
   allowed_updates?: string[];
 };
 
+export type KickAuditRow = {
+  audit_id: string;
+  customer_name: string;
+  telegram_user_id: string;
+  order_id: string;
+  plan_name: string;
+  expire_at: string | null;
+  group_id: string;
+  group_name: string;
+  status: string;
+  status_label: string;
+  needs_action: boolean;
+  latest_kick_at: string | null;
+  latest_error: string | null;
+  live_checked: boolean;
+  live_status: string;
+  live_present: boolean | null;
+};
+
+export type KickAuditPayload = {
+  telegram_user_id: string;
+  order_id: string;
+  group_id: string;
+  plan_name?: string;
+  customer_name?: string;
+};
+
 export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
@@ -299,6 +326,17 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
 
 export async function getSupportEvents(secret: string, limit = 5000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
+}
+
+export async function getKickAudit(secret: string, live = false) {
+  return request<{ data: KickAuditRow[] }>(`/admin-api/kick-audit?live=${live ? "true" : "false"}`, secret);
+}
+
+export async function kickAuditMember(secret: string, payload: KickAuditPayload) {
+  return request<{ data: KickAuditRow[] }>("/admin-api/kick-audit/kick", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getActivityEvents(secret: string) {

@@ -27,6 +27,7 @@ import {
   ConfigRow,
   BlacklistEntry,
   Coupon,
+  KickAuditRow,
   ManualOrderResult,
   MenuPage,
   Order,
@@ -47,12 +48,14 @@ import {
   getActivityEvents,
   getBlacklist,
   getCoupons,
+  getKickAudit,
   getMenuPages,
   getOrders,
   getSaleRules,
   getSupportEvents,
   getUsers,
   getWebhookInfo,
+  kickAuditMember,
   resetWebhook,
   updateConfig,
   updateConfigs,
@@ -70,7 +73,7 @@ type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
-type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked";
+type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 
@@ -1218,6 +1221,12 @@ function statusClass(status: string) {
   return "status pending";
 }
 
+function kickAuditStatusClass(status: string) {
+  if (["KICKED", "LEFT_NO_LOG", "ACTIVE_RETAINED"].includes(status)) return "status paid";
+  if (["WAITING_KICK", "REJOINED", "CHECK_ERROR", "NO_GROUP"].includes(status)) return "status expired";
+  return "status pending";
+}
+
 function supportEventLabel(type: string) {
   const labels: Record<string, string> = {
     support_joined: "Vừa join support",
@@ -1260,6 +1269,7 @@ export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
+  const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
@@ -1375,7 +1385,7 @@ export default function Home() {
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, activityEventsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -1384,6 +1394,7 @@ export default function Home() {
         getCoupons(activeSecret),
         getBlacklist(activeSecret),
         getSupportEvents(activeSecret),
+        getKickAudit(activeSecret),
         getActivityEvents(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
@@ -1395,6 +1406,7 @@ export default function Home() {
       setCoupons(couponsRes.data);
       setBlacklist(blacklistRes.data);
       setSupportEvents(supportEventsRes.data);
+      setKickAudit(kickAuditRes.data);
       setActivityEvents(activityEventsRes.data);
       setWebhook(webhookRes.data);
       if (resetPages) {
@@ -1487,6 +1499,36 @@ export default function Home() {
       } else {
         showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
       }
+    });
+  }
+
+  async function refreshKickAudit(live = false) {
+    await runAction(live ? "kick-audit-live" : "kick-audit-refresh", async () => {
+      const res = await getKickAudit(savedSecret, live);
+      setKickAudit(res.data);
+      if (live) showNotice("ok", "Đã kiểm tra live trạng thái kick trong group.");
+    });
+  }
+
+  async function manualKickAudit(row: KickAuditRow) {
+    if (!row.group_id || !window.confirm(`Kick lại ${row.customer_name || row.telegram_user_id} khỏi ${row.group_name || row.group_id}?`)) return;
+    await runAction(`kick-audit-${row.audit_id}`, async () => {
+      const res = await kickAuditMember(savedSecret, {
+        telegram_user_id: row.telegram_user_id,
+        order_id: row.order_id,
+        group_id: row.group_id,
+        plan_name: row.plan_name,
+        customer_name: row.customer_name,
+      });
+      setKickAudit((current) => {
+        const next = [...current];
+        for (const updated of res.data) {
+          const idx = next.findIndex((item) => item.audit_id === updated.audit_id);
+          if (idx >= 0) next[idx] = updated;
+        }
+        return next;
+      });
+      await loadAll(savedSecret, { silent: true, resetPages: false });
     });
   }
 
@@ -1999,15 +2041,30 @@ export default function Home() {
         item.chat_title || item.chat_id || "-",
         dateText(item.created_at),
       ]),
+      audit: kickAudit.map((item) => [
+        <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id || "-"}</div></>,
+        <><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></>,
+        <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
+        dateText(item.expire_at),
+        <span className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        item.latest_kick_at ? dateText(item.latest_kick_at) : item.latest_error ? <span className="muted">{item.latest_error}</span> : "-",
+        item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
+        item.needs_action && item.group_id ? (
+          <button className="btn secondary" onClick={() => manualKickAudit(item)} disabled={saving === `kick-audit-${item.audit_id}`}>
+            {saving === `kick-audit-${item.audit_id}` ? <Loader2 size={16} className="spin" /> : <XCircle size={16} />} Kick lại
+          </button>
+        ) : "-",
+      ]),
     };
     return rows;
-  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, latestReminderByOrder, reminderNoticeDays]);
+  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, latestReminderByOrder, reminderNoticeDays, saving]);
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
     today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
     reminded: ["Khách", "Telegram ID", "Gói", "Đơn", "Giờ nhắc", "Hạn dùng"],
     expiredNotice: ["Khách", "Telegram ID", "Gói", "Đơn", "Giờ báo hết hạn", "Hạn dùng"],
     kicked: ["Khách", "Telegram ID", "Gói", "Đơn", "Group", "Giờ kick"],
+    audit: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Kick / lỗi gần nhất", "Live", "Thao tác"],
   };
   const currentRenewalRows = renewalRows[renewalTab] || [];
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalRows.length / RENEWAL_PAGE_SIZE));
@@ -2547,19 +2604,28 @@ export default function Home() {
               <Metric label="Sắp hết hạn" value={String(expiringSoon.length)} />
               <Metric label="Đã nhắc hôm nay" value={String(renewalReminderEvents.filter((item) => isTodayDate(item.created_at)).length || remindedToday.length)} />
               <Metric label="Đã kick hôm nay" value={String(supportKickedToday.length)} />
+              <Metric label="Cần kiểm tra kick" value={String(kickAudit.filter((item) => item.needs_action).length)} />
             </div>
             <section className="panel">
               <PanelHead
                 title="Quản lý gia hạn"
                 subtitle="Theo dõi hạn dùng, lịch nhắc, báo hết hạn và lịch sử kick theo từng tab để danh sách không bị quá dài."
-                action={<button className="btn" onClick={() => setRenewalSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>}
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => refreshKickAudit(true)} disabled={saving === "kick-audit-live"}>
+                      {saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra live
+                    </button>
+                    <button className="btn" onClick={() => setRenewalSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                  </div>
+                }
               />
               <div className="subtabs">
-                <button className={renewalTab === "soon" ? "active" : ""} onClick={() => setRenewalTab("soon")}>Sắp hết hạn ({expiringSoon.length})</button>
-                <button className={renewalTab === "today" ? "active" : ""} onClick={() => setRenewalTab("today")}>Hết hạn hôm nay ({expiringToday.length})</button>
-                <button className={renewalTab === "reminded" ? "active" : ""} onClick={() => setRenewalTab("reminded")}>Đã nhắc ({renewalReminderEvents.length})</button>
-                <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => setRenewalTab("expiredNotice")}>Báo hết hạn ({expiredNoticeEvents.length})</button>
-                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => setRenewalTab("kicked")}>Đã kick ({uniqueKickedEvents.length})</button>
+                <button className={renewalTab === "soon" ? "active" : ""} onClick={() => { setRenewalTab("soon"); setRenewalPage(1); }}>Sắp hết hạn ({expiringSoon.length})</button>
+                <button className={renewalTab === "today" ? "active" : ""} onClick={() => { setRenewalTab("today"); setRenewalPage(1); }}>Hết hạn hôm nay ({expiringToday.length})</button>
+                <button className={renewalTab === "reminded" ? "active" : ""} onClick={() => { setRenewalTab("reminded"); setRenewalPage(1); }}>Đã nhắc ({renewalReminderEvents.length})</button>
+                <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => { setRenewalTab("expiredNotice"); setRenewalPage(1); }}>Báo hết hạn ({expiredNoticeEvents.length})</button>
+                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => { setRenewalTab("kicked"); setRenewalPage(1); }}>Đã kick ({uniqueKickedEvents.length})</button>
+                <button className={renewalTab === "audit" ? "active" : ""} onClick={() => { setRenewalTab("audit"); setRenewalPage(1); }}>Cần kiểm tra kick ({kickAudit.filter((item) => item.needs_action).length}/{kickAudit.length})</button>
               </div>
               <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
               <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />
