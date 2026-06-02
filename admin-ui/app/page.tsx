@@ -1223,7 +1223,7 @@ function statusClass(status: string) {
 
 function kickAuditStatusClass(status: string) {
   if (["KICKED", "LEFT_NO_LOG", "ACTIVE_RETAINED"].includes(status)) return "status paid";
-  if (["WAITING_KICK", "REJOINED", "CHECK_ERROR", "NO_GROUP"].includes(status)) return "status expired";
+  if (["WAITING_KICK", "REJOINED", "CHECK_ERROR", "NO_GROUP", "INVALID_EXPIRE_AT"].includes(status)) return "status expired";
   return "status pending";
 }
 

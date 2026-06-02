@@ -84,17 +84,17 @@ def support_event_time(event):
     return str((event or {}).get("created_at") or "")
 
 
-def latest_event(events, event_type, user_id, order_id, chat_id):
+def latest_event(events, event_type, user_id, order_id=None, chat_id=None):
     user_id = str(user_id or "")
-    order_id = str(order_id or "")
-    chat_id = normalize_chat_id(chat_id)
+    order_id = str(order_id or "") if order_id is not None else None
+    chat_id = normalize_chat_id(chat_id) if chat_id is not None else None
     matches = [
         event
         for event in events
         if event.get("event_type") == event_type
         and str(event.get("telegram_user_id") or "") == user_id
-        and str(event.get("order_id") or "") == order_id
-        and normalize_chat_id(event.get("chat_id")) == chat_id
+        and (order_id is None or str(event.get("order_id") or "") == order_id)
+        and (chat_id is None or normalize_chat_id(event.get("chat_id")) == chat_id)
     ]
     matches.sort(key=support_event_time, reverse=True)
     return matches[0] if matches else None
@@ -176,14 +176,35 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         if user_id_filter and user_id != str(user_id_filter):
             continue
 
-        expire_at = parse_expire_datetime(order.get("expire_at"))
+        plan_name = str(order.get("plan_name") or "")
+        display_name = order_display_name(order, support_events)
+        raw_expire_at = order.get("expire_at")
+        expire_at = parse_expire_datetime(raw_expire_at)
+        if raw_expire_at and not expire_at:
+            rows.append({
+                "audit_id": f"{order_id}:INVALID_EXPIRE_AT",
+                "customer_name": display_name,
+                "telegram_user_id": user_id,
+                "order_id": order_id,
+                "plan_name": plan_name,
+                "expire_at": raw_expire_at,
+                "group_id": "",
+                "group_name": "Chưa kiểm tra được",
+                "status": "INVALID_EXPIRE_AT",
+                "status_label": "Lỗi ngày hết hạn",
+                "needs_action": True,
+                "latest_kick_at": "",
+                "latest_error": f"Không đọc được expire_at: {raw_expire_at}",
+                "live_checked": False,
+                "live_status": "",
+                "live_present": None,
+            })
+            continue
         if not expire_at or expire_at > now:
             continue
 
-        plan_name = str(order.get("plan_name") or "")
         current_group_ids = [normalize_chat_id(item) for item in plan_group_ids(plan_name)]
         active_group_ids = {normalize_chat_id(item) for item in user_active_group_ids(user_id, order_id, users_data, now)}
-        display_name = order_display_name(order, support_events)
 
         if not current_group_ids:
             rows.append({
@@ -211,7 +232,9 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 continue
 
             retained = gid in active_group_ids
-            latest_kick = latest_event(support_events, "member_kicked", user_id, order_id, gid)
+            latest_order_kick = latest_event(support_events, "member_kicked", user_id, order_id, gid)
+            latest_group_kick = latest_event(support_events, "member_kicked", user_id, None, gid)
+            latest_kick = latest_order_kick or latest_group_kick
             latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
@@ -219,7 +242,15 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 live_state = await member_live_state(gid, user_id)
 
             status = "ACTIVE_RETAINED" if retained else "KICKED" if latest_kick else "WAITING_KICK"
-            status_label = "Còn quyền active" if retained else "Đã kick" if latest_kick else "Chờ kick"
+            status_label = (
+                "Còn quyền active"
+                if retained
+                else "Đã kick cùng group"
+                if latest_kick and latest_kick is not latest_order_kick
+                else "Đã kick"
+                if latest_kick
+                else "Chờ kick"
+            )
             needs_action = not retained and not latest_kick
 
             if live_state["checked"]:
@@ -259,7 +290,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "live_present": live_state["present"],
             })
 
-    priority = {"NO_GROUP": 0, "WAITING_KICK": 1, "REJOINED": 2, "CHECK_ERROR": 3, "LEFT_NO_LOG": 4, "ACTIVE_RETAINED": 5, "KICKED": 6}
+    priority = {"INVALID_EXPIRE_AT": 0, "NO_GROUP": 1, "WAITING_KICK": 2, "REJOINED": 3, "CHECK_ERROR": 4, "LEFT_NO_LOG": 5, "ACTIVE_RETAINED": 6, "KICKED": 7}
     rows.sort(key=lambda item: (priority.get(item["status"], 9), str(item.get("expire_at") or "")))
     return rows
 

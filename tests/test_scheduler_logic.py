@@ -229,6 +229,21 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.bot.kicked, [])
 
+    async def test_invalid_active_expire_prevents_auto_kick(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        rows = [
+            ["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-05-25 21:19:00"],
+            ["active-bad-date", "42", "User", "VIP 30 ngày - Hang Cú Asia", "0", "PAID", "", "bad-date"],
+        ]
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, [])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [])
+
     async def test_old_kick_event_allows_recheck_when_member_present(self):
         now = datetime(2026, 5, 25, 21, 20, 0)
         scheduler.now_local = lambda: now

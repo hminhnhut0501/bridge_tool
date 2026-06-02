@@ -152,9 +152,18 @@ def user_active_group_ids(user_id, current_order_id, users_data, now):
         if is_lifetime_plan(other_plan):
             active_groups.update(other_groups)
             continue
-        expire_date = parse_expire_datetime(row_value(row, 7))
+        expire_raw = row_value(row, 7)
+        expire_date = parse_expire_datetime(expire_raw)
         if expire_date and expire_date > now:
             active_groups.update(other_groups)
+        elif expire_raw and not expire_date:
+            active_groups.update(other_groups)
+            logging.warning(
+                "⚠️ User %s có đơn PAID %s cùng group nhưng expire_at không đọc được ('%s'); giữ quyền để tránh kick nhầm.",
+                user_id,
+                row_value(row, 0),
+                expire_raw,
+            )
     return active_groups
 
 def user_has_active_membership(user_id, current_order_id, users_data, now):
@@ -168,8 +177,17 @@ def user_has_active_membership(user_id, current_order_id, users_data, now):
         other_plan = row_value(row, 3)
         if is_lifetime_plan(other_plan):
             return True
-        expire_date = parse_expire_datetime(row_value(row, 7))
+        expire_raw = row_value(row, 7)
+        expire_date = parse_expire_datetime(expire_raw)
         if expire_date and expire_date > now:
+            return True
+        if expire_raw and not expire_date:
+            logging.warning(
+                "⚠️ User %s có đơn PAID %s nhưng expire_at không đọc được ('%s'); xem như active để tránh xử lý nhầm support.",
+                user_id,
+                row_value(row, 0),
+                expire_raw,
+            )
             return True
     return False
 
