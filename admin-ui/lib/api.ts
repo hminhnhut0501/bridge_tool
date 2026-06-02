@@ -390,8 +390,13 @@ export async function getCampaigns(secret: string) {
   return request<{ data: BroadcastCampaign[] }>("/admin-api/campaigns", secret);
 }
 
-export async function previewCampaign(secret: string, segment: string) {
-  return request<{ data: CampaignPreview }>(`/admin-api/campaigns/preview?segment=${encodeURIComponent(segment)}`, secret);
+export async function previewCampaign(secret: string, segment: string, planFilter = "ALL", planMatchScope = "ANY_PAID") {
+  const params = new URLSearchParams({
+    segment,
+    plan_filter: planFilter,
+    plan_match_scope: planMatchScope,
+  });
+  return request<{ data: CampaignPreview }>(`/admin-api/campaigns/preview?${params.toString()}`, secret);
 }
 
 export async function createCampaign(secret: string, payload: Record<string, unknown>) {

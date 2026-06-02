@@ -935,6 +935,8 @@ const EMPTY_MANUAL_ORDER_FORM = {
 const EMPTY_CAMPAIGN_FORM = {
   title: "",
   target_segment: "ALL",
+  plan_filter: "ALL",
+  plan_match_scope: "ANY_PAID",
   message: "",
   delay_seconds: "5",
   batch_size: "20",
@@ -1381,10 +1383,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!savedSecret || tab !== "campaigns") return;
-    previewCampaign(savedSecret, campaignForm.target_segment)
+    previewCampaign(savedSecret, campaignForm.target_segment, campaignForm.plan_filter, campaignForm.plan_match_scope)
       .then((res) => setCampaignPreview(res.data))
       .catch(() => setCampaignPreview(null));
-  }, [savedSecret, tab, campaignForm.target_segment]);
+  }, [savedSecret, tab, campaignForm.target_segment, campaignForm.plan_filter, campaignForm.plan_match_scope]);
 
   useEffect(() => {
     if (!savedSecret || !selectedCampaignId) {
@@ -2223,6 +2225,9 @@ export default function Home() {
     if (b === "UNKNOWN") return -1;
     return b.localeCompare(a);
   }), [logEntries]);
+  const campaignPlanOptions = useMemo(() => {
+    return uniqueValues(orders.filter((item) => item.status === "PAID").map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
+  }, [orders]);
   const filteredLogEntries = useMemo(() => {
     const q = query.toLowerCase();
     return logEntries.filter((entry) => {
@@ -2717,6 +2722,15 @@ export default function Home() {
                   <option value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</option>
                   <option value="NO_PURCHASE">Chưa mua gói</option>
                 </select><small>Blacklist active sẽ tự bị loại khỏi danh sách gửi.</small></label>
+                <label className="field"><span>Lọc theo gói đã mua</span><select value={campaignForm.plan_filter} onChange={(event) => setCampaignForm({ ...campaignForm, plan_filter: event.target.value })}>
+                  <option value="ALL">Tất cả gói</option>
+                  {campaignPlanOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select><small>Lấy từ tên gói trong các đơn PAID hiện có.</small></label>
+                <label className="field"><span>Cách so khớp gói</span><select value={campaignForm.plan_match_scope} onChange={(event) => setCampaignForm({ ...campaignForm, plan_match_scope: event.target.value })}>
+                  <option value="ANY_PAID">Từng mua gói này</option>
+                  <option value="ACTIVE_ONLY">Đang active gói này</option>
+                  <option value="LATEST">Gói PAID mới nhất là gói này</option>
+                </select><small>Chỉ áp dụng khi bạn chọn một gói cụ thể.</small></label>
                 <label className="field"><span>Delay mỗi user</span><input value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" /><small>Tối thiểu 2 giây. Khuyến nghị 5-10 giây.</small></label>
                 <label className="field"><span>Số gửi mỗi vòng</span><input value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" /><small>Worker sẽ kiểm tra trạng thái campaign sau mỗi vòng.</small></label>
                 <label className="field"><span>Định dạng</span><select value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })}><option value="HTML">HTML</option><option value="NONE">Text thường</option></select></label>
@@ -2741,7 +2755,7 @@ export default function Home() {
                 headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
                 rows={campaigns.map((item) => [
                   <button key={`select-${item.id}`} className="link-button" onClick={() => { setSelectedCampaignId(item.id); setCampaignRecipientPage(1); }}><strong>{item.title}</strong><div className="muted">{dateText(item.created_at)}</div></button>,
-                  item.target_segment,
+                  <><strong>{item.target_segment}</strong><div className="muted">{String(item.raw_data?.plan_filter || "ALL")} • {String(item.raw_data?.plan_match_scope || "ANY_PAID")}</div></>,
                   <span key={`status-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
                   <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,
                   `${item.delay_seconds}s`,
@@ -2763,11 +2777,12 @@ export default function Home() {
                 <span>Skipped: {campaignRecipientCounts.SKIPPED || 0}</span>
               </div>
               <SimpleTable
-                headers={["Khách", "Telegram ID", "Nhóm", "Trạng thái", "Gửi lúc", "Lỗi"]}
+                headers={["Khách", "Telegram ID", "Nhóm", "Gói liên quan", "Trạng thái", "Gửi lúc", "Lỗi"]}
                 rows={pagedCampaignRecipients.map((item) => [
                   <><strong>{item.full_name || item.username || "-"}</strong><div className="muted">{item.username ? `@${item.username}` : ""}</div></>,
                   item.telegram_user_id,
                   item.segment,
+                  <><strong>{String(item.raw_data?.latest_plan_name || "-")}</strong><div className="muted">{Array.isArray(item.raw_data?.paid_plan_names) ? item.raw_data.paid_plan_names.join(", ") : ""}</div></>,
                   <span key={`r-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
                   dateText(item.sent_at || item.last_attempt_at),
                   item.error || "-",

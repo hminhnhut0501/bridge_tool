@@ -12,6 +12,10 @@ def _clean_text(value):
     return str(value or "").strip()
 
 
+def _norm_filter_text(value):
+    return _clean_text(value).casefold()
+
+
 def _clean_display_text(value):
     text = _clean_text(value)
     return "" if text == "-" else text
@@ -907,8 +911,16 @@ class SupabaseStore:
             grouped.setdefault(user_id, []).append(order)
         return grouped
 
-    def build_broadcast_recipients(self, segment="ALL", limit=5000):
+    def _broadcast_plan_matches(self, plan_name, plan_filter):
+        target = _norm_filter_text(plan_filter)
+        if not target or target == "all":
+            return True
+        return _norm_filter_text(plan_name) == target
+
+    def build_broadcast_recipients(self, segment="ALL", limit=5000, plan_filter="ALL", plan_match_scope="ANY_PAID"):
         segment_key = _clean_text(segment).upper() or "ALL"
+        plan_filter = _clean_text(plan_filter) or "ALL"
+        plan_match_scope = _clean_text(plan_match_scope).upper() or "ANY_PAID"
         interacted = self._recent_interacted_users(limit=limit)
         orders_by_user = self._orders_by_user_for_campaigns(limit=limit)
         blacklist_ids = set()
@@ -950,9 +962,21 @@ class SupabaseStore:
                 continue
             if segment_key in {"NO_PURCHASE", "NOT_PAID"} and paid_orders:
                 continue
+            if _norm_filter_text(plan_filter) not in {"", "all"}:
+                latest_paid_order = paid_orders[0] if paid_orders else {}
+                if plan_match_scope == "ACTIVE_ONLY":
+                    scoped_orders = active_orders
+                elif plan_match_scope == "LATEST":
+                    scoped_orders = [latest_paid_order] if latest_paid_order else []
+                else:
+                    scoped_orders = paid_orders
+                if not any(self._broadcast_plan_matches(order.get("plan_name"), plan_filter) for order in scoped_orders):
+                    continue
 
             identity = interacted.get(user_id) or {}
             latest_order = user_orders[0] if user_orders else {}
+            paid_plan_names = sorted({_clean_text(item.get("plan_name")) for item in paid_orders if _clean_text(item.get("plan_name"))})
+            active_plan_names = sorted({_clean_text(item.get("plan_name")) for item in active_orders if _clean_text(item.get("plan_name"))})
             recipients.append({
                 "telegram_user_id": user_id,
                 "username": identity.get("username") or "",
@@ -963,12 +987,19 @@ class SupabaseStore:
                     "active_orders": len(active_orders),
                     "last_interaction_at": identity.get("last_interaction_at"),
                     "latest_plan_name": latest_order.get("plan_name") or "",
+                    "paid_plan_names": paid_plan_names,
+                    "active_plan_names": active_plan_names,
                 },
             })
         return recipients
 
-    def preview_broadcast_recipients(self, segment="ALL", limit=5000):
-        recipients = self.build_broadcast_recipients(segment=segment, limit=limit)
+    def preview_broadcast_recipients(self, segment="ALL", limit=5000, plan_filter="ALL", plan_match_scope="ANY_PAID"):
+        recipients = self.build_broadcast_recipients(
+            segment=segment,
+            limit=limit,
+            plan_filter=plan_filter,
+            plan_match_scope=plan_match_scope,
+        )
         counts = {}
         for recipient in recipients:
             counts[recipient["segment"]] = counts.get(recipient["segment"], 0) + 1
@@ -1011,7 +1042,14 @@ class SupabaseStore:
         delay_seconds = max(2, min(_parse_int(raw.get("delay_seconds"), 5), 300))
         batch_size = max(1, min(_parse_int(raw.get("batch_size"), 20), 100))
         target_segment = _clean_text(raw.get("target_segment") or "ALL").upper() or "ALL"
-        recipients = self.build_broadcast_recipients(target_segment, limit=_parse_int(raw.get("recipient_limit"), 5000))
+        plan_filter = _clean_text(raw.get("plan_filter") or "ALL") or "ALL"
+        plan_match_scope = _clean_text(raw.get("plan_match_scope") or "ANY_PAID").upper() or "ANY_PAID"
+        recipients = self.build_broadcast_recipients(
+            target_segment,
+            limit=_parse_int(raw.get("recipient_limit"), 5000),
+            plan_filter=plan_filter,
+            plan_match_scope=plan_match_scope,
+        )
         campaign_payload = {
             "title": title,
             "message": message,
@@ -1021,7 +1059,11 @@ class SupabaseStore:
             "delay_seconds": delay_seconds,
             "batch_size": batch_size,
             "total_recipients": len(recipients),
-            "raw_data": raw.get("raw_data") or {},
+            "raw_data": {
+                **(raw.get("raw_data") or {}),
+                "plan_filter": plan_filter,
+                "plan_match_scope": plan_match_scope,
+            },
         }
         campaign = self._request("POST", "broadcast_campaigns", json=campaign_payload, prefer="return=representation")[0]
         campaign_id = campaign.get("id")

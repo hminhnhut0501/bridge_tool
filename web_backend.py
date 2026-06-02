@@ -788,9 +788,9 @@ async def admin_campaigns(limit: int = 100):
 
 
 @app.get("/admin-api/campaigns/preview", dependencies=[Depends(require_admin)])
-async def admin_campaign_preview(segment: str = "ALL"):
+async def admin_campaign_preview(segment: str = "ALL", plan_filter: str = "ALL", plan_match_scope: str = "ANY_PAID"):
     try:
-        return {"data": supabase_store.preview_broadcast_recipients(segment=segment)}
+        return {"data": supabase_store.preview_broadcast_recipients(segment=segment, plan_filter=plan_filter, plan_match_scope=plan_match_scope)}
     except Exception as exc:
         if is_missing_campaign_table_error(exc):
             warn_missing_table_once("broadcast_campaigns", exc)
