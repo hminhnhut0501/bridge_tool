@@ -55,6 +55,16 @@ def _parse_datetime(value):
     return None
 
 
+def _datetime_value(value):
+    parsed = _parse_datetime(value)
+    if not parsed:
+        return None
+    try:
+        return datetime.fromisoformat(parsed)
+    except ValueError:
+        return None
+
+
 def _bot_timezone():
     timezone_name = os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"
     try:
@@ -65,6 +75,10 @@ def _bot_timezone():
 
 def _now_local_text():
     return datetime.now(_bot_timezone()).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _now_iso():
+    return datetime.now(_bot_timezone()).isoformat()
 
 
 class SupabaseStore:
@@ -857,6 +871,278 @@ class SupabaseStore:
             if len(visible) >= int(limit):
                 break
         return visible
+
+    def _recent_interacted_users(self, limit=5000):
+        rows = self._request(
+            "GET",
+            "analytics_events",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        users = {}
+        for row in rows or []:
+            payload = row.get("payload") or {}
+            chat_type = _clean_text(payload.get("chat_type")).lower()
+            user_id = _clean_text(row.get("telegram_user_id") or payload.get("user_id"))
+            if not user_id or chat_type in {"group", "supergroup", "channel"}:
+                continue
+            users.setdefault(user_id, {
+                "telegram_user_id": user_id,
+                "username": _clean_display_text(payload.get("username")),
+                "full_name": _clean_display_text(payload.get("full_name")),
+                "last_interaction_at": row.get("created_at"),
+            })
+        return users
+
+    def _orders_by_user_for_campaigns(self, limit=5000):
+        rows = self._request(
+            "GET",
+            "orders",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        grouped = {}
+        for order in rows or []:
+            user_id = _clean_text(order.get("telegram_user_id"))
+            if not user_id:
+                continue
+            grouped.setdefault(user_id, []).append(order)
+        return grouped
+
+    def build_broadcast_recipients(self, segment="ALL", limit=5000):
+        segment_key = _clean_text(segment).upper() or "ALL"
+        interacted = self._recent_interacted_users(limit=limit)
+        orders_by_user = self._orders_by_user_for_campaigns(limit=limit)
+        blacklist_ids = set()
+        try:
+            blacklist_ids = {
+                _clean_text(item.get("telegram_user_id"))
+                for item in self.list_blacklist(limit=5000)
+                if item.get("is_active") and _clean_text(item.get("telegram_user_id"))
+            }
+        except Exception:
+            blacklist_ids = set()
+
+        now = datetime.now(_bot_timezone())
+        user_ids = set(interacted) | set(orders_by_user)
+        recipients = []
+        for user_id in sorted(user_ids):
+            if user_id in blacklist_ids:
+                continue
+            user_orders = orders_by_user.get(user_id, [])
+            paid_orders = [item for item in user_orders if _clean_text(item.get("status")).upper() == "PAID"]
+            active_orders = []
+            for order in paid_orders:
+                plan_name = _clean_text(order.get("plan_name")).upper()
+                expire_at = _datetime_value(order.get("expire_at"))
+                if "TRỌN ĐỜI" in plan_name or "TRON DOI" in plan_name or "LIFE" in plan_name or (expire_at and expire_at > now):
+                    active_orders.append(order)
+
+            user_segment = "NO_PURCHASE"
+            if active_orders:
+                user_segment = "VIP_ACTIVE"
+            elif paid_orders:
+                user_segment = "VIP_EXPIRED"
+
+            if segment_key in {"VIP", "VIP_PAID"} and not paid_orders:
+                continue
+            if segment_key == "VIP_ACTIVE" and not active_orders:
+                continue
+            if segment_key == "VIP_EXPIRED" and (not paid_orders or active_orders):
+                continue
+            if segment_key in {"NO_PURCHASE", "NOT_PAID"} and paid_orders:
+                continue
+
+            identity = interacted.get(user_id) or {}
+            latest_order = user_orders[0] if user_orders else {}
+            recipients.append({
+                "telegram_user_id": user_id,
+                "username": identity.get("username") or "",
+                "full_name": identity.get("full_name") or _clean_display_text(latest_order.get("full_name")),
+                "segment": user_segment,
+                "raw_data": {
+                    "paid_orders": len(paid_orders),
+                    "active_orders": len(active_orders),
+                    "last_interaction_at": identity.get("last_interaction_at"),
+                    "latest_plan_name": latest_order.get("plan_name") or "",
+                },
+            })
+        return recipients
+
+    def preview_broadcast_recipients(self, segment="ALL", limit=5000):
+        recipients = self.build_broadcast_recipients(segment=segment, limit=limit)
+        counts = {}
+        for recipient in recipients:
+            counts[recipient["segment"]] = counts.get(recipient["segment"], 0) + 1
+        return {"total": len(recipients), "counts": counts, "sample": recipients[:20]}
+
+    def list_broadcast_campaigns(self, limit=100):
+        campaigns = self._request(
+            "GET",
+            "broadcast_campaigns",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        return campaigns
+
+    def get_broadcast_campaign(self, campaign_id):
+        rows = self._request(
+            "GET",
+            "broadcast_campaigns",
+            params={"select": "*", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def list_broadcast_recipients(self, campaign_id, limit=500, status=None):
+        params = {
+            "select": "*",
+            "campaign_id": f"eq.{_clean_text(campaign_id)}",
+            "order": "created_at.asc",
+            "limit": str(limit),
+        }
+        if status:
+            params["status"] = f"eq.{_clean_text(status).upper()}"
+        return self._request("GET", "broadcast_recipients", params=params)
+
+    def create_broadcast_campaign(self, raw):
+        title = _clean_text(raw.get("title") or raw.get("name"))
+        message = str(raw.get("message") or "").strip()
+        if not title:
+            raise ValueError("Thiếu tên campaign.")
+        if not message:
+            raise ValueError("Thiếu nội dung gửi.")
+        delay_seconds = max(2, min(_parse_int(raw.get("delay_seconds"), 5), 300))
+        batch_size = max(1, min(_parse_int(raw.get("batch_size"), 20), 100))
+        target_segment = _clean_text(raw.get("target_segment") or "ALL").upper() or "ALL"
+        recipients = self.build_broadcast_recipients(target_segment, limit=_parse_int(raw.get("recipient_limit"), 5000))
+        campaign_payload = {
+            "title": title,
+            "message": message,
+            "parse_mode": _clean_text(raw.get("parse_mode") or "HTML").upper() or "HTML",
+            "target_segment": target_segment,
+            "status": "DRAFT",
+            "delay_seconds": delay_seconds,
+            "batch_size": batch_size,
+            "total_recipients": len(recipients),
+            "raw_data": raw.get("raw_data") or {},
+        }
+        campaign = self._request("POST", "broadcast_campaigns", json=campaign_payload, prefer="return=representation")[0]
+        campaign_id = campaign.get("id")
+        recipient_payload = [
+            {
+                "campaign_id": campaign_id,
+                "telegram_user_id": item["telegram_user_id"],
+                "username": item.get("username") or "",
+                "full_name": item.get("full_name") or "",
+                "segment": item.get("segment") or "",
+                "status": "PENDING",
+                "raw_data": item.get("raw_data") or {},
+            }
+            for item in recipients
+        ]
+        if recipient_payload:
+            chunk_size = 500
+            for start in range(0, len(recipient_payload), chunk_size):
+                self._request(
+                    "POST",
+                    "broadcast_recipients",
+                    json=recipient_payload[start:start + chunk_size],
+                    prefer="return=representation",
+                )
+        self.record_broadcast_event(campaign_id, None, "campaign_created", {"recipients": len(recipients)})
+        return self.get_broadcast_campaign(campaign_id)
+
+    def patch_broadcast_campaign(self, campaign_id, payload):
+        return self._request(
+            "PATCH",
+            "broadcast_campaigns",
+            params={"id": f"eq.{_clean_text(campaign_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def start_broadcast_campaign(self, campaign_id):
+        campaign = self.get_broadcast_campaign(campaign_id)
+        if not campaign:
+            return []
+        if campaign.get("status") in {"DONE", "CANCELLED"}:
+            return [campaign]
+        payload = {"status": "RUNNING", "started_at": campaign.get("started_at") or _now_iso()}
+        self.record_broadcast_event(campaign_id, None, "campaign_started", {})
+        return self.patch_broadcast_campaign(campaign_id, payload)
+
+    def pause_broadcast_campaign(self, campaign_id):
+        self.record_broadcast_event(campaign_id, None, "campaign_paused", {})
+        return self.patch_broadcast_campaign(campaign_id, {"status": "PAUSED"})
+
+    def cancel_broadcast_campaign(self, campaign_id):
+        self._request(
+            "PATCH",
+            "broadcast_recipients",
+            params={"campaign_id": f"eq.{_clean_text(campaign_id)}", "status": "eq.PENDING"},
+            json={"status": "SKIPPED", "error": "Campaign cancelled"},
+        )
+        self.record_broadcast_event(campaign_id, None, "campaign_cancelled", {})
+        return self.patch_broadcast_campaign(campaign_id, {"status": "CANCELLED", "finished_at": _now_iso()})
+
+    def next_running_broadcast_campaign(self):
+        rows = self._request(
+            "GET",
+            "broadcast_campaigns",
+            params={"select": "*", "status": "eq.RUNNING", "order": "created_at.asc", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def next_pending_broadcast_recipient(self, campaign_id):
+        rows = self._request(
+            "GET",
+            "broadcast_recipients",
+            params={
+                "select": "*",
+                "campaign_id": f"eq.{_clean_text(campaign_id)}",
+                "status": "eq.PENDING",
+                "order": "created_at.asc",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def update_broadcast_recipient(self, recipient_id, payload):
+        return self._request(
+            "PATCH",
+            "broadcast_recipients",
+            params={"id": f"eq.{_clean_text(recipient_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def refresh_broadcast_campaign_counts(self, campaign_id):
+        rows = self._request(
+            "GET",
+            "broadcast_recipients",
+            params={"select": "status", "campaign_id": f"eq.{_clean_text(campaign_id)}", "limit": "10000"},
+        )
+        counts = {"PENDING": 0, "SENT": 0, "FAILED": 0, "SKIPPED": 0}
+        for row in rows or []:
+            status = _clean_text(row.get("status")).upper()
+            counts[status] = counts.get(status, 0) + 1
+        done = counts.get("PENDING", 0) == 0
+        payload = {
+            "total_recipients": len(rows or []),
+            "sent_count": counts.get("SENT", 0),
+            "failed_count": counts.get("FAILED", 0),
+            "skipped_count": counts.get("SKIPPED", 0),
+        }
+        if done:
+            payload["status"] = "DONE"
+            payload["finished_at"] = _now_iso()
+        return self.patch_broadcast_campaign(campaign_id, payload)
+
+    def record_broadcast_event(self, campaign_id, telegram_user_id, event_type, raw_data=None):
+        payload = {
+            "campaign_id": _clean_text(campaign_id) or None,
+            "telegram_user_id": _clean_text(telegram_user_id),
+            "event_type": _clean_text(event_type),
+            "raw_data": raw_data or {},
+        }
+        return self._request("POST", "broadcast_events", json=payload, prefer="return=representation")
 
 
 supabase_store = SupabaseStore()

@@ -149,6 +149,49 @@ export type KickAuditPayload = {
   customer_name?: string;
 };
 
+export type BroadcastCampaign = {
+  id: string;
+  title: string;
+  message: string;
+  parse_mode: string;
+  target_segment: string;
+  status: string;
+  delay_seconds: number;
+  batch_size: number;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  raw_data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BroadcastRecipient = {
+  id: string;
+  campaign_id: string;
+  telegram_user_id: string;
+  username: string | null;
+  full_name: string | null;
+  segment: string;
+  status: string;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  sent_at: string | null;
+  error: string | null;
+  raw_data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CampaignPreview = {
+  total: number;
+  counts: Record<string, number>;
+  sample: BroadcastRecipient[];
+};
+
 export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
@@ -341,6 +384,37 @@ export async function kickAuditMember(secret: string, payload: KickAuditPayload)
 
 export async function getActivityEvents(secret: string) {
   return request<{ data: ActivityEvent[] }>("/admin-api/activity-events", secret);
+}
+
+export async function getCampaigns(secret: string) {
+  return request<{ data: BroadcastCampaign[] }>("/admin-api/campaigns", secret);
+}
+
+export async function previewCampaign(secret: string, segment: string) {
+  return request<{ data: CampaignPreview }>(`/admin-api/campaigns/preview?segment=${encodeURIComponent(segment)}`, secret);
+}
+
+export async function createCampaign(secret: string, payload: Record<string, unknown>) {
+  return request<{ data: BroadcastCampaign }>("/admin-api/campaigns", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getCampaignRecipients(secret: string, campaignId: string, limit = 500) {
+  return request<{ data: BroadcastRecipient[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/recipients?limit=${limit}`, secret);
+}
+
+export async function startCampaign(secret: string, campaignId: string) {
+  return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/start`, secret, { method: "POST" });
+}
+
+export async function pauseCampaign(secret: string, campaignId: string) {
+  return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/pause`, secret, { method: "POST" });
+}
+
+export async function cancelCampaign(secret: string, campaignId: string) {
+  return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/cancel`, secret, { method: "POST" });
 }
 
 export async function checkSupportGroup(secret: string) {

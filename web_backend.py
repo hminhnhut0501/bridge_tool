@@ -341,12 +341,19 @@ async def start_background_workers():
     except Exception:
         coupon_cleanup_worker = None
 
+    try:
+        from modules.mod_campaigns import campaign_worker
+    except Exception:
+        campaign_worker = None
+
     if maintenance_worker:
         asyncio.create_task(maintenance_worker())
     if scheduler_worker:
         asyncio.create_task(scheduler_worker())
     if coupon_cleanup_worker:
         asyncio.create_task(coupon_cleanup_worker())
+    if campaign_worker:
+        asyncio.create_task(campaign_worker())
 
 
 @app.on_event("startup")
@@ -758,6 +765,79 @@ async def admin_activity_events(limit: int = 500):
         else:
             print(f"⚠️ Không đọc được analytics_events: {exc}")
         return {"data": []}
+
+
+def is_missing_campaign_table_error(exc: Exception) -> bool:
+    text = str(exc)
+    return any(
+        is_missing_supabase_table_error(exc, table)
+        for table in ("broadcast_campaigns", "broadcast_recipients", "broadcast_events")
+    ) or ("broadcast_" in text and "PGRST205" in text)
+
+
+@app.get("/admin-api/campaigns", dependencies=[Depends(require_admin)])
+async def admin_campaigns(limit: int = 100):
+    try:
+        return {"data": supabase_store.list_broadcast_campaigns(limit=limit)}
+    except Exception as exc:
+        if is_missing_campaign_table_error(exc):
+            warn_missing_table_once("broadcast_campaigns", exc)
+        else:
+            print(f"⚠️ Không đọc được broadcast_campaigns: {exc}")
+        return {"data": []}
+
+
+@app.get("/admin-api/campaigns/preview", dependencies=[Depends(require_admin)])
+async def admin_campaign_preview(segment: str = "ALL"):
+    try:
+        return {"data": supabase_store.preview_broadcast_recipients(segment=segment)}
+    except Exception as exc:
+        if is_missing_campaign_table_error(exc):
+            warn_missing_table_once("broadcast_campaigns", exc)
+        else:
+            print(f"⚠️ Không preview được campaign recipients: {exc}")
+        return {"data": {"total": 0, "counts": {}, "sample": []}}
+
+
+@app.post("/admin-api/campaigns", dependencies=[Depends(require_admin)])
+async def admin_create_campaign(request: Request):
+    body = await request.json()
+    try:
+        return {"data": supabase_store.create_broadcast_campaign(body)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        if is_missing_campaign_table_error(exc):
+            warn_missing_table_once("broadcast_campaigns", exc)
+            raise HTTPException(status_code=503, detail="Thiếu bảng campaign. Hãy chạy migration Supabase mới nhất.")
+        raise
+
+
+@app.get("/admin-api/campaigns/{campaign_id}/recipients", dependencies=[Depends(require_admin)])
+async def admin_campaign_recipients(campaign_id: str, limit: int = 500, status: str | None = None):
+    try:
+        return {"data": supabase_store.list_broadcast_recipients(campaign_id, limit=limit, status=status)}
+    except Exception as exc:
+        if is_missing_campaign_table_error(exc):
+            warn_missing_table_once("broadcast_recipients", exc)
+        else:
+            print(f"⚠️ Không đọc được broadcast_recipients: {exc}")
+        return {"data": []}
+
+
+@app.post("/admin-api/campaigns/{campaign_id}/start", dependencies=[Depends(require_admin)])
+async def admin_start_campaign(campaign_id: str):
+    return {"data": supabase_store.start_broadcast_campaign(campaign_id)}
+
+
+@app.post("/admin-api/campaigns/{campaign_id}/pause", dependencies=[Depends(require_admin)])
+async def admin_pause_campaign(campaign_id: str):
+    return {"data": supabase_store.pause_broadcast_campaign(campaign_id)}
+
+
+@app.post("/admin-api/campaigns/{campaign_id}/cancel", dependencies=[Depends(require_admin)])
+async def admin_cancel_campaign(campaign_id: str):
+    return {"data": supabase_store.cancel_broadcast_campaign(campaign_id)}
 
 
 @app.get("/admin-api/support-group-check", dependencies=[Depends(require_admin)])

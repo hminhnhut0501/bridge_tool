@@ -9,6 +9,9 @@ import {
   FileText,
   Gift,
   Loader2,
+  Megaphone,
+  PauseCircle,
+  PlayCircle,
   Plus,
   RefreshCw,
   Save,
@@ -24,6 +27,9 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityEvent,
+  BroadcastCampaign,
+  BroadcastRecipient,
+  CampaignPreview,
   ConfigRow,
   BlacklistEntry,
   Coupon,
@@ -36,6 +42,8 @@ import {
   UserRow,
   WebhookInfo,
   checkSupportGroup,
+  cancelCampaign,
+  createCampaign,
   createCoupon,
   createCoupons,
   createManualOrder,
@@ -47,6 +55,8 @@ import {
   getConfig,
   getActivityEvents,
   getBlacklist,
+  getCampaignRecipients,
+  getCampaigns,
   getCoupons,
   getKickAudit,
   getMenuPages,
@@ -56,7 +66,10 @@ import {
   getUsers,
   getWebhookInfo,
   kickAuditMember,
+  pauseCampaign,
+  previewCampaign,
   resetWebhook,
+  startCampaign,
   updateConfig,
   updateConfigs,
   updateMenuPage,
@@ -67,7 +80,7 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "plans" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
@@ -82,7 +95,7 @@ type Notice = {
   text: string;
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "renewals", "supportGroup", "content", "coupons", "security", "sales", "system"];
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "renewals", "supportGroup", "content", "coupons", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 15;
 
@@ -919,6 +932,15 @@ const EMPTY_MANUAL_ORDER_FORM = {
   coupon_code: "",
 };
 
+const EMPTY_CAMPAIGN_FORM = {
+  title: "",
+  target_segment: "ALL",
+  message: "",
+  delay_seconds: "5",
+  batch_size: "20",
+  parse_mode: "HTML",
+};
+
 const DEFAULT_LIFETIME_DAYS = "36500";
 
 const ORDER_PAGE_SIZE = 25;
@@ -927,6 +949,7 @@ const LOG_PAGE_SIZE = 80;
 const RENEWAL_PAGE_SIZE = 25;
 const SUPPORT_PAGE_SIZE = 25;
 const COUPON_PAGE_SIZE = 20;
+const CAMPAIGN_RECIPIENT_PAGE_SIZE = 20;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1216,8 +1239,8 @@ function groupOrders(orders: Order[], mode: GroupMode) {
 
 function statusClass(status: string) {
   const normalized = status.toLowerCase();
-  if (normalized === "paid") return "status paid";
-  if (normalized === "expired" || normalized === "cancelled") return "status expired";
+  if (["paid", "sent", "done", "running"].includes(normalized)) return "status paid";
+  if (["expired", "cancelled", "failed"].includes(normalized)) return "status expired";
   return "status pending";
 }
 
@@ -1271,6 +1294,9 @@ export default function Home() {
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
+  const [campaignRecipients, setCampaignRecipients] = useState<BroadcastRecipient[]>([]);
+  const [campaignPreview, setCampaignPreview] = useState<CampaignPreview | null>(null);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -1291,6 +1317,9 @@ export default function Home() {
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
+  const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [campaignRecipientPage, setCampaignRecipientPage] = useState(1);
   const [renewalTab, setRenewalTab] = useState<RenewalSubTab>("soon");
   const [renewalPage, setRenewalPage] = useState(1);
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
@@ -1350,6 +1379,29 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [savedSecret]);
 
+  useEffect(() => {
+    if (!savedSecret || tab !== "campaigns") return;
+    previewCampaign(savedSecret, campaignForm.target_segment)
+      .then((res) => setCampaignPreview(res.data))
+      .catch(() => setCampaignPreview(null));
+  }, [savedSecret, tab, campaignForm.target_segment]);
+
+  useEffect(() => {
+    if (!savedSecret || !selectedCampaignId) {
+      setCampaignRecipients([]);
+      return;
+    }
+    getCampaignRecipients(savedSecret, selectedCampaignId)
+      .then((res) => setCampaignRecipients(res.data))
+      .catch(() => setCampaignRecipients([]));
+  }, [savedSecret, selectedCampaignId, campaigns]);
+
+  useEffect(() => {
+    if (tab === "campaigns" && !selectedCampaignId && campaigns.length) {
+      setSelectedCampaignId(campaigns[0].id);
+    }
+  }, [tab, selectedCampaignId, campaigns]);
+
   function selectTab(nextTab: Tab) {
     setTab(nextTab);
     window.localStorage.setItem(TAB_STORAGE_KEY, nextTab);
@@ -1376,6 +1428,38 @@ export default function Home() {
     }
   }
 
+  async function refreshCampaigns(activeSecret = savedSecret) {
+    if (!activeSecret) return;
+    const campaignsRes = await getCampaigns(activeSecret);
+    setCampaigns(campaignsRes.data);
+    if (selectedCampaignId) {
+      const recipientsRes = await getCampaignRecipients(activeSecret, selectedCampaignId);
+      setCampaignRecipients(recipientsRes.data);
+    }
+  }
+
+  async function saveCampaign() {
+    await runAction("campaign-create", async () => {
+      const created = await createCampaign(savedSecret, {
+        ...campaignForm,
+        delay_seconds: campaignForm.delay_seconds,
+        batch_size: campaignForm.batch_size,
+      });
+      setCampaignForm({ ...EMPTY_CAMPAIGN_FORM });
+      setSelectedCampaignId(created.data.id);
+      await refreshCampaigns();
+    });
+  }
+
+  async function changeCampaignStatus(campaignId: string, action: "start" | "pause" | "cancel") {
+    await runAction(`campaign-${action}-${campaignId}`, async () => {
+      if (action === "start") await startCampaign(savedSecret, campaignId);
+      if (action === "pause") await pauseCampaign(savedSecret, campaignId);
+      if (action === "cancel") await cancelCampaign(savedSecret, campaignId);
+      await refreshCampaigns();
+    });
+  }
+
   async function loadAll(activeSecret = savedSecret, options: { silent?: boolean; resetPages?: boolean } = {}) {
     if (!activeSecret) return;
     const silent = Boolean(options.silent);
@@ -1385,7 +1469,7 @@ export default function Home() {
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -1396,6 +1480,7 @@ export default function Home() {
         getSupportEvents(activeSecret),
         getKickAudit(activeSecret),
         getActivityEvents(activeSecret),
+        getCampaigns(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
@@ -1408,6 +1493,7 @@ export default function Home() {
       setSupportEvents(supportEventsRes.data);
       setKickAudit(kickAuditRes.data);
       setActivityEvents(activityEventsRes.data);
+      setCampaigns(campaignsRes.data);
       setWebhook(webhookRes.data);
       if (resetPages) {
         setOrderPage(1);
@@ -2153,6 +2239,20 @@ export default function Home() {
     const start = (safePage - 1) * LOG_PAGE_SIZE;
     return filteredLogEntries.slice(start, start + LOG_PAGE_SIZE);
   }, [filteredLogEntries, logPage, totalLogPages]);
+  const selectedCampaign = useMemo(() => campaigns.find((item) => item.id === selectedCampaignId) || campaigns[0] || null, [campaigns, selectedCampaignId]);
+  const campaignRecipientCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of campaignRecipients) {
+      counts[item.status] = (counts[item.status] || 0) + 1;
+    }
+    return counts;
+  }, [campaignRecipients]);
+  const totalCampaignRecipientPages = Math.max(1, Math.ceil(campaignRecipients.length / CAMPAIGN_RECIPIENT_PAGE_SIZE));
+  const pagedCampaignRecipients = useMemo(() => {
+    const safePage = Math.min(campaignRecipientPage, totalCampaignRecipientPages);
+    const start = (safePage - 1) * CAMPAIGN_RECIPIENT_PAGE_SIZE;
+    return campaignRecipients.slice(start, start + CAMPAIGN_RECIPIENT_PAGE_SIZE);
+  }, [campaignRecipients, campaignRecipientPage, totalCampaignRecipientPages]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
 
@@ -2312,6 +2412,7 @@ export default function Home() {
           <button className={tab === "orders" ? "active" : ""} onClick={() => selectTab("orders")}><ShoppingCart size={18} /> Đơn hàng</button>
           <button className={tab === "customers" ? "active" : ""} onClick={() => selectTab("customers")}><Users size={18} /> Khách hàng</button>
           <button className={tab === "activityLog" ? "active" : ""} onClick={() => selectTab("activityLog")}><ClipboardList size={18} /> Nhật ký</button>
+          <button className={tab === "campaigns" ? "active" : ""} onClick={() => selectTab("campaigns")}><Megaphone size={18} /> Campaign</button>
           <button className={tab === "renewals" ? "active" : ""} onClick={() => selectTab("renewals")}><RefreshCw size={18} /> Gia hạn</button>
           <button className={tab === "supportGroup" ? "active" : ""} onClick={() => selectTab("supportGroup")}><ShieldCheck size={18} /> Group hỗ trợ</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><FileText size={18} /> Nội dung bot</button>
@@ -2593,6 +2694,86 @@ export default function Home() {
                 ])}
               />
               <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredLogEntries.length} onPage={setLogPage} label="event" />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "campaigns" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Campaign" value={String(campaigns.length)} />
+              <Metric label="Đang chạy" value={String(campaigns.filter((item) => item.status === "RUNNING").length)} />
+              <Metric label="Đã gửi" value={String(campaigns.reduce((sum, item) => sum + (item.sent_count || 0), 0))} />
+              <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Tạo campaign" subtitle="Tạo campaign trước, kiểm tra tệp nhận, rồi bấm gửi. Worker sẽ gửi từng user theo delay để tránh spam." />
+              <div className="form-grid">
+                <label className="field"><span>Tên campaign</span><input value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" /></label>
+                <label className="field"><span>Tệp người nhận</span><select value={campaignForm.target_segment} onChange={(event) => setCampaignForm({ ...campaignForm, target_segment: event.target.value })}>
+                  <option value="ALL">Tất cả user từng tương tác</option>
+                  <option value="VIP_PAID">Đã từng mua VIP</option>
+                  <option value="VIP_ACTIVE">Đang còn VIP active</option>
+                  <option value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</option>
+                  <option value="NO_PURCHASE">Chưa mua gói</option>
+                </select><small>Blacklist active sẽ tự bị loại khỏi danh sách gửi.</small></label>
+                <label className="field"><span>Delay mỗi user</span><input value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" /><small>Tối thiểu 2 giây. Khuyến nghị 5-10 giây.</small></label>
+                <label className="field"><span>Số gửi mỗi vòng</span><input value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" /><small>Worker sẽ kiểm tra trạng thái campaign sau mỗi vòng.</small></label>
+                <label className="field"><span>Định dạng</span><select value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })}><option value="HTML">HTML</option><option value="NONE">Text thường</option></select></label>
+                <label className="field wide"><span>Nội dung tin nhắn</span><textarea value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} /><small>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</small></label>
+              </div>
+              <div className="campaign-preview">
+                <strong>Preview: {campaignPreview?.total || 0} người</strong>
+                <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
+                <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
+                <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
+              </div>
+              <div className="panel-actions">
+                <button className="btn" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()}>
+                  {saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Tạo campaign
+                </button>
+              </div>
+            </section>
+
+            <section className="panel">
+              <PanelHead title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người." />
+              <SimpleTable
+                headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
+                rows={campaigns.map((item) => [
+                  <button key={`select-${item.id}`} className="link-button" onClick={() => { setSelectedCampaignId(item.id); setCampaignRecipientPage(1); }}><strong>{item.title}</strong><div className="muted">{dateText(item.created_at)}</div></button>,
+                  item.target_segment,
+                  <span key={`status-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
+                  <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,
+                  `${item.delay_seconds}s`,
+                  <div key={`actions-${item.id}`} className="coupon-row-actions">
+                    {item.status !== "RUNNING" && item.status !== "DONE" && item.status !== "CANCELLED" ? <button className="btn small" onClick={() => changeCampaignStatus(item.id, "start")}><PlayCircle size={15} /> Gửi</button> : null}
+                    {item.status === "RUNNING" ? <button className="btn secondary small" onClick={() => changeCampaignStatus(item.id, "pause")}><PauseCircle size={15} /> Tạm dừng</button> : null}
+                    {item.status !== "DONE" && item.status !== "CANCELLED" ? <button className="btn danger small" onClick={() => changeCampaignStatus(item.id, "cancel")}>Huỷ</button> : null}
+                  </div>,
+                ])}
+              />
+            </section>
+
+            <section className="panel">
+              <PanelHead title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart." />
+              <div className="campaign-preview">
+                <span>Pending: {campaignRecipientCounts.PENDING || 0}</span>
+                <span>Sent: {campaignRecipientCounts.SENT || 0}</span>
+                <span>Failed: {campaignRecipientCounts.FAILED || 0}</span>
+                <span>Skipped: {campaignRecipientCounts.SKIPPED || 0}</span>
+              </div>
+              <SimpleTable
+                headers={["Khách", "Telegram ID", "Nhóm", "Trạng thái", "Gửi lúc", "Lỗi"]}
+                rows={pagedCampaignRecipients.map((item) => [
+                  <><strong>{item.full_name || item.username || "-"}</strong><div className="muted">{item.username ? `@${item.username}` : ""}</div></>,
+                  item.telegram_user_id,
+                  item.segment,
+                  <span key={`r-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
+                  dateText(item.sent_at || item.last_attempt_at),
+                  item.error || "-",
+                ])}
+              />
+              <Pagination page={campaignRecipientPage} totalPages={totalCampaignRecipientPages} totalItems={campaignRecipients.length} onPage={setCampaignRecipientPage} label="người nhận" />
             </section>
           </div>
         ) : null}

@@ -313,6 +313,24 @@ select:disabled {
   background: #fee4e2;
 }
 
+.btn.small {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 9px;
+}
+
+.link-button {
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  text-align: left;
+}
+
+.link-button:hover strong {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .subtabs {
   display: grid;
   gap: 8px;
@@ -398,6 +416,20 @@ tbody tr:hover {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.campaign-preview {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 16px;
+}
+
+.campaign-preview strong {
+  color: var(--text);
 }
 
 .sent-toggle {
