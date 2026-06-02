@@ -47,9 +47,9 @@ class FakeStore:
             event
             for event in self.events
             if event["event_type"] == event_type
-            and str(event.get("telegram_user_id")) == str(telegram_user_id)
-            and str(event.get("order_id")) == str(order_id)
-            and str(event.get("chat_id")) == str(chat_id)
+            and (telegram_user_id is None or str(event.get("telegram_user_id")) == str(telegram_user_id))
+            and (order_id is None or str(event.get("order_id")) == str(order_id))
+            and (chat_id is None or str(event.get("chat_id")) == str(chat_id))
         ]
         return matches[-1] if matches else None
 
@@ -177,6 +177,57 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.bot.kicked, [])
         self.assertEqual(len([event for event in self.store.events if event["event_type"] == "member_kicked"]), 1)
+
+    async def test_recent_group_kick_prevents_duplicate_across_old_orders(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        scheduler.now_local = lambda: now
+        rows = [
+            ["old-a", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-05-24 21:19:00"],
+            ["old-b", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-05-25 21:19:00"],
+        ]
+        self.bot.present[("-100444", "42")] = True
+        self.store.events.append({
+            "event_type": "member_kicked",
+            "telegram_user_id": "42",
+            "chat_id": "-100444",
+            "order_id": "old-a",
+            "plan_name": "VIP 1 ngày - Hang Cú Asia",
+            "created_at": now.isoformat(),
+        })
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old-b", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [])
+        self.assertEqual(len([event for event in self.store.events if event["event_type"] == "member_kicked"]), 1)
+
+    async def test_active_renewal_prevents_rejoin_kick(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        scheduler.now_local = lambda: now
+        rows = [
+            ["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-05-25 21:19:00"],
+            ["active", "42", "User", "VIP 30 ngày - Hang Cú Asia", "0", "PAID", "", "2026-06-25 21:19:00"],
+        ]
+        self.bot.present[("-100444", "42")] = True
+        self.store.events.append({
+            "event_type": "member_kicked",
+            "telegram_user_id": "42",
+            "chat_id": "-100444",
+            "order_id": "old",
+            "plan_name": "VIP 1 ngày - Hang Cú Asia",
+            "created_at": (now - timedelta(days=2)).isoformat(),
+        })
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, [])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [])
 
     async def test_old_kick_event_allows_recheck_when_member_present(self):
         now = datetime(2026, 5, 25, 21, 20, 0)

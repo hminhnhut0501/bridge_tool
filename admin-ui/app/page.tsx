@@ -414,8 +414,8 @@ const SYSTEM_FIELDS: ConfigField[] = [
   {
     key: "SCHEDULER_INTERVAL_SECONDS",
     label: "Chu kỳ quét hạn",
-    placeholder: "60",
-    help: "Số giây giữa các vòng quét hạn/gia hạn. Backend giới hạn tối đa 60 giây để kick kịp thời.",
+    placeholder: "1800",
+    help: "Số giây giữa các vòng quét hạn/gia hạn. Backend tối thiểu 1800 giây để nhẹ Render free.",
   },
   {
     key: "SCHEDULER_ORDER_LIMIT",

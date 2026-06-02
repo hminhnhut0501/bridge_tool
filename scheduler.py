@@ -19,6 +19,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
 recent_kicks = {}
+SCHEDULER_DEFAULT_INTERVAL_SECONDS = 1800
+SCHEDULER_MIN_INTERVAL_SECONDS = 1800
 
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
@@ -255,17 +257,28 @@ async def member_is_present(chat_id, user_id):
 
 async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, raw_data=None):
     now = now_local()
-    kick_key = (normalize_chat_id(chat_id), str(user_id), str(order_id))
+    normalized_chat_id = normalize_chat_id(chat_id)
+    kick_key = (normalized_chat_id, str(user_id))
     cooldown_minutes = config_int("KICK_RECHECK_COOLDOWN_MINUTES", 1440, minimum=1)
     recent_at = recent_kicks.get(kick_key)
     if recent_at and now - recent_at < timedelta(minutes=cooldown_minutes):
         logging.info(
-            "⏭ Bỏ qua kick trùng User %s group %s đơn %s; lần kick gần nhất trong RAM lúc %s.",
+            "⏭ Bỏ qua kick trùng User %s group %s; lần kick gần nhất trong RAM lúc %s.",
             user_id,
             chat_id,
-            order_id,
             recent_at.strftime("%Y-%m-%d %H:%M:%S"),
         )
+        return True
+
+    recent_group_kick = latest_support_event("member_kicked", user_id, None, chat_id)
+    if event_happened_within(recent_group_kick, now, cooldown_minutes):
+        logging.info(
+            "⏭ Bỏ qua kick trùng User %s group %s; đã có event member_kicked gần đây lúc %s.",
+            user_id,
+            chat_id,
+            recent_group_kick.get("created_at"),
+        )
+        recent_kicks[kick_key] = parse_event_datetime(recent_group_kick) or now
         return True
 
     existing_kick = latest_support_event("member_kicked", user_id, order_id, chat_id)
@@ -567,12 +580,13 @@ async def main():
             if kicked_at < kick_cutoff:
                 recent_kicks.pop(key, None)
             
-        # Quét thường xuyên để xử lý hết hạn kịp thời; re-kick đã có cooldown riêng.
-        logging.info("💤 Hoàn tất chu kỳ quét. Scheduler tạm nghỉ trước vòng tiếp theo...")
-        interval_seconds = config_int("SCHEDULER_INTERVAL_SECONDS", 60, minimum=60)
-        if interval_seconds > 60:
-            logging.warning("⚠️ SCHEDULER_INTERVAL_SECONDS=%s quá lớn, giới hạn còn 60 giây để kick kịp thời.", interval_seconds)
-            interval_seconds = 60
+        # 30 phút/vòng là đủ kịp cho hạn VIP và nhẹ hơn cho Render free.
+        interval_seconds = config_int(
+            "SCHEDULER_INTERVAL_SECONDS",
+            SCHEDULER_DEFAULT_INTERVAL_SECONDS,
+            minimum=SCHEDULER_MIN_INTERVAL_SECONDS,
+        )
+        logging.info("💤 Hoàn tất chu kỳ quét. Scheduler nghỉ %s giây trước vòng tiếp theo.", interval_seconds)
         await asyncio.sleep(interval_seconds)
 
 if __name__ == "__main__":
