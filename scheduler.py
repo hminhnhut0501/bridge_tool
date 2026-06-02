@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
+recent_kicks = {}
 
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
@@ -88,6 +89,10 @@ def event_happened_after(candidate, reference):
     candidate_at = parse_event_datetime(candidate)
     reference_at = parse_event_datetime(reference)
     return bool(candidate_at and reference_at and candidate_at >= reference_at)
+
+def event_happened_within(event, now, minutes):
+    event_at = parse_event_datetime(event)
+    return bool(event_at and now - event_at < timedelta(minutes=minutes))
 
 def normalize_match_text(value):
     text = unicodedata.normalize("NFD", str(value or ""))
@@ -249,13 +254,39 @@ async def member_is_present(chat_id, user_id):
         return True
 
 async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, raw_data=None):
-    existing_kick = latest_support_event("member_kicked", user_id, order_id, chat_id)
-    if existing_kick and not await member_is_present(chat_id, user_id):
+    now = now_local()
+    kick_key = (normalize_chat_id(chat_id), str(user_id), str(order_id))
+    cooldown_minutes = config_int("KICK_RECHECK_COOLDOWN_MINUTES", 1440, minimum=1)
+    recent_at = recent_kicks.get(kick_key)
+    if recent_at and now - recent_at < timedelta(minutes=cooldown_minutes):
+        logging.info(
+            "⏭ Bỏ qua kick trùng User %s group %s đơn %s; lần kick gần nhất trong RAM lúc %s.",
+            user_id,
+            chat_id,
+            order_id,
+            recent_at.strftime("%Y-%m-%d %H:%M:%S"),
+        )
         return True
+
+    existing_kick = latest_support_event("member_kicked", user_id, order_id, chat_id)
+    if existing_kick:
+        if event_happened_within(existing_kick, now, cooldown_minutes):
+            logging.info(
+                "⏭ Bỏ qua kick trùng User %s group %s đơn %s; đã có event member_kicked lúc %s.",
+                user_id,
+                chat_id,
+                order_id,
+                existing_kick.get("created_at"),
+            )
+            recent_kicks[kick_key] = parse_event_datetime(existing_kick) or now
+            return True
+        if not await member_is_present(chat_id, user_id):
+            return True
 
     try:
         await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))
         await bot.unban_chat_member(chat_id=chat_id, user_id=int(user_id))
+        recent_kicks[kick_key] = now
         payload = {"reason": reason}
         payload.update(raw_data or {})
         if existing_kick:
@@ -531,9 +562,13 @@ async def main():
         today_str = now_local().strftime("%Y-%m-%d")
         to_remove = [k for k in notified_users if not k.endswith(today_str)]
         for k in to_remove: notified_users.remove(k)
+        kick_cutoff = now_local() - timedelta(minutes=config_int("KICK_RECHECK_COOLDOWN_MINUTES", 1440, minimum=1))
+        for key, kicked_at in list(recent_kicks.items()):
+            if kicked_at < kick_cutoff:
+                recent_kicks.pop(key, None)
             
-        # Bot ngủ 4 tiếng rồi mới quét Sheet lại 1 lần (Cho nhẹ máy chủ)
-        logging.info("💤 Hoàn tất chu kỳ quét. Quản gia đi ngủ 4 tiếng...")
+        # Quét thường xuyên để xử lý hết hạn kịp thời; re-kick đã có cooldown riêng.
+        logging.info("💤 Hoàn tất chu kỳ quét. Scheduler tạm nghỉ trước vòng tiếp theo...")
         interval_seconds = config_int("SCHEDULER_INTERVAL_SECONDS", 60, minimum=60)
         if interval_seconds > 60:
             logging.warning("⚠️ SCHEDULER_INTERVAL_SECONDS=%s quá lớn, giới hạn còn 60 giây để kick kịp thời.", interval_seconds)
