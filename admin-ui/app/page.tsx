@@ -945,11 +945,10 @@ function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
   }));
 }
 
-const PLAN_VI_FIELDS = PLAN_FIELDS.filter((field) => !field.key.endsWith("_USD"));
-const PLAN_EN_FIELDS: ConfigField[] = [
-  ...localizedFields(PLAN_FIELDS.filter((field) => !field.key.startsWith("PRICE_")), "EN"),
-  ...PLAN_FIELDS.filter((field) => field.key.endsWith("_USD")),
-];
+const PLAN_DISPLAY_FIELDS = PLAN_FIELDS.filter((field) => !field.key.startsWith("PRICE_"));
+const SVIP_PRICE_FIELDS = PLAN_FIELDS.filter((field) => field.key.startsWith("PRICE_"));
+const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
+const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
 const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
 const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
@@ -1378,7 +1377,7 @@ function hasAnyGroupConfig(config: ConfigRow[], groupNo: number) {
 }
 
 function groupConfigKeys(groupNo: string) {
-  return [`BTN_G${groupNo}`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `IMG_G${groupNo}`];
+  return [`BTN_G${groupNo}`, `BTN_G${groupNo}_EN`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `DESC_G${groupNo}_EN`, `IMG_G${groupNo}`];
 }
 
 export default function Home() {
@@ -1436,6 +1435,7 @@ export default function Home() {
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
+  const [groupNameEn, setGroupNameEn] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groupPrice1m, setGroupPrice1m] = useState("");
   const [groupPriceLife, setGroupPriceLife] = useState("");
@@ -1651,6 +1651,7 @@ export default function Home() {
     const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
     setGroupNo(nextGroupNo || firstEmpty);
     setGroupName("");
+    setGroupNameEn("");
     setGroupId("");
     setGroupPrice1m("");
     setGroupPriceLife("");
@@ -1661,6 +1662,7 @@ export default function Home() {
   function fillGroupForm(nextGroupNo: string) {
     setGroupNo(nextGroupNo);
     setGroupName(getConfigValue(config, `BTN_G${nextGroupNo}`));
+    setGroupNameEn(getConfigValue(config, `BTN_G${nextGroupNo}_EN`));
     setGroupId(getConfigValue(config, `ID_G${nextGroupNo}`));
     setGroupPrice1m(getConfigValue(config, `PRICE_G${nextGroupNo}_1M`));
     setGroupPriceLife(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE`));
@@ -1672,6 +1674,7 @@ export default function Home() {
     await runAction("group", async () => {
       await updateConfigs(savedSecret, [
         { key: `BTN_G${groupNo}`, value: groupName },
+        { key: `BTN_G${groupNo}_EN`, value: groupNameEn },
         { key: `ID_G${groupNo}`, value: groupId },
         { key: `PRICE_G${groupNo}_1M`, value: groupPrice1m },
         { key: `PRICE_G${groupNo}_LIFE`, value: groupPriceLife },
@@ -1679,6 +1682,7 @@ export default function Home() {
         { key: `PRICE_G${groupNo}_LIFE_USD`, value: groupPriceLifeUsd },
       ]);
       setGroupName("");
+      setGroupNameEn("");
       setGroupId("");
       setGroupPrice1m("");
       setGroupPriceLife("");
@@ -2068,16 +2072,10 @@ export default function Home() {
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
   ], [configuredGroups]);
   const groupViContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
-    { key: `BTN_G${item}`, label: `G${item} - Tên nhóm tiếng Việt`, placeholder: `Tên nhóm G${item}`, help: "Tên nhóm hiển thị trên Bot tiếng Việt." },
     { key: `DESC_G${item}`, label: `G${item} - Mô tả tiếng Việt`, placeholder: "Mô tả nội dung nhóm", help: "Nội dung trang chi tiết nhóm tiếng Việt.", kind: "textarea" as const },
-    { key: `PRICE_G${item}_1M`, label: `G${item} - Giá VNĐ 30 ngày`, placeholder: "99000", help: "Giá PayOS/VietQR bằng VNĐ." },
-    { key: `PRICE_G${item}_LIFE`, label: `G${item} - Giá VNĐ trọn đời`, placeholder: "299000", help: "Giá PayOS/VietQR bằng VNĐ." },
   ]), [configuredGroups]);
   const groupEnContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
-    { key: `BTN_G${item}_EN`, label: `G${item} - Tên nhóm tiếng Anh`, placeholder: `Group G${item}`, help: "Tên nhóm hiển thị trên Bot tiếng Anh." },
     { key: `DESC_G${item}_EN`, label: `G${item} - Mô tả tiếng Anh`, placeholder: "English group description", help: "Nội dung trang chi tiết nhóm tiếng Anh.", kind: "textarea" as const },
-    { key: `PRICE_G${item}_1M_USD`, label: `G${item} - Giá USD 30 ngày`, placeholder: "4.99", help: "Giá PayPal riêng, không quy đổi từ VNĐ." },
-    { key: `PRICE_G${item}_LIFE_USD`, label: `G${item} - Giá USD trọn đời`, placeholder: "14.99", help: "Giá PayPal riêng, không quy đổi từ VNĐ." },
   ]), [configuredGroups]);
   const visibleMenuPages = useMemo(
     () => menuPages.filter((item) => menuLanguage === "en" ? item.page_id.endsWith("_en") : !item.page_id.endsWith("_en")),
@@ -2572,7 +2570,7 @@ export default function Home() {
         <nav className="nav">
           <button className={tab === "overview" ? "active" : ""} onClick={() => selectTab("overview")}><Activity size={18} /> {ui("Tổng quan", "Overview")}</button>
           <button className={tab === "analytics" ? "active" : ""} onClick={() => selectTab("analytics")}><BarChart3 size={18} /> {ui("Thống kê", "Analytics")}</button>
-          <button className={tab === "setup" ? "active" : ""} onClick={() => selectTab("setup")}><ShieldCheck size={18} /> {ui("Setup nhóm", "Group setup")}</button>
+          <button className={tab === "setup" ? "active" : ""} onClick={() => selectTab("setup")}><ShieldCheck size={18} /> {ui("Nhóm & giá", "Groups & pricing")}</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => selectTab("orders")}><ShoppingCart size={18} /> {ui("Đơn hàng", "Orders")}</button>
           <button className={tab === "customers" ? "active" : ""} onClick={() => selectTab("customers")}><Users size={18} /> {ui("Khách hàng", "Customers")}</button>
           <button className={tab === "activityLog" ? "active" : ""} onClick={() => selectTab("activityLog")}><ClipboardList size={18} /> {ui("Nhật ký", "Activity log")}</button>
@@ -2632,7 +2630,7 @@ export default function Home() {
               <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
               <div className="status-grid">
                 <HealthItem ok={Boolean(webhook?.url)} title="Telegram webhook" detail={webhook?.url || "Chưa set webhook"} />
-                <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Setup nhóm để cấu hình"} />
+                <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
                 <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
                 <HealthItem ok={metrics.coupons >= 0} title="Coupon" detail={`${metrics.coupons} mã trong hệ thống`} />
               </div>
@@ -2671,10 +2669,18 @@ export default function Home() {
 
         {tab === "setup" ? (
           <div className="stack">
+            <ConfigEditor
+              title="Bảng giá SVIP chung"
+              subtitle="Nơi duy nhất chỉnh giá SVIP toàn bộ nhóm. Giá VNĐ dùng PayOS/VietQR; giá USD dùng PayPal."
+              fields={SVIP_PRICE_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
             <section className="panel">
               <PanelHead
-                title="Setup nhóm nhận link"
-                subtitle="Không cần nhớ key. Chọn G1, G2... rồi nhập tên nhóm và Telegram group ID."
+                title="Nhóm lẻ & bảng giá"
+                subtitle="Nơi duy nhất quản lý tên nhóm, Telegram group ID và giá bán từng nhóm bằng VNĐ/USD."
                 action={
                   <div className="panel-actions">
                     <button className="btn secondary" onClick={() => resetGroupForm()}><Plus size={16} /> Thêm nhóm mới</button>
@@ -2695,7 +2701,8 @@ export default function Home() {
                   </select>
                   <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown, không cần nhớ mã kỹ thuật.</small>
                 </label>
-                <label className="field"><span>Tên nhóm hiển thị</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Nhóm 1 Privé+"} /></label>
+                <label className="field"><span>Tên nhóm tiếng Việt</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} /></label>
+                <label className="field"><span>Tên nhóm tiếng Anh</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
                 <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
                 <label className="field"><span>Giá VNĐ 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
                 <label className="field"><span>Giá VNĐ trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
@@ -2703,7 +2710,7 @@ export default function Home() {
                 <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
               </div>
               <div className="hint">
-                Muốn lấy group ID: thêm bot vào group, cho bot quyền tạo invite link, rồi dùng group id dạng <code>-100...</code>. Sau khi lưu, nhóm này sẽ xuất hiện bằng tên rõ ràng trong Coupon và Sale.
+                Giá chỉ chỉnh tại màn hình này. UI Bot chỉ quản lý nội dung hiển thị, không còn trường giá trùng lặp. Muốn lấy group ID: thêm bot vào group, cho bot quyền tạo invite link, rồi dùng group id dạng <code>-100...</code>.
               </div>
             </section>
             <section className="panel">
@@ -3068,17 +3075,17 @@ export default function Home() {
         {tab === "botVi" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="UI Bot tiếng Việt" subtitle="Toàn bộ nội dung khách Việt nhìn thấy. Giá sử dụng VNĐ và PayOS/VietQR." />
+              <PanelHead title="UI Bot tiếng Việt" subtitle="Chỉ quản lý tên gói và nội dung khách Việt nhìn thấy. Giá được quản lý tập trung tại Nhóm & giá." />
               <div className="subtabs">
-                <button className={botViTab === "plans" ? "active" : ""} onClick={() => setBotViTab("plans")}>Gói & giá VNĐ</button>
-                <button className={botViTab === "groups" ? "active" : ""} onClick={() => setBotViTab("groups")}>Group lẻ</button>
+                <button className={botViTab === "plans" ? "active" : ""} onClick={() => setBotViTab("plans")}>Tên gói & nút mua</button>
+                <button className={botViTab === "groups" ? "active" : ""} onClick={() => setBotViTab("groups")}>Mô tả group</button>
                 <button className={botViTab === "buttons" ? "active" : ""} onClick={() => setBotViTab("buttons")}>Nút bấm</button>
                 <button className={botViTab === "messages" ? "active" : ""} onClick={() => setBotViTab("messages")}>Tin nhắn</button>
                 <button className={botViTab === "saleContent" ? "active" : ""} onClick={() => setBotViTab("saleContent")}>Flash sale</button>
               </div>
             </section>
-            {botViTab === "plans" ? <ConfigEditor title="Tên gói và giá tiếng Việt" subtitle="Tên gói tiếng Việt và giá VNĐ dùng cho VietQR." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botViTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Việt" subtitle="Tên, mô tả và giá VNĐ của từng group đang bán." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Việt" subtitle="Không chứa giá. Giá bán được quản lý tập trung tại Nhóm & giá." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Việt" subtitle="Chỉ chỉnh nội dung mô tả. Tên group và giá nằm tại Nhóm & giá." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -3088,17 +3095,17 @@ export default function Home() {
         {tab === "botEn" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="UI Bot tiếng Anh" subtitle="Dữ liệu riêng cho khách quốc tế. Giá PayPal sử dụng USD riêng, không quy đổi từ VNĐ." />
+              <PanelHead title="UI Bot tiếng Anh" subtitle="Chỉ quản lý tên gói và nội dung tiếng Anh. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." />
               <div className="subtabs">
-                <button className={botEnTab === "plans" ? "active" : ""} onClick={() => setBotEnTab("plans")}>Gói & giá USD</button>
-                <button className={botEnTab === "groups" ? "active" : ""} onClick={() => setBotEnTab("groups")}>Nội dung group</button>
+                <button className={botEnTab === "plans" ? "active" : ""} onClick={() => setBotEnTab("plans")}>Tên gói & nút mua</button>
+                <button className={botEnTab === "groups" ? "active" : ""} onClick={() => setBotEnTab("groups")}>Mô tả group</button>
                 <button className={botEnTab === "buttons" ? "active" : ""} onClick={() => setBotEnTab("buttons")}>Nút bấm</button>
                 <button className={botEnTab === "messages" ? "active" : ""} onClick={() => setBotEnTab("messages")}>Tin nhắn</button>
                 <button className={botEnTab === "saleContent" ? "active" : ""} onClick={() => setBotEnTab("saleContent")}>Flash sale</button>
               </div>
             </section>
-            {botEnTab === "plans" ? <ConfigEditor title="Tên gói tiếng Anh và giá USD" subtitle="Đọc/ghi key _EN và PRICE_*_USD dùng cho PayPal." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botEnTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Anh" subtitle="Tên, mô tả tiếng Anh và giá USD của từng group." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh." fields={MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -3464,7 +3471,7 @@ export default function Home() {
                 <label className="field wide">
                   <span>Tên gói lưu vào đơn</span>
                   <input value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" />
-                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Setup nhóm.</small>
+                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Nhóm & giá.</small>
                 </label>
                 <label className="field">
                   <span>Số tiền</span>
