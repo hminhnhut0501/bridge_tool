@@ -35,6 +35,23 @@ def safe_float(value, default=0.0):
         return default
 
 
+def localized_price_key(price_key, currency="VND"):
+    key = normalize_key(price_key).upper()
+    if str(currency or "VND").upper() == "USD" and not key.endswith("_USD"):
+        return f"{key}_USD"
+    return key
+
+
+def price_currency(price_key):
+    return "USD" if normalize_key(price_key).upper().endswith("_USD") else "VND"
+
+
+def parse_price(value, default=0, currency="VND"):
+    if str(currency or "VND").upper() == "USD":
+        return round(max(0, safe_float(value, safe_float(default, 0))), 2)
+    return safe_int(value, safe_int(default, 0))
+
+
 def parse_datetime(value):
     raw = str(value or "").strip()
     if not raw:
@@ -56,9 +73,11 @@ def parse_datetime(value):
     return None
 
 
-def format_currency(amount):
+def format_currency(amount, currency="VND"):
     try:
         value = float(amount)
+        if str(currency or "VND").upper() == "USD":
+            return f"${value:,.2f} USD"
         style = str(db.get_config("DISPLAY_CURRENCY_STYLE", "VND_LOWER")).strip().upper()
         suffix = str(db.get_config("DISPLAY_CURRENCY_SUFFIX", "đ"))
         compact_decimals = int(float(str(db.get_config("DISPLAY_CURRENCY_COMPACT_DECIMALS", "0")).strip()))
@@ -142,7 +161,8 @@ def count_used_slots(sale_id):
 
 def get_active_sale(price_key, original_price):
     price_key = normalize_key(price_key).upper()
-    original_price = safe_int(original_price)
+    currency = price_currency(price_key)
+    original_price = parse_price(original_price, 0, currency)
     if original_price <= 0:
         return None
 
@@ -165,14 +185,14 @@ def get_active_sale(price_key, original_price):
         if slot_limit > 0 and remaining_slots <= 0:
             continue
 
-        explicit_price = safe_int(sale_value(row, "sale_price", "price_sale", "gia_sale", "giá_sale"), 0)
+        explicit_price = parse_price(sale_value(row, "sale_price", "price_sale", "gia_sale", "giá_sale"), 0, currency)
         discount_percent = safe_float(sale_value(row, "discount_percent", "discount", "percent", "phan_tram", "phần_trăm", "%"), 0)
         if explicit_price > 0:
             sale_price = explicit_price
             if discount_percent <= 0:
                 discount_percent = round((1 - sale_price / original_price) * 100)
         elif discount_percent > 0:
-            sale_price = int(round(original_price * (100 - discount_percent) / 100))
+            sale_price = round(original_price * (100 - discount_percent) / 100, 2) if currency == "USD" else int(round(original_price * (100 - discount_percent) / 100))
         else:
             continue
 
@@ -202,7 +222,7 @@ def get_active_sales():
         price_key = sale_price_key(row)
         if not price_key or price_key in seen:
             continue
-        original_price = safe_int(db.get_config(price_key, 0), 0)
+        original_price = parse_price(db.get_config(price_key, 0), 0, price_currency(price_key))
         sale = get_active_sale(price_key, original_price)
         if sale:
             active_sales.append(sale)
@@ -210,22 +230,26 @@ def get_active_sales():
     return active_sales
 
 
-def get_price(price_key, default=0):
-    original_price = safe_int(db.get_config(price_key, default), default)
+def get_price(price_key, default=0, currency="VND"):
+    price_key = localized_price_key(price_key, currency)
+    currency = price_currency(price_key)
+    original_price = parse_price(db.get_config(price_key, default), default, currency)
     sale = get_active_sale(price_key, original_price)
     if sale:
         return sale["sale_price"], sale
     return original_price, None
 
 
-def format_price_label(price_key, default=0):
-    original_price = safe_int(db.get_config(price_key, default), default)
+def format_price_label(price_key, default=0, currency="VND"):
+    price_key = localized_price_key(price_key, currency)
+    currency = price_currency(price_key)
+    original_price = parse_price(db.get_config(price_key, default), default, currency)
     sale = get_active_sale(price_key, original_price)
     if not sale:
-        return format_currency(original_price)
+        return format_currency(original_price, currency)
 
-    old_price = strike_text(format_currency(original_price))
-    label = f"{old_price} → {format_currency(sale['sale_price'])}"
+    old_price = strike_text(format_currency(original_price, currency))
+    label = f"{old_price} → {format_currency(sale['sale_price'], currency)}"
     if sale["discount_percent"] > 0:
         label += f" (-{sale['discount_percent']}%)"
     return label
@@ -240,7 +264,8 @@ def sale_slots_text(sale):
 
 
 def sale_banner(price_key, default=0):
-    original_price = safe_int(db.get_config(price_key, default), default)
+    currency = price_currency(price_key)
+    original_price = parse_price(db.get_config(price_key, default), default, currency)
     sale = get_active_sale(price_key, original_price)
     if not sale:
         return ""
@@ -252,7 +277,8 @@ def sale_banner(price_key, default=0):
 
 
 def sale_placeholder(price_key, field, default=0):
-    original_price = safe_int(db.get_config(price_key, default), default)
+    currency = price_currency(price_key)
+    original_price = parse_price(db.get_config(price_key, default), default, currency)
     sale = get_active_sale(price_key, original_price)
     field = normalize_key(field).upper()
 
@@ -264,10 +290,10 @@ def sale_placeholder(price_key, field, default=0):
     values = {
         "TEXT": sale_banner(price_key, default),
         "BANNER": sale_banner(price_key, default),
-        "OLD_PRICE": format_currency(sale["original_price"]),
-        "ORIGINAL_PRICE": format_currency(sale["original_price"]),
-        "SALE_PRICE": format_currency(sale["sale_price"]),
-        "PRICE": format_currency(sale["sale_price"]),
+        "OLD_PRICE": format_currency(sale["original_price"], currency),
+        "ORIGINAL_PRICE": format_currency(sale["original_price"], currency),
+        "SALE_PRICE": format_currency(sale["sale_price"], currency),
+        "PRICE": format_currency(sale["sale_price"], currency),
         "PERCENT": str(sale["discount_percent"]),
         "DISCOUNT": str(sale["discount_percent"]),
         "COUNTDOWN": sale["countdown"],

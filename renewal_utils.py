@@ -2,6 +2,7 @@ from datetime import datetime
 
 from config_utils import group_numbers
 from database import db, normalize_key
+from sale_utils import format_currency as format_money, localized_price_key, parse_price
 
 
 def safe_int(value, default=0):
@@ -91,7 +92,7 @@ def resolve_price_key(plan_name):
     return None
 
 
-def build_early_renew_offer(row, row_index=None, now=None):
+def build_early_renew_offer(row, row_index=None, now=None, currency="VND"):
     if not is_early_renew_enabled():
         return None
 
@@ -121,18 +122,20 @@ def build_early_renew_offer(row, row_index=None, now=None):
     if not price_key:
         return None
 
-    original_price = safe_int(db.get_config(price_key, row[4] if len(row) > 4 else "0"), 0)
-    if original_price <= 0:
+    localized_key = localized_price_key(price_key, currency)
+    original_price = parse_price(db.get_config(localized_key, "0"), 0, currency)
+    if original_price <= 0 and str(currency).upper() == "VND":
         original_price = safe_int(row[4] if len(row) > 4 else "0", 0)
     if original_price <= 0:
         return None
 
-    renew_price = max(1, int(round(original_price * (100 - discount_percent) / 100)))
+    renew_price = round(original_price * (100 - discount_percent) / 100, 2) if str(currency).upper() == "USD" else max(1, int(round(original_price * (100 - discount_percent) / 100)))
     return {
         "row_index": row_index,
         "user_id": user_id,
         "plan_name": plan_name,
         "price_key": price_key,
+        "currency": str(currency).upper(),
         "original_price": original_price,
         "renew_price": renew_price,
         "discount_percent": discount_percent,
@@ -147,10 +150,10 @@ def render_early_renew_template(template, offer):
     values = {
         "{plan}": offer["plan_name"],
         "{price_key}": offer["price_key"],
-        "{old_price}": format_currency(offer["original_price"]),
-        "{original_price}": format_currency(offer["original_price"]),
-        "{renew_price}": format_currency(offer["renew_price"]),
-        "{sale_price}": format_currency(offer["renew_price"]),
+        "{old_price}": format_money(offer["original_price"], offer.get("currency", "VND")),
+        "{original_price}": format_money(offer["original_price"], offer.get("currency", "VND")),
+        "{renew_price}": format_money(offer["renew_price"], offer.get("currency", "VND")),
+        "{sale_price}": format_money(offer["renew_price"], offer.get("currency", "VND")),
         "{discount_percent}": str(offer["discount_percent"]),
         "{days}": str(offer["days_remaining"]),
         "{date}": offer["expire_at"].strftime("%d/%m/%Y %H:%M:%S"),

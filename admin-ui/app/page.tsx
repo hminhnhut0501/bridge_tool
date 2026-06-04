@@ -174,26 +174,16 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "PAYMENT_PROVIDER_VI",
-    label: "Cổng mặc định cho tiếng Việt",
-    placeholder: "PAYOS",
-    help: "Nếu cổng này tắt, bot tự dùng cổng còn hoạt động.",
-    kind: "select",
-    options: [{ label: "PayOS / VietQR", value: "PAYOS" }, { label: "PayPal", value: "PAYPAL" }],
+    key: "PAYMENT_PROVIDERS_VI",
+    label: "Các cổng cho tiếng Việt",
+    placeholder: "PAYOS,PAYPAL",
+    help: "Nhập PAYOS,PAYPAL để khách Việt được chọn cả VietQR và PayPal. PayPal luôn dùng bảng giá USD riêng.",
   },
   {
-    key: "PAYMENT_PROVIDER_EN",
-    label: "Cổng mặc định cho tiếng Anh",
+    key: "PAYMENT_PROVIDERS_EN",
+    label: "Các cổng cho tiếng Anh",
     placeholder: "PAYPAL",
-    help: "Khuyến nghị PayPal cho khách quốc tế.",
-    kind: "select",
-    options: [{ label: "PayPal", value: "PAYPAL" }, { label: "PayOS / VietQR", value: "PAYOS" }],
-  },
-  {
-    key: "PAYPAL_VND_PER_USD",
-    label: "Tỷ giá VND cho 1 USD",
-    placeholder: "25000",
-    help: "Bot dùng tỷ giá này để quy đổi giá VND sang USD khi tạo đơn PayPal.",
+    help: "Khuyến nghị chỉ dùng PAYPAL. PayOS chỉ nhận giá VNĐ.",
   },
   {
     key: "PAYPAL_BRAND_NAME",
@@ -936,6 +926,8 @@ const PLAN_FIELDS: ConfigField[] = [
   { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
   { key: "PRICE_SVIP_30D", label: "Giá SVIP 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_SVIP_30D_USD", label: "Giá USD SVIP 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "PRICE_SVIP_LIFE_USD", label: "Giá USD SVIP trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
   { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
   { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
 ];
@@ -943,6 +935,8 @@ const PLAN_FIELDS: ConfigField[] = [
 const PRICE_KEY_OPTIONS = [
   "PRICE_SVIP_30D",
   "PRICE_SVIP_LIFE",
+  "PRICE_SVIP_30D_USD",
+  "PRICE_SVIP_LIFE_USD",
 ];
 
 const PLAN_KEY_OPTIONS = [
@@ -1162,6 +1156,40 @@ function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
 
+function orderMoney(order: Order, value = order.amount) {
+  if ((order.payment_currency || "VND").toUpperCase() === "USD") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
+  }
+  return money(value || 0);
+}
+
+function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount" = "amount") {
+  const totals = orders.reduce((sum, order) => {
+    const currency = (order.payment_currency || "VND").toUpperCase() === "USD" ? "USD" : "VND";
+    sum[currency] += Number(order[field] || 0);
+    return sum;
+  }, { VND: 0, USD: 0 });
+  const parts = [];
+  if (totals.VND || !totals.USD) parts.push(money(totals.VND));
+  if (totals.USD) parts.push(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totals.USD));
+  return parts.join(" + ");
+}
+
+function ordersAverageMoney(orders: Order[]) {
+  const paid = orders.filter((order) => order.status === "PAID");
+  const byCurrency = {
+    VND: paid.filter((order) => (order.payment_currency || "VND").toUpperCase() !== "USD"),
+    USD: paid.filter((order) => (order.payment_currency || "VND").toUpperCase() === "USD"),
+  };
+  const parts = [];
+  if (byCurrency.VND.length) parts.push(money(byCurrency.VND.reduce((sum, order) => sum + Number(order.amount || 0), 0) / byCurrency.VND.length));
+  if (byCurrency.USD.length) {
+    const average = byCurrency.USD.reduce((sum, order) => sum + Number(order.amount || 0), 0) / byCurrency.USD.length;
+    parts.push(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(average));
+  }
+  return parts.join(" + ") || money(0);
+}
+
 function dateText(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
@@ -1326,7 +1354,7 @@ function hasAnyGroupConfig(config: ConfigRow[], groupNo: number) {
 }
 
 function groupConfigKeys(groupNo: string) {
-  return [`BTN_G${groupNo}`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `DESC_G${groupNo}`, `IMG_G${groupNo}`];
+  return [`BTN_G${groupNo}`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `IMG_G${groupNo}`];
 }
 
 export default function Home() {
@@ -1384,6 +1412,8 @@ export default function Home() {
   const [groupId, setGroupId] = useState("");
   const [groupPrice1m, setGroupPrice1m] = useState("");
   const [groupPriceLife, setGroupPriceLife] = useState("");
+  const [groupPrice1mUsd, setGroupPrice1mUsd] = useState("");
+  const [groupPriceLifeUsd, setGroupPriceLifeUsd] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
@@ -1594,6 +1624,8 @@ export default function Home() {
     setGroupId("");
     setGroupPrice1m("");
     setGroupPriceLife("");
+    setGroupPrice1mUsd("");
+    setGroupPriceLifeUsd("");
   }
 
   function fillGroupForm(nextGroupNo: string) {
@@ -1602,6 +1634,8 @@ export default function Home() {
     setGroupId(getConfigValue(config, `ID_G${nextGroupNo}`));
     setGroupPrice1m(getConfigValue(config, `PRICE_G${nextGroupNo}_1M`));
     setGroupPriceLife(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE`));
+    setGroupPrice1mUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_1M_USD`));
+    setGroupPriceLifeUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE_USD`));
   }
 
   async function saveGroupConfig() {
@@ -1611,11 +1645,15 @@ export default function Home() {
         { key: `ID_G${groupNo}`, value: groupId },
         { key: `PRICE_G${groupNo}_1M`, value: groupPrice1m },
         { key: `PRICE_G${groupNo}_LIFE`, value: groupPriceLife },
+        { key: `PRICE_G${groupNo}_1M_USD`, value: groupPrice1mUsd },
+        { key: `PRICE_G${groupNo}_LIFE_USD`, value: groupPriceLifeUsd },
       ]);
       setGroupName("");
       setGroupId("");
       setGroupPrice1m("");
       setGroupPriceLife("");
+      setGroupPrice1mUsd("");
+      setGroupPriceLifeUsd("");
       await loadAll();
     });
   }
@@ -1984,7 +2022,7 @@ export default function Home() {
   ], [discountPlanKeyOptions]);
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
-    ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`]),
+    ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
   ], [configuredGroups]);
   const missingCore = useMemo(() => {
     const items = [];
@@ -2366,10 +2404,12 @@ export default function Home() {
   function priceOptionLabel(value: string) {
     if (value === "PRICE_SVIP_30D") return "Giá SVIP chung - 30 ngày";
     if (value === "PRICE_SVIP_LIFE") return "Giá SVIP chung - trọn đời";
-    const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)$/);
+    if (value === "PRICE_SVIP_30D_USD") return "Giá USD SVIP chung - 30 ngày";
+    if (value === "PRICE_SVIP_LIFE_USD") return "Giá USD SVIP chung - trọn đời";
+    const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)(_USD)?$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : "giá trọn đời"}`;
+    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : "giá trọn đời"}${match[3] ? " (USD)" : " (VNĐ)"}`;
   }
 
   function manualPlanNameFromKey(value: string) {
@@ -2515,15 +2555,15 @@ export default function Home() {
         {tab === "overview" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Doanh thu đã thanh toán" value={money(metrics.revenue)} />
+              <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} />
               <Metric label="Đơn đang chờ" value={String(metrics.pending)} />
               <Metric label="Khách gần đây" value={String(metrics.users)} />
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
             </div>
             <div className="grid">
-              <Metric label="Doanh thu hôm nay" value={money(todayStats.revenue)} />
+              <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
               <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
-              <Metric label="Doanh thu tháng này" value={money(monthStats.revenue)} />
+              <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
               <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} />
             </div>
             <section className="panel">
@@ -2545,16 +2585,16 @@ export default function Home() {
         {tab === "analytics" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Hôm nay" value={money(todayStats.revenue)} />
-              <Metric label="Tháng này" value={money(monthStats.revenue)} />
-              <Metric label="Năm nay" value={money(yearStats.revenue)} />
+              <Metric label="Hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
+              <Metric label="Tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
+              <Metric label="Năm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} />
               <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} />
             </div>
             <div className="grid">
               <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} />
               <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} />
-              <Metric label="AOV tháng" value={money(monthStats.averageOrder)} />
-              <Metric label="Coupon giảm tháng" value={money(monthStats.discount)} />
+              <Metric label="AOV tháng" value={ordersAverageMoney(orders.filter((item) => isWithinPeriod(item.created_at, "month")))} />
+              <Metric label="Coupon giảm tháng" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} />
             </div>
             <section className="panel">
               <PanelHead title="Theo dõi tăng trưởng" subtitle="Doanh thu, tỉ lệ thanh toán, khách trả tiền và giảm giá coupon theo từng ngày trong tháng." />
@@ -2595,8 +2635,10 @@ export default function Home() {
                 </label>
                 <label className="field"><span>Tên nhóm hiển thị</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Nhóm 1 Privé+"} /></label>
                 <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
-                <label className="field"><span>Giá 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
-                <label className="field"><span>Giá trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
+                <label className="field"><span>Giá VNĐ 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
+                <label className="field"><span>Giá VNĐ trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
+                <label className="field"><span>Giá USD 30 ngày</span><input value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" /></label>
+                <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
               </div>
               <div className="hint">
                 Muốn lấy group ID: thêm bot vào group, cho bot quyền tạo invite link, rồi dùng group id dạng <code>-100...</code>. Sau khi lưu, nhóm này sẽ xuất hiện bằng tên rõ ràng trong Coupon và Sale.
@@ -2624,7 +2666,7 @@ export default function Home() {
         {tab === "orders" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Doanh thu bộ lọc" value={money(filteredOrderStats.revenue)} />
+              <Metric label="Doanh thu bộ lọc" value={ordersMoney(filteredOrders.filter((item) => item.status === "PAID"))} />
               <Metric label="Đơn PAID" value={String(filteredOrderStats.paid)} />
               <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} />
               <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} />
@@ -2674,7 +2716,7 @@ export default function Home() {
               <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} />
               <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item) => item.activeOrders.length).length)} />
               <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item) => item.coupons.length).length)} />
-              <Metric label="Doanh thu khách lọc" value={money(filteredCustomers.reduce((sum, item) => sum + item.revenue, 0))} />
+              <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item) => item.paidOrders))} />
             </div>
             <section className="panel">
               <PanelHead title="Khách hàng" subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái." />
@@ -2707,7 +2749,7 @@ export default function Home() {
                   String(customer.paidOrders.length),
                   <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
                   dateText(customer.latestExpire),
-                  money(customer.revenue),
+                  ordersMoney(customer.paidOrders),
                 ])}
                 actions={(idx) => (
                   <button className="btn secondary" onClick={() => {
@@ -2962,7 +3004,7 @@ export default function Home() {
               </div>
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
-            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="Bật/tắt PayOS và PayPal, chọn cổng mặc định theo ngôn ngữ. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PAYMENT_FIELDS)} /> : null}
+            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PAYMENT_FIELDS)} /> : null}
             {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
             {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
@@ -3598,8 +3640,8 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
               <td>{order.order_id}</td>
               <td><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></td>
               <td>{order.plan_name}</td>
-              <td>{money(order.amount)}</td>
-              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : `-${order.coupon_discount_percent || 0}% / ${money(order.coupon_discount_amount || 0)}`}</div></> : "-"}</td>
+              <td>{orderMoney(order)}</td>
+              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : `-${order.coupon_discount_percent || 0}% / ${orderMoney(order, order.coupon_discount_amount || 0)}`}</div></> : "-"}</td>
               <td><span className={statusClass(order.status)}>{order.status}</span></td>
               <td>{dateText(order.created_at)}</td>
               <td>

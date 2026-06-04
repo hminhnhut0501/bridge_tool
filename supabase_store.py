@@ -29,6 +29,15 @@ def _parse_int(value, default=0):
         return default
 
 
+def _parse_number(value, default=0):
+    try:
+        raw = _clean_text(value).replace(",", ".")
+        number = float(raw)
+        return int(number) if number.is_integer() else round(number, 2)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_datetime(value):
     raw = _clean_text(value)
     if not raw:
@@ -142,7 +151,7 @@ class SupabaseStore:
             "sale_id": _clean_text(raw.get("sale_id") or raw.get("sale_code") or raw.get("code")),
             "price_key": _clean_text(raw.get("price_key") or raw.get("key") or raw.get("config_key")).upper(),
             "discount_percent": _parse_int(raw.get("discount_percent") or raw.get("discount") or raw.get("percent"), 0),
-            "sale_price": _parse_int(raw.get("sale_price") or raw.get("price_sale"), 0),
+            "sale_price": _parse_number(raw.get("sale_price") or raw.get("price_sale"), 0),
             "slot_limit": _parse_int(raw.get("slot_limit") or raw.get("slots"), 0),
             "enabled": str(raw.get("enabled") or raw.get("status") or "ON").strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"},
             "raw_data": raw,
@@ -353,27 +362,30 @@ class SupabaseStore:
         payment_provider="",
         payment_provider_order_id="",
         payment_approval_url="",
+        payment_currency="VND",
     ):
         payload = {
             "order_id": str(order_id),
             "telegram_user_id": str(telegram_user_id),
             "full_name": _clean_text(full_name),
             "plan_name": _clean_text(plan_name),
-            "amount": _parse_int(amount),
+            "amount": _parse_number(amount),
             "status": "PENDING",
             "sale_id": _clean_text(sale_id),
-            "original_amount": _parse_int(original_amount if original_amount is not None else amount),
+            "original_amount": _parse_number(original_amount if original_amount is not None else amount),
         }
         if coupon_code:
             payload["coupon_code"] = _clean_text(coupon_code).upper()
             payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
-            payload["coupon_discount_amount"] = _parse_int(coupon_discount_amount)
+            payload["coupon_discount_amount"] = _parse_number(coupon_discount_amount)
         if payment_provider:
             payload["payment_provider"] = _clean_text(payment_provider).upper()
         if payment_provider_order_id:
             payload["payment_provider_order_id"] = _clean_text(payment_provider_order_id)
         if payment_approval_url:
             payload["payment_approval_url"] = _clean_text(payment_approval_url)
+        if payment_currency:
+            payload["payment_currency"] = _clean_text(payment_currency).upper()
         try:
             return self._request(
                 "POST",
@@ -385,12 +397,14 @@ class SupabaseStore:
         except RuntimeError as exc:
             # Keep existing PayOS orders working while the payment-provider
             # migration is waiting to be applied in Supabase.
-            if "payment_provider" not in str(exc) or str(payment_provider).upper() == "PAYPAL":
+            missing_payment_column = "payment_provider" in str(exc) or "payment_currency" in str(exc)
+            if not missing_payment_column or str(payment_provider).upper() == "PAYPAL":
                 raise
             legacy_payload = dict(payload)
             legacy_payload.pop("payment_provider", None)
             legacy_payload.pop("payment_provider_order_id", None)
             legacy_payload.pop("payment_approval_url", None)
+            legacy_payload.pop("payment_currency", None)
             return self._request(
                 "POST",
                 "orders",

@@ -96,6 +96,7 @@ class PayOSManager:
                 "provider": self.provider,
                 "provider_order_id": str(order_code),
                 "approval_url": data.get("checkoutUrl") or data.get("paymentLink") or "",
+                "currency_code": "VND",
             }
         except Exception as exc:
             print(f"❌ Lỗi kết nối PayOS: {exc}")
@@ -135,9 +136,8 @@ class PayPalManager:
     def _headers(self):
         return {"Authorization": f"Bearer {self._access()}", "Content-Type": "application/json"}
 
-    def _usd_value(self, amount_vnd):
-        rate = max(1, int(float(db.get_config("PAYPAL_VND_PER_USD", "25000") or 25000)))
-        return f"{max(0.01, float(amount_vnd) / rate):.2f}"
+    def _usd_value(self, amount_usd):
+        return f"{max(0.01, float(amount_usd)):.2f}"
 
     def create_payment_link(self, order_code, amount, description):
         if not self.enabled:
@@ -233,6 +233,19 @@ class PaymentManager:
             return preferred
         enabled = self.enabled_providers()
         return enabled[0] if enabled else ""
+
+    def providers_for_language(self, language="vi"):
+        key = "PAYMENT_PROVIDERS_EN" if str(language).lower() == "en" else "PAYMENT_PROVIDERS_VI"
+        default = "PAYPAL" if key.endswith("_EN") else "PAYOS"
+        configured = str(db.get_config(key, default) or default).upper().replace(";", ",")
+        providers = []
+        for item in configured.split(","):
+            provider = item.strip()
+            if provider in {"PAYOS", "PAYPAL"} and provider not in providers and self.provider_enabled(provider):
+                providers.append(provider)
+        if providers:
+            return providers
+        return []
 
     def create_payment_link(self, order_code, amount, description, provider=""):
         selected = str(provider or self.preferred_provider()).upper()

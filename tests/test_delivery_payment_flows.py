@@ -228,6 +228,20 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [{"order_id": "1"}])
         self.assertNotIn("payment_provider", calls[1])
 
+    def test_usd_order_keeps_decimal_amount_and_currency(self):
+        store = SupabaseStore()
+        calls = []
+
+        def request(*args, **kwargs):
+            calls.append(kwargs.get("json"))
+            return [{"order_id": "usd-1"}]
+
+        store._request = request
+        store.create_order("usd-1", "42", "User", "Plan", 4.99, payment_provider="PAYPAL", payment_currency="USD")
+
+        self.assertEqual(calls[0]["amount"], 4.99)
+        self.assertEqual(calls[0]["payment_currency"], "USD")
+
 
 if __name__ == "__main__":
     unittest.main()

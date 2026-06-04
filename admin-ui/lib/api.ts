@@ -15,6 +15,7 @@ export type Order = {
   payment_provider?: string | null;
   payment_provider_order_id?: string | null;
   payment_approval_url?: string | null;
+  payment_currency?: string | null;
   last_reminder_date?: string | null;
   expired_notice_at?: string | null;
   created_at: string;

@@ -14,7 +14,7 @@ from supabase_store import supabase_store
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
 from i18n import get_user_language, t
 from modules.mod_engine import render_page
-from sale_utils import format_price_label, get_price, sale_banner
+from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
 
 router = Router()
@@ -44,8 +44,22 @@ def safe_int(value_str):
     except Exception:
         return 999  # Trả về giá mặc định nếu lỗi
 
-def sale_text_for_price(price_key, default=0):
-    banner = sale_banner(price_key, default)
+def currency_for_provider(provider):
+    return "USD" if str(provider or "").upper() == "PAYPAL" else "VND"
+
+
+def default_currency_for_user(user_id):
+    return "USD" if get_user_language(user_id) == "en" else "VND"
+
+
+def price_label_for_user(user_id, price_key, default=0):
+    currency = default_currency_for_user(user_id)
+    default_value = "0" if currency == "USD" else default
+    return format_price_label(price_key, default_value, currency)
+
+
+def sale_text_for_price(price_key, default=0, currency="VND"):
+    banner = sale_banner(localized_price_key(price_key, currency), default)
     return f"\n\n{banner}" if banner else ""
 
 def create_pending_order(
@@ -62,6 +76,7 @@ def create_pending_order(
     payment_provider="",
     payment_provider_order_id="",
     payment_approval_url="",
+    payment_currency="VND",
 ):
     if supabase_store.enabled:
         return supabase_store.create_order(
@@ -78,6 +93,7 @@ def create_pending_order(
             payment_provider=payment_provider,
             payment_provider_order_id=payment_provider_order_id,
             payment_approval_url=payment_approval_url,
+            payment_currency=payment_currency,
         )
 
     db.users_sheet.append_row([
@@ -111,40 +127,43 @@ def config_text(user_id, key, default=""):
     return t(user_id, key, default) if user_id else db.get_config(key, default)
 
 
-def resolve_purchase_offer(data, user_id=None):
+def resolve_purchase_offer(data, user_id=None, provider=""):
     sale_info = None
     original_amount = None
     price_key = ""
+    currency = currency_for_provider(provider) if provider else default_currency_for_user(user_id)
+    default_group = "0" if currency == "USD" else "50000"
+    default_svip = "0" if currency == "USD" else "999"
     data = data.replace("confirm_", "buy_")
 
     if "upsell_full" in data:
         plan_name = config_text(user_id, "PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        price_life, sale_life = get_price("PRICE_SVIP_LIFE", "999")
-        price_1m, sale_1m = get_price("PRICE_SVIP_30D", "999")
+        price_life, sale_life = get_price("PRICE_SVIP_LIFE", default_svip, currency)
+        price_1m, sale_1m = get_price("PRICE_SVIP_30D", default_svip, currency)
         amount = max(0, price_life - price_1m)
         sale_info = sale_life or sale_1m
-        original_amount = max(0, safe_int(db.get_config("PRICE_SVIP_LIFE", "999")) - safe_int(db.get_config("PRICE_SVIP_30D", "999")))
+        original_amount = max(0, parse_price(db.get_config(localized_price_key("PRICE_SVIP_LIFE", currency), default_svip), default_svip, currency) - parse_price(db.get_config(localized_price_key("PRICE_SVIP_30D", currency), default_svip), default_svip, currency))
     elif "upsell_G" in data:
         num = data.split("_")[1][1:]
         plan_name = f"{config_text(user_id, 'PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
-        price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", "149000")
-        price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", "50000")
+        price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", default_group, currency)
+        price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", default_group, currency)
         amount = max(0, price_life - price_1m)
         sale_info = sale_life or sale_1m
-        original_amount = max(0, safe_int(db.get_config(f"PRICE_G{num}_LIFE", "149000")) - safe_int(db.get_config(f"PRICE_G{num}_1M", "50000")))
+        original_amount = max(0, parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_LIFE", currency), default_group), default_group, currency) - parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_1M", currency), default_group), default_group, currency))
     elif "full" in data:
         is_1m = "1m" in data
         plan_name = config_text(user_id, "PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ All Groups")
         price_key = "PRICE_SVIP_30D" if is_1m else "PRICE_SVIP_LIFE"
-        amount, sale_info = get_price(price_key, "999")
-        original_amount = safe_int(db.get_config(price_key, "999"))
+        amount, sale_info = get_price(price_key, default_svip, currency)
+        original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_svip), default_svip, currency)
     else:
         parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
         plan_name = f"{config_text(user_id, 'PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
         price_key = f"PRICE_G{num}_{type_p}"
-        amount, sale_info = get_price(price_key, "50000")
-        original_amount = safe_int(db.get_config(price_key, "50000"))
+        amount, sale_info = get_price(price_key, default_group, currency)
+        original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_group), default_group, currency)
 
     return {
         "plan_name": plan_name,
@@ -152,13 +171,14 @@ def resolve_purchase_offer(data, user_id=None):
         "amount": amount,
         "sale_info": sale_info,
         "original_amount": original_amount or amount,
+        "currency": currency,
     }
 
 
-def sale_caption(sale_info, original_amount, amount):
+def sale_caption(sale_info, original_amount, amount, currency="VND"):
     if not sale_info:
         return ""
-    text = f"\n🔥 <b>SALE:</b> <s>{format_currency(original_amount)}</s> → <b>{format_currency(amount)}</b> (-{sale_info['discount_percent']}%)"
+    text = f"\n🔥 <b>SALE:</b> <s>{format_money(original_amount, currency)}</s> → <b>{format_money(amount, currency)}</b> (-{sale_info['discount_percent']}%)"
     if sale_info["remaining_slots"] is not None:
         remaining_after_order = max(0, sale_info["remaining_slots"] - 1)
         text += f"\n🎟 Slot sale còn lại sau đơn này: {remaining_after_order}/{sale_info['slot_limit']}"
@@ -178,7 +198,7 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(plan_name))
-            .replace("{amount}", format_currency(amount))
+            .replace("{amount}", format_money(amount, "USD"))
             .replace("{paypal_amount}", str(pay_data.get("paypal_amount") or ""))
             .replace("{desc}", description)
         )
@@ -205,7 +225,7 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
     
     caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
-    caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_currency(amount)).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
+    caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
     caption += extra_caption
     
     kb = InlineKeyboardBuilder()
@@ -225,8 +245,8 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     return sent
 
 
-def create_payment_for_user(user_id, order_id, amount, description):
-    provider = payment_manager.preferred_provider(get_user_language(user_id))
+def create_payment_for_user(user_id, order_id, amount, description, provider=""):
+    provider = provider or payment_manager.preferred_provider(get_user_language(user_id))
     return payment_manager.create_payment_link(order_id, amount, description, provider=provider)
 
 
@@ -235,12 +255,53 @@ def payment_meta(pay_data):
         "payment_provider": pay_data.get("provider", "PAYOS"),
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
         "payment_approval_url": pay_data.get("approval_url", ""),
+        "payment_currency": pay_data.get("currency_code", "USD" if pay_data.get("provider") == "PAYPAL" else "VND"),
     }
 
 
-@router.callback_query(F.data.startswith("renew_"))
+def payment_choice_keyboard(user_id, action, prefix):
+    providers = payment_manager.providers_for_language(get_user_language(user_id))
+    if not providers:
+        return None, "__NONE__"
+    if len(providers) <= 1:
+        return None, providers[0] if providers else ""
+    kb = InlineKeyboardBuilder()
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)"}
+    added = 0
+    for provider in providers:
+        callback_data = f"{prefix}|{provider}|{action}"
+        if len(callback_data.encode("utf-8")) <= 64:
+            kb.row(InlineKeyboardButton(text=labels[provider], callback_data=callback_data))
+            added += 1
+    if not added:
+        return None, providers[0]
+    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    return kb.as_markup(), ""
+
+
+@router.callback_query(F.data.startswith("renew_") | F.data.startswith("payrenew|"))
 async def process_early_renew(callback: CallbackQuery):
     if not await check_protection(callback): return
+
+    provider = ""
+    action = callback.data
+    if callback.data.startswith("payrenew|"):
+        try:
+            _, provider, action = callback.data.split("|", 2)
+        except ValueError:
+            await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
+            return
+    else:
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew")
+        if keyboard:
+            await callback.message.answer(
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                reply_markup=keyboard,
+            )
+            return
+        if provider == "__NONE__":
+            await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
+            return
 
     if not is_early_renew_enabled():
         await callback.answer(t(callback.from_user.id, "ALERT_EARLY_RENEW_OFF", "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường."), show_alert=True)
@@ -249,15 +310,15 @@ async def process_early_renew(callback: CallbackQuery):
 
     row_index = None
     row = None
-    if callback.data.startswith("renew_order_"):
-        source_order_id = callback.data.replace("renew_order_", "", 1).strip()
+    if action.startswith("renew_order_"):
+        source_order_id = action.replace("renew_order_", "", 1).strip()
         if supabase_store.enabled:
             order = supabase_store.get_order(source_order_id)
             row = supabase_store.order_to_sheet_row(order)
             row_index = source_order_id
     else:
         try:
-            row_index = int(callback.data.split("_", 1)[1])
+            row_index = int(action.split("_", 1)[1])
         except Exception:
             await callback.answer(t(callback.from_user.id, "ALERT_RENEW_CODE_INVALID", "Mã gia hạn không hợp lệ."), show_alert=True)
             return
@@ -276,7 +337,8 @@ async def process_early_renew(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_RENEW_NOT_OWNER", "Ưu đãi này không thuộc tài khoản của bạn."), show_alert=True)
         return
 
-    offer = build_early_renew_offer(row, row_index)
+    currency = currency_for_provider(provider) if provider else default_currency_for_user(callback.from_user.id)
+    offer = build_early_renew_offer(row, row_index, currency=currency)
     if not offer:
         await callback.answer(t(callback.from_user.id, "ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
         return
@@ -293,7 +355,7 @@ async def process_early_renew(callback: CallbackQuery):
     description = f"PRIVE{order_id}"[-20:]
     amount = offer["renew_price"]
 
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
@@ -310,8 +372,8 @@ async def process_early_renew(callback: CallbackQuery):
     )
 
     extra_caption = (
-        f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_currency(offer['original_price'])}</s> → "
-        f"<b>{format_currency(amount)}</b> (-{offer['discount_percent']}%)"
+        f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_money(offer['original_price'], currency)}</s> → "
+        f"<b>{format_money(amount, currency)}</b> (-{offer['discount_percent']}%)"
         f"\n⏳ Ưu đãi hết khi VIP hết hạn: <code>{offer['expire_at'].strftime('%d/%m/%Y %H:%M:%S')}</code>"
     )
     await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
@@ -325,13 +387,14 @@ async def view_group_detail(callback: CallbackQuery):
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
     num = callback.data.split("_")[1]
+    currency = default_currency_for_user(callback.from_user.id)
     desc = t(callback.from_user.id, f"DESC_G{num}", "Đang cập nhật...").replace("\\n", "\n")
-    desc += sale_text_for_price(f"PRICE_G{num}_1M", "50000")
-    desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000")
+    desc += sale_text_for_price(f"PRICE_G{num}_1M", "50000", currency)
+    desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000", currency)
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 30 NGÀY')} • {format_price_label(f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {format_price_label(f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang SVIP Page
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
@@ -353,8 +416,9 @@ async def show_svip_page(callback: CallbackQuery):
     
     img_url = db.get_config("IMG_SVIP_PAGE", "https://via.placeholder.com/800x450.png?text=SVIP+PRO")
     description = t(callback.from_user.id, "TXT_SVIP_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
-    description += sale_text_for_price("PRICE_SVIP_LIFE", "3000")
-    description += sale_text_for_price("PRICE_SVIP_30D", "2000")
+    currency = default_currency_for_user(callback.from_user.id)
+    description += sale_text_for_price("PRICE_SVIP_LIFE", "3000", currency)
+    description += sale_text_for_price("PRICE_SVIP_30D", "2000", currency)
     
     btn_life_text = t(callback.from_user.id, "BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
     btn_30d_text = t(callback.from_user.id, "BTN_BUY_SVIP_30D", "💎 MUA 30 NGÀY")
@@ -363,8 +427,8 @@ async def show_svip_page(callback: CallbackQuery):
 
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
-    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {format_price_label('PRICE_SVIP_LIFE', '3000')}", callback_data="buy_full_life"))
-    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {format_price_label('PRICE_SVIP_30D', '2000')}", callback_data="buy_full_1m"))
+    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {price_label_for_user(callback.from_user.id, 'PRICE_SVIP_LIFE', '3000')}", callback_data="buy_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {price_label_for_user(callback.from_user.id, 'PRICE_SVIP_30D', '2000')}", callback_data="buy_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 
     await smart_display(callback, description, kb.as_markup(), img=img_url)
@@ -372,10 +436,30 @@ async def show_svip_page(callback: CallbackQuery):
 # ==========================================
 # 💳 XỬ LÝ THANH TOÁN & CHỐNG SPAM
 # ==========================================
-@router.callback_query(F.data.startswith("confirm_") | F.data.startswith("buy_") | F.data.startswith("upsell_"))
+@router.callback_query(F.data.startswith("confirm_") | F.data.startswith("buy_") | F.data.startswith("upsell_") | F.data.startswith("paybuy|"))
 async def process_buy_request(callback: CallbackQuery):
     if not await check_protection(callback): return
-    
+
+    provider = ""
+    action = callback.data
+    if callback.data.startswith("paybuy|"):
+        try:
+            _, provider, action = callback.data.split("|", 2)
+        except ValueError:
+            await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
+            return
+    else:
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy")
+        if keyboard:
+            await callback.message.answer(
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                reply_markup=keyboard,
+            )
+            return
+        if provider == "__NONE__":
+            await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
+            return
+
     # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
     user_id = callback.from_user.id
     current_time = time.time()
@@ -386,17 +470,20 @@ async def process_buy_request(callback: CallbackQuery):
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    offer = resolve_purchase_offer(callback.data, callback.from_user.id)
+    offer = resolve_purchase_offer(action, callback.from_user.id, provider)
     plan_name = offer["plan_name"]
     amount = offer["amount"]
     sale_info = offer["sale_info"]
     original_amount = offer["original_amount"]
+    if amount <= 0:
+        await callback.answer(t(callback.from_user.id, "ALERT_PRICE_NOT_CONFIGURED", "Gói này chưa được cấu hình giá cho phương thức thanh toán đã chọn."), show_alert=True)
+        return
 
     msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
     
     if pay_data:
         sale_id = sale_info["sale_id"] if sale_info else ""
@@ -410,7 +497,7 @@ async def process_buy_request(callback: CallbackQuery):
             original_amount=original_amount or amount,
             **payment_meta(pay_data),
         )
-        extra_caption = sale_caption(sale_info, original_amount, amount)
+        extra_caption = sale_caption(sale_info, original_amount, amount, offer["currency"])
 
         await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption)
             
@@ -421,13 +508,33 @@ async def process_buy_request(callback: CallbackQuery):
     else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
 
 
-@router.callback_query(F.data.startswith("couponbuy|"))
+@router.callback_query(F.data.startswith("couponbuy|") | F.data.startswith("paycoupon|"))
 async def process_coupon_buy_request(callback: CallbackQuery):
     if not await check_protection(callback):
         return
 
+    provider = ""
+    action = callback.data
+    if callback.data.startswith("paycoupon|"):
+        try:
+            _, provider, action = callback.data.split("|", 2)
+        except ValueError:
+            await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
+            return
+    else:
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paycoupon")
+        if keyboard:
+            await callback.message.answer(
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                reply_markup=keyboard,
+            )
+            return
+        if provider == "__NONE__":
+            await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
+            return
+
     try:
-        _, code, plan_key = callback.data.split("|", 2)
+        _, code, plan_key = action.split("|", 2)
     except ValueError:
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_INVALID", "Mã giảm giá không hợp lệ."), show_alert=True)
         return
@@ -463,10 +570,10 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
         return
 
-    offer = resolve_purchase_offer(buy_data, callback.from_user.id)
+    offer = resolve_purchase_offer(buy_data, callback.from_user.id, provider)
     percent = coupon_discount_percent(coupon)
     before_coupon = offer["amount"]
-    discount_amount = int(round(before_coupon * percent / 100))
+    discount_amount = round(before_coupon * percent / 100, 2) if offer["currency"] == "USD" else int(round(before_coupon * percent / 100))
     amount = max(0, before_coupon - discount_amount)
     if amount <= 0:
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
@@ -475,7 +582,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
 
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
@@ -496,9 +603,9 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         coupon_discount_amount=discount_amount,
         **payment_meta(pay_data),
     )
-    extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon)
-    extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_currency(discount_amount)})"
-    extra_caption += f"\n💳 <b>Cần thanh toán:</b> {format_currency(amount)}"
+    extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon, offer["currency"])
+    extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_money(discount_amount, offer['currency'])})"
+    extra_caption += f"\n💳 <b>Cần thanh toán:</b> {format_money(amount, offer['currency'])}"
 
     await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
     await safe_delete_private_message(msg_wait)

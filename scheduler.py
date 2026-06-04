@@ -9,6 +9,7 @@ from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from config_utils import config_int, group_numbers
+from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
 from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
@@ -562,7 +563,8 @@ async def check_expirations_professional():
                     .replace("{days}", str(days_remaining))
                     .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
                 )
-                early_renew_offer = build_early_renew_offer(row, offer_ref, now)
+                renew_currency = "USD" if get_user_language(user_id) == "en" else "VND"
+                early_renew_offer = build_early_renew_offer(row, offer_ref, now, currency=renew_currency)
                 msg_reminder += build_early_renew_block(early_renew_offer)
                 
                 # Trỏ thẳng về các trang UI mới để khách mua hàng

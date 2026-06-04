@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
 from i18n import get_user_language, localize_page_id, t_for_lang
-from sale_utils import format_price_label, sale_banner, sale_placeholder
+from sale_utils import format_price_label, localized_price_key, sale_banner, sale_placeholder
 
 router = Router()
 
@@ -31,14 +31,15 @@ def process_dynamic_text(text, language=None):
     """Hàm quét và thay thế biến {KEY} thành giá trị thật từ tab Config"""
     # Tìm tất cả các chữ nằm trong ngoặc nhọn, VD: {PRICE_SVIP_LIFE}
     matches = re.findall(r'\{([A-Z0-9_]+)\}', text)
+    currency = "USD" if str(language or "").lower() == "en" else "VND"
     for key in matches:
         if key.startswith("PRICE_"):
-            val = format_price_label(key, 0)
+            val = format_price_label(key, 0, currency)
         elif key.startswith("SALE_BANNER_"):
             price_key = key.replace("SALE_BANNER_", "", 1)
-            val = sale_banner(price_key, 0)
+            val = sale_banner(localized_price_key(price_key, currency), 0)
         elif key.startswith("SALE_"):
-            val = process_sale_placeholder(key)
+            val = process_sale_placeholder(key, currency)
         else:
             val = t_for_lang(language, key, "???") if language else db.get_config(key, "???")
             # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
@@ -47,7 +48,7 @@ def process_dynamic_text(text, language=None):
         text = text.replace(f"{{{key}}}", val)
     return text
 
-def process_sale_placeholder(key):
+def process_sale_placeholder(key, currency="VND"):
     fields = [
         "SALE_OLD_PRICE_",
         "SALE_ORIGINAL_PRICE_",
@@ -67,7 +68,7 @@ def process_sale_placeholder(key):
         if key.startswith(prefix):
             field = prefix.replace("SALE_", "").strip("_")
             price_key = key.replace(prefix, "", 1)
-            return sale_placeholder(price_key, field, 0)
+            return sale_placeholder(localized_price_key(price_key, currency), field, 0)
     return ""
 
 def page_exists(page_id):

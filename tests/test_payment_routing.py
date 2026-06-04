@@ -21,9 +21,22 @@ def test_disabled_preferred_provider_falls_back():
         assert payment_manager.preferred_provider("en") == "PAYOS"
 
 
-def test_paypal_converts_vnd_to_usd():
-    with patch("payment.db.get_config", return_value="25000"):
-        assert payment_manager.paypal._usd_value(100000) == "4.00"
+def test_paypal_uses_configured_usd_price_without_conversion():
+    assert payment_manager.paypal._usd_value(4.99) == "4.99"
+
+
+def test_vietnamese_can_offer_both_payment_providers():
+    with patch("payment.db.get_config", return_value="PAYOS,PAYPAL"), patch.object(
+        payment_manager, "provider_enabled", return_value=True
+    ):
+        assert payment_manager.providers_for_language("vi") == ["PAYOS", "PAYPAL"]
+
+
+def test_english_provider_list_does_not_fallback_to_vnd_gateway():
+    with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
+        payment_manager, "provider_enabled", side_effect=lambda provider: provider == "PAYOS"
+    ):
+        assert payment_manager.providers_for_language("en") == []
 
 
 def test_paypal_approved_order_is_captured_as_paid():
