@@ -11,6 +11,7 @@ import {
   Loader2,
   Megaphone,
   PauseCircle,
+  Pencil,
   PlayCircle,
   Plus,
   RefreshCw,
@@ -1535,8 +1536,10 @@ export default function Home() {
     try {
       await action();
       showNotice("ok", "Đã xử lý thành công.");
+      return true;
     } catch (err) {
       showNotice("error", err instanceof Error ? err.message : "Không lưu được thay đổi.");
+      return false;
     } finally {
       setSaving("");
     }
@@ -1631,10 +1634,15 @@ export default function Home() {
     setSecret("");
   }
 
-  async function saveFields(fields: ConfigField[]) {
-    await runAction("fields", async () => {
-      await updateConfigs(savedSecret, fields.map((field) => ({ key: field.key, value: fieldValues[field.key] || "" })));
-      await loadAll();
+  async function saveFields(fields: ConfigField[], values = fieldValues) {
+    return runAction("fields", async () => {
+      const items = fields.map((field) => ({ key: field.key, value: values[field.key] || "" }));
+      const res = await updateConfigs(savedSecret, items);
+      const changedKeys = new Set(items.map((item) => item.key));
+      setConfig((current) => [
+        ...current.filter((item) => !changedKeys.has(item.key)),
+        ...res.data,
+      ]);
     });
   }
 
@@ -3050,10 +3058,10 @@ export default function Home() {
                 <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
               </div>
             </section>
-            {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
-            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PAYMENT_FIELDS)} /> : null}
-            {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
-            {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ADMIN_FIELDS)} /> : null}
+            {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
 
@@ -3069,11 +3077,11 @@ export default function Home() {
                 <button className={botViTab === "saleContent" ? "active" : ""} onClick={() => setBotViTab("saleContent")}>Flash sale</button>
               </div>
             </section>
-            {botViTab === "plans" ? <ConfigEditor title="Tên gói và giá tiếng Việt" subtitle="Tên gói tiếng Việt và giá VNĐ dùng cho VietQR." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_VI_FIELDS)} /> : null}
-            {botViTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Việt" subtitle="Tên, mô tả và giá VNĐ của từng group đang bán." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(groupViContentFields)} /> : null}
-            {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
-            {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}
-            {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_FIELDS)} /> : null}
+            {botViTab === "plans" ? <ConfigEditor title="Tên gói và giá tiếng Việt" subtitle="Tên gói tiếng Việt và giá VNĐ dùng cho VietQR." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Việt" subtitle="Tên, mô tả và giá VNĐ của từng group đang bán." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
 
@@ -3089,11 +3097,11 @@ export default function Home() {
                 <button className={botEnTab === "saleContent" ? "active" : ""} onClick={() => setBotEnTab("saleContent")}>Flash sale</button>
               </div>
             </section>
-            {botEnTab === "plans" ? <ConfigEditor title="Tên gói tiếng Anh và giá USD" subtitle="Đọc/ghi key _EN và PRICE_*_USD dùng cho PayPal." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_EN_FIELDS)} /> : null}
-            {botEnTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Anh" subtitle="Tên, mô tả tiếng Anh và giá USD của từng group." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(groupEnContentFields)} /> : null}
-            {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_EN_FIELDS)} /> : null}
-            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh." fields={MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_EN_FIELDS)} /> : null}
-            {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_EN_FIELDS)} /> : null}
+            {botEnTab === "plans" ? <ConfigEditor title="Tên gói tiếng Anh và giá USD" subtitle="Đọc/ghi key _EN và PRICE_*_USD dùng cho PayPal." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Anh" subtitle="Tên, mô tả tiếng Anh và giá USD của từng group." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh." fields={MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
 
@@ -3108,10 +3116,10 @@ export default function Home() {
                 <button className={botToolsTab === "alertsEn" ? "active" : ""} onClick={() => setBotToolsTab("alertsEn")}>Cảnh báo tiếng Anh</button>
               </div>
             </section>
-            {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_FIELDS)} /> : null}
-            {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_EN_FIELDS)} /> : null}
-            {botToolsTab === "alertsVi" ? <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
-            {botToolsTab === "alertsEn" ? <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_EN_FIELDS)} /> : null}
+            {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "alertsVi" ? <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "alertsEn" ? <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
 
@@ -3413,135 +3421,19 @@ export default function Home() {
         ) : null}
 
         {renewalSettingsOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title="Cài đặt gia hạn"
-                subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên."
-                action={<button className="icon-danger" onClick={() => setRenewalSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
-              />
-              <div className="form-grid two">
-                {RENEWAL_FIELDS.map((field) => (
-                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
-                    <span>{field.label}</span>
-                    {field.kind === "textarea" ? (
-                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    ) : field.kind === "select" ? (
-                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
-                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                      </select>
-                    ) : (
-                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    )}
-                    <small>{field.help}</small>
-                  </label>
-                ))}
-              </div>
-              <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setRenewalSettingsOpen(false)}>Đóng</button>
-                <button className="btn" onClick={async () => { await saveFields(RENEWAL_FIELDS); setRenewalSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
-              </div>
-            </section>
-          </div>
+          <SettingsConfigModal title="Cài đặt gia hạn" subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên." fields={RENEWAL_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setRenewalSettingsOpen(false)} />
         ) : null}
 
         {supportSettingsOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title="Cài đặt group hỗ trợ"
-                subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick."
-                action={<button className="icon-danger" onClick={() => setSupportSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
-              />
-              <div className="form-grid two">
-                {SUPPORT_FIELDS.map((field) => (
-                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
-                    <span>{field.label}</span>
-                    {field.kind === "textarea" ? (
-                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    ) : field.kind === "select" ? (
-                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
-                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                      </select>
-                    ) : (
-                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    )}
-                    <small>{field.help}</small>
-                  </label>
-                ))}
-              </div>
-              <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setSupportSettingsOpen(false)}>Đóng</button>
-                <button className="btn" onClick={async () => { await saveFields(SUPPORT_FIELDS); setSupportSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
-              </div>
-            </section>
-          </div>
+          <SettingsConfigModal title="Cài đặt group hỗ trợ" subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title="Bảo mật bot và coupon"
-                subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
-                action={<button className="icon-danger" onClick={() => setSecuritySettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
-              />
-              <div className="form-grid two">
-                {SECURITY_FIELDS.map((field) => (
-                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
-                    <span>{field.label}</span>
-                    {field.kind === "textarea" ? (
-                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    ) : field.kind === "select" ? (
-                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
-                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                      </select>
-                    ) : (
-                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    )}
-                    <small>{field.help}</small>
-                  </label>
-                ))}
-              </div>
-              <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setSecuritySettingsOpen(false)}>Đóng</button>
-                <button className="btn" onClick={async () => { await saveFields(SECURITY_FIELDS); setSecuritySettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
-              </div>
-            </section>
-          </div>
+          <SettingsConfigModal title="Bảo mật bot và coupon" subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_." fields={SECURITY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSecuritySettingsOpen(false)} />
         ) : null}
 
         {systemSettingsOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title="Cài đặt hệ thống"
-                subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
-                action={<button className="icon-danger" onClick={() => setSystemSettingsOpen(false)} title="Đóng"><XCircle size={18} /></button>}
-              />
-              <div className="form-grid two">
-                {SYSTEM_FIELDS.map((field) => (
-                  <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
-                    <span>{field.label}</span>
-                    {field.kind === "textarea" ? (
-                      <textarea value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    ) : field.kind === "select" ? (
-                      <select value={fieldValues[field.key] || field.placeholder} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}>
-                        {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                      </select>
-                    ) : (
-                      <input value={fieldValues[field.key] || ""} onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })} placeholder={field.placeholder} />
-                    )}
-                    <small>{field.help}</small>
-                  </label>
-                ))}
-              </div>
-              <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setSystemSettingsOpen(false)}>Đóng</button>
-                <button className="btn" onClick={async () => { await saveFields(SYSTEM_FIELDS); setSystemSettingsOpen(false); }}><Save size={16} /> Lưu cài đặt</button>
-              </div>
-            </section>
-          </div>
+          <SettingsConfigModal title="Cài đặt hệ thống" subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render." fields={SYSTEM_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSystemSettingsOpen(false)} />
         ) : null}
 
         {manualOrderModalOpen ? (
@@ -3666,28 +3558,98 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="info-row"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: () => void }) {
+function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean> }) {
+  const [editingField, setEditingField] = useState<ConfigField | null>(null);
+  const [draftValue, setDraftValue] = useState("");
+  const [savingField, setSavingField] = useState(false);
+
+  function openField(field: ConfigField) {
+    setEditingField(field);
+    setDraftValue(values[field.key] || "");
+  }
+
+  async function saveField() {
+    if (!editingField) return;
+    setSavingField(true);
+    const nextValues = { ...values, [editingField.key]: draftValue };
+    setValues(nextValues);
+    try {
+      const saved = await onSave([editingField], nextValues);
+      if (saved) {
+        setEditingField(null);
+      } else {
+        setValues(values);
+      }
+    } finally {
+      setSavingField(false);
+    }
+  }
+
   return (
     <section className="panel">
-      <PanelHead title={title} subtitle={subtitle} action={<button className="btn" onClick={onSave}><Save size={16} /> Lưu</button>} />
-      <div className="form-grid two">
+      <PanelHead title={title} subtitle={`${subtitle} Bấm vào từng mục để chỉnh sửa và lưu riêng.`} />
+      <div className="config-list">
         {fields.map((field) => (
-          <label className={field.kind === "textarea" ? "field wide" : "field"} key={field.key}>
-            <span>{field.label}</span>
-            {field.kind === "textarea" ? (
-              <textarea value={values[field.key] || ""} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })} placeholder={field.placeholder} />
-            ) : field.kind === "select" ? (
-              <select value={values[field.key] || field.placeholder} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })}>
-                {(field.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
-            ) : (
-              <input value={values[field.key] || ""} onChange={(event) => setValues({ ...values, [field.key]: event.target.value })} placeholder={field.placeholder} />
-            )}
-            <small>{field.help}</small>
-          </label>
+          <button className="config-row" key={field.key} onClick={() => openField(field)}>
+            <div className="config-row-copy">
+              <strong>{field.label}</strong>
+              <span>{field.help}</span>
+            </div>
+            <div className={values[field.key] ? "config-value" : "config-value empty"}>
+              {field.kind === "select"
+                ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder
+                : values[field.key] || "Chưa thiết lập"}
+            </div>
+            <Pencil size={17} />
+          </button>
         ))}
       </div>
+      {editingField ? (
+        <div className="modal-backdrop config-modal-backdrop" role="dialog" aria-modal="true">
+          <section className="modal-panel config-edit-modal">
+            <PanelHead
+              title={editingField.label}
+              subtitle={editingField.help}
+              action={<button className="icon-danger" onClick={() => setEditingField(null)} title="Đóng"><XCircle size={18} /></button>}
+            />
+            <div className="modal-content">
+              <label className="field">
+                <span>Giá trị</span>
+                {editingField.kind === "textarea" ? (
+                  <textarea autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} />
+                ) : editingField.kind === "select" ? (
+                  <select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(event.target.value)}>
+                    {(editingField.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                ) : (
+                  <input autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} />
+                )}
+                <small>Key kỹ thuật: {editingField.key}</small>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button className="btn secondary" onClick={() => setEditingField(null)}>Huỷ</button>
+              <button className="btn" onClick={saveField} disabled={savingField}>
+                {savingField ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu thay đổi
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSave, onClose }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean>; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <section className="modal-panel wide-modal settings-config-modal">
+        <ConfigEditor title={title} subtitle={subtitle} fields={fields} values={values} setValues={setValues} onSave={onSave} />
+        <div className="modal-actions">
+          <button className="btn secondary" onClick={onClose}>Đóng</button>
+        </div>
+      </section>
+    </div>
   );
 }
 

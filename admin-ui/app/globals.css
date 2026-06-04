@@ -623,9 +623,17 @@ td select {
 
 .toast {
   align-items: center;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  left: 50%;
+  max-width: min(520px, calc(100vw - 32px));
+  min-width: min(360px, calc(100vw - 32px));
+  position: fixed;
+  text-align: left;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
 }
 
 .toast.ok {
@@ -801,6 +809,19 @@ td select {
   max-width: 1120px;
 }
 
+.config-modal-backdrop {
+  align-items: center;
+}
+
+.modal-panel.config-edit-modal {
+  max-width: 620px;
+}
+
+.settings-config-modal > .panel {
+  border: 0;
+  border-radius: 0;
+}
+
 .modal-actions {
   border-top: 1px solid var(--line);
   display: flex;
@@ -811,6 +832,65 @@ td select {
 
 .modal-content {
   padding: 16px;
+}
+
+.config-list {
+  display: grid;
+}
+
+.config-row {
+  align-items: center;
+  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(240px, 1.1fr) minmax(220px, 0.9fr) 20px;
+  min-height: 78px;
+  padding: 14px 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.config-row:last-child {
+  border-bottom: 0;
+}
+
+.config-row:hover,
+.config-row:focus-visible {
+  background: #f5faf8;
+  outline: none;
+}
+
+.config-row-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.config-row-copy strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.config-row-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.config-value {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  max-height: 58px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.config-value.empty {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .danger-text {
@@ -988,8 +1068,13 @@ td select {
   }
 
   .group-row,
-  .info-row {
+  .info-row,
+  .config-row {
     grid-template-columns: 1fr;
+  }
+
+  .config-row > svg {
+    display: none;
   }
 
   .customer-facts {
