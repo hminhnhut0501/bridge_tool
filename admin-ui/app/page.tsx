@@ -149,6 +149,17 @@ const BOT_FIELDS: ConfigField[] = [
     ],
   },
   {
+    key: "LANGUAGE_SWITCH_ENABLED",
+    label: "Hiện nút đổi ngôn ngữ",
+    placeholder: "ON",
+    help: "Bật để hiện nút English/Tiếng Việt ở menu chính. Khi tắt, hệ thống cũng ẩn các nút set_lang: đã khai báo trong Menu Builder.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
     key: "BOT_ACTIVE_HOURS",
     label: "Khung giờ bot hoạt động",
     placeholder: "08:00-23:00",

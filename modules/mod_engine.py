@@ -84,7 +84,16 @@ def menu_action_enabled(action):
     coupon_actions = {"coupon_enter", "coupon_code", "redeem_code"}
     if action in coupon_actions and not config_enabled("COUPON_MENU_ENABLED", "OFF"):
         return False
+    if action.startswith("set_lang:") and not config_enabled("LANGUAGE_SWITCH_ENABLED", "ON"):
+        return False
     return True
+
+def should_add_language_switch(requested_page_id, layout):
+    return (
+        requested_page_id == "main_menu"
+        and config_enabled("LANGUAGE_SWITCH_ENABLED", "ON")
+        and "set_lang:" not in str(layout or "")
+    )
 
 def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -168,7 +177,7 @@ async def render_page(target, page_id):
     text = process_dynamic_text(raw_text, language)
     
     kb = InlineKeyboardBuilder.from_markup(build_dynamic_keyboard(page['layout'], language))
-    if requested_page_id == "main_menu" and "set_lang:" not in str(page.get("layout") or ""):
+    if should_add_language_switch(requested_page_id, page.get("layout")):
         if language == "en":
             kb.row(InlineKeyboardButton(text="🇻🇳 Tiếng Việt", callback_data="set_lang:vi"))
         else:
