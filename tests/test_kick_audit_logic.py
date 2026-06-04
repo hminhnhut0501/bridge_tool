@@ -1,6 +1,7 @@
 import os
 import unittest
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
@@ -124,6 +125,23 @@ class KickAuditLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["status"], "KICKED")
         self.assertEqual(rows[0]["status_label"], "Đã kick cùng group")
         self.assertFalse(rows[0]["needs_action"])
+
+    async def test_empty_timezone_falls_back_and_kick_audit_builds(self):
+        self.db.config["BOT_TIMEZONE"] = ""
+        web_backend.now_local = self.original_now_local
+        web_backend.supabase_store = FakeStore([], [])
+
+        rows = await web_backend.build_kick_audit_rows()
+
+        self.assertEqual(rows, [])
+        self.assertEqual(web_backend.backend_timezone(), ZoneInfo("Asia/Ho_Chi_Minh"))
+
+    def test_invalid_timezone_falls_back_for_manual_expire_parser(self):
+        self.db.config["BOT_TIMEZONE"] = "not/a-real-timezone"
+
+        parsed = web_backend.parse_manual_expire_at("2026-06-04T12:30")
+
+        self.assertEqual(parsed.tzinfo, ZoneInfo("Asia/Ho_Chi_Minh"))
 
 
 if __name__ == "__main__":

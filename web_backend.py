@@ -58,8 +58,18 @@ def warn_missing_table_once(table_name: str, exc: Exception):
     print(f"⚠️ Supabase thiếu bảng {table_name}. Hãy chạy migration SQL trong thư mục supabase. Chi tiết: {exc}")
 
 
+def backend_timezone():
+    timezone_name = str(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh")) or "").strip()
+    if not timezone_name:
+        timezone_name = str(os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
 def now_local():
-    return datetime.now(ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
+    return datetime.now(backend_timezone())
 
 
 def parse_manual_expire_at(value: str | None):
@@ -69,8 +79,8 @@ def parse_manual_expire_at(value: str | None):
     normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
-    return parsed.astimezone(ZoneInfo(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh"))))
+        return parsed.replace(tzinfo=backend_timezone())
+    return parsed.astimezone(backend_timezone())
 
 
 def normalize_chat_id(value):
