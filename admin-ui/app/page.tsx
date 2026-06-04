@@ -71,7 +71,6 @@ import {
   previewCampaign,
   resetWebhook,
   startCampaign,
-  updateConfig,
   updateConfigs,
   updateMenuPage,
   updateOrder,
@@ -1477,6 +1476,7 @@ export default function Home() {
   }, [config]);
 
   function ui(vi: string, _en: string) {
+    void _en;
     return vi;
   }
 
@@ -2291,7 +2291,7 @@ export default function Home() {
         <><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></>,
         <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
         dateText(item.expire_at),
-        <span className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <span key="status" className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
         item.latest_kick_at ? dateText(item.latest_kick_at) : item.latest_error ? <span className="muted">{item.latest_error}</span> : "-",
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
         item.needs_action && item.group_id ? (
@@ -2807,7 +2807,7 @@ export default function Home() {
                 headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
                 rows={pagedCustomers.map((customer) => [
                   <><strong>{customer.name}</strong><div className="muted">{customer.id}</div></>,
-                  <span className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
+                  <span key="status" className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
                   String(customer.paidOrders.length),
                   <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
                   dateText(customer.latestExpire),
@@ -3194,6 +3194,7 @@ export default function Home() {
               headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Người dùng gần nhất"]}
               rows={pagedCoupons.map((item) => [
                 <button
+                  key="coupon-code"
                   className="coupon-code-copy"
                   disabled={saving === `coupon-copy-${item.code}`}
                   onClick={(event) => {
