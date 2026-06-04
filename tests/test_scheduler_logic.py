@@ -38,6 +38,8 @@ class FakeStore:
 
     def __init__(self):
         self.events = []
+        self.orders = []
+        self.expired_orders = []
 
     def get_user_identity(self, telegram_user_id):
         return {}
@@ -60,6 +62,28 @@ class FakeStore:
             "created_at": kwargs.pop("created_at", datetime(2026, 5, 25, 12, 0, 0).isoformat()),
             **kwargs,
         })
+
+    def list_scheduler_orders(self, limit=5000):
+        return list(self.orders)
+
+    def order_to_sheet_row(self, order):
+        return [
+            order.get("order_id", ""),
+            order.get("telegram_user_id", ""),
+            order.get("full_name", ""),
+            order.get("plan_name", ""),
+            order.get("amount", ""),
+            order.get("status", ""),
+            order.get("paid_at", ""),
+            order.get("expire_at", ""),
+            order.get("sale_id", ""),
+            order.get("original_amount", ""),
+            order.get("last_reminder_date", ""),
+            order.get("expired_notice_at", ""),
+        ]
+
+    def mark_order_expired(self, order_id, expired_notice_at=None):
+        self.expired_orders.append(str(order_id))
 
 
 class FakeBot:
@@ -312,6 +336,41 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.bot.kicked, [("-100999", "42")])
         self.assertEqual(self.store.events[-1]["raw_data"]["reason"], "support_rejoined_after_kick")
+
+    async def test_unmapped_expired_plan_is_not_closed_or_notified(self):
+        now = datetime(2026, 5, 25, 12, 0, 0)
+        scheduler.now_local = lambda: now
+        self.store.orders = [{
+            "order_id": "unknown-plan",
+            "telegram_user_id": "42",
+            "full_name": "User",
+            "plan_name": "VIP Mystery Group",
+            "status": "PAID",
+            "expire_at": "2026-05-24 12:00:00",
+        }]
+
+        await scheduler.check_expirations_professional()
+
+        self.assertEqual(self.store.expired_orders, [])
+        self.assertEqual(self.bot.kicked, [])
+        self.assertFalse(any(event["event_type"] == "expired_notice_sent" for event in self.store.events))
+
+    async def test_unmapped_already_expired_plan_does_not_mute_support(self):
+        now = datetime(2026, 5, 25, 12, 0, 0)
+        scheduler.now_local = lambda: now
+        self.store.orders = [{
+            "order_id": "unknown-expired",
+            "telegram_user_id": "42",
+            "full_name": "User",
+            "plan_name": "VIP Mystery Group",
+            "status": "EXPIRED",
+            "expire_at": "2026-05-24 12:00:00",
+        }]
+
+        await scheduler.check_expirations_professional()
+
+        self.assertEqual(self.muted, [])
+        self.assertEqual(self.bot.kicked, [])
 
 
 if __name__ == "__main__":

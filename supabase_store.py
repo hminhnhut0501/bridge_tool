@@ -385,7 +385,7 @@ class SupabaseStore:
         except RuntimeError as exc:
             # Keep existing PayOS orders working while the payment-provider
             # migration is waiting to be applied in Supabase.
-            if "payment_provider" not in str(exc):
+            if "payment_provider" not in str(exc) or str(payment_provider).upper() == "PAYPAL":
                 raise
             legacy_payload = dict(payload)
             legacy_payload.pop("payment_provider", None)

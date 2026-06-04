@@ -10,11 +10,12 @@ from database import db
 from bot_instance import bot 
 from payment import payos_manager
 from supabase_store import supabase_store
-from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, unmute_member
+from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, unmute_member
 from i18n import t
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
+processing_orders = set()
 
 
 def bot_timezone():
@@ -146,8 +147,12 @@ async def expire_pending_payment(order_code, user_id):
 # 1. HÀM XỬ LÝ GIAO HÀNG (TỐI ƯU CỰC SẠCH)
 # ======================================================
 async def process_successful_payment(order_code: str):
+    target_code = str(order_code).strip()
+    if target_code in processing_orders:
+        print(f"⏭ Đơn {target_code} đang được xử lý giao hàng ở luồng khác.")
+        return
+    processing_orders.add(target_code)
     try:
-        target_code = str(order_code).strip()
         print(f"🔄 Đang bắt đầu xử lý giao hàng cho đơn: {target_code}")
 
         row_index = -1
@@ -211,6 +216,14 @@ async def process_successful_payment(order_code: str):
 
         # Tạo link mời (Giới hạn 1 người vào)
         links_msg = ""
+        delivered_groups = []
+        failed_groups = []
+        if not groups_to_invite:
+            failed_groups.append("UNMAPPED_PLAN")
+            links_msg = (
+                "⚠️ <i>Hệ thống chưa map được gói này với group nhận link. "
+                "Admin đã được ghi nhận để kiểm tra cấu hình.</i>\n"
+            )
         for gid, gname in groups_to_invite:
             try:
                 # 🛡 Cố gắng Unban (Ngoại trừ Admin) để tránh lỗi Crash
@@ -225,6 +238,7 @@ async def process_successful_payment(order_code: str):
                     member_limit=1,
                     creates_join_request=False
                 )
+                delivered_groups.append(gname)
                 links_msg += f"👉 <b>{escape_html(gname)}</b>:\n{invite.invite_link}\n\n"
                 try:
                     if not is_support_group(gid):
@@ -232,6 +246,7 @@ async def process_successful_payment(order_code: str):
                 except Exception as unmute_err:
                     print(f"⚠️ Không thể mở mute user {user_id} ở group {gid}: {unmute_err}")
             except Exception as e:
+                failed_groups.append(gname)
                 links_msg += f"👉 <b>{escape_html(gname)}</b>: <i>❌ Lỗi tạo link ({e})</i>\n\n"
 
         # Cập nhật trạng thái đơn
@@ -246,6 +261,19 @@ async def process_successful_payment(order_code: str):
             await delete_payment_message(order)
         else:
             db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])
+
+        event_type = "delivery_failed" if failed_groups else "delivery_success"
+        record_support_event(
+            event_type,
+            user_id,
+            order_id=target_code,
+            plan_name=plan_name,
+            raw_data={
+                "delivered_groups": delivered_groups,
+                "failed_groups": failed_groups,
+                "expected_group_count": len(groups_to_invite),
+            },
+        )
 
         # Gửi tin nhắn thành công
         msg_template = t(user_id, "MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
@@ -266,6 +294,8 @@ async def process_successful_payment(order_code: str):
 
     except Exception as e:
         print(f"❌ Lỗi giao hàng tổng quát: {e}")
+    finally:
+        processing_orders.discard(target_code)
 
 # =====================================================
 # 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP TỐI ƯU HÓA)

@@ -175,6 +175,9 @@ class PayPalManager:
                 (str(link.get("href") or "") for link in data.get("links", []) if link.get("rel") == "approve"),
                 "",
             )
+            if not approval_url:
+                print(f"❌ PayPal không trả approval URL cho đơn {order_code}")
+                return None
             return {
                 "provider": self.provider,
                 "provider_order_id": str(data["id"]),

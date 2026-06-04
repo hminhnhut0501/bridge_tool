@@ -24,3 +24,12 @@ def test_disabled_preferred_provider_falls_back():
 def test_paypal_converts_vnd_to_usd():
     with patch("payment.db.get_config", return_value="25000"):
         assert payment_manager.paypal._usd_value(100000) == "4.00"
+
+
+def test_paypal_approved_order_is_captured_as_paid():
+    lookup = type("Response", (), {"json": lambda self: {"status": "APPROVED"}})()
+    capture = type("Response", (), {"json": lambda self: {"status": "COMPLETED"}})()
+    with patch.object(payment_manager.paypal, "_headers", return_value={}), patch(
+        "payment.requests.get", return_value=lookup
+    ), patch("payment.requests.post", return_value=capture):
+        assert payment_manager.paypal.get_payment_status("PAYPAL-1") == "PAID"

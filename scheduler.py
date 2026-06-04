@@ -460,6 +460,14 @@ async def check_expirations_professional():
             expire_str = str(row[7]).strip()
 
             if status == "EXPIRED" and expire_str:
+                if not is_lifetime_plan(plan_name) and not plan_group_ids(plan_name):
+                    logging.error(
+                        "⏭ Bỏ qua xử lý đơn EXPIRED %s vì plan_name='%s' không map được group VIP; "
+                        "không mute/kick support để tránh xử lý nhầm.",
+                        offer_ref,
+                        plan_name,
+                    )
+                    continue
                 await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
                 await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
                 continue
@@ -486,6 +494,14 @@ async def check_expirations_professional():
             # ==========================================
             if expire_date <= now:
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
+                if not plan_group_ids(plan_name):
+                    logging.error(
+                        "⏭ Chưa đóng EXPIRED đơn/dòng %s vì plan_name='%s' không map được group VIP. "
+                        "Cần sửa tên gói hoặc BTN_G/ID_G trước khi kick.",
+                        offer_ref,
+                        plan_name,
+                    )
+                    continue
                 expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
 
                 if not expired_group_ids:

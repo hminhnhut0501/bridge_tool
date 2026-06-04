@@ -519,7 +519,7 @@ async def admin_create_manual_order(request: Request):
         expire_at=expire_at.isoformat(timespec="seconds"),
     )
 
-    links_text, group_names = await build_invite_links(user_id, plan_name)
+    links_text, group_names, failed_groups = await build_invite_links(user_id, plan_name)
     support_link, support_error = await create_support_invite_link(user_id)
     support_text = ""
     if support_link:
@@ -538,6 +538,7 @@ async def admin_create_manual_order(request: Request):
                 "amount": amount,
                 "coupon_code": coupon_code,
                 "group_names": group_names,
+                "failed_groups": failed_groups,
                 "support_link_created": bool(support_link),
                 "support_error": support_error,
             },
@@ -561,6 +562,7 @@ async def admin_create_manual_order(request: Request):
             "support_link": support_link,
             "support_error": support_error,
             "support_text": support_text,
+            "failed_groups": failed_groups,
         }
     }
 

@@ -586,9 +586,9 @@ def resolve_groups(plan_name):
 async def build_invite_links(user_id, plan_name):
     links_msg = ""
     group_names = []
+    failed_groups = []
 
     for gid, group_name in resolve_groups(plan_name):
-        group_names.append(group_name)
         try:
             try:
                 await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
@@ -601,6 +601,7 @@ async def build_invite_links(user_id, plan_name):
                 member_limit=1,
                 creates_join_request=False,
             )
+            group_names.append(group_name)
             links_msg += f"👉 <b>{escape_html(group_name)}</b>:\n{invite.invite_link}\n\n"
             try:
                 if not is_support_group(gid):
@@ -608,10 +609,11 @@ async def build_invite_links(user_id, plan_name):
             except Exception as unmute_err:
                 log.warning("Cannot unmute coupon user %s in %s: %s", user_id, gid, unmute_err)
         except Exception as err:
+            failed_groups.append(group_name)
             template = t(user_id, "MSG_INVITE_LINK_ERROR", "👉 <b>{group}</b>: <i>Không tạo được link ({error})</i>\\n\\n").replace("\\n", "\n")
             links_msg += template.replace("{group}", escape_html(group_name)).replace("{error}", escape_html(err))
 
-    return links_msg, ", ".join(group_names)
+    return links_msg, ", ".join(group_names), failed_groups
 
 
 def update_coupon_usage(coupons_sheet, headers, row_index, item, user_id):
@@ -679,8 +681,8 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
     expire_at = base_date + timedelta(days=duration_days)
     expire_text = expire_at.strftime(TIME_FMT)
 
-    links_msg, group_names = await build_invite_links(user.id, plan_name)
-    if not links_msg.strip():
+    links_msg, group_names, failed_groups = await build_invite_links(user.id, plan_name)
+    if not group_names or failed_groups:
         await message.answer(t(message.from_user.id, "MSG_COUPON_PLAN_NOT_CONFIGURED", "❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link. Vui lòng báo admin kiểm tra Plan_Name/ID_G."), parse_mode="HTML")
         return
 
