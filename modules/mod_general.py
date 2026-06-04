@@ -10,7 +10,7 @@ from database import db
 from bot_instance import bot
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
-from i18n import t
+from i18n import set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
@@ -142,6 +142,18 @@ async def cmd_start(message: Message):
 @router.callback_query(F.data == "back_main")
 async def back_to_main(callback: CallbackQuery):
     if not await check_protection(callback): return
+    await render_page(callback, "main_menu")
+
+@router.callback_query(F.data.startswith("set_lang:"))
+async def change_language(callback: CallbackQuery):
+    if not await check_protection(callback):
+        return
+    language = set_user_language(callback.from_user.id, callback.data.split(":", 1)[1])
+    try:
+        await callback.answer("Language updated." if language == "en" else "Đã đổi ngôn ngữ.")
+    except Exception as exc:
+        if "query is too old" not in str(exc).lower() and "query id is invalid" not in str(exc).lower():
+            raise
     await render_page(callback, "main_menu")
 
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)

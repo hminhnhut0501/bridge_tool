@@ -350,6 +350,9 @@ class SupabaseStore:
         coupon_code="",
         coupon_discount_percent=0,
         coupon_discount_amount=0,
+        payment_provider="",
+        payment_provider_order_id="",
+        payment_approval_url="",
     ):
         payload = {
             "order_id": str(order_id),
@@ -365,13 +368,36 @@ class SupabaseStore:
             payload["coupon_code"] = _clean_text(coupon_code).upper()
             payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
             payload["coupon_discount_amount"] = _parse_int(coupon_discount_amount)
-        return self._request(
-            "POST",
-            "orders",
-            params={"on_conflict": "order_id"},
-            json=payload,
-            prefer="resolution=merge-duplicates,return=representation",
-        )
+        if payment_provider:
+            payload["payment_provider"] = _clean_text(payment_provider).upper()
+        if payment_provider_order_id:
+            payload["payment_provider_order_id"] = _clean_text(payment_provider_order_id)
+        if payment_approval_url:
+            payload["payment_approval_url"] = _clean_text(payment_approval_url)
+        try:
+            return self._request(
+                "POST",
+                "orders",
+                params={"on_conflict": "order_id"},
+                json=payload,
+                prefer="resolution=merge-duplicates,return=representation",
+            )
+        except RuntimeError as exc:
+            # Keep existing PayOS orders working while the payment-provider
+            # migration is waiting to be applied in Supabase.
+            if "payment_provider" not in str(exc):
+                raise
+            legacy_payload = dict(payload)
+            legacy_payload.pop("payment_provider", None)
+            legacy_payload.pop("payment_provider_order_id", None)
+            legacy_payload.pop("payment_approval_url", None)
+            return self._request(
+                "POST",
+                "orders",
+                params={"on_conflict": "order_id"},
+                json=legacy_payload,
+                prefer="resolution=merge-duplicates,return=representation",
+            )
 
     def update_order_status(self, order_id, status, paid_at=None, expire_at=None):
         payload = {"status": _clean_text(status).upper()}
@@ -396,6 +422,12 @@ class SupabaseStore:
             payload["plan_name"] = _clean_text(raw.get("plan_name"))
         if "coupon_code" in raw:
             payload["coupon_code"] = _clean_text(raw.get("coupon_code")).upper()
+        if "payment_provider" in raw:
+            payload["payment_provider"] = _clean_text(raw.get("payment_provider")).upper()
+        if "payment_provider_order_id" in raw:
+            payload["payment_provider_order_id"] = _clean_text(raw.get("payment_provider_order_id"))
+        if "payment_approval_url" in raw:
+            payload["payment_approval_url"] = _clean_text(raw.get("payment_approval_url"))
         if not payload:
             return []
         return self.patch_order(order_id, payload)

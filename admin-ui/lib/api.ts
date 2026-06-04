@@ -12,6 +12,9 @@ export type Order = {
   coupon_code?: string | null;
   coupon_discount_percent?: number | null;
   coupon_discount_amount?: number | null;
+  payment_provider?: string | null;
+  payment_provider_order_id?: string | null;
+  payment_approval_url?: string | null;
   last_reminder_date?: string | null;
   expired_notice_at?: string | null;
   created_at: string;

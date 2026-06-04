@@ -6,13 +6,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
-from payment import payos_manager
+from payment import payment_manager, payos_manager
 from processor import expire_pending_payment, parse_int_config, process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
 from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
-from i18n import t
+from i18n import get_user_language, t
 from modules.mod_engine import render_page
 from sale_utils import format_price_label, get_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
@@ -59,6 +59,9 @@ def create_pending_order(
     coupon_code="",
     coupon_discount_percent=0,
     coupon_discount_amount=0,
+    payment_provider="",
+    payment_provider_order_id="",
+    payment_approval_url="",
 ):
     if supabase_store.enabled:
         return supabase_store.create_order(
@@ -72,6 +75,9 @@ def create_pending_order(
             coupon_code=coupon_code,
             coupon_discount_percent=coupon_discount_percent,
             coupon_discount_amount=coupon_discount_amount,
+            payment_provider=payment_provider,
+            payment_provider_order_id=payment_provider_order_id,
+            payment_approval_url=payment_approval_url,
         )
 
     db.users_sheet.append_row([
@@ -162,6 +168,36 @@ def sale_caption(sale_info, original_amount, amount):
 
 
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
+    provider = str(pay_data.get("provider") or "PAYOS").upper()
+    if provider == "PAYPAL":
+        approval_url = str(pay_data.get("approval_url") or "").strip()
+        caption = t(
+            callback.from_user.id,
+            "MSG_PAYPAL_BILL_TEMPLATE",
+            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+        ).replace("\\n", "\n")
+        caption = (
+            caption.replace("{plan}", str(plan_name))
+            .replace("{amount}", format_currency(amount))
+            .replace("{paypal_amount}", str(pay_data.get("paypal_amount") or ""))
+            .replace("{desc}", description)
+        )
+        caption += extra_caption
+        kb = InlineKeyboardBuilder()
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal"), url=approval_url))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 I've paid"), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Cancel"), callback_data=f"cancel_order_{order_id}"))
+        sent = await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        if supabase_store.enabled and sent:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        return sent
+
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
     actual_stk = pay_data.get('accountNumber', 'N/A')
@@ -187,6 +223,19 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         except Exception as e:
             print(f"⚠️ Không lưu được payment message cho đơn {order_id}: {e}")
     return sent
+
+
+def create_payment_for_user(user_id, order_id, amount, description):
+    provider = payment_manager.preferred_provider(get_user_language(user_id))
+    return payment_manager.create_payment_link(order_id, amount, description, provider=provider)
+
+
+def payment_meta(pay_data):
+    return {
+        "payment_provider": pay_data.get("provider", "PAYOS"),
+        "payment_provider_order_id": pay_data.get("provider_order_id", ""),
+        "payment_approval_url": pay_data.get("approval_url", ""),
+    }
 
 
 @router.callback_query(F.data.startswith("renew_"))
@@ -244,7 +293,7 @@ async def process_early_renew(callback: CallbackQuery):
     description = f"PRIVE{order_id}"[-20:]
     amount = offer["renew_price"]
 
-    pay_data = payos_manager.create_payment_link(order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
@@ -257,6 +306,7 @@ async def process_early_renew(callback: CallbackQuery):
         amount=amount,
         sale_id=offer["offer_id"],
         original_amount=offer["original_price"],
+        **payment_meta(pay_data),
     )
 
     extra_caption = (
@@ -346,7 +396,7 @@ async def process_buy_request(callback: CallbackQuery):
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     
-    pay_data = payos_manager.create_payment_link(order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
     
     if pay_data:
         sale_id = sale_info["sale_id"] if sale_info else ""
@@ -358,6 +408,7 @@ async def process_buy_request(callback: CallbackQuery):
             amount=amount,
             sale_id=sale_id,
             original_amount=original_amount or amount,
+            **payment_meta(pay_data),
         )
         extra_caption = sale_caption(sale_info, original_amount, amount)
 
@@ -424,7 +475,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
-    pay_data = payos_manager.create_payment_link(order_id, amount, description)
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description)
 
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
@@ -443,6 +494,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         coupon_code=code,
         coupon_discount_percent=percent,
         coupon_discount_amount=discount_amount,
+        **payment_meta(pay_data),
     )
     extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon)
     extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_currency(discount_amount)})"
