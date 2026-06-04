@@ -156,6 +156,16 @@ async def send_with_html_fallback(sender, *, text=None, photo=None, reply_markup
         else:
             await sender.answer(safe_text, reply_markup=reply_markup, parse_mode=None)
 
+async def send_rendered_page(sender, *, img_url, text, reply_markup):
+    """Ảnh lỗi không được làm mất toàn bộ menu; luôn thử lại bằng tin nhắn text."""
+    if img_url and len(str(img_url)) > 10:
+        try:
+            await send_with_html_fallback(sender, photo=img_url, text=text, reply_markup=reply_markup)
+            return
+        except TelegramBadRequest as exc:
+            print(f"⚠️ Không gửi được ảnh MenuBuilder, fallback sang text: {exc}")
+    await send_with_html_fallback(sender, text=text, reply_markup=reply_markup)
+
 async def render_page(target, page_id):
     """Hàm lấy dữ liệu từ RAM và xuất ra giao diện"""
     language = get_user_language(target.from_user.id if getattr(target, "from_user", None) else None)
@@ -186,19 +196,12 @@ async def render_page(target, page_id):
     img_url = page['img']
 
     if isinstance(target, CallbackQuery):
+        await send_rendered_page(target.message, img_url=img_url, text=text, reply_markup=kb_markup)
         await safe_delete_private_message(target.message)
-
-        if img_url and len(str(img_url)) > 10:
-            await send_with_html_fallback(target.message, photo=img_url, text=text, reply_markup=kb_markup)
-        else:
-            await send_with_html_fallback(target.message, text=text, reply_markup=kb_markup)
         await safe_callback_answer(target)
         
     else:
-        if img_url and len(str(img_url)) > 10:
-            await send_with_html_fallback(target, photo=img_url, text=text, reply_markup=kb_markup)
-        else:
-            await send_with_html_fallback(target, text=text, reply_markup=kb_markup)
+        await send_rendered_page(target, img_url=img_url, text=text, reply_markup=kb_markup)
     return True
 
 async def render_static_fallback(callback: CallbackQuery, page_id):
