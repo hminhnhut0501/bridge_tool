@@ -1,9 +1,12 @@
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from aiogram.exceptions import TelegramBadRequest
+from aiogram import BaseMiddleware
+from datetime import datetime, time as datetime_time
 import re
 from html import unescape
 import os
 import time
+from zoneinfo import ZoneInfo
 
 from database import db
 from bot_instance import bot, is_spamming
@@ -36,6 +39,51 @@ def config_int(key, default):
         return int(float(str(db.get_config(key, str(default)) or default).strip()))
     except Exception:
         return default
+
+def bot_timezone():
+    timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+def parse_active_hours(raw):
+    windows = []
+    for item in str(raw or "").replace("\n", ",").split(","):
+        item = item.strip()
+        if not item or "-" not in item:
+            continue
+        start_raw, end_raw = [part.strip() for part in item.split("-", 1)]
+        try:
+            start = datetime_time.fromisoformat(start_raw)
+            end = datetime_time.fromisoformat(end_raw)
+        except ValueError:
+            continue
+        windows.append((start, end))
+    return windows
+
+def time_in_active_window(current_time, start, end):
+    if start == end:
+        return True
+    if start < end:
+        return start <= current_time < end
+    return current_time >= start or current_time < end
+
+def bot_schedule_active(now=None):
+    if not config_enabled("BOT_SCHEDULE_ENABLED", "OFF"):
+        return True
+    windows = parse_active_hours(db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00"))
+    if not windows:
+        return True
+    local_now = now or datetime.now(bot_timezone())
+    return any(time_in_active_window(local_now.time().replace(tzinfo=None), start, end) for start, end in windows)
+
+def bot_unavailable_reason(now=None):
+    if config_enabled("MAINTENANCE_MODE", "OFF"):
+        return "maintenance"
+    if not bot_schedule_active(now):
+        return "schedule"
+    return ""
 
 def bio_link_patterns():
     raw = db.get_config("SELLER_BIO_LINK_PATTERNS", "http://,https://,t.me/,telegram.me/,linktr.ee,beacons.ai")
@@ -123,10 +171,13 @@ async def safe_delete_private_message(message):
 async def check_protection(event):
     """Lớp khiên bảo vệ: Chống Spam click và Khóa Bot khi Bảo trì"""
     user_id = event.from_user.id
-    maintenance_status = str(db.get_config("MAINTENANCE_MODE", "OFF")).strip().upper()
-    
-    if maintenance_status in ["ON", "TRUE", "CÓ", "YES"] and not is_admin_user(user_id):
-        msg = t(user_id, "MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
+    unavailable_reason = bot_unavailable_reason()
+
+    if unavailable_reason and not is_admin_user(user_id):
+        if unavailable_reason == "schedule":
+            msg = t(user_id, "MSG_OUTSIDE_ACTIVE_HOURS", "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.").replace("\\n", "\n")
+        else:
+            msg = t(user_id, "MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
         alert_main = t(user_id, "ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
         if isinstance(event, Message): 
             await event.answer(msg, parse_mode="HTML")
@@ -155,6 +206,27 @@ async def check_protection(event):
         return False
         
     return True
+
+def is_private_interaction(event):
+    if isinstance(event, Message):
+        return getattr(event.chat, "type", None) == "private"
+    if isinstance(event, CallbackQuery):
+        message = getattr(event, "message", None)
+        return getattr(getattr(message, "chat", None), "type", None) == "private"
+    return False
+
+class BotAvailabilityMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        user = getattr(event, "from_user", None)
+        if user and is_private_interaction(event) and bot_unavailable_reason() and not is_admin_user(user.id):
+            await check_protection(event)
+            return None
+        return await handler(event, data)
+
+def setup_bot_availability(dp):
+    middleware = BotAvailabilityMiddleware()
+    dp.message.outer_middleware(middleware)
+    dp.callback_query.outer_middleware(middleware)
 
 def format_currency(amount):
     """Định dạng tiền hiển thị. Số tiền gửi PayOS vẫn luôn là VND integer ở payment flow."""

@@ -138,10 +138,34 @@ const BOT_FIELDS: ConfigField[] = [
     ],
   },
   {
+    key: "BOT_SCHEDULE_ENABLED",
+    label: "Bật lịch hoạt động tự động",
+    placeholder: "OFF",
+    help: "Bật ON để bot chỉ phục vụ khách trong các khung giờ đã đặt. Admin và tác vụ nền vẫn hoạt động ngoài giờ.",
+    kind: "select",
+    options: [
+      { label: "Tắt", value: "OFF" },
+      { label: "Bật", value: "ON" },
+    ],
+  },
+  {
+    key: "BOT_ACTIVE_HOURS",
+    label: "Khung giờ bot hoạt động",
+    placeholder: "08:00-23:00",
+    help: "Giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy, ví dụ 08:00-12:00,13:30-23:00. Khung qua đêm dùng 20:00-02:00.",
+  },
+  {
     key: "MSG_MAINTENANCE",
     label: "Thông báo bảo trì",
     placeholder: "Hệ thống đang bảo trì, vui lòng quay lại sau.",
     help: "Tin nhắn gửi cho khách khi bot đang bảo trì.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_OUTSIDE_ACTIVE_HOURS",
+    label: "Thông báo ngoài giờ hoạt động",
+    placeholder: "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\\n\\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.",
+    help: "Tin nhắn gửi cho khách khi lịch tự động chuyển bot sang chế độ bảo trì.",
     kind: "textarea",
   },
   {
@@ -3065,7 +3089,7 @@ export default function Home() {
                 <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
               </div>
             </section>
-            {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}

@@ -377,6 +377,12 @@ async def startup():
         supabase_store.connect()
     await set_commands()
     try:
+        from helpers import setup_bot_availability
+
+        setup_bot_availability(dp)
+    except Exception as exc:
+        print(f"⚠️ Không thể bật lịch hoạt động bot: {exc}")
+    try:
         from analytics import setup_analytics
 
         setup_analytics(dp)

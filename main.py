@@ -79,6 +79,8 @@ async def main():
     await set_commands()
     
     # 3. Nạp các module giao diện (Routers)
+    from helpers import setup_bot_availability
+    setup_bot_availability(dp)
     setup_analytics(dp)
     load_all_modules()
     
