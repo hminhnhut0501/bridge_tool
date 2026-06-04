@@ -80,9 +80,11 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "renewals" | "supportGroup" | "content" | "coupons" | "security" | "sales" | "system";
-type ContentSubTab = "bot" | "payment" | "plans" | "currency" | "buttons" | "commands" | "alerts" | "messages" | "saleContent" | "admin" | "menu";
-type AdminLocale = "vi" | "en";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
+type ContentSubTab = "bot" | "payment" | "currency" | "admin";
+type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
+type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
+type MenuLanguage = "vi" | "en";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
@@ -96,7 +98,7 @@ type Notice = {
   text: string;
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "renewals", "supportGroup", "content", "coupons", "security", "sales", "system"];
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 15;
 
@@ -924,6 +926,8 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
 const PLAN_FIELDS: ConfigField[] = [
   { key: "PLAN_FULL_1M", label: "Tên gói SVIP 30 ngày", placeholder: "SVIP+ 30 Ngày", help: "Tên gói hiển thị khi khách mua SVIP 30 ngày." },
   { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
+  { key: "PLAN_G_1M", label: "Tiền tố gói group lẻ 30 ngày", placeholder: "VIP 30 Ngày", help: "Ghép với tên group, ví dụ: VIP 30 Ngày - Hang Cú Prime." },
+  { key: "PLAN_G_LIFE", label: "Tiền tố gói group lẻ trọn đời", placeholder: "VIP Trọn Đời", help: "Ghép với tên group, ví dụ: VIP Trọn Đời - Hang Cú Prime." },
   { key: "PRICE_SVIP_30D", label: "Giá SVIP 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_SVIP_30D_USD", label: "Giá USD SVIP 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
@@ -931,6 +935,26 @@ const PLAN_FIELDS: ConfigField[] = [
   { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
   { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
 ];
+
+function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
+  return fields.map((field) => ({
+    ...field,
+    key: `${field.key}_${language}`,
+    label: `${field.label} - tiếng Anh`,
+    help: `Dữ liệu riêng cho Bot tiếng Anh. ${field.help}`,
+  }));
+}
+
+const PLAN_VI_FIELDS = PLAN_FIELDS.filter((field) => !field.key.endsWith("_USD"));
+const PLAN_EN_FIELDS: ConfigField[] = [
+  ...localizedFields(PLAN_FIELDS.filter((field) => !field.key.startsWith("PRICE_")), "EN"),
+  ...PLAN_FIELDS.filter((field) => field.key.endsWith("_USD")),
+];
+const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
+const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
+const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
+const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN");
+const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");
 
 const PRICE_KEY_OPTIONS = [
   "PRICE_SVIP_30D",
@@ -1360,9 +1384,12 @@ function groupConfigKeys(groupNo: string) {
 export default function Home() {
   const [secret, setSecret] = useState("");
   const [savedSecret, setSavedSecret] = useState("");
-  const [adminLocale, setAdminLocale] = useState<AdminLocale>("vi");
   const [tab, setTab] = useState<Tab>("overview");
   const [contentTab, setContentTab] = useState<ContentSubTab>("bot");
+  const [botViTab, setBotViTab] = useState<BotUiSubTab>("plans");
+  const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
+  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("commandsVi");
+  const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [config, setConfig] = useState<ConfigRow[]>([]);
@@ -1431,8 +1458,6 @@ export default function Home() {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
     setSavedSecret(stored);
     setSecret(stored);
-    setAdminLocale(window.localStorage.getItem("prive_admin_locale") === "en" ? "en" : "vi");
-
     const queryTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     const storedTab = window.localStorage.getItem(TAB_STORAGE_KEY) as Tab | null;
     const nextTab = queryTab && TAB_VALUES.includes(queryTab) ? queryTab : storedTab && TAB_VALUES.includes(storedTab) ? storedTab : null;
@@ -1441,20 +1466,17 @@ export default function Home() {
 
   useEffect(() => {
     const nextValues: Record<string, string> = {};
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...MESSAGE_FIELDS, ...BUTTON_FIELDS, ...ALERT_FIELDS, ...SALE_CONTENT_FIELDS, ...PLAN_FIELDS].forEach((field) => {
-      nextValues[field.key] = getConfigValue(config, field.key);
+    config.forEach((item) => {
+      nextValues[item.key] = item.value;
+    });
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+      if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     setFieldValues(nextValues);
   }, [config]);
 
-  function switchAdminLocale() {
-    const next = adminLocale === "vi" ? "en" : "vi";
-    setAdminLocale(next);
-    window.localStorage.setItem("prive_admin_locale", next);
-  }
-
-  function ui(vi: string, en: string) {
-    return adminLocale === "en" ? en : vi;
+  function ui(vi: string, _en: string) {
+    return vi;
   }
 
   useEffect(() => {
@@ -1670,8 +1692,21 @@ export default function Home() {
   }
 
   async function saveMenuPage() {
+    const pageId = menuForm.page_id.trim();
+    if (!pageId) {
+      showNotice("error", "Vui lòng nhập tên trang menu.");
+      return;
+    }
+    if (menuLanguage === "en" && !pageId.endsWith("_en")) {
+      showNotice("error", "Trang tiếng Anh bắt buộc có hậu tố _en, ví dụ main_menu_en.");
+      return;
+    }
+    if (menuLanguage === "vi" && pageId.endsWith("_en")) {
+      showNotice("error", "Trang tiếng Việt không được dùng hậu tố _en.");
+      return;
+    }
     await runAction("menu", async () => {
-      await updateMenuPage(savedSecret, menuForm.page_id, menuForm);
+      await updateMenuPage(savedSecret, pageId, { ...menuForm, page_id: pageId });
       await loadAll();
     });
   }
@@ -2024,6 +2059,22 @@ export default function Home() {
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
   ], [configuredGroups]);
+  const groupViContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
+    { key: `BTN_G${item}`, label: `G${item} - Tên nhóm tiếng Việt`, placeholder: `Tên nhóm G${item}`, help: "Tên nhóm hiển thị trên Bot tiếng Việt." },
+    { key: `DESC_G${item}`, label: `G${item} - Mô tả tiếng Việt`, placeholder: "Mô tả nội dung nhóm", help: "Nội dung trang chi tiết nhóm tiếng Việt.", kind: "textarea" as const },
+    { key: `PRICE_G${item}_1M`, label: `G${item} - Giá VNĐ 30 ngày`, placeholder: "99000", help: "Giá PayOS/VietQR bằng VNĐ." },
+    { key: `PRICE_G${item}_LIFE`, label: `G${item} - Giá VNĐ trọn đời`, placeholder: "299000", help: "Giá PayOS/VietQR bằng VNĐ." },
+  ]), [configuredGroups]);
+  const groupEnContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
+    { key: `BTN_G${item}_EN`, label: `G${item} - Tên nhóm tiếng Anh`, placeholder: `Group G${item}`, help: "Tên nhóm hiển thị trên Bot tiếng Anh." },
+    { key: `DESC_G${item}_EN`, label: `G${item} - Mô tả tiếng Anh`, placeholder: "English group description", help: "Nội dung trang chi tiết nhóm tiếng Anh.", kind: "textarea" as const },
+    { key: `PRICE_G${item}_1M_USD`, label: `G${item} - Giá USD 30 ngày`, placeholder: "4.99", help: "Giá PayPal riêng, không quy đổi từ VNĐ." },
+    { key: `PRICE_G${item}_LIFE_USD`, label: `G${item} - Giá USD trọn đời`, placeholder: "14.99", help: "Giá PayPal riêng, không quy đổi từ VNĐ." },
+  ]), [configuredGroups]);
+  const visibleMenuPages = useMemo(
+    () => menuPages.filter((item) => menuLanguage === "en" ? item.page_id.endsWith("_en") : !item.page_id.endsWith("_en")),
+    [menuPages, menuLanguage],
+  );
   const missingCore = useMemo(() => {
     const items = [];
     if (!webhook?.url) items.push("Webhook Telegram chưa hoạt động");
@@ -2520,7 +2571,11 @@ export default function Home() {
           <button className={tab === "campaigns" ? "active" : ""} onClick={() => selectTab("campaigns")}><Megaphone size={18} /> Campaign</button>
           <button className={tab === "renewals" ? "active" : ""} onClick={() => selectTab("renewals")}><RefreshCw size={18} /> {ui("Gia hạn", "Renewals")}</button>
           <button className={tab === "supportGroup" ? "active" : ""} onClick={() => selectTab("supportGroup")}><ShieldCheck size={18} /> {ui("Group hỗ trợ", "Support group")}</button>
-          <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><FileText size={18} /> {ui("Nội dung bot", "Bot content")}</button>
+          <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><Settings size={18} /> Cấu hình bot</button>
+          <button className={tab === "botVi" ? "active" : ""} onClick={() => selectTab("botVi")}><FileText size={18} /> UI Bot tiếng Việt</button>
+          <button className={tab === "botEn" ? "active" : ""} onClick={() => selectTab("botEn")}><FileText size={18} /> UI Bot tiếng Anh</button>
+          <button className={tab === "botTools" ? "active" : ""} onClick={() => selectTab("botTools")}><ClipboardList size={18} /> Lệnh & cảnh báo</button>
+          <button className={tab === "menuBuilder" ? "active" : ""} onClick={() => selectTab("menuBuilder")}><FileText size={18} /> Menu Builder</button>
           <button className={tab === "coupons" ? "active" : ""} onClick={() => selectTab("coupons")}><Ticket size={18} /> Coupon</button>
           <button className={tab === "security" ? "active" : ""} onClick={() => selectTab("security")}><ShieldCheck size={18} /> {ui("Bảo mật", "Security")}</button>
           <button className={tab === "sales" ? "active" : ""} onClick={() => selectTab("sales")}><BadgePercent size={18} /> Sale</button>
@@ -2535,7 +2590,6 @@ export default function Home() {
             <div className="muted">{ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}</div>
           </div>
           <div className="actions">
-            <button className="btn secondary" onClick={switchAdminLocale}>{adminLocale === "vi" ? "EN" : "VI"}</button>
             <button className="btn secondary" onClick={() => loadAll()} disabled={loading}>
               {loading ? <Loader2 size={17} className="spin" /> : <RefreshCw size={17} />} {ui("Tải lại", "Reload")}
             </button>
@@ -2988,65 +3042,120 @@ export default function Home() {
         {tab === "content" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Nội dung Bot" subtitle="Tách từng nhóm cấu hình để dễ sửa. Bấm từng tab con bên dưới." />
+              <PanelHead title="Cấu hình vận hành Bot" subtitle="Chỉ chứa thiết lập hệ thống. Nội dung khách nhìn thấy, lệnh, cảnh báo và Menu Builder đã được tách thành menu riêng." />
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
                 <button className={contentTab === "payment" ? "active" : ""} onClick={() => setContentTab("payment")}>Thanh toán PayOS / PayPal</button>
-                <button className={contentTab === "plans" ? "active" : ""} onClick={() => setContentTab("plans")}>Gói & giá</button>
                 <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
-                <button className={contentTab === "buttons" ? "active" : ""} onClick={() => setContentTab("buttons")}>Nút bấm</button>
-                <button className={contentTab === "commands" ? "active" : ""} onClick={() => setContentTab("commands")}>Lệnh bot</button>
-                <button className={contentTab === "alerts" ? "active" : ""} onClick={() => setContentTab("alerts")}>Cảnh báo</button>
-                <button className={contentTab === "messages" ? "active" : ""} onClick={() => setContentTab("messages")}>Tin nhắn</button>
-                <button className={contentTab === "saleContent" ? "active" : ""} onClick={() => setContentTab("saleContent")}>Flash sale</button>
                 <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
-                <button className={contentTab === "menu" ? "active" : ""} onClick={() => setContentTab("menu")}>Menu Builder</button>
               </div>
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì, nhắc hạn, QR 5 phút và tần suất check thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BOT_FIELDS)} /> : null}
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PAYMENT_FIELDS)} /> : null}
-            {contentTab === "plans" ? <ConfigEditor title="Tên gói và giá SVIP" subtitle="Các gói chung không thuộc nhóm riêng. Nhóm riêng nằm ở Setup nhóm." fields={PLAN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_FIELDS)} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(CURRENCY_FIELDS)} /> : null}
-            {contentTab === "buttons" ? <ConfigEditor title="Nút bấm trong bot" subtitle="Text các nút Telegram mặc định: thanh toán, quay lại, gia hạn, mua gói." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
-            {contentTab === "commands" ? <ConfigEditor title="Lệnh Telegram" subtitle="Mô tả các lệnh hiển thị trong menu command của Telegram." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_FIELDS)} /> : null}
-            {contentTab === "alerts" ? <ConfigEditor title="Cảnh báo nhanh" subtitle="Các alert ngắn khi khách bấm nút, spam, hủy đơn, check QR." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
-            {contentTab === "messages" ? <ConfigEditor title="Tin nhắn tự động" subtitle="Các mẫu tin bot gửi cho khách. Placeholder được ghi rõ dưới từng ô." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}
-            {contentTab === "saleContent" ? <ConfigEditor title="Nội dung flash sale" subtitle="Bật/tắt thông báo sale, chỉnh banner, mẫu tin và nút dưới thông báo sale." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_FIELDS)} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ADMIN_FIELDS)} /> : null}
-            {contentTab === "menu" ? (
+          </div>
+        ) : null}
+
+        {tab === "botVi" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="UI Bot tiếng Việt" subtitle="Toàn bộ nội dung khách Việt nhìn thấy. Giá sử dụng VNĐ và PayOS/VietQR." />
+              <div className="subtabs">
+                <button className={botViTab === "plans" ? "active" : ""} onClick={() => setBotViTab("plans")}>Gói & giá VNĐ</button>
+                <button className={botViTab === "groups" ? "active" : ""} onClick={() => setBotViTab("groups")}>Group lẻ</button>
+                <button className={botViTab === "buttons" ? "active" : ""} onClick={() => setBotViTab("buttons")}>Nút bấm</button>
+                <button className={botViTab === "messages" ? "active" : ""} onClick={() => setBotViTab("messages")}>Tin nhắn</button>
+                <button className={botViTab === "saleContent" ? "active" : ""} onClick={() => setBotViTab("saleContent")}>Flash sale</button>
+              </div>
+            </section>
+            {botViTab === "plans" ? <ConfigEditor title="Tên gói và giá tiếng Việt" subtitle="Tên gói tiếng Việt và giá VNĐ dùng cho VietQR." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_VI_FIELDS)} /> : null}
+            {botViTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Việt" subtitle="Tên, mô tả và giá VNĐ của từng group đang bán." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(groupViContentFields)} /> : null}
+            {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_FIELDS)} /> : null}
+            {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_FIELDS)} /> : null}
+            {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_FIELDS)} /> : null}
+          </div>
+        ) : null}
+
+        {tab === "botEn" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="UI Bot tiếng Anh" subtitle="Dữ liệu riêng cho khách quốc tế. Giá PayPal sử dụng USD riêng, không quy đổi từ VNĐ." />
+              <div className="subtabs">
+                <button className={botEnTab === "plans" ? "active" : ""} onClick={() => setBotEnTab("plans")}>Gói & giá USD</button>
+                <button className={botEnTab === "groups" ? "active" : ""} onClick={() => setBotEnTab("groups")}>Nội dung group</button>
+                <button className={botEnTab === "buttons" ? "active" : ""} onClick={() => setBotEnTab("buttons")}>Nút bấm</button>
+                <button className={botEnTab === "messages" ? "active" : ""} onClick={() => setBotEnTab("messages")}>Tin nhắn</button>
+                <button className={botEnTab === "saleContent" ? "active" : ""} onClick={() => setBotEnTab("saleContent")}>Flash sale</button>
+              </div>
+            </section>
+            {botEnTab === "plans" ? <ConfigEditor title="Tên gói tiếng Anh và giá USD" subtitle="Đọc/ghi key _EN và PRICE_*_USD dùng cho PayPal." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(PLAN_EN_FIELDS)} /> : null}
+            {botEnTab === "groups" ? <ConfigEditor title="Nội dung group lẻ tiếng Anh" subtitle="Tên, mô tả tiếng Anh và giá USD của từng group." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(groupEnContentFields)} /> : null}
+            {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(BUTTON_EN_FIELDS)} /> : null}
+            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh." fields={MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(MESSAGE_EN_FIELDS)} /> : null}
+            {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(SALE_CONTENT_EN_FIELDS)} /> : null}
+          </div>
+        ) : null}
+
+        {tab === "botTools" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="Lệnh & cảnh báo Bot" subtitle="Tách riêng khỏi nội dung UI để dễ kiểm soát các lệnh Telegram và alert ngắn." />
+              <div className="subtabs">
+                <button className={botToolsTab === "commandsVi" ? "active" : ""} onClick={() => setBotToolsTab("commandsVi")}>Lệnh tiếng Việt</button>
+                <button className={botToolsTab === "commandsEn" ? "active" : ""} onClick={() => setBotToolsTab("commandsEn")}>Lệnh tiếng Anh</button>
+                <button className={botToolsTab === "alertsVi" ? "active" : ""} onClick={() => setBotToolsTab("alertsVi")}>Cảnh báo tiếng Việt</button>
+                <button className={botToolsTab === "alertsEn" ? "active" : ""} onClick={() => setBotToolsTab("alertsEn")}>Cảnh báo tiếng Anh</button>
+              </div>
+            </section>
+            {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_FIELDS)} /> : null}
+            {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(COMMAND_EN_FIELDS)} /> : null}
+            {botToolsTab === "alertsVi" ? <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_FIELDS)} /> : null}
+            {botToolsTab === "alertsEn" ? <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={() => saveFields(ALERT_EN_FIELDS)} /> : null}
+          </div>
+        ) : null}
+
+        {tab === "menuBuilder" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="Menu Builder" subtitle="Trang tiếng Việt và tiếng Anh được tách riêng. Trang tiếng Anh dùng hậu tố _en." />
+              <div className="subtabs">
+                <button className={menuLanguage === "vi" ? "active" : ""} onClick={() => { setMenuLanguage("vi"); resetMenuForm(); }}>Trang tiếng Việt</button>
+                <button className={menuLanguage === "en" ? "active" : ""} onClick={() => { setMenuLanguage("en"); resetMenuForm(); }}>Trang tiếng Anh</button>
+              </div>
+            </section>
               <section className="panel">
                 <PanelHead
-                  title="Menu Builder"
-                  subtitle="Soạn nội dung trang bot và layout nút bấm."
+                  title={menuLanguage === "en" ? "Menu Builder tiếng Anh" : "Menu Builder tiếng Việt"}
+                  subtitle={menuLanguage === "en" ? "Tên trang bắt buộc kết thúc bằng _en, ví dụ main_menu_en." : "Trang gốc tiếng Việt không dùng hậu tố _en."}
                   action={
                     <div className="panel-actions">
-                      <button className="btn secondary" onClick={resetMenuForm}><Plus size={16} /> Thêm trang</button>
+                      <button className="btn secondary" onClick={() => resetMenuForm()}><Plus size={16} /> Thêm trang</button>
                       <button className="btn danger" onClick={() => removeMenuPage()} disabled={!menuForm.page_id}><Trash2 size={16} /> Xoá trang</button>
                       <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu menu</button>
                     </div>
                   }
                 />
                 <div className="form-grid two">
-                  <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder="VD: main_menu, support_page" /><small>Dùng đúng page_id bạn muốn bot hiển thị.</small></label>
+                  <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} /><small>{menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không dùng hậu tố _en."}</small></label>
                   <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
                   <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
                   <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</small></label>
                 </div>
                 <SimpleTable
                   headers={["Trang", "Nội dung", "Nút"]}
-                  rows={menuPages.map((item) => [item.page_id, item.body, item.layout])}
+                  rows={visibleMenuPages.map((item) => [item.page_id, item.body, item.layout])}
                   onRow={(idx) => {
-                    const item = menuPages[idx];
+                    const item = visibleMenuPages[idx];
                     setMenuForm({ page_id: item.page_id, image_url: item.image_url || "", body: item.body || "", layout: item.layout || "" });
                   }}
                   actions={(idx) => (
-                    <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeMenuPage(menuPages[idx].page_id); }} title="Xoá trang">
+                    <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeMenuPage(visibleMenuPages[idx].page_id); }} title="Xoá trang">
                       <Trash2 size={16} />
                     </button>
                   )}
                 />
               </section>
-            ) : null}
           </div>
         ) : null}
 
