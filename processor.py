@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config_utils import group_numbers
 from database import db
 from bot_instance import bot 
+from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
 from payment import payos_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, unmute_member
@@ -193,7 +194,8 @@ async def process_successful_payment(order_code: str):
             return
 
         # Tính toán hạn dùng. Nếu gia hạn sớm cùng gói, cộng tiếp từ hạn cũ.
-        is_lifetime = is_lifetime_plan(plan_name)
+        plan_token = str((order or {}).get("plan_token", "")).strip() if supabase_store.enabled else ""
+        is_lifetime = is_lifetime_order(plan_name, plan_token) or is_lifetime_plan(plan_name)
         days_to_add = 3650 if is_lifetime else 30
         if supabase_store.enabled:
             base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or now_local()
@@ -202,17 +204,7 @@ async def process_successful_payment(order_code: str):
         expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
-        groups_to_invite = []
-        if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-            for g in group_numbers():
-                gid = normalize_chat_id(db.get_config(f"ID_G{g}"))
-                if gid: groups_to_invite.append((gid, db.get_config(f"BTN_G{g}", f"Nhóm {g}")))
-        else:
-            for g in group_numbers():
-                btn_name = db.get_config(f"BTN_G{g}", f"Nhóm {g}")
-                if btn_name.upper() in plan_name.upper() or f"G{g}" in plan_name:
-                    gid = normalize_chat_id(db.get_config(f"ID_G{g}"))
-                    if gid: groups_to_invite.append((gid, btn_name))
+        groups_to_invite = [(normalize_chat_id(gid), gname) for gid, gname in resolve_plan_groups(plan_name, plan_token) if normalize_chat_id(gid)]
 
         # Tạo link mời (Giới hạn 1 người vào)
         links_msg = ""
@@ -277,7 +269,7 @@ async def process_successful_payment(order_code: str):
 
         # Gửi tin nhắn thành công
         msg_template = t(user_id, "MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
-        final_msg = msg_template.replace("{plan}", escape_html(plan_name)).replace("{date}", expire_date).replace("{links}", links_msg)
+        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name))).replace("{date}", expire_date).replace("{links}", links_msg)
         
         # Tạo nút điều hướng về UI chính bằng cơ chế mới
         kb = InlineKeyboardBuilder()

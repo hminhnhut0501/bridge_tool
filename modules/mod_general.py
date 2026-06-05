@@ -8,6 +8,7 @@ from aiogram.filters import CommandStart, Command
 
 from database import db
 from bot_instance import bot
+from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
 from i18n import set_user_language, t
@@ -248,7 +249,7 @@ async def cmd_me(event):
     else:
         for p in my_plans: 
             expire_text = format_membership_expire(p[7], event.from_user.id)
-            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", str(p[3])).replace("{date}", expire_text)
+            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", display_plan_name(str(p[3]))).replace("{date}", expire_text)
             
     kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     

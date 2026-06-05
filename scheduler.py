@@ -9,6 +9,7 @@ from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from config_utils import config_int, group_numbers
+from hidden_group_utils import is_lifetime_order, resolve_plan_groups
 from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
@@ -129,12 +130,10 @@ def group_matches_plan(group_no, plan_name):
 
 def plan_group_ids(plan_name):
     groups = []
-    for group_no in group_numbers():
-        if not group_matches_plan(group_no, plan_name):
-            continue
-        gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
-        if gid and not is_support_group(gid):
-            groups.append(gid)
+    for gid, _group_name in resolve_plan_groups(plan_name):
+        normalized = normalize_chat_id(gid)
+        if normalized and not is_support_group(normalized):
+            groups.append(normalized)
     return groups
 
 def user_active_group_ids(user_id, current_order_id, users_data, now):
@@ -150,7 +149,7 @@ def user_active_group_ids(user_id, current_order_id, users_data, now):
         other_groups = set(plan_group_ids(other_plan))
         if not other_groups:
             continue
-        if is_lifetime_plan(other_plan):
+        if is_lifetime_order(other_plan) or is_lifetime_plan(other_plan):
             active_groups.update(other_groups)
             continue
         expire_raw = row_value(row, 7)
@@ -176,7 +175,7 @@ def user_has_active_membership(user_id, current_order_id, users_data, now):
         if row_value(row, 5).upper() != "PAID":
             continue
         other_plan = row_value(row, 3)
-        if is_lifetime_plan(other_plan):
+        if is_lifetime_order(other_plan) or is_lifetime_plan(other_plan):
             return True
         expire_raw = row_value(row, 7)
         expire_date = parse_expire_datetime(expire_raw)

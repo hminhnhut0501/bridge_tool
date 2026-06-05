@@ -9,6 +9,16 @@ from database import db
 from payment import payment_manager, payos_manager
 from processor import expire_pending_payment, parse_int_config, process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
+from hidden_group_utils import (
+    build_hidden_plan_name,
+    display_plan_name,
+    extract_plan_token,
+    get_hidden_group,
+    hidden_code_available_groups,
+    hidden_duration_days,
+    hidden_duration_price,
+    validate_hidden_code_for_user,
+)
 from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
@@ -62,6 +72,43 @@ def sale_text_for_price(price_key, default=0, currency="VND"):
     banner = sale_banner(localized_price_key(price_key, currency), default)
     return f"\n\n{banner}" if banner else ""
 
+
+def hidden_offer_for_action(action, user_id=None, provider=""):
+    try:
+        _, code, hidden_group_id, duration_key = action.split("|", 3)
+    except ValueError:
+        return {}
+    hidden_code, reason = validate_hidden_code_for_user(code, user_id)
+    if not hidden_code:
+        return {"error": reason or "Mã hidden không hợp lệ."}
+    hidden_group = get_hidden_group(hidden_group_id)
+    if not hidden_group or not hidden_group.get("is_active"):
+        return {"error": "Hidden group không tồn tại hoặc đang tắt."}
+    if hidden_group_id not in {item.get("id") for item in hidden_code_available_groups(hidden_code)}:
+        return {"error": "Hidden group không thuộc phạm vi mã này."}
+    currency = currency_for_provider(provider) if provider else default_currency_for_user(user_id)
+    amount = hidden_duration_price(hidden_group, duration_key, currency)
+    if amount <= 0:
+        return {"error": "Hidden group chưa cấu hình giá cho phương thức này."}
+    plan_name = build_hidden_plan_name(hidden_group, duration_key)
+    return {
+        "plan_name": plan_name,
+        "display_name": display_plan_name(plan_name),
+        "plan_token": extract_plan_token(plan_name),
+        "price_key": "",
+        "amount": amount,
+        "sale_info": None,
+        "original_amount": amount,
+        "currency": currency,
+        "source_ref": str(code or "").strip().upper(),
+        "metadata": {
+            "hidden_code": str(code or "").strip().upper(),
+            "hidden_group_id": hidden_group_id,
+            "duration_key": duration_key.upper(),
+            "duration_days": hidden_duration_days(hidden_group, duration_key),
+        },
+    }
+
 def create_pending_order(
     order_id,
     user_id,
@@ -77,6 +124,11 @@ def create_pending_order(
     payment_provider_order_id="",
     payment_approval_url="",
     payment_currency="VND",
+    plan_token="",
+    plan_category="",
+    source_type="",
+    source_ref="",
+    metadata=None,
 ):
     if supabase_store.enabled:
         return supabase_store.create_order(
@@ -94,6 +146,11 @@ def create_pending_order(
             payment_provider_order_id=payment_provider_order_id,
             payment_approval_url=payment_approval_url,
             payment_currency=payment_currency,
+            plan_token=plan_token,
+            plan_category=plan_category,
+            source_type=source_type,
+            source_ref=source_ref,
+            metadata=metadata,
         )
 
     db.users_sheet.append_row([
@@ -188,6 +245,7 @@ def sale_caption(sale_info, original_amount, amount, currency="VND"):
 
 
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
+    pretty_plan_name = display_plan_name(plan_name)
     provider = str(pay_data.get("provider") or "PAYOS").upper()
     if provider == "PAYPAL":
         approval_url = str(pay_data.get("approval_url") or "").strip()
@@ -197,7 +255,7 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
         ).replace("\\n", "\n")
         caption = (
-            caption.replace("{plan}", str(plan_name))
+            caption.replace("{plan}", str(pretty_plan_name))
             .replace("{amount}", format_money(amount, "USD"))
             .replace("{paypal_amount}", str(pay_data.get("paypal_amount") or ""))
             .replace("{desc}", description)
@@ -225,7 +283,7 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
     
     caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
-    caption = caption.replace("{plan}", str(plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
+    caption = caption.replace("{plan}", str(pretty_plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
     caption += extra_caption
     
     kb = InlineKeyboardBuilder()
@@ -506,6 +564,77 @@ async def process_buy_request(callback: CallbackQuery):
             
         asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
     else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+
+
+@router.callback_query(F.data.startswith("hgbuy|") | F.data.startswith("payhgbuy|"))
+async def process_hidden_buy_request(callback: CallbackQuery):
+    if not await check_protection(callback):
+        return
+
+    provider = ""
+    action = callback.data
+    if callback.data.startswith("payhgbuy|"):
+        try:
+            _, provider, action = callback.data.split("|", 2)
+        except ValueError:
+            await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
+            return
+    else:
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy")
+        if keyboard:
+            await callback.message.answer(
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                reply_markup=keyboard,
+            )
+            return
+        if provider == "__NONE__":
+            await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
+            return
+
+    user_id = callback.from_user.id
+    current_time = time.time()
+    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+        return
+    user_cooldowns[user_id] = current_time
+
+    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
+
+    offer = hidden_offer_for_action(action, callback.from_user.id, provider)
+    if offer.get("error"):
+        await callback.answer(str(offer["error"]), show_alert=True)
+        return
+
+    plan_name = offer["plan_name"]
+    amount = offer["amount"]
+    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+    order_id = int(time.time())
+    description = f"PRIVE{order_id}"[-20:]
+
+    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
+    if not pay_data:
+        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+        return
+
+    create_pending_order(
+        order_id=order_id,
+        user_id=callback.from_user.id,
+        full_name=callback.from_user.full_name,
+        plan_name=plan_name,
+        amount=amount,
+        original_amount=offer["original_amount"],
+        plan_token=offer.get("plan_token", ""),
+        plan_category="HIDDEN",
+        source_type="HIDDEN_CODE",
+        source_ref=offer.get("source_ref", ""),
+        metadata=offer.get("metadata"),
+        **payment_meta(pay_data),
+    )
+
+    await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data)
+    await safe_delete_private_message(msg_wait)
+    await safe_delete_private_message(callback.message)
+    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
 
 
 @router.callback_query(F.data.startswith("couponbuy|") | F.data.startswith("paycoupon|"))
