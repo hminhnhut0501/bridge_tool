@@ -151,9 +151,16 @@ type Notice = {
   text: string;
 };
 
+type LoadScope = Tab | "all";
+type LoadOptions = {
+  silent?: boolean;
+  resetPages?: boolean;
+  scope?: LoadScope;
+};
+
 const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
-const AUTO_REFRESH_SECONDS = 15;
+const AUTO_REFRESH_SECONDS = 60;
 
 type ConfigField = {
   key: string;
@@ -1775,17 +1782,17 @@ export default function Home() {
 
   useEffect(() => {
     if (savedSecret) {
-      loadAll(savedSecret);
+      loadAll(savedSecret, { scope: tab });
     }
-  }, [savedSecret]);
+  }, [savedSecret, tab]);
 
   useEffect(() => {
     if (!savedSecret) return;
     const interval = window.setInterval(() => {
-      loadAll(savedSecret, { silent: true, resetPages: false });
+      loadAll(savedSecret, { silent: true, resetPages: false, scope: tab });
     }, AUTO_REFRESH_SECONDS * 1000);
     return () => window.clearInterval(interval);
-  }, [savedSecret]);
+  }, [savedSecret, tab]);
 
   useEffect(() => {
     if (!savedSecret || tab !== "campaigns") return;
@@ -1956,49 +1963,56 @@ export default function Home() {
     });
   }
 
-  async function loadAll(activeSecret = savedSecret, options: { silent?: boolean; resetPages?: boolean } = {}) {
+  async function loadAll(activeSecret = savedSecret, options: LoadOptions = {}) {
     if (!activeSecret) return;
     const silent = Boolean(options.silent);
     const resetPages = options.resetPages ?? !silent;
+    const scope = options.scope || tab;
+    const isAll = scope === "all";
+    const shouldLoad = (...tabs: Tab[]) => isAll || tabs.includes(scope as Tab);
     if (!silent) {
       setLoading(true);
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, hiddenGroupsRes, hiddenCodesRes, hiddenRedemptionsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
-        getOrders(activeSecret),
-        getUsers(activeSecret),
-        getConfig(activeSecret),
-        getMenuPages(activeSecret),
-        getSaleRules(activeSecret),
-        getCoupons(activeSecret),
-        getHiddenGroups(activeSecret),
-        getHiddenCodes(activeSecret),
-        getHiddenRedemptions(activeSecret, 200),
-        getBlacklist(activeSecret),
-        getSupportEvents(activeSecret),
-        getKickAudit(activeSecret),
-        getActivityEvents(activeSecret),
-        getCampaigns(activeSecret),
-        getChannelPosts(activeSecret),
-        getWebhookInfo(activeSecret),
-      ]);
-      setOrders(ordersRes.data);
-      setUsers(usersRes.data);
-      setConfig(configRes.data);
-      setMenuPages(menuRes.data);
-      setSaleRules(salesRes.data);
-      setCoupons(couponsRes.data);
-      setHiddenGroups(hiddenGroupsRes.data);
-      setHiddenCodes(hiddenCodesRes.data);
-      setHiddenRedemptions(hiddenRedemptionsRes.data);
-      setBlacklist(blacklistRes.data);
-      setSupportEvents(supportEventsRes.data);
-      setKickAudit(kickAuditRes.data);
-      setActivityEvents(activityEventsRes.data);
-      setCampaigns(campaignsRes.data);
-      setChannelPosts(channelPostsRes.data);
-      setWebhook(webhookRes.data);
+      const tasks: Promise<void>[] = [];
+      const addTask = <T,>(enabled: boolean, promiseFactory: () => Promise<{ data: T }>, setter: (data: T) => void) => {
+        if (enabled) tasks.push(promiseFactory().then((res) => setter(res.data)));
+      };
+
+      const needsOrders = shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
+      const needsUsers = shouldLoad("overview", "analytics");
+      const needsConfig = true;
+      const needsMenu = shouldLoad("overview", "content", "botVi", "botEn", "menuBuilder");
+      const needsSales = shouldLoad("sales");
+      const needsCoupons = shouldLoad("overview", "coupons");
+      const needsHidden = shouldLoad("setup", "coupons");
+      const needsBlacklist = shouldLoad("security");
+      const needsSupportEvents = shouldLoad("activityLog", "renewals", "supportGroup");
+      const needsKickAudit = shouldLoad("renewals");
+      const needsActivityEvents = shouldLoad("activityLog", "analytics");
+      const needsCampaigns = shouldLoad("campaigns");
+      const needsChannelPosts = shouldLoad("channelPosts");
+      const needsWebhook = shouldLoad("overview", "system");
+
+      addTask(needsOrders, () => getOrders(activeSecret), setOrders);
+      addTask(needsUsers, () => getUsers(activeSecret), setUsers);
+      addTask(needsConfig, () => getConfig(activeSecret), setConfig);
+      addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
+      addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
+      addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
+      addTask(needsHidden, () => getHiddenGroups(activeSecret), setHiddenGroups);
+      addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
+      addTask(needsHidden, () => getHiddenRedemptions(activeSecret, 200), setHiddenRedemptions);
+      addTask(needsBlacklist, () => getBlacklist(activeSecret), setBlacklist);
+      addTask(needsSupportEvents, () => getSupportEvents(activeSecret), setSupportEvents);
+      addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
+      addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
+      addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
+      addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
+      addTask(needsWebhook, () => getWebhookInfo(activeSecret), setWebhook);
+
+      await Promise.all(tasks);
       if (resetPages) {
         setOrderPage(1);
         setCouponPage(1);
