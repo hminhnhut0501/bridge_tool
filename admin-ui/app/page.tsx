@@ -4,8 +4,10 @@ import {
   Activity,
   BadgePercent,
   BarChart3,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
+  Eye,
   FileText,
   Gift,
   Loader2,
@@ -16,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Send,
   Settings,
   ShieldCheck,
   ShoppingCart,
@@ -31,6 +34,8 @@ import {
   BroadcastCampaign,
   BroadcastRecipient,
   CampaignPreview,
+  ChannelPost,
+  ChannelPostEvent,
   ConfigRow,
   BlacklistEntry,
   Coupon,
@@ -44,6 +49,8 @@ import {
   WebhookInfo,
   checkSupportGroup,
   cancelCampaign,
+  channelPostAction,
+  createChannelPost,
   createCampaign,
   createCoupon,
   createCoupons,
@@ -58,6 +65,8 @@ import {
   getBlacklist,
   getCampaignRecipients,
   getCampaigns,
+  getChannelPostEvents,
+  getChannelPosts,
   getCoupons,
   getKickAudit,
   getMenuPages,
@@ -71,6 +80,7 @@ import {
   previewCampaign,
   resetWebhook,
   startCampaign,
+  updateChannelPost,
   updateConfigs,
   updateMenuPage,
   updateOrder,
@@ -80,7 +90,7 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -92,13 +102,14 @@ type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
+type ChannelPostTab = "draft" | "queue" | "scheduled" | "sent" | "failed" | "deleted";
 
 type Notice = {
   type: "ok" | "error";
   text: string;
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 15;
 
@@ -1043,6 +1054,20 @@ const EMPTY_CAMPAIGN_FORM = {
   parse_mode: "HTML",
 };
 
+const EMPTY_CHANNEL_POST_FORM = {
+  id: "",
+  status: "draft",
+  target_chat_id: "",
+  title: "",
+  content: "",
+  buttons_text: "",
+  parse_mode: "HTML",
+  disable_web_page_preview: false,
+  scheduled_at: "",
+  delete_at: "",
+  notes: "",
+};
+
 const DEFAULT_LIFETIME_DAYS = "36500";
 
 const ORDER_PAGE_SIZE = 25;
@@ -1052,6 +1077,7 @@ const RENEWAL_PAGE_SIZE = 25;
 const SUPPORT_PAGE_SIZE = 25;
 const COUPON_PAGE_SIZE = 20;
 const CAMPAIGN_RECIPIENT_PAGE_SIZE = 20;
+const CHANNEL_POST_PAGE_SIZE = 12;
 
 function randomHangcuCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1253,6 +1279,58 @@ function dateText(value: string | null | undefined) {
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function dateTimeInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function datetimeLocalToIso(value: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function channelPostTabFor(post: ChannelPost): ChannelPostTab {
+  const status = String(post.status || "draft").toLowerCase();
+  if (["queued", "pending", "sending"].includes(status)) return "queue";
+  if (status === "scheduled") return "scheduled";
+  if (["sent", "delete_scheduled", "deleting"].includes(status)) return "sent";
+  if (["failed", "delete_failed"].includes(status)) return "failed";
+  if (status === "deleted") return "deleted";
+  return "draft";
+}
+
+function channelPostStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: "Nháp",
+    queued: "Chờ gửi",
+    pending: "Chờ gửi",
+    sending: "Đang gửi",
+    scheduled: "Đã lên lịch",
+    sent: "Đã đăng",
+    delete_scheduled: "Chờ xóa",
+    deleting: "Đang xóa",
+    deleted: "Đã xóa",
+    failed: "Lỗi gửi",
+    delete_failed: "Lỗi xóa",
+  };
+  return labels[String(status || "").toLowerCase()] || status || "-";
+}
+
+function channelPostStatusClass(status: string) {
+  const normalized = String(status || "").toLowerCase();
+  if (["sent", "deleted"].includes(normalized)) return "status paid";
+  if (["failed", "delete_failed"].includes(normalized)) return "status expired";
+  return "status pending";
+}
+
 function datePlusDaysText(value: string | null | undefined, days: number) {
   if (!value) return "-";
   const date = new Date(value);
@@ -1437,6 +1515,8 @@ export default function Home() {
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [campaignRecipients, setCampaignRecipients] = useState<BroadcastRecipient[]>([]);
   const [campaignPreview, setCampaignPreview] = useState<CampaignPreview | null>(null);
+  const [channelPosts, setChannelPosts] = useState<ChannelPost[]>([]);
+  const [channelEvents, setChannelEvents] = useState<ChannelPostEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -1460,6 +1540,11 @@ export default function Home() {
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [campaignRecipientPage, setCampaignRecipientPage] = useState(1);
+  const [channelPostForm, setChannelPostForm] = useState({ ...EMPTY_CHANNEL_POST_FORM });
+  const [channelPostModalOpen, setChannelPostModalOpen] = useState(false);
+  const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
+  const [channelPostPage, setChannelPostPage] = useState(1);
+  const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
   const [renewalTab, setRenewalTab] = useState<RenewalSubTab>("soon");
   const [renewalPage, setRenewalPage] = useState(1);
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
@@ -1552,6 +1637,16 @@ export default function Home() {
     }
   }, [tab, selectedCampaignId, campaigns]);
 
+  useEffect(() => {
+    if (!savedSecret || !selectedChannelPostId) {
+      setChannelEvents([]);
+      return;
+    }
+    getChannelPostEvents(savedSecret, selectedChannelPostId)
+      .then((res) => setChannelEvents(res.data))
+      .catch(() => setChannelEvents([]));
+  }, [savedSecret, selectedChannelPostId, channelPosts]);
+
   function selectTab(nextTab: Tab) {
     setTab(nextTab);
     window.localStorage.setItem(TAB_STORAGE_KEY, nextTab);
@@ -1590,6 +1685,81 @@ export default function Home() {
     }
   }
 
+  async function refreshChannelPosts(activeSecret = savedSecret) {
+    if (!activeSecret) return;
+    const postsRes = await getChannelPosts(activeSecret);
+    setChannelPosts(postsRes.data);
+    if (selectedChannelPostId) {
+      const eventsRes = await getChannelPostEvents(activeSecret, selectedChannelPostId);
+      setChannelEvents(eventsRes.data);
+    }
+  }
+
+  function openNewChannelPostModal() {
+    setChannelPostForm({ ...EMPTY_CHANNEL_POST_FORM });
+    setSelectedChannelPostId(null);
+    setChannelEvents([]);
+    setChannelPostModalOpen(true);
+  }
+
+  function editChannelPost(post: ChannelPost) {
+    setSelectedChannelPostId(post.id);
+    setChannelPostForm({
+      id: String(post.id),
+      status: post.status || "draft",
+      target_chat_id: post.target_chat_id || "",
+      title: post.title || "",
+      content: post.content || "",
+      buttons_text: post.buttons_text || "",
+      parse_mode: post.parse_mode || "HTML",
+      disable_web_page_preview: Boolean(post.disable_web_page_preview),
+      scheduled_at: dateTimeInputValue(post.scheduled_at),
+      delete_at: dateTimeInputValue(post.delete_at),
+      notes: post.notes || "",
+    });
+    setChannelPostModalOpen(true);
+  }
+
+  async function saveChannelPost(mode: "draft" | "send_now" | "schedule") {
+    await runAction(`channel-post-${mode}`, async () => {
+      const payload = {
+        target_chat_id: channelPostForm.target_chat_id.trim(),
+        title: channelPostForm.title,
+        content: channelPostForm.content,
+        buttons_text: channelPostForm.buttons_text,
+        parse_mode: channelPostForm.parse_mode,
+        disable_web_page_preview: channelPostForm.disable_web_page_preview,
+        notes: channelPostForm.notes,
+        scheduled_at: mode === "schedule" ? datetimeLocalToIso(channelPostForm.scheduled_at) : null,
+        delete_at: datetimeLocalToIso(channelPostForm.delete_at),
+        status: mode === "schedule" ? "scheduled" : mode === "send_now" ? "queued" : channelPostForm.id ? channelPostForm.status || "draft" : "draft",
+        created_by: "admin_cp",
+      };
+      if (!payload.target_chat_id || !payload.content.trim()) {
+        throw new Error("Cần nhập channel/group nhận bài và nội dung bài đăng.");
+      }
+      if (mode === "schedule" && !payload.scheduled_at) {
+        throw new Error("Cần chọn giờ đăng hợp lệ.");
+      }
+      if (channelPostForm.id) {
+        await updateChannelPost(savedSecret, channelPostForm.id, payload);
+        if (mode === "send_now") await channelPostAction(savedSecret, channelPostForm.id, "send_now");
+      } else {
+        const created = await createChannelPost(savedSecret, payload);
+        if (mode === "send_now") await channelPostAction(savedSecret, created.data.id, "send_now");
+      }
+      setChannelPostModalOpen(false);
+      await refreshChannelPosts();
+    });
+  }
+
+  async function runChannelPostAction(post: ChannelPost, action: string, payload: Record<string, unknown> = {}) {
+    await runAction(`channel-post-action-${action}-${post.id}`, async () => {
+      await channelPostAction(savedSecret, post.id, action, payload);
+      await refreshChannelPosts();
+    });
+  }
+
   async function saveCampaign() {
     await runAction("campaign-create", async () => {
       const created = await createCampaign(savedSecret, {
@@ -1621,7 +1791,7 @@ export default function Home() {
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -1633,6 +1803,7 @@ export default function Home() {
         getKickAudit(activeSecret),
         getActivityEvents(activeSecret),
         getCampaigns(activeSecret),
+        getChannelPosts(activeSecret),
         getWebhookInfo(activeSecret),
       ]);
       setOrders(ordersRes.data);
@@ -1646,6 +1817,7 @@ export default function Home() {
       setKickAudit(kickAuditRes.data);
       setActivityEvents(activityEventsRes.data);
       setCampaigns(campaignsRes.data);
+      setChannelPosts(channelPostsRes.data);
       setWebhook(webhookRes.data);
       if (resetPages) {
         setOrderPage(1);
@@ -2448,6 +2620,22 @@ export default function Home() {
     const start = (safePage - 1) * CAMPAIGN_RECIPIENT_PAGE_SIZE;
     return campaignRecipients.slice(start, start + CAMPAIGN_RECIPIENT_PAGE_SIZE);
   }, [campaignRecipients, campaignRecipientPage, totalCampaignRecipientPages]);
+  const channelPostCounts = useMemo(() => {
+    const counts: Record<ChannelPostTab, number> = { draft: 0, queue: 0, scheduled: 0, sent: 0, failed: 0, deleted: 0 };
+    for (const item of channelPosts) counts[channelPostTabFor(item)] += 1;
+    return counts;
+  }, [channelPosts]);
+  const visibleChannelPosts = useMemo(() => {
+    return channelPosts
+      .filter((item) => channelPostTabFor(item) === channelPostTab)
+      .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+  }, [channelPosts, channelPostTab]);
+  const totalChannelPostPages = Math.max(1, Math.ceil(visibleChannelPosts.length / CHANNEL_POST_PAGE_SIZE));
+  const pagedChannelPosts = useMemo(() => {
+    const safePage = Math.min(channelPostPage, totalChannelPostPages);
+    const start = (safePage - 1) * CHANNEL_POST_PAGE_SIZE;
+    return visibleChannelPosts.slice(start, start + CHANNEL_POST_PAGE_SIZE);
+  }, [visibleChannelPosts, channelPostPage, totalChannelPostPages]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
 
@@ -2474,6 +2662,10 @@ export default function Home() {
   useEffect(() => {
     setCouponPage(1);
   }, [couponTab]);
+
+  useEffect(() => {
+    setChannelPostPage(1);
+  }, [channelPostTab]);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -2610,6 +2802,7 @@ export default function Home() {
           <button className={tab === "customers" ? "active" : ""} onClick={() => selectTab("customers")}><Users size={18} /> {ui("Khách hàng", "Customers")}</button>
           <button className={tab === "activityLog" ? "active" : ""} onClick={() => selectTab("activityLog")}><ClipboardList size={18} /> {ui("Nhật ký", "Activity log")}</button>
           <button className={tab === "campaigns" ? "active" : ""} onClick={() => selectTab("campaigns")}><Megaphone size={18} /> Campaign</button>
+          <button className={tab === "channelPosts" ? "active" : ""} onClick={() => selectTab("channelPosts")}><Send size={18} /> Đăng channel</button>
           <button className={tab === "renewals" ? "active" : ""} onClick={() => selectTab("renewals")}><RefreshCw size={18} /> {ui("Gia hạn", "Renewals")}</button>
           <button className={tab === "supportGroup" ? "active" : ""} onClick={() => selectTab("supportGroup")}><ShieldCheck size={18} /> {ui("Group hỗ trợ", "Support group")}</button>
           <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><Settings size={18} /> Cấu hình bot</button>
@@ -2996,6 +3189,57 @@ export default function Home() {
                 ])}
               />
               <Pagination page={campaignRecipientPage} totalPages={totalCampaignRecipientPages} totalItems={campaignRecipients.length} onPage={setCampaignRecipientPage} label="người nhận" />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "channelPosts" ? (
+          <div className="stack">
+            <div className="grid">
+              <Metric label="Tổng bài" value={String(channelPosts.length)} />
+              <Metric label="Chờ gửi" value={String(channelPostCounts.queue + channelPostCounts.scheduled)} />
+              <Metric label="Đã đăng" value={String(channelPostCounts.sent)} />
+              <Metric label="Có lỗi" value={String(channelPostCounts.failed)} />
+            </div>
+            <section className="panel">
+              <PanelHead
+                title="Đăng channel"
+                subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài."
+                action={<button className="btn" onClick={openNewChannelPostModal}><Plus size={16} /> Soạn bài mới</button>}
+              />
+              <div className="subtabs">
+                <button className={channelPostTab === "draft" ? "active" : ""} onClick={() => setChannelPostTab("draft")}>Nháp ({channelPostCounts.draft})</button>
+                <button className={channelPostTab === "queue" ? "active" : ""} onClick={() => setChannelPostTab("queue")}>Chờ gửi ({channelPostCounts.queue})</button>
+                <button className={channelPostTab === "scheduled" ? "active" : ""} onClick={() => setChannelPostTab("scheduled")}>Đã lên lịch ({channelPostCounts.scheduled})</button>
+                <button className={channelPostTab === "sent" ? "active" : ""} onClick={() => setChannelPostTab("sent")}>Đã đăng ({channelPostCounts.sent})</button>
+                <button className={channelPostTab === "failed" ? "active" : ""} onClick={() => setChannelPostTab("failed")}>Lỗi ({channelPostCounts.failed})</button>
+                <button className={channelPostTab === "deleted" ? "active" : ""} onClick={() => setChannelPostTab("deleted")}>Đã xóa ({channelPostCounts.deleted})</button>
+              </div>
+              <SimpleTable
+                headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
+                rows={pagedChannelPosts.map((item) => [
+                  <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}><strong>{item.title || `Bài #${item.id}`}</strong><div className="muted">{String(item.content || "").slice(0, 90)}</div></button>,
+                  item.target_chat_id,
+                  <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
+                  <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
+                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}</div></>,
+                  item.error ? <><strong>{item.error_code || "telegram_error"}</strong><div className="muted">{item.error}</div></> : "-",
+                ])}
+                onRow={(idx) => editChannelPost(pagedChannelPosts[idx])}
+                actions={(idx) => {
+                  const item = pagedChannelPosts[idx];
+                  const status = String(item.status || "").toLowerCase();
+                  return (
+                    <div className="coupon-row-actions">
+                      {["draft", "failed", "delete_failed"].includes(status) ? <button className="btn small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "send_now"); }}><Send size={15} /> Gửi</button> : null}
+                      {status === "scheduled" ? <button className="btn secondary small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "cancel_schedule"); }}>Hủy lịch</button> : null}
+                      {["sent", "delete_scheduled"].includes(status) ? <button className="btn danger small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "delete_now"); }}><Trash2 size={15} /> Xóa</button> : null}
+                      {status === "delete_scheduled" ? <button className="btn secondary small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "cancel_delete"); }}>Hủy xóa</button> : null}
+                    </div>
+                  );
+                }}
+              />
+              <Pagination page={channelPostPage} totalPages={totalChannelPostPages} totalItems={visibleChannelPosts.length} onPage={setChannelPostPage} label="bài đăng" />
             </section>
           </div>
         ) : null}
@@ -3458,6 +3702,86 @@ export default function Home() {
                 <button className="btn secondary" onClick={() => setCouponModalOpen(false)}>Đóng</button>
                 <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
                 <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {channelPostModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"}
+                subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend."
+                action={<button className="icon-danger" onClick={() => setChannelPostModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="modal-content">
+                <div className="form-grid two">
+                  <label className="field">
+                    <span>Channel / group nhận bài</span>
+                    <input value={channelPostForm.target_chat_id} onChange={(event) => setChannelPostForm({ ...channelPostForm, target_chat_id: event.target.value })} placeholder="@channel_username hoặc -100..." />
+                    <small>Bot phải là admin và có quyền gửi/xóa bài ở nơi này.</small>
+                  </label>
+                  <label className="field">
+                    <span>Tiêu đề quản lý</span>
+                    <input value={channelPostForm.title} onChange={(event) => setChannelPostForm({ ...channelPostForm, title: event.target.value })} placeholder="VD: Sale cuối tuần" />
+                    <small>Chỉ để admin dễ tìm, không bắt buộc hiển thị cho khách.</small>
+                  </label>
+                  <label className="field wide">
+                    <span>Nội dung gửi Telegram</span>
+                    <textarea value={channelPostForm.content} onChange={(event) => setChannelPostForm({ ...channelPostForm, content: event.target.value })} placeholder="Soạn nội dung bài đăng..." rows={9} />
+                  </label>
+                  <label className="field wide">
+                    <span>Nút inline</span>
+                    <textarea value={channelPostForm.buttons_text} onChange={(event) => setChannelPostForm({ ...channelPostForm, buttons_text: event.target.value })} placeholder={"Tên nút | https://link.com\\nNút 1 | https://a.com || Nút 2 | https://b.com"} rows={4} />
+                    <small>Mỗi dòng là một hàng nút. Dùng dấu || để đặt nhiều nút cùng hàng.</small>
+                  </label>
+                  <label className="field">
+                    <span>Định dạng</span>
+                    <select value={channelPostForm.parse_mode} onChange={(event) => setChannelPostForm({ ...channelPostForm, parse_mode: event.target.value })}>
+                      <option value="HTML">HTML</option>
+                      <option value="NONE">Text thường</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Ẩn preview link</span>
+                    <select value={channelPostForm.disable_web_page_preview ? "ON" : "OFF"} onChange={(event) => setChannelPostForm({ ...channelPostForm, disable_web_page_preview: event.target.value === "ON" })}>
+                      <option value="OFF">Không</option>
+                      <option value="ON">Có</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Hẹn giờ đăng</span>
+                    <input type="datetime-local" value={channelPostForm.scheduled_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, scheduled_at: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Hẹn giờ xóa</span>
+                    <input type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} />
+                  </label>
+                  <label className="field wide">
+                    <span>Ghi chú</span>
+                    <input value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" />
+                  </label>
+                </div>
+                <div className="channel-preview">
+                  <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
+                  <pre>{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
+                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"}</small>
+                </div>
+                {channelEvents.length ? (
+                  <div className="channel-events">
+                    <strong>Nhật ký bài đăng</strong>
+                    {channelEvents.slice(0, 5).map((event) => (
+                      <div key={event.id}><span>{dateText(event.created_at)}</span><b>{event.event_type}</b><em>{event.message || "-"}</em></div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setChannelPostModalOpen(false)}>Đóng</button>
+                <button className="btn secondary" onClick={() => saveChannelPost("draft")} disabled={saving.startsWith("channel-post")}><Save size={16} /> {channelPostForm.id ? "Lưu thay đổi" : "Lưu nháp"}</button>
+                <button className="btn secondary" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at}><CalendarClock size={16} /> Lên lịch</button>
+                <button className="btn" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")}>{saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Đăng ngay</button>
               </div>
             </section>
           </div>

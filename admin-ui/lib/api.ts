@@ -190,6 +190,43 @@ export type BroadcastRecipient = {
   updated_at: string;
 };
 
+export type ChannelPost = {
+  id: number;
+  bot_key: string;
+  target_chat_id: string;
+  title: string | null;
+  content: string;
+  buttons_text: string | null;
+  parse_mode: string;
+  disable_web_page_preview: boolean;
+  status: string;
+  sent_message_id: string | null;
+  sent_at: string | null;
+  scheduled_at: string | null;
+  delete_at: string | null;
+  deleted_at: string | null;
+  error: string | null;
+  error_code: string | null;
+  enabled: boolean;
+  notes: string | null;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  created_by: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ChannelPostEvent = {
+  id: number;
+  bot_key: string;
+  channel_post_id: number;
+  event_type: string;
+  message: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
 export type CampaignPreview = {
   total: number;
   counts: Record<string, number>;
@@ -424,6 +461,35 @@ export async function pauseCampaign(secret: string, campaignId: string) {
 
 export async function cancelCampaign(secret: string, campaignId: string) {
   return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/cancel`, secret, { method: "POST" });
+}
+
+export async function getChannelPosts(secret: string, limit = 200) {
+  return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts?limit=${limit}`, secret);
+}
+
+export async function createChannelPost(secret: string, payload: Record<string, unknown>) {
+  return request<{ data: ChannelPost }>("/admin-api/channel-posts", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateChannelPost(secret: string, postId: number | string, payload: Record<string, unknown>) {
+  return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts/${encodeURIComponent(String(postId))}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function channelPostAction(secret: string, postId: number | string, action: string, payload: Record<string, unknown> = {}) {
+  return request<{ data: ChannelPost }>(`/admin-api/channel-posts/${encodeURIComponent(String(postId))}/action`, secret, {
+    method: "POST",
+    body: JSON.stringify({ action, ...payload }),
+  });
+}
+
+export async function getChannelPostEvents(secret: string, postId: number | string, limit = 200) {
+  return request<{ data: ChannelPostEvent[] }>(`/admin-api/channel-posts/${encodeURIComponent(String(postId))}/events?limit=${limit}`, secret);
 }
 
 export async function checkSupportGroup(secret: string) {

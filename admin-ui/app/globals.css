@@ -834,6 +834,54 @@ td select {
   padding: 16px;
 }
 
+.channel-preview,
+.channel-events {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.channel-preview > div {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.channel-preview pre {
+  background: #111827;
+  border-radius: 8px;
+  color: #f8fafc;
+  font-family: inherit;
+  line-height: 1.45;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 13px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.channel-preview small {
+  color: var(--muted);
+}
+
+.channel-events div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 130px 170px minmax(0, 1fr);
+  padding: 8px 0;
+}
+
+.channel-events span,
+.channel-events em {
+  color: var(--muted);
+  font-style: normal;
+}
+
 .config-list {
   display: grid;
 }

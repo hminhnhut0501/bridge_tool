@@ -356,6 +356,11 @@ async def start_background_workers():
     except Exception:
         campaign_worker = None
 
+    try:
+        from modules.mod_channel_publisher import channel_publisher_worker
+    except Exception:
+        channel_publisher_worker = None
+
     if maintenance_worker:
         asyncio.create_task(maintenance_worker())
     if scheduler_worker:
@@ -364,6 +369,8 @@ async def start_background_workers():
         asyncio.create_task(coupon_cleanup_worker())
     if campaign_worker:
         asyncio.create_task(campaign_worker())
+    if channel_publisher_worker:
+        asyncio.create_task(channel_publisher_worker())
 
 
 @app.on_event("startup")
@@ -793,6 +800,14 @@ def is_missing_campaign_table_error(exc: Exception) -> bool:
     ) or ("broadcast_" in text and "PGRST205" in text)
 
 
+def is_missing_channel_post_table_error(exc: Exception) -> bool:
+    text = str(exc)
+    return any(
+        is_missing_supabase_table_error(exc, table)
+        for table in ("channel_posts", "channel_post_events")
+    ) or ("channel_post" in text and "PGRST205" in text)
+
+
 @app.get("/admin-api/campaigns", dependencies=[Depends(require_admin)])
 async def admin_campaigns(limit: int = 100):
     try:
@@ -856,6 +871,74 @@ async def admin_pause_campaign(campaign_id: str):
 @app.post("/admin-api/campaigns/{campaign_id}/cancel", dependencies=[Depends(require_admin)])
 async def admin_cancel_campaign(campaign_id: str):
     return {"data": supabase_store.cancel_broadcast_campaign(campaign_id)}
+
+
+@app.get("/admin-api/channel-posts", dependencies=[Depends(require_admin)])
+async def admin_channel_posts(limit: int = 200, status: str | None = None):
+    try:
+        return {"data": supabase_store.list_channel_posts(limit=limit, status=status)}
+    except Exception as exc:
+        if is_missing_channel_post_table_error(exc):
+            warn_missing_table_once("channel_posts", exc)
+        else:
+            print(f"⚠️ Không đọc được channel_posts: {exc}")
+        return {"data": []}
+
+
+@app.post("/admin-api/channel-posts", dependencies=[Depends(require_admin)])
+async def admin_create_channel_post(request: Request):
+    body = await request.json()
+    try:
+        return {"data": supabase_store.create_channel_post(body)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        if is_missing_channel_post_table_error(exc):
+            warn_missing_table_once("channel_posts", exc)
+            raise HTTPException(status_code=503, detail="Thiếu bảng đăng channel. Hãy chạy migration Supabase mới nhất.")
+        raise
+
+
+@app.patch("/admin-api/channel-posts/{post_id}", dependencies=[Depends(require_admin)])
+async def admin_update_channel_post(post_id: str, request: Request):
+    body = await request.json()
+    try:
+        return {"data": supabase_store.patch_channel_post(post_id, body)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        if is_missing_channel_post_table_error(exc):
+            warn_missing_table_once("channel_posts", exc)
+            raise HTTPException(status_code=503, detail="Thiếu bảng đăng channel. Hãy chạy migration Supabase mới nhất.")
+        raise
+
+
+@app.post("/admin-api/channel-posts/{post_id}/action", dependencies=[Depends(require_admin)])
+async def admin_channel_post_action(post_id: str, request: Request):
+    body = await request.json()
+    action = str(body.get("action") or "").strip()
+    try:
+        row = supabase_store.channel_post_action(post_id, action, body)
+        return {"data": row}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        if is_missing_channel_post_table_error(exc):
+            warn_missing_table_once("channel_posts", exc)
+            raise HTTPException(status_code=503, detail="Thiếu bảng đăng channel. Hãy chạy migration Supabase mới nhất.")
+        raise
+
+
+@app.get("/admin-api/channel-posts/{post_id}/events", dependencies=[Depends(require_admin)])
+async def admin_channel_post_events(post_id: str, limit: int = 200):
+    try:
+        return {"data": supabase_store.list_channel_post_events(post_id=post_id, limit=limit)}
+    except Exception as exc:
+        if is_missing_channel_post_table_error(exc):
+            warn_missing_table_once("channel_post_events", exc)
+        else:
+            print(f"⚠️ Không đọc được channel_post_events: {exc}")
+        return {"data": []}
 
 
 @app.get("/admin-api/support-group-check", dependencies=[Depends(require_admin)])

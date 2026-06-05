@@ -1232,5 +1232,152 @@ class SupabaseStore:
         }
         return self._request("POST", "broadcast_events", json=payload, prefer="return=representation")
 
+    def _channel_post_payload(self, raw, partial=False):
+        allowed = {
+            "bot_key",
+            "target_chat_id",
+            "title",
+            "content",
+            "buttons_text",
+            "parse_mode",
+            "disable_web_page_preview",
+            "status",
+            "sent_message_id",
+            "sent_at",
+            "scheduled_at",
+            "delete_at",
+            "deleted_at",
+            "error",
+            "error_code",
+            "enabled",
+            "notes",
+            "attempt_count",
+            "last_attempt_at",
+            "created_by",
+            "deleted_by",
+        }
+        payload = {}
+        for key in allowed:
+            if partial and key not in raw:
+                continue
+            value = raw.get(key)
+            if key in {"sent_at", "scheduled_at", "delete_at", "deleted_at", "last_attempt_at"}:
+                payload[key] = _parse_datetime(value) if value else None
+            elif key in {"disable_web_page_preview", "enabled"}:
+                payload[key] = str(value).strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"} if value is not None else (True if key == "enabled" else False)
+            elif key == "attempt_count":
+                payload[key] = _parse_int(value, 0)
+            elif key == "parse_mode":
+                normalized = _clean_text(value or "HTML").upper() or "HTML"
+                payload[key] = normalized if normalized in {"HTML", "MARKDOWN", "MARKDOWNV2", "NONE"} else "HTML"
+            elif key == "status":
+                payload[key] = _clean_text(value or "draft").lower() or "draft"
+            elif key == "bot_key":
+                payload[key] = _clean_text(value or "main") or "main"
+            else:
+                payload[key] = _clean_text(value) if value is not None else None
+
+        if not partial:
+            payload.setdefault("bot_key", "main")
+            payload.setdefault("status", "draft")
+            payload.setdefault("parse_mode", "HTML")
+            payload.setdefault("disable_web_page_preview", False)
+            payload.setdefault("enabled", True)
+        return payload
+
+    def list_channel_posts(self, limit=200, status=None):
+        params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
+        if status:
+            params["status"] = f"eq.{_clean_text(status).lower()}"
+        return self._request("GET", "channel_posts", params=params)
+
+    def get_channel_post(self, post_id):
+        rows = self._request(
+            "GET",
+            "channel_posts",
+            params={"select": "*", "id": f"eq.{_clean_text(post_id)}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def create_channel_post(self, raw):
+        payload = self._channel_post_payload(raw, partial=False)
+        if not payload.get("target_chat_id"):
+            raise ValueError("Thiếu channel/group nhận bài.")
+        if not payload.get("content"):
+            raise ValueError("Thiếu nội dung bài đăng.")
+        return self._request("POST", "channel_posts", json=payload, prefer="return=representation")[0]
+
+    def patch_channel_post(self, post_id, raw, status=None):
+        params = {"id": f"eq.{_clean_text(post_id)}"}
+        if status:
+            params["status"] = f"eq.{_clean_text(status).lower()}"
+        payload = self._channel_post_payload(raw, partial=True)
+        if not payload:
+            return []
+        return self._request("PATCH", "channel_posts", params=params, json=payload, prefer="return=representation")
+
+    def channel_post_action(self, post_id, action, raw=None):
+        raw = raw or {}
+        now = _now_iso()
+        details = {"scheduled_at": raw.get("scheduled_at"), "delete_at": raw.get("delete_at")}
+        if action in {"send_now", "retry"}:
+            values = {"status": "queued", "scheduled_at": None, "error": None, "error_code": None}
+            event_type = "send_retry_queued" if action == "retry" else "send_queued"
+            message = "Admin yêu cầu thử gửi lại." if action == "retry" else "Admin yêu cầu gửi ngay."
+        elif action == "schedule":
+            scheduled_at = _parse_datetime(raw.get("scheduled_at"))
+            if not scheduled_at or datetime.fromisoformat(scheduled_at) <= datetime.now(_bot_timezone()):
+                raise ValueError("Giờ gửi phải nằm trong tương lai.")
+            values = {"status": "scheduled", "scheduled_at": scheduled_at, "error": None, "error_code": None}
+            event_type = "send_scheduled"
+            message = "Admin đã hẹn giờ gửi bài."
+        elif action == "cancel_schedule":
+            values = {"status": "draft", "scheduled_at": None, "error": None, "error_code": None}
+            event_type = "send_schedule_cancelled"
+            message = "Admin đã hủy lịch gửi."
+        elif action == "delete_now":
+            values = {"status": "delete_scheduled", "delete_at": now, "deleted_by": "admin_cp", "error": None, "error_code": None}
+            event_type = "delete_queued"
+            message = "Admin yêu cầu xóa bài ngay."
+        elif action == "retry_delete":
+            values = {"status": "delete_scheduled", "delete_at": now, "error": None, "error_code": None}
+            event_type = "delete_retry_queued"
+            message = "Admin yêu cầu thử xóa lại."
+        elif action == "schedule_delete":
+            delete_at = _parse_datetime(raw.get("delete_at"))
+            if not delete_at or datetime.fromisoformat(delete_at) <= datetime.now(_bot_timezone()):
+                raise ValueError("Giờ xóa phải nằm trong tương lai.")
+            values = {"status": "delete_scheduled", "delete_at": delete_at, "error": None, "error_code": None}
+            event_type = "delete_scheduled"
+            message = "Admin đã hẹn giờ xóa bài."
+        elif action == "cancel_delete":
+            values = {"status": "sent", "delete_at": None, "error": None, "error_code": None}
+            event_type = "delete_schedule_cancelled"
+            message = "Admin đã hủy lịch xóa."
+        else:
+            raise ValueError("Hành động không được hỗ trợ.")
+
+        rows = self.patch_channel_post(post_id, values)
+        row = rows[0] if rows else None
+        if row:
+            self.record_channel_post_event(post_id, event_type, message, details, bot_key=row.get("bot_key") or "main")
+        return row
+
+    def list_channel_post_events(self, post_id=None, limit=200):
+        params = {"select": "*", "order": "created_at.desc", "limit": str(limit)}
+        if post_id:
+            params["channel_post_id"] = f"eq.{_clean_text(post_id)}"
+        return self._request("GET", "channel_post_events", params=params)
+
+    def record_channel_post_event(self, post_id, event_type, message, details=None, bot_key="main"):
+        payload = {
+            "bot_key": _clean_text(bot_key) or "main",
+            "channel_post_id": post_id,
+            "event_type": _clean_text(event_type),
+            "message": _clean_text(message),
+            "details": details or {},
+        }
+        return self._request("POST", "channel_post_events", json=payload, prefer="return=representation")
+
 
 supabase_store = SupabaseStore()
