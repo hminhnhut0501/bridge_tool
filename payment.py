@@ -516,13 +516,15 @@ class PaymentManager:
 
     def providers_for_language(self, language="vi"):
         key = "PAYMENT_PROVIDERS_EN" if str(language).lower() == "en" else "PAYMENT_PROVIDERS_VI"
-        default = "PAYPAL" if key.endswith("_EN") else "PAYOS"
+        default = "PAYPAL,TRON_USDT" if key.endswith("_EN") else "PAYOS"
         configured = str(db.get_config(key, default) or default).upper().replace(";", ",")
         providers = []
         for item in configured.split(","):
             provider = item.strip()
             if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"} and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
+        if key.endswith("_EN") and "TRON_USDT" not in providers and self.provider_enabled("TRON_USDT"):
+            providers.append("TRON_USDT")
         if providers:
             return providers
         return []

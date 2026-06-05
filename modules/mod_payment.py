@@ -38,6 +38,22 @@ BANK_NAMES = {
 # 🛡 BIẾN LƯU TRỮ CHỐNG SPAM
 user_cooldowns = {}
 
+
+def payment_cooldown_key(user_id, action, provider):
+    return f"{user_id}:{str(provider or '').upper()}:{str(action or '')}"
+
+
+async def enforce_payment_cooldown(callback, action, provider):
+    key = payment_cooldown_key(callback.from_user.id, action, provider)
+    current_time = time.time()
+    last_time = user_cooldowns.get(key, 0)
+    if current_time - last_time < 15:
+        fallback = "⏳ Please wait 15 seconds before creating this payment again." if get_user_language(callback.from_user.id) == "en" else "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", fallback), show_alert=True)
+        return False
+    user_cooldowns[key] = current_time
+    return True
+
 def safe_int(value_str):
     """Hàm thông minh: Tự động loại bỏ dấu chấm, dấu phẩy, chữ Đ để chống crash ValueError"""
     try:
@@ -445,12 +461,8 @@ async def process_early_renew(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
         return
 
-    user_id = callback.from_user.id
-    current_time = time.time()
-    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+    if not await enforce_payment_cooldown(callback, action, provider):
         return
-    user_cooldowns[user_id] = current_time
 
     msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
@@ -563,12 +575,8 @@ async def process_buy_request(callback: CallbackQuery):
             return
 
     # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
-    user_id = callback.from_user.id
-    current_time = time.time()
-    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+    if not await enforce_payment_cooldown(callback, action, provider):
         return
-    user_cooldowns[user_id] = current_time
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
@@ -635,12 +643,8 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    user_id = callback.from_user.id
-    current_time = time.time()
-    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+    if not await enforce_payment_cooldown(callback, action, provider):
         return
-    user_cooldowns[user_id] = current_time
 
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
 
@@ -731,12 +735,8 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_NOT_APPLICABLE", "Mã này không áp dụng cho gói đã chọn."), show_alert=True)
         return
 
-    user_id = callback.from_user.id
-    current_time = time.time()
-    if user_id in user_cooldowns and current_time - user_cooldowns[user_id] < 15:
-        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."), show_alert=True)
+    if not await enforce_payment_cooldown(callback, action, provider):
         return
-    user_cooldowns[user_id] = current_time
 
     buy_data = buy_data_from_plan_key(plan_key)
     if not buy_data:

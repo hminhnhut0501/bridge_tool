@@ -55,6 +55,27 @@ def test_english_provider_list_does_not_fallback_to_vnd_gateway():
         assert payment_manager.providers_for_language("en") == []
 
 
+def test_english_provider_list_auto_adds_enabled_tron_usdt_for_old_config():
+    with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
+        payment_manager,
+        "provider_enabled",
+        side_effect=lambda provider: provider in {"PAYPAL", "TRON_USDT"},
+    ):
+        assert payment_manager.providers_for_language("en") == ["PAYPAL", "TRON_USDT"]
+
+
+def test_english_default_provider_list_includes_tron_usdt():
+    def config(key, default=""):
+        return default
+
+    with patch("payment.db.get_config", side_effect=config), patch.object(
+        payment_manager,
+        "provider_enabled",
+        side_effect=lambda provider: provider in {"PAYPAL", "TRON_USDT"},
+    ):
+        assert payment_manager.providers_for_language("en") == ["PAYPAL", "TRON_USDT"]
+
+
 def test_paypal_approved_order_is_captured_as_paid():
     lookup = type("Response", (), {"json": lambda self: {"status": "APPROVED"}})()
     capture = type("Response", (), {"json": lambda self: {"status": "COMPLETED"}})()

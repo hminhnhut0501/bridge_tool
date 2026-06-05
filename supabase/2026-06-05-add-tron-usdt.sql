@@ -11,3 +11,8 @@ update public.bot_config
 set value = replace(value, 'NOWPAYMENTS', 'TRON_USDT')
 where key in ('PAYMENT_PROVIDERS_VI', 'PAYMENT_PROVIDERS_EN')
   and value like '%NOWPAYMENTS%';
+
+update public.bot_config
+set value = 'PAYPAL,TRON_USDT'
+where key = 'PAYMENT_PROVIDERS_EN'
+  and value = 'PAYPAL';
