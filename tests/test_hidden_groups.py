@@ -8,14 +8,6 @@ import hidden_group_utils
 import modules.mod_payment as mod_payment
 
 
-class FakeUsersSheet:
-    def __init__(self, rows):
-        self._rows = rows
-
-    def get_all_values(self):
-        return self._rows
-
-
 class FakeDb:
     def __init__(self):
         self.config = {
@@ -25,24 +17,7 @@ class FakeDb:
             "ID_G1": "-100111",
             "BTN_G2": "Hang Cú Asia",
             "ID_G2": "-100222",
-            "HIDDEN_GROUPS_JSON": (
-                '[{"id":"prime_x","name":"Prime X","description":"extra","chat_id":"-100999",'
-                '"price_1m_vnd":150000,"price_life_vnd":900000,"price_1m_usd":9.99,"price_life_usd":49.99,'
-                '"duration_1m_days":30,"lifetime_days":3650,"requirement_type":"SVIP_LIFETIME","requirement_value":"",'
-                '"sort_order":1,"is_active":true}]'
-            ),
-            "HIDDEN_CODES_JSON": (
-                '[{"code":"HIDEVIP","name":"VIP code","scope_type":"SELECTED_GROUPS","group_ids":["prime_x"],'
-                '"requirement_type":"SVIP_LIFETIME","requirement_value":"","max_uses":5,"used_count":0,"is_active":true},'
-                '{"code":"USEDUP","name":"Used up","scope_type":"SELECTED_GROUPS","group_ids":["prime_x"],'
-                '"requirement_type":"NONE","requirement_value":"","max_uses":1,"used_count":1,"is_active":true}]'
-            ),
         }
-        self.users_sheet = FakeUsersSheet([
-            ["order_id", "telegram_user_id", "full_name", "plan_name", "amount", "status", "paid_at", "expire_at"],
-            ["1", "42", "User", "SVIP+ TRỌN ĐỜI", "0", "PAID", "", "2036-01-01 00:00:00"],
-            ["2", "99", "Other", "VIP 30 Ngày - Hang Cú Prime", "0", "PAID", "", "2030-01-01 00:00:00"],
-        ])
 
     def get_config(self, key, default=""):
         return self.config.get(key, default)
@@ -54,14 +29,76 @@ class FakeDb:
         return None
 
 
+class FakeHiddenStore:
+    enabled = True
+
+    def list_hidden_groups(self):
+        return [{
+            "id": "prime_x",
+            "name": "Prime X",
+            "description": "extra",
+            "chat_id": "-100999",
+            "price_1m_vnd": 150000,
+            "price_life_vnd": 900000,
+            "price_1m_usd": 9.99,
+            "price_life_usd": 49.99,
+            "duration_1m_days": 30,
+            "lifetime_days": 3650,
+            "requirement_type": "SVIP_LIFETIME",
+            "requirement_value": "",
+            "sort_order": 1,
+            "is_active": True,
+        }]
+
+    def list_hidden_codes(self):
+        return [
+            {
+                "code": "HIDEVIP",
+                "name": "VIP code",
+                "scope_type": "SELECTED_GROUPS",
+                "group_ids": ["prime_x"],
+                "requirement_type": "SVIP_LIFETIME",
+                "requirement_value": "",
+                "max_uses": 5,
+                "used_count": 0,
+                "is_active": True,
+            },
+            {
+                "code": "USEDUP",
+                "name": "Used up",
+                "scope_type": "SELECTED_GROUPS",
+                "group_ids": ["prime_x"],
+                "requirement_type": "NONE",
+                "requirement_value": "",
+                "max_uses": 1,
+                "used_count": 1,
+                "is_active": True,
+            },
+        ]
+
+    def list_hidden_code_redemptions(self, limit=500):
+        return []
+
+    def list_paid_orders_for_user(self, user_id, limit=500):
+        orders = [
+            {"order_id": "1", "telegram_user_id": "42", "full_name": "User", "plan_name": "SVIP+ TRỌN ĐỜI", "status": "PAID", "expire_at": "2036-01-01 00:00:00"},
+            {"order_id": "2", "telegram_user_id": "99", "full_name": "Other", "plan_name": "VIP 30 Ngày - Hang Cú Prime", "status": "PAID", "expire_at": "2030-01-01 00:00:00"},
+        ]
+        return [item for item in orders if item["telegram_user_id"] == str(user_id)]
+
+
 class HiddenGroupTests(unittest.TestCase):
     def setUp(self):
         self.fake_db = FakeDb()
+        self.fake_store = FakeHiddenStore()
         self.original_config_db = config_utils.db
+        self.original_hidden_store = hidden_group_utils.supabase_store
         config_utils.db = self.fake_db
+        hidden_group_utils.supabase_store = self.fake_store
 
     def tearDown(self):
         config_utils.db = self.original_config_db
+        hidden_group_utils.supabase_store = self.original_hidden_store
 
     def test_validate_hidden_code_requires_svip_lifetime(self):
         hidden_code, reason = hidden_group_utils.validate_hidden_code_for_user("HIDEVIP", "42")

@@ -1,4 +1,3 @@
-import json
 import re
 import unicodedata
 from datetime import datetime
@@ -7,10 +6,6 @@ from zoneinfo import ZoneInfo
 import config_utils
 import database
 from supabase_store import supabase_store
-
-HIDDEN_GROUPS_CONFIG_KEY = "HIDDEN_GROUPS_JSON"
-HIDDEN_CODES_CONFIG_KEY = "HIDDEN_CODES_JSON"
-HIDDEN_REDEMPTIONS_CONFIG_KEY = "HIDDEN_CODE_REDEMPTIONS_JSON"
 
 REQUIREMENT_NONE = "NONE"
 REQUIREMENT_SVIP_ACTIVE = "SVIP_ACTIVE"
@@ -101,27 +96,13 @@ def parse_datetime(value):
     return None
 
 
-def _json_config_list(key):
-    raw = normalize_text(_db().get_config(key, "[]"))
-    if not raw:
-        return []
-    try:
-        data = json.loads(raw)
-        return data if isinstance(data, list) else []
-    except Exception:
-        return []
-
-
-def _set_json_config_list(key, items):
-    _db().set_config(key, json.dumps(items, ensure_ascii=False))
-
-
 def _db():
     return getattr(config_utils, "db", None) or getattr(database, "db")
 
 
-def _group_storage_backend():
-    return "supabase" if supabase_store.enabled else "config"
+def ensure_hidden_supabase_enabled():
+    if not supabase_store.enabled:
+        raise RuntimeError("Hidden groups yêu cầu Supabase. Hãy chạy migration SQL mới nhất và cấu hình SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.")
 
 
 def main_group_matches_plan(group_no, plan_name):
@@ -274,14 +255,8 @@ def _normalize_hidden_redemption(item):
 
 
 def list_hidden_groups(include_inactive=True):
-    groups = []
-    if _group_storage_backend() == "supabase":
-        try:
-            groups = [_normalize_hidden_group(item) for item in supabase_store.list_hidden_groups()]
-        except Exception:
-            groups = []
-    if not groups:
-        groups = [_normalize_hidden_group(item) for item in _json_config_list(HIDDEN_GROUPS_CONFIG_KEY)]
+    ensure_hidden_supabase_enabled()
+    groups = [_normalize_hidden_group(item) for item in supabase_store.list_hidden_groups()]
     groups.sort(key=lambda item: (item.get("sort_order", 0), item.get("name", "")))
     if include_inactive:
         return groups
@@ -299,6 +274,7 @@ def get_hidden_group(hidden_group_id):
 
 
 def upsert_hidden_group(raw):
+    ensure_hidden_supabase_enabled()
     item = _normalize_hidden_group(raw or {})
     if not item["id"]:
         raise ValueError("Thiếu id hidden group.")
@@ -306,42 +282,20 @@ def upsert_hidden_group(raw):
         raise ValueError("Thiếu tên hidden group.")
     if not item["chat_id"]:
         raise ValueError("Thiếu chat_id hidden group.")
-    if _group_storage_backend() == "supabase":
-        try:
-            return supabase_store.upsert_hidden_group(item)
-        except Exception:
-            pass
-    items = [entry for entry in _json_config_list(HIDDEN_GROUPS_CONFIG_KEY) if normalize_text(entry.get("id")) != item["id"]]
-    items.append(item)
-    items.sort(key=lambda entry: (parse_int(entry.get("sort_order"), 0), normalize_text(entry.get("name"))))
-    _set_json_config_list(HIDDEN_GROUPS_CONFIG_KEY, items)
-    return [item]
+    return supabase_store.upsert_hidden_group(item)
 
 
 def delete_hidden_group(hidden_group_id):
+    ensure_hidden_supabase_enabled()
     target = normalize_text(hidden_group_id)
     if not target:
         return []
-    if _group_storage_backend() == "supabase":
-        try:
-            return supabase_store.delete_hidden_group(target)
-        except Exception:
-            pass
-    before = _json_config_list(HIDDEN_GROUPS_CONFIG_KEY)
-    after = [item for item in before if normalize_text(item.get("id")) != target]
-    _set_json_config_list(HIDDEN_GROUPS_CONFIG_KEY, after)
-    return [{"id": target}]
+    return supabase_store.delete_hidden_group(target)
 
 
 def list_hidden_codes(include_inactive=True):
-    codes = []
-    if _group_storage_backend() == "supabase":
-        try:
-            codes = [_normalize_hidden_code(item) for item in supabase_store.list_hidden_codes()]
-        except Exception:
-            codes = []
-    if not codes:
-        codes = [_normalize_hidden_code(item) for item in _json_config_list(HIDDEN_CODES_CONFIG_KEY)]
+    ensure_hidden_supabase_enabled()
+    codes = [_normalize_hidden_code(item) for item in supabase_store.list_hidden_codes()]
     codes.sort(key=lambda item: (item.get("code", ""), item.get("name", "")))
     if include_inactive:
         return codes
@@ -359,19 +313,11 @@ def get_hidden_code(code):
 
 
 def upsert_hidden_code(raw):
+    ensure_hidden_supabase_enabled()
     item = _normalize_hidden_code(raw or {})
     if not item["code"]:
         raise ValueError("Thiếu mã hidden code.")
-    if _group_storage_backend() == "supabase":
-        try:
-            return supabase_store.upsert_hidden_code(item)
-        except Exception:
-            pass
-    items = [entry for entry in _json_config_list(HIDDEN_CODES_CONFIG_KEY) if normalize_key_text(entry.get("code")) != item["code"]]
-    items.append(item)
-    items.sort(key=lambda entry: normalize_key_text(entry.get("code")))
-    _set_json_config_list(HIDDEN_CODES_CONFIG_KEY, items)
-    return [item]
+    return supabase_store.upsert_hidden_code(item)
 
 
 def mark_hidden_code_used(code):
@@ -383,34 +329,22 @@ def mark_hidden_code_used(code):
 
 
 def delete_hidden_code(code):
+    ensure_hidden_supabase_enabled()
     target = normalize_key_text(code)
     if not target:
         return []
-    if _group_storage_backend() == "supabase":
-        try:
-            return supabase_store.delete_hidden_code(target)
-        except Exception:
-            pass
-    before = _json_config_list(HIDDEN_CODES_CONFIG_KEY)
-    after = [item for item in before if normalize_key_text(item.get("code")) != target]
-    _set_json_config_list(HIDDEN_CODES_CONFIG_KEY, after)
-    return [{"code": target}]
+    return supabase_store.delete_hidden_code(target)
 
 
 def list_hidden_redemptions(limit=500):
-    rows = []
-    if _group_storage_backend() == "supabase":
-        try:
-            rows = [_normalize_hidden_redemption(item) for item in supabase_store.list_hidden_code_redemptions(limit=limit)]
-        except Exception:
-            rows = []
-    if not rows:
-        rows = [_normalize_hidden_redemption(item) for item in _json_config_list(HIDDEN_REDEMPTIONS_CONFIG_KEY)]
+    ensure_hidden_supabase_enabled()
+    rows = [_normalize_hidden_redemption(item) for item in supabase_store.list_hidden_code_redemptions(limit=limit)]
     rows.sort(key=lambda item: item.get("created_at", ""), reverse=True)
     return rows[:limit]
 
 
 def record_hidden_code_redemption(code, telegram_user_id, full_name="", username="", revealed_group_ids=None):
+    ensure_hidden_supabase_enabled()
     payload = {
         "code": normalize_key_text(code),
         "telegram_user_id": normalize_text(telegram_user_id),
@@ -419,15 +353,7 @@ def record_hidden_code_redemption(code, telegram_user_id, full_name="", username
         "revealed_group_ids": [normalize_text(group_id) for group_id in (revealed_group_ids or []) if normalize_text(group_id)],
         "created_at": now_local().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    if _group_storage_backend() == "supabase":
-        try:
-            return supabase_store.record_hidden_code_redemption(payload)
-        except Exception:
-            pass
-    rows = _json_config_list(HIDDEN_REDEMPTIONS_CONFIG_KEY)
-    rows.append(payload)
-    _set_json_config_list(HIDDEN_REDEMPTIONS_CONFIG_KEY, rows[-1000:])
-    return [payload]
+    return supabase_store.record_hidden_code_redemption(payload)
 
 
 def hidden_code_available_groups(hidden_code):
