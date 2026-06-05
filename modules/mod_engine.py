@@ -88,6 +88,15 @@ def menu_action_enabled(action):
         return False
     return True
 
+def valid_callback_data(action):
+    raw = str(action or "")
+    size = len(raw.encode("utf-8"))
+    return 1 <= size <= 64
+
+def is_reply_markup_error(exc):
+    text = str(exc).lower()
+    return "button_data_invalid" in text or "button_url_invalid" in text or "reply markup" in text
+
 def should_add_language_switch(requested_page_id, layout):
     return (
         requested_page_id == "main_menu"
@@ -119,6 +128,9 @@ def build_dynamic_keyboard(layout_str, language=None):
             if action.startswith('url:'):
                 row_btns.append(InlineKeyboardButton(text=final_text, url=action.replace('url:', '').strip()))
             else:
+                if not valid_callback_data(action):
+                    print(f"⚠️ Bỏ qua nút MenuBuilder callback_data không hợp lệ: {action[:80]}")
+                    continue
                 row_btns.append(InlineKeyboardButton(text=final_text, callback_data=action))
                 
         if row_btns:
@@ -164,7 +176,15 @@ async def send_rendered_page(sender, *, img_url, text, reply_markup):
             return
         except TelegramBadRequest as exc:
             print(f"⚠️ Không gửi được ảnh MenuBuilder, fallback sang text: {exc}")
-    await send_with_html_fallback(sender, text=text, reply_markup=reply_markup)
+            if is_reply_markup_error(exc):
+                reply_markup = None
+    try:
+        await send_with_html_fallback(sender, text=text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        if not is_reply_markup_error(exc) or reply_markup is None:
+            raise
+        print(f"⚠️ Keyboard MenuBuilder không hợp lệ, gửi lại không kèm nút: {exc}")
+        await send_with_html_fallback(sender, text=text, reply_markup=None)
 
 async def render_page(target, page_id):
     """Hàm lấy dữ liệu từ RAM và xuất ra giao diện"""

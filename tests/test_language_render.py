@@ -18,6 +18,30 @@ def test_rendered_page_falls_back_to_text_when_menu_image_is_invalid(monkeypatch
     assert "photo" not in mod_engine.send_with_html_fallback.await_args_list[1].kwargs
 
 
+def test_rendered_page_falls_back_without_keyboard_when_button_data_invalid(monkeypatch):
+    sender = SimpleNamespace(answer=AsyncMock())
+    monkeypatch.setattr(mod_engine, "send_with_html_fallback", AsyncMock(side_effect=[
+        mod_engine.TelegramBadRequest(method=None, message="BUTTON_DATA_INVALID"),
+        None,
+    ]))
+
+    asyncio.run(mod_engine.send_rendered_page(sender, img_url="", text="Menu", reply_markup=object()))
+
+    assert mod_engine.send_with_html_fallback.await_count == 2
+    assert mod_engine.send_with_html_fallback.await_args_list[0].kwargs["reply_markup"] is not None
+    assert mod_engine.send_with_html_fallback.await_args_list[1].kwargs["reply_markup"] is None
+
+
+def test_menu_builder_skips_invalid_callback_data():
+    long_action = "x" * 65
+
+    markup = mod_engine.build_dynamic_keyboard(f"Too long => {long_action}\nOK => back_main")
+
+    buttons = markup.inline_keyboard
+    assert len(buttons) == 1
+    assert buttons[0][0].callback_data == "back_main"
+
+
 def test_change_language_sends_fallback_when_menu_render_fails(monkeypatch):
     callback = SimpleNamespace(
         data="set_lang:en",
