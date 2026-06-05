@@ -247,6 +247,36 @@ def sale_caption(sale_info, original_amount, amount, currency="VND"):
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
     pretty_plan_name = display_plan_name(plan_name)
     provider = str(pay_data.get("provider") or "PAYOS").upper()
+    if provider == "TRON_USDT":
+        caption = t(
+            callback.from_user.id,
+            "MSG_TRON_USDT_BILL_TEMPLATE",
+            "₮ <b>THANH TOÁN USDT TRC20</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <code>{usdt_amount} USDT</code>\n🌐 Network: <b>TRC20</b>\n👛 Ví nhận:\n<code>{wallet}</code>\n🧾 Đơn: <code>{desc}</code>\n\nVui lòng chuyển đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền sau khi giao dịch xác nhận.",
+        ).replace("\\n", "\n")
+        caption = (
+            caption.replace("{plan}", str(pretty_plan_name))
+            .replace("{amount}", format_money(amount, "USD"))
+            .replace("{usdt_amount}", str(pay_data.get("usdt_amount") or ""))
+            .replace("{wallet}", str(pay_data.get("wallet_address") or ""))
+            .replace("{desc}", description)
+        )
+        caption += extra_caption
+        kb = InlineKeyboardBuilder()
+        if pay_data.get("approval_url"):
+            kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_TRONSCAN_ADDRESS", "🔎 Xem ví trên Tronscan"), url=str(pay_data.get("approval_url"))))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 Tôi đã chuyển USDT"), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
+        sent = await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        if supabase_store.enabled and sent:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        return sent
+
     if provider in {"PAYPAL", "NOWPAYMENTS"}:
         approval_url = str(pay_data.get("approval_url") or "").strip()
         if provider == "NOWPAYMENTS":
@@ -322,7 +352,7 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="")
 
 def payment_meta(pay_data):
     provider = str(pay_data.get("provider") or "PAYOS").upper()
-    default_currency = "VND" if provider == "PAYOS" else "USD"
+    default_currency = "VND" if provider == "PAYOS" else "USDT" if provider == "TRON_USDT" else "USD"
     return {
         "payment_provider": provider,
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
@@ -338,7 +368,7 @@ def payment_choice_keyboard(user_id, action, prefix):
     if len(providers) <= 1:
         return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments"}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
     for provider in providers:
         callback_data = f"{prefix}|{provider}|{action}"
@@ -762,8 +792,8 @@ async def manual_check_payment(callback: CallbackQuery):
 
     order = supabase_store.get_order(order_id) if supabase_store.enabled else None
     provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
-    ttl_key = "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
-    ttl_default = 3600 if provider == "NOWPAYMENTS" else 300
+    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
+    ttl_default = 7200 if provider == "TRON_USDT" else 3600 if provider == "NOWPAYMENTS" else 300
     qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     try:
         if int(time.time()) - int(order_id) > qr_ttl_seconds:

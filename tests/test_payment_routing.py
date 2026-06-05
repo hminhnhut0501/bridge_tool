@@ -41,6 +41,13 @@ def test_vietnamese_can_offer_crypto_provider():
         assert payment_manager.providers_for_language("vi") == ["PAYOS", "NOWPAYMENTS"]
 
 
+def test_vietnamese_can_offer_tron_usdt_provider():
+    with patch("payment.db.get_config", return_value="PAYOS,TRON_USDT"), patch.object(
+        payment_manager, "provider_enabled", return_value=True
+    ):
+        assert payment_manager.providers_for_language("vi") == ["PAYOS", "TRON_USDT"]
+
+
 def test_english_provider_list_does_not_fallback_to_vnd_gateway():
     with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
         payment_manager, "provider_enabled", side_effect=lambda provider: provider == "PAYOS"
@@ -110,3 +117,31 @@ def test_payment_manager_routes_nowpayments_status_by_order_provider():
     ) as check:
         assert payment_manager.get_payment_status("123") == "PAID"
         check.assert_called_once_with("INV-1")
+
+
+def test_tron_usdt_unique_amount_uses_six_decimals():
+    with patch("payment.db.get_config", side_effect=lambda key, default="": {
+        "TRON_USDT_UNIQUE_AMOUNT_ENABLED": "ON",
+    }.get(key, default)):
+        assert str(payment_manager.tron_usdt.usdt_amount("1779547112", 9.99)) == "9.990441"
+
+
+def test_payment_manager_routes_tron_usdt_status_by_order_provider():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def get_order(order_ref):
+            return {
+                "order_id": order_ref,
+                "payment_provider": "TRON_USDT",
+                "payment_provider_order_id": order_ref,
+            }
+
+    with patch("payment.supabase_store", Store), patch.object(
+        payment_manager.tron_usdt,
+        "get_payment_status",
+        return_value="PAID",
+    ) as check:
+        assert payment_manager.get_payment_status("123") == "PAID"
+        check.assert_called_once_with("123")

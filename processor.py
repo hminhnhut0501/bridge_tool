@@ -296,8 +296,8 @@ async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
     order = supabase_store.get_order(str_code) if supabase_store.enabled else None
     provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
-    ttl_key = "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
-    ttl_default = 3600 if provider == "NOWPAYMENTS" else 300
+    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
+    ttl_default = 7200 if provider == "TRON_USDT" else 3600 if provider == "NOWPAYMENTS" else 300
     qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     check_interval_seconds = max(5, parse_int_config("PAYMENT_CHECK_INTERVAL_SECONDS", 10))
     max_checks = max(1, math.ceil(qr_ttl_seconds / check_interval_seconds))

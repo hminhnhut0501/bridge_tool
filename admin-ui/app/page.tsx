@@ -279,16 +279,24 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "TRON_USDT_PAYMENT_ENABLED",
+    label: "Bật USDT TRC20 tự quét",
+    placeholder: "OFF",
+    help: "Cổng tự build: bot hiển thị ví USDT TRC20 và tự quét TronGrid. Cần cấu hình ví nhận.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
-    placeholder: "PAYOS,PAYPAL,NOWPAYMENTS",
-    help: "Nhập PAYOS,PAYPAL,NOWPAYMENTS để khách Việt được chọn VietQR, PayPal và Crypto. PayPal/Crypto dùng bảng giá USD riêng.",
+    placeholder: "PAYOS,PAYPAL,TRON_USDT",
+    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT. PayPal/USDT dùng bảng giá USD riêng.",
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
     label: "Các cổng cho tiếng Anh",
-    placeholder: "PAYPAL,NOWPAYMENTS",
-    help: "Khuyến nghị dùng PAYPAL,NOWPAYMENTS. PayOS chỉ nhận giá VNĐ.",
+    placeholder: "PAYPAL,TRON_USDT",
+    help: "Khuyến nghị dùng PAYPAL,TRON_USDT. PayOS chỉ nhận giá VNĐ.",
   },
   {
     key: "PAYPAL_BRAND_NAME",
@@ -319,6 +327,26 @@ const PAYMENT_FIELDS: ConfigField[] = [
     label: "Thời gian chờ Crypto",
     placeholder: "3600",
     help: "Số giây bot giữ đơn crypto ở trạng thái chờ. Mặc định 3600 giây vì blockchain xác nhận chậm hơn VietQR.",
+  },
+  {
+    key: "TRON_USDT_WALLET_ADDRESS",
+    label: "Ví nhận USDT TRC20",
+    placeholder: "T...",
+    help: "Địa chỉ ví TRON nhận USDT TRC20. Không nhập seed/private key vào đây.",
+  },
+  {
+    key: "TRON_USDT_UNIQUE_AMOUNT_ENABLED",
+    label: "Tạo số USDT riêng cho từng đơn",
+    placeholder: "ON",
+    help: "Bật để bot thêm phần lẻ 0.000001-0.000999 vào số USDT, giúp phân biệt nhiều khách mua cùng giá.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "TRON_USDT_TTL_SECONDS",
+    label: "Thời gian chờ USDT",
+    placeholder: "7200",
+    help: "Số giây bot giữ đơn USDT ở trạng thái chờ. Mặc định 2 giờ.",
   },
 ];
 
@@ -776,6 +804,13 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
+    key: "MSG_TRON_USDT_BILL_TEMPLATE",
+    label: "Nội dung bill USDT TRC20",
+    placeholder: "₮ <b>THANH TOÁN USDT TRC20</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <code>{usdt_amount} USDT</code>\\n🌐 Network: <b>TRC20</b>\\n👛 Ví nhận:\\n<code>{wallet}</code>\\n🧾 Đơn: <code>{desc}</code>\\n\\nVui lòng chuyển đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền sau khi giao dịch xác nhận.",
+    help: "Dùng biến {plan}, {amount}, {usdt_amount}, {wallet}, {desc}.",
+    kind: "textarea",
+  },
+  {
     key: "MSG_CHOOSE_PAYMENT_PROVIDER",
     label: "Tin chọn phương thức thanh toán",
     placeholder: "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng.",
@@ -1001,6 +1036,7 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_CANCEL_ORDER", label: "Nút hủy đơn", placeholder: "❌ Hủy", help: "Nút dưới QR để hủy đơn pending." },
   { key: "BTN_PAYPAL_CHECKOUT", label: "Nút thanh toán PayPal", placeholder: "💳 Pay with PayPal", help: "Nút mở trang checkout PayPal." },
   { key: "BTN_NOWPAYMENTS_CHECKOUT", label: "Nút thanh toán Crypto", placeholder: "₿ Thanh toán Crypto", help: "Nút mở trang checkout NOWPayments." },
+  { key: "BTN_TRONSCAN_ADDRESS", label: "Nút xem ví Tronscan", placeholder: "🔎 Xem ví trên Tronscan", help: "Nút dưới bill USDT TRC20." },
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
   { key: "BTN_BUY_1M", label: "Nút mua nhóm 30 ngày", placeholder: "💎 VIP 30 NGÀY", help: "Nút trên trang chi tiết nhóm." },
   { key: "BTN_BUY_LIFE", label: "Nút mua nhóm trọn đời", placeholder: "👑 VIP TRỌN ĐỜI", help: "Nút trên trang chi tiết nhóm." },

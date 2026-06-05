@@ -4,6 +4,9 @@ import hmac
 import json
 import os
 import time
+from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_DOWN
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -23,6 +26,9 @@ PAYPAL_RETURN_URL = os.getenv("PAYPAL_RETURN_URL", "https://t.me/hangcuprivebot"
 PAYPAL_CANCEL_URL = os.getenv("PAYPAL_CANCEL_URL", PAYPAL_RETURN_URL)
 NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
 NOWPAYMENTS_BASE_URL = os.getenv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io/v1").rstrip("/")
+TRONGRID_API_KEY = os.getenv("TRONGRID_API_KEY")
+TRONGRID_BASE_URL = os.getenv("TRONGRID_BASE_URL", "https://api.trongrid.io").rstrip("/")
+TRON_USDT_CONTRACT = os.getenv("TRON_USDT_CONTRACT", "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj")
 
 
 def _enabled(key, default):
@@ -338,14 +344,154 @@ class NowPaymentsManager:
             return False
 
 
+class TronUsdtManager:
+    provider = "TRON_USDT"
+
+    @property
+    def enabled(self):
+        return _enabled("TRON_USDT_PAYMENT_ENABLED", "OFF") and bool(self.wallet_address)
+
+    @property
+    def wallet_address(self):
+        return str(db.get_config("TRON_USDT_WALLET_ADDRESS", os.getenv("TRON_USDT_WALLET_ADDRESS", "")) or "").strip()
+
+    @property
+    def headers(self):
+        headers = {"Accept": "application/json"}
+        api_key = str(db.get_config("TRONGRID_API_KEY", TRONGRID_API_KEY or "") or TRONGRID_API_KEY or "").strip()
+        if api_key:
+            headers["TRON-PRO-API-KEY"] = api_key
+        return headers
+
+    def _unique_amount_enabled(self):
+        return _enabled("TRON_USDT_UNIQUE_AMOUNT_ENABLED", "ON")
+
+    def usdt_amount(self, order_code, amount):
+        base = Decimal(str(amount or "0")).quantize(Decimal("0.000001"), rounding=ROUND_DOWN)
+        if not self._unique_amount_enabled():
+            return base
+        try:
+            suffix = (int(str(order_code)) % 999) + 1
+        except Exception:
+            suffix = 1
+        return (base + (Decimal(suffix) / Decimal("1000000"))).quantize(Decimal("0.000001"))
+
+    def create_payment_link(self, order_code, amount, description):
+        if not self.enabled:
+            return None
+        amount_usdt = self.usdt_amount(order_code, amount)
+        return {
+            "provider": self.provider,
+            "provider_order_id": str(order_code),
+            "approval_url": f"https://tronscan.org/#/address/{self.wallet_address}",
+            "currency_code": "USDT",
+            "network": "TRC20",
+            "wallet_address": self.wallet_address,
+            "usdt_amount": f"{amount_usdt:.6f}",
+            "base_usd_amount": f"{Decimal(str(amount or '0')).quantize(Decimal('0.000001'), rounding=ROUND_DOWN):.6f}",
+            "description": description,
+        }
+
+    def _order_created_at(self, order):
+        raw = str((order or {}).get("created_at") or "").strip()
+        if not raw:
+            return datetime.now(ZoneInfo("UTC")) - timedelta(hours=2)
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=ZoneInfo("UTC"))
+        except Exception:
+            return datetime.now(ZoneInfo("UTC")) - timedelta(hours=2)
+
+    def _transaction_amount(self, tx):
+        token_info = tx.get("token_info") or {}
+        decimals = int(token_info.get("decimals") or 6)
+        raw_value = Decimal(str(tx.get("value") or "0"))
+        return (raw_value / (Decimal(10) ** decimals)).quantize(Decimal("0.000001"))
+
+    def _transaction_time(self, tx):
+        timestamp = tx.get("block_timestamp")
+        try:
+            return datetime.fromtimestamp(int(timestamp) / 1000, tz=ZoneInfo("UTC"))
+        except Exception:
+            return None
+
+    def _transaction_confirmed(self, tx):
+        if tx.get("confirmed") is False:
+            return False
+        if str(tx.get("type") or "").lower() == "transfer":
+            return True
+        return True
+
+    def _recent_incoming_transfers(self, min_timestamp_ms):
+        response = requests.get(
+            f"{TRONGRID_BASE_URL}/v1/accounts/{self.wallet_address}/transactions/trc20",
+            params={
+                "only_confirmed": "true",
+                "limit": "200",
+                "contract_address": TRON_USDT_CONTRACT,
+                "min_timestamp": str(max(0, int(min_timestamp_ms))),
+                "order_by": "block_timestamp,desc",
+            },
+            headers=self.headers,
+            timeout=20,
+        )
+        data = response.json()
+        if not response.ok:
+            raise RuntimeError(f"TronGrid failed: {response.status_code} {data}")
+        return data.get("data") or []
+
+    def get_payment_status(self, order_ref):
+        order = supabase_store.get_order(str(order_ref)) if supabase_store.enabled else None
+        if not order:
+            return "PENDING"
+        if str(order.get("status") or "").upper() != "PENDING":
+            return "PAID" if str(order.get("status") or "").upper() == "PAID" else "ERROR"
+        try:
+            expected = self.usdt_amount(order_ref, order.get("amount") or 0)
+            created_at = self._order_created_at(order)
+            min_time = created_at - timedelta(minutes=10)
+            min_timestamp_ms = int(min_time.timestamp() * 1000)
+            for tx in self._recent_incoming_transfers(min_timestamp_ms):
+                if not self._transaction_confirmed(tx):
+                    continue
+                if str(tx.get("to") or "").strip() != self.wallet_address:
+                    continue
+                amount = self._transaction_amount(tx)
+                if amount != expected:
+                    continue
+                tx_time = self._transaction_time(tx)
+                if tx_time and tx_time < min_time:
+                    continue
+                tx_id = str(tx.get("transaction_id") or "").strip()
+                if tx_id:
+                    try:
+                        existing = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+                        supabase_store.update_order_fields(str(order_ref), {
+                            "metadata": {
+                                **existing,
+                                "tron_usdt_tx_id": tx_id,
+                                "tron_usdt_amount": f"{amount:.6f}",
+                                "tron_usdt_confirmed_at": tx_time.isoformat() if tx_time else "",
+                            },
+                        })
+                    except Exception as meta_err:
+                        print(f"⚠️ Không lưu được metadata TRON USDT cho đơn {order_ref}: {meta_err}")
+                return "PAID"
+            return "PENDING"
+        except Exception as exc:
+            print(f"⚠️ Lỗi quét TRON USDT đơn {order_ref}: {exc}")
+            return "ERROR"
+
+
 class PaymentManager:
     def __init__(self):
         self.payos = PayOSManager()
         self.paypal = PayPalManager()
         self.nowpayments = NowPaymentsManager()
+        self.tron_usdt = TronUsdtManager()
 
     def enabled_providers(self):
-        return [provider for provider in ("PAYOS", "PAYPAL", "NOWPAYMENTS") if self.provider_enabled(provider)]
+        return [provider for provider in ("PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT") if self.provider_enabled(provider)]
 
     def manager_for(self, provider):
         selected = str(provider or "PAYOS").upper()
@@ -353,6 +499,8 @@ class PaymentManager:
             return self.paypal
         if selected == "NOWPAYMENTS":
             return self.nowpayments
+        if selected == "TRON_USDT":
+            return self.tron_usdt
         return self.payos
 
     def provider_enabled(self, provider):
@@ -373,7 +521,7 @@ class PaymentManager:
         providers = []
         for item in configured.split(","):
             provider = item.strip()
-            if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS"} and provider not in providers and self.provider_enabled(provider):
+            if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"} and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
         if providers:
             return providers
