@@ -1851,6 +1851,97 @@ export default function Home() {
     }
   }
 
+  async function editHiddenGroup(item?: HiddenGroup) {
+    if (!savedSecret) return;
+    const draft = item || {
+      id: "",
+      name: "",
+      description: "",
+      chat_id: "",
+      price_1m_vnd: 0,
+      price_life_vnd: 0,
+      price_1m_usd: 0,
+      price_life_usd: 0,
+      duration_1m_days: 30,
+      lifetime_days: 3650,
+      image_url: "",
+      requirement_type: "NONE",
+      requirement_value: "",
+      sort_order: hiddenGroups.length + 1,
+      is_active: true,
+    };
+    const raw = window.prompt("Nhập JSON Hidden Group", JSON.stringify(draft, null, 2));
+    if (!raw) return;
+    try {
+      setSaving(`hidden-group-${item?.id || "new"}`);
+      await upsertHiddenGroup(savedSecret, JSON.parse(raw));
+      await loadAll(savedSecret, { silent: true, resetPages: false });
+      showNotice("ok", item ? "Đã lưu Hidden Group." : "Đã tạo Hidden Group.");
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không lưu được Hidden Group.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function removeHiddenGroupAction(hiddenGroupId: string) {
+    if (!savedSecret || !window.confirm(`Xóa Hidden Group ${hiddenGroupId}?`)) return;
+    try {
+      setSaving(`hidden-group-delete-${hiddenGroupId}`);
+      await deleteHiddenGroup(savedSecret, hiddenGroupId);
+      await loadAll(savedSecret, { silent: true, resetPages: false });
+      showNotice("ok", "Đã xóa Hidden Group.");
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không xóa được Hidden Group.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function editHiddenCode(item?: HiddenCode) {
+    if (!savedSecret) return;
+    const draft = item || {
+      code: "",
+      name: "",
+      description: "",
+      scope_type: "SELECTED_GROUPS",
+      group_ids: hiddenGroups.slice(0, 1).map((group) => group.id),
+      requirement_type: "SVIP_LIFETIME",
+      requirement_value: "",
+      max_uses: 0,
+      used_count: 0,
+      valid_from: "",
+      valid_until: "",
+      is_active: true,
+    };
+    const raw = window.prompt("Nhập JSON Hidden Code", JSON.stringify(draft, null, 2));
+    if (!raw) return;
+    try {
+      setSaving(`hidden-code-${item?.code || "new"}`);
+      await upsertHiddenCode(savedSecret, JSON.parse(raw));
+      await loadAll(savedSecret, { silent: true, resetPages: false });
+      showNotice("ok", item ? "Đã lưu Hidden Code." : "Đã tạo Hidden Code.");
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không lưu được Hidden Code.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function removeHiddenCodeAction(code: string) {
+    if (!savedSecret || !window.confirm(`Xóa Hidden Code ${code}?`)) return;
+    try {
+      setSaving(`hidden-code-delete-${code}`);
+      await deleteHiddenCode(savedSecret, code);
+      await loadAll(savedSecret, { silent: true, resetPages: false });
+      showNotice("ok", "Đã xóa Hidden Code.");
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không xóa được Hidden Code.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   function login() {
     window.localStorage.setItem("prive_admin_secret", secret);
     setSavedSecret(secret);
@@ -2970,6 +3061,46 @@ export default function Home() {
                     </button>
                   );
                 }) : <div className="empty-card">Chưa có nhóm nào. Bấm <strong>Thêm nhóm mới</strong>, nhập tên nhóm và Telegram group ID rồi lưu.</div>}
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHead
+                title="Hidden Groups"
+                subtitle="Setup nhóm extra ẩn, giá và điều kiện mua. Bản đầu dùng editor JSON nhanh để thao tác ngay."
+                action={<button className="btn" onClick={() => editHiddenGroup()}><Plus size={16} /> Thêm Hidden Group</button>}
+              />
+              <div className="group-list">
+                {hiddenGroups.length ? hiddenGroups.map((item) => (
+                  <div className={item.is_active ? "group-row ok" : "group-row"} key={item.id}>
+                    <span>{item.id}</span>
+                    <strong>{item.name || "Chưa đặt tên"}</strong>
+                    <em>{item.chat_id || "Chưa có group ID"} • 30 ngày {item.price_1m_vnd || 0}đ • trọn đời {item.price_life_vnd || 0}đ • rule {item.requirement_type || "NONE"}</em>
+                    <div className="coupon-row-actions">
+                      <button className="btn secondary" onClick={() => editHiddenGroup(item)} disabled={saving === `hidden-group-${item.id}`}><Pencil size={16} /> Sửa JSON</button>
+                      <button className="btn danger" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}><Trash2 size={16} /> Xóa</button>
+                    </div>
+                  </div>
+                )) : <div className="empty-card">Chưa có Hidden Group nào.</div>}
+              </div>
+            </section>
+            <section className="panel">
+              <PanelHead
+                title="Hidden Codes"
+                subtitle="Quản lý mã reveal catalog hidden group. Có thể giới hạn rule và group_ids theo từng mã."
+                action={<button className="btn" onClick={() => editHiddenCode()}><Plus size={16} /> Thêm Hidden Code</button>}
+              />
+              <div className="group-list">
+                {hiddenCodes.length ? hiddenCodes.map((item) => (
+                  <div className={item.is_active ? "group-row ok" : "group-row"} key={item.code}>
+                    <span>{item.code}</span>
+                    <strong>{item.name || "Không tên"}</strong>
+                    <em>{item.scope_type} • groups: {item.group_ids.join(", ") || "-"} • used {item.used_count}/{item.max_uses || "∞"} • rule {item.requirement_type || "NONE"}</em>
+                    <div className="coupon-row-actions">
+                      <button className="btn secondary" onClick={() => editHiddenCode(item)} disabled={saving === `hidden-code-${item.code}`}><Pencil size={16} /> Sửa JSON</button>
+                      <button className="btn danger" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}><Trash2 size={16} /> Xóa</button>
+                    </div>
+                  </div>
+                )) : <div className="empty-card">Chưa có Hidden Code nào.</div>}
               </div>
             </section>
           </div>

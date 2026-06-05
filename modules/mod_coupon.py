@@ -18,7 +18,18 @@ from bot_instance import bot
 from config_utils import config_int, group_numbers
 from database import db, normalize_key
 from helpers import check_protection, is_admin_user
-from i18n import t
+from hidden_group_utils import (
+    build_hidden_plan_name,
+    display_plan_name,
+    hidden_code_available_groups,
+    hidden_duration_days,
+    hidden_duration_price,
+    mark_hidden_code_used,
+    record_hidden_code_redemption,
+    resolve_plan_groups,
+    validate_hidden_code_for_user,
+)
+from i18n import get_user_language, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
@@ -564,23 +575,7 @@ async def send_activation_group_options(message: Message, code, coupon):
 
 
 def resolve_groups(plan_name):
-    groups = []
-    plan_upper = str(plan_name or "").upper()
-
-    if "FULL" in plan_upper or "SVIP" in plan_upper:
-        for group_no in group_numbers():
-            gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
-            if gid:
-                groups.append((gid, db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")))
-        return groups
-
-    for group_no in group_numbers():
-        btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
-        if str(btn_name).upper() in plan_upper or f"G{group_no}" in plan_upper:
-            gid = normalize_chat_id(db.get_config(f"ID_G{group_no}"))
-            if gid:
-                groups.append((gid, btn_name))
-    return groups
+    return resolve_plan_groups(plan_name)
 
 
 async def build_invite_links(user_id, plan_name):
@@ -616,6 +611,54 @@ async def build_invite_links(user_id, plan_name):
     return links_msg, ", ".join(group_names), failed_groups
 
 
+def hidden_buy_buttons(user_id, code, groups):
+    kb = InlineKeyboardBuilder()
+    currency = "USD" if get_user_language(user_id) == "en" else "VND"
+    for group in groups:
+        label = group.get("name") or group.get("id")
+        price_1m = hidden_duration_price(group, "1M", currency)
+        price_life = hidden_duration_price(group, "LIFE", currency)
+        if price_1m > 0:
+            price_text = f"${price_1m}" if currency == "USD" else f"{int(price_1m):,}đ".replace(",", ".")
+            kb.row(InlineKeyboardButton(text=f"{label} • {hidden_duration_days(group, '1M')} ngày • {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
+        if price_life > 0:
+            price_text = f"${price_life}" if currency == "USD" else f"{int(price_life):,}đ".replace(",", ".")
+            kb.row(InlineKeyboardButton(text=f"{label} • trọn đời • {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
+    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    return kb.as_markup()
+
+
+async def send_hidden_code_catalog(message: Message, code, hidden_code):
+    groups = hidden_code_available_groups(hidden_code)
+    if not groups:
+        await message.answer("❌ Mã hợp lệ nhưng hiện chưa có hidden group nào đang mở.", parse_mode="HTML")
+        return
+    user_id = message.from_user.id
+    mark_hidden_code_used(code)
+    record_hidden_code_redemption(
+        code,
+        user_id,
+        full_name=message.from_user.full_name or "",
+        username=message.from_user.username or "",
+        revealed_group_ids=[item.get("id") for item in groups],
+    )
+    lines = [
+        "<b>✅ Mã hidden hợp lệ</b>",
+        "",
+        "Các hidden group đang mở cho tài khoản của bạn:",
+        "",
+    ]
+    for group in groups:
+        lines.append(f"• <b>{escape_html(group.get('name') or group.get('id'))}</b>")
+        if group.get("description"):
+            lines.append(f"  {escape_html(group.get('description'))}")
+        preview_name = display_plan_name(build_hidden_plan_name(group, "1M"))
+        if preview_name:
+            lines.append(f"  Gói: {escape_html(preview_name)}")
+        lines.append("")
+    await message.answer("\n".join(lines).strip(), reply_markup=hidden_buy_buttons(user_id, code, groups), parse_mode="HTML")
+
+
 def update_coupon_usage(coupons_sheet, headers, row_index, item, user_id):
     if supabase_store.enabled:
         used_count = safe_int(item.get("Used_Count"), 0) + 1
@@ -649,11 +692,18 @@ async def redeem_coupon_locked(message: Message, code):
     code = normalize_code(code)
     if not await check_coupon_abuse(message, code):
         return
+    hidden_code, hidden_reason = validate_hidden_code_for_user(code, message.from_user.id)
+    if hidden_code:
+        await send_hidden_code_catalog(message, code, hidden_code)
+        return
     if not supabase_store.enabled:
         db.connect()
     coupons_sheet, headers, row_index, coupon = find_coupon(code)
     valid, reason = validate_coupon(coupon, message.from_user.id)
     if not valid:
+        if hidden_reason and "không tồn tại" not in hidden_reason.lower():
+            await message.answer(f"❌ {escape_html(hidden_reason)}", parse_mode="HTML")
+            return
         await message.answer(f"❌ {escape_html(reason)}", parse_mode="HTML")
         return
 

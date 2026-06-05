@@ -12,6 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from bot_instance import bot, dp, set_commands
 from database import db
+from hidden_group_utils import (
+    delete_hidden_code,
+    delete_hidden_group,
+    list_hidden_codes,
+    list_hidden_groups,
+    list_hidden_redemptions,
+    resolve_plan_groups,
+    upsert_hidden_code,
+    upsert_hidden_group,
+)
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 
@@ -144,6 +154,10 @@ def group_label_for_chat_id(chat_id):
         gid = normalize_chat_id(db.get_config(f"ID_G{group_no}", ""))
         if gid and gid == target:
             return db.get_config(f"BTN_G{group_no}", f"G{group_no}")
+    for hidden_group in list_hidden_groups(include_inactive=True):
+        gid = normalize_chat_id(hidden_group.get("chat_id"))
+        if gid and gid == target:
+            return hidden_group.get("name") or hidden_group.get("id") or target
     return target or "-"
 
 
@@ -491,10 +505,10 @@ async def admin_create_manual_order(request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Telegram ID phải là số.")
 
-    from modules.mod_coupon import build_invite_links, resolve_groups
+    from modules.mod_coupon import build_invite_links
 
     db.reload_config(force=True)
-    groups = resolve_groups(plan_name)
+    groups = resolve_plan_groups(plan_name)
     if not groups:
         raise HTTPException(status_code=400, detail="Tên gói chưa khớp group nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
 
@@ -692,6 +706,49 @@ async def admin_create_coupons_bulk(request: Request):
 @app.delete("/admin-api/coupons/{code}", dependencies=[Depends(require_admin)])
 async def admin_delete_coupon(code: str):
     return {"data": supabase_store.delete_coupon(code)}
+
+
+@app.get("/admin-api/hidden-groups", dependencies=[Depends(require_admin)])
+async def admin_hidden_groups():
+    return {"data": list_hidden_groups(include_inactive=True)}
+
+
+@app.post("/admin-api/hidden-groups", dependencies=[Depends(require_admin)])
+async def admin_upsert_hidden_group(request: Request):
+    body = await request.json()
+    try:
+        return {"data": upsert_hidden_group(body)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/admin-api/hidden-groups/{hidden_group_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_hidden_group(hidden_group_id: str):
+    return {"data": delete_hidden_group(hidden_group_id)}
+
+
+@app.get("/admin-api/hidden-codes", dependencies=[Depends(require_admin)])
+async def admin_hidden_codes():
+    return {"data": list_hidden_codes(include_inactive=True)}
+
+
+@app.post("/admin-api/hidden-codes", dependencies=[Depends(require_admin)])
+async def admin_upsert_hidden_code(request: Request):
+    body = await request.json()
+    try:
+        return {"data": upsert_hidden_code(body)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/admin-api/hidden-codes/{code}", dependencies=[Depends(require_admin)])
+async def admin_delete_hidden_code(code: str):
+    return {"data": delete_hidden_code(code)}
+
+
+@app.get("/admin-api/hidden-redemptions", dependencies=[Depends(require_admin)])
+async def admin_hidden_redemptions(limit: int = 500):
+    return {"data": list_hidden_redemptions(limit=limit)}
 
 
 @app.get("/admin-api/blacklist", dependencies=[Depends(require_admin)])

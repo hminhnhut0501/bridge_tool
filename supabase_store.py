@@ -363,6 +363,11 @@ class SupabaseStore:
         payment_provider_order_id="",
         payment_approval_url="",
         payment_currency="VND",
+        plan_token="",
+        plan_category="",
+        source_type="",
+        source_ref="",
+        metadata=None,
     ):
         payload = {
             "order_id": str(order_id),
@@ -386,6 +391,16 @@ class SupabaseStore:
             payload["payment_approval_url"] = _clean_text(payment_approval_url)
         if payment_currency:
             payload["payment_currency"] = _clean_text(payment_currency).upper()
+        if plan_token:
+            payload["plan_token"] = _clean_text(plan_token)
+        if plan_category:
+            payload["plan_category"] = _clean_text(plan_category).upper()
+        if source_type:
+            payload["source_type"] = _clean_text(source_type).upper()
+        if source_ref:
+            payload["source_ref"] = _clean_text(source_ref)
+        if metadata is not None:
+            payload["metadata"] = metadata
         try:
             return self._request(
                 "POST",
@@ -397,14 +412,30 @@ class SupabaseStore:
         except RuntimeError as exc:
             # Keep existing PayOS orders working while the payment-provider
             # migration is waiting to be applied in Supabase.
-            missing_payment_column = "payment_provider" in str(exc) or "payment_currency" in str(exc)
-            if not missing_payment_column or str(payment_provider).upper() == "PAYPAL":
+            missing_optional_column = any(
+                column in str(exc)
+                for column in (
+                    "payment_provider",
+                    "payment_currency",
+                    "plan_token",
+                    "plan_category",
+                    "source_type",
+                    "source_ref",
+                    "metadata",
+                )
+            )
+            if not missing_optional_column or str(payment_provider).upper() == "PAYPAL":
                 raise
             legacy_payload = dict(payload)
             legacy_payload.pop("payment_provider", None)
             legacy_payload.pop("payment_provider_order_id", None)
             legacy_payload.pop("payment_approval_url", None)
             legacy_payload.pop("payment_currency", None)
+            legacy_payload.pop("plan_token", None)
+            legacy_payload.pop("plan_category", None)
+            legacy_payload.pop("source_type", None)
+            legacy_payload.pop("source_ref", None)
+            legacy_payload.pop("metadata", None)
             return self._request(
                 "POST",
                 "orders",
@@ -436,6 +467,16 @@ class SupabaseStore:
             payload["plan_name"] = _clean_text(raw.get("plan_name"))
         if "coupon_code" in raw:
             payload["coupon_code"] = _clean_text(raw.get("coupon_code")).upper()
+        if "plan_token" in raw:
+            payload["plan_token"] = _clean_text(raw.get("plan_token"))
+        if "plan_category" in raw:
+            payload["plan_category"] = _clean_text(raw.get("plan_category")).upper()
+        if "source_type" in raw:
+            payload["source_type"] = _clean_text(raw.get("source_type")).upper()
+        if "source_ref" in raw:
+            payload["source_ref"] = _clean_text(raw.get("source_ref"))
+        if "metadata" in raw:
+            payload["metadata"] = raw.get("metadata")
         if "payment_provider" in raw:
             payload["payment_provider"] = _clean_text(raw.get("payment_provider")).upper()
         if "payment_provider_order_id" in raw:
@@ -796,6 +837,100 @@ class SupabaseStore:
         if not payload:
             return []
         return self.upsert_coupon(payload)
+
+    def list_hidden_groups(self):
+        return self._request("GET", "hidden_groups", params={"select": "*", "order": "sort_order.asc,name.asc"})
+
+    def upsert_hidden_group(self, raw):
+        payload = {
+            "id": _clean_text(raw.get("id")),
+            "name": _clean_text(raw.get("name")),
+            "description": _clean_text(raw.get("description")),
+            "chat_id": _clean_text(raw.get("chat_id")),
+            "price_1m_vnd": _parse_number(raw.get("price_1m_vnd"), 0),
+            "price_life_vnd": _parse_number(raw.get("price_life_vnd"), 0),
+            "price_1m_usd": _parse_number(raw.get("price_1m_usd"), 0),
+            "price_life_usd": _parse_number(raw.get("price_life_usd"), 0),
+            "duration_1m_days": _parse_int(raw.get("duration_1m_days"), 30),
+            "lifetime_days": _parse_int(raw.get("lifetime_days"), 3650),
+            "image_url": _clean_text(raw.get("image_url")),
+            "requirement_type": _clean_text(raw.get("requirement_type")).upper() or "NONE",
+            "requirement_value": _clean_text(raw.get("requirement_value")),
+            "sort_order": _parse_int(raw.get("sort_order"), 0),
+            "is_active": bool(raw.get("is_active")) if isinstance(raw.get("is_active"), bool) else str(raw.get("is_active", "ON")).strip().upper() not in {"OFF", "FALSE", "NO", "0"},
+        }
+        return self._request(
+            "POST",
+            "hidden_groups",
+            params={"on_conflict": "id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def delete_hidden_group(self, hidden_group_id):
+        return self._request(
+            "DELETE",
+            "hidden_groups",
+            params={"id": f"eq.{_clean_text(hidden_group_id)}"},
+            prefer="return=representation",
+        )
+
+    def list_hidden_codes(self):
+        return self._request("GET", "hidden_codes", params={"select": "*", "order": "code.asc"})
+
+    def upsert_hidden_code(self, raw):
+        payload = {
+            "code": _clean_text(raw.get("code")).upper(),
+            "name": _clean_text(raw.get("name")),
+            "description": _clean_text(raw.get("description")),
+            "scope_type": _clean_text(raw.get("scope_type")).upper() or "SELECTED_GROUPS",
+            "group_ids": raw.get("group_ids") or [],
+            "requirement_type": _clean_text(raw.get("requirement_type")).upper() or None,
+            "requirement_value": _clean_text(raw.get("requirement_value")),
+            "max_uses": _parse_int(raw.get("max_uses"), 0),
+            "used_count": _parse_int(raw.get("used_count"), 0),
+            "valid_from": _parse_datetime(raw.get("valid_from")) or None,
+            "valid_until": _parse_datetime(raw.get("valid_until")) or None,
+            "is_active": bool(raw.get("is_active")) if isinstance(raw.get("is_active"), bool) else str(raw.get("is_active", "ON")).strip().upper() not in {"OFF", "FALSE", "NO", "0"},
+        }
+        return self._request(
+            "POST",
+            "hidden_codes",
+            params={"on_conflict": "code"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def delete_hidden_code(self, code):
+        return self._request(
+            "DELETE",
+            "hidden_codes",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            prefer="return=representation",
+        )
+
+    def list_hidden_code_redemptions(self, limit=500):
+        return self._request(
+            "GET",
+            "hidden_code_redemptions",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+
+    def record_hidden_code_redemption(self, raw):
+        payload = {
+            "code": _clean_text(raw.get("code")).upper(),
+            "telegram_user_id": _clean_text(raw.get("telegram_user_id")),
+            "full_name": _clean_text(raw.get("full_name")),
+            "username": _clean_text(raw.get("username")),
+            "revealed_group_ids": raw.get("revealed_group_ids") or [],
+            "created_at": _parse_datetime(raw.get("created_at")) or _now_iso(),
+        }
+        return self._request(
+            "POST",
+            "hidden_code_redemptions",
+            json=payload,
+            prefer="return=representation",
+        )
 
     def create_coupons_from_sheet_rows(self, rows):
         payloads = [payload for payload in (self._coupon_payload_from_sheet_row(row or {}) for row in rows or []) if payload]

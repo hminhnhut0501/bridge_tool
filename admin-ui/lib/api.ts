@@ -16,6 +16,11 @@ export type Order = {
   payment_provider_order_id?: string | null;
   payment_approval_url?: string | null;
   payment_currency?: string | null;
+  plan_token?: string | null;
+  plan_category?: string | null;
+  source_type?: string | null;
+  source_ref?: string | null;
+  metadata?: Record<string, unknown> | null;
   last_reminder_date?: string | null;
   expired_notice_at?: string | null;
   created_at: string;
@@ -259,6 +264,53 @@ export type ManualOrderResult = {
   support_text: string;
 };
 
+export type HiddenGroup = {
+  id: string;
+  name: string;
+  description: string;
+  chat_id: string;
+  price_1m_vnd: number;
+  price_life_vnd: number;
+  price_1m_usd: number;
+  price_life_usd: number;
+  duration_1m_days: number;
+  lifetime_days: number;
+  image_url: string | null;
+  requirement_type: string;
+  requirement_value: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type HiddenCode = {
+  code: string;
+  name: string;
+  description: string;
+  scope_type: string;
+  group_ids: string[];
+  requirement_type: string | null;
+  requirement_value: string | null;
+  max_uses: number;
+  used_count: number;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type HiddenRedemption = {
+  id?: string;
+  code: string;
+  telegram_user_id: string;
+  full_name: string;
+  username: string;
+  revealed_group_ids: string[];
+  created_at: string;
+};
+
 const baseUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, secret: string, init?: RequestInit): Promise<T> {
@@ -389,6 +441,44 @@ export async function deleteCoupon(secret: string, code: string) {
   return request<{ data: Coupon[] }>(`/admin-api/coupons/${encodeURIComponent(code)}`, secret, {
     method: "DELETE",
   });
+}
+
+export async function getHiddenGroups(secret: string) {
+  return request<{ data: HiddenGroup[] }>("/admin-api/hidden-groups", secret);
+}
+
+export async function upsertHiddenGroup(secret: string, payload: Record<string, unknown>) {
+  return request<{ data: HiddenGroup[] }>("/admin-api/hidden-groups", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteHiddenGroup(secret: string, hiddenGroupId: string) {
+  return request<{ data: HiddenGroup[] }>(`/admin-api/hidden-groups/${encodeURIComponent(hiddenGroupId)}`, secret, {
+    method: "DELETE",
+  });
+}
+
+export async function getHiddenCodes(secret: string) {
+  return request<{ data: HiddenCode[] }>("/admin-api/hidden-codes", secret);
+}
+
+export async function upsertHiddenCode(secret: string, payload: Record<string, unknown>) {
+  return request<{ data: HiddenCode[] }>("/admin-api/hidden-codes", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteHiddenCode(secret: string, code: string) {
+  return request<{ data: HiddenCode[] }>(`/admin-api/hidden-codes/${encodeURIComponent(code)}`, secret, {
+    method: "DELETE",
+  });
+}
+
+export async function getHiddenRedemptions(secret: string, limit = 500) {
+  return request<{ data: HiddenRedemption[] }>(`/admin-api/hidden-redemptions?limit=${limit}`, secret);
 }
 
 export async function getBlacklist(secret: string) {
