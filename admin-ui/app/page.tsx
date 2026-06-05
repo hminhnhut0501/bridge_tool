@@ -2048,7 +2048,7 @@ export default function Home() {
       const needsActivityEvents = shouldLoad("activityLog", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
-      const needsWebhook = shouldLoad("overview", "system");
+      const needsWebhook = true;
 
       addTask(needsOrders, () => getOrders(activeSecret), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
