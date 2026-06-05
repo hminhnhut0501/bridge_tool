@@ -9,7 +9,7 @@ from config_utils import group_numbers
 from database import db
 from bot_instance import bot 
 from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
-from payment import payos_manager
+from payment import payment_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, unmute_member
 from i18n import t
@@ -294,7 +294,11 @@ async def process_successful_payment(order_code: str):
 # =====================================================
 async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
-    qr_ttl_seconds = max(60, parse_int_config("QR_TTL_SECONDS", 300))
+    order = supabase_store.get_order(str_code) if supabase_store.enabled else None
+    provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
+    ttl_key = "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
+    ttl_default = 3600 if provider == "NOWPAYMENTS" else 300
+    qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     check_interval_seconds = max(5, parse_int_config("PAYMENT_CHECK_INTERVAL_SECONDS", 10))
     max_checks = max(1, math.ceil(qr_ttl_seconds / check_interval_seconds))
     print(f"🕵️ Bắt đầu Auto-check đơn {str_code}: tối đa {qr_ttl_seconds}s, mỗi {check_interval_seconds}s.")
@@ -313,11 +317,11 @@ async def auto_check_loop(order_code, user_id):
                 print(f"ℹ️ Dừng auto-check đơn {str_code} vì trạng thái hiện tại là {order.get('status')}.")
                 return
         
-        # Đẩy việc kiểm tra PayOS sang một luồng riêng để không kẹt Bot
+        # Đẩy việc kiểm tra cổng thanh toán sang một luồng riêng để không kẹt Bot
         try:
-            status = await asyncio.to_thread(payos_manager.get_payment_status, str_code)
+            status = await asyncio.to_thread(payment_manager.get_payment_status, str_code)
         except Exception as api_err:
-            print(f"⚠️ Lỗi check PayOS: {api_err}")
+            print(f"⚠️ Lỗi check thanh toán: {api_err}")
             continue
         
         if status == "PAID":

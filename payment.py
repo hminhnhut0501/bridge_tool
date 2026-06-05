@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import json
 import os
 import time
 
@@ -20,6 +21,8 @@ PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
 PAYPAL_BASE_URL = os.getenv("PAYPAL_BASE_URL", "https://api-m.paypal.com").rstrip("/")
 PAYPAL_RETURN_URL = os.getenv("PAYPAL_RETURN_URL", "https://t.me/hangcuprivebot")
 PAYPAL_CANCEL_URL = os.getenv("PAYPAL_CANCEL_URL", PAYPAL_RETURN_URL)
+NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
+NOWPAYMENTS_BASE_URL = os.getenv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io/v1").rstrip("/")
 
 
 def _enabled(key, default):
@@ -214,17 +217,146 @@ class PayPalManager:
             return "ERROR"
 
 
+class NowPaymentsManager:
+    provider = "NOWPAYMENTS"
+
+    @property
+    def enabled(self):
+        return _enabled("NOWPAYMENTS_PAYMENT_ENABLED", "OFF") and bool(NOWPAYMENTS_API_KEY)
+
+    @property
+    def headers(self):
+        return {
+            "x-api-key": NOWPAYMENTS_API_KEY or "",
+            "Content-Type": "application/json",
+        }
+
+    def _currency(self):
+        return str(db.get_config("NOWPAYMENTS_PRICE_CURRENCY", "USD") or "USD").strip().upper() or "USD"
+
+    def _amount_value(self, amount):
+        return round(max(0.01, float(amount)), 2)
+
+    def create_payment_link(self, order_code, amount, description):
+        if not self.enabled:
+            return None
+        currency = self._currency()
+        return_url = str(db.get_config("PAYMENT_RETURN_URL", PAYPAL_RETURN_URL) or PAYPAL_RETURN_URL)
+        cancel_url = str(db.get_config("PAYMENT_CANCEL_URL", PAYPAL_CANCEL_URL) or PAYPAL_CANCEL_URL)
+        callback_url = str(
+            db.get_config(
+                "NOWPAYMENTS_IPN_CALLBACK_URL",
+                os.getenv("NOWPAYMENTS_IPN_CALLBACK_URL", ""),
+            )
+            or os.getenv("NOWPAYMENTS_IPN_CALLBACK_URL", "")
+            or ""
+        ).strip()
+        if not callback_url:
+            public_base = str(os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/")
+            if public_base:
+                callback_url = f"{public_base}/payment-webhooks/nowpayments"
+
+        payload = {
+            "price_amount": self._amount_value(amount),
+            "price_currency": currency,
+            "order_id": str(order_code),
+            "order_description": str(description)[:1024],
+            "success_url": return_url,
+            "cancel_url": cancel_url,
+        }
+        if callback_url:
+            payload["ipn_callback_url"] = callback_url
+
+        pay_currency = str(db.get_config("NOWPAYMENTS_PAY_CURRENCY", "") or "").strip().lower()
+        if pay_currency:
+            payload["pay_currency"] = pay_currency
+
+        try:
+            response = requests.post(
+                f"{NOWPAYMENTS_BASE_URL}/invoice",
+                json=payload,
+                headers=self.headers,
+                timeout=20,
+            )
+            data = response.json()
+            invoice_url = str(data.get("invoice_url") or "")
+            invoice_id = data.get("id") or data.get("invoice_id") or order_code
+            if not response.ok or not invoice_url:
+                print(f"❌ Lỗi NOWPayments: {response.status_code} {data}")
+                return None
+            return {
+                "provider": self.provider,
+                "provider_order_id": str(invoice_id),
+                "approval_url": invoice_url,
+                "currency_code": currency,
+                "crypto_amount": f"{self._amount_value(amount):.2f}",
+            }
+        except Exception as exc:
+            print(f"❌ Lỗi kết nối NOWPayments: {exc}")
+            return None
+
+    def get_payment_status(self, provider_order_id):
+        try:
+            response = requests.get(
+                f"{NOWPAYMENTS_BASE_URL}/invoice/{provider_order_id}",
+                headers=self.headers,
+                timeout=20,
+            )
+            data = response.json()
+            status = str(data.get("payment_status") or data.get("status") or "").lower()
+            return self.normalize_status(status)
+        except Exception as exc:
+            print(f"⚠️ Lỗi kiểm tra NOWPayments: {exc}")
+            return "ERROR"
+
+    @staticmethod
+    def normalize_status(status):
+        normalized = str(status or "").strip().lower()
+        if normalized == "finished":
+            return "PAID"
+        if normalized in {"waiting", "confirming", "confirmed", "sending", "partially_paid"}:
+            return "PENDING"
+        if normalized in {"failed", "expired", "refunded"}:
+            return "ERROR"
+        return "PENDING" if normalized else "ERROR"
+
+    @staticmethod
+    def verify_ipn_signature(payload, signature, secret):
+        if not secret or not signature:
+            return False
+        raw = payload if isinstance(payload, bytes) else bytes(payload or b"")
+        provided = str(signature).strip().lower()
+        expected_raw = hmac.new(str(secret).encode("utf-8"), raw, hashlib.sha512).hexdigest()
+        if hmac.compare_digest(expected_raw, provided):
+            return True
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            normalized = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            expected_normalized = hmac.new(str(secret).encode("utf-8"), normalized, hashlib.sha512).hexdigest()
+            return hmac.compare_digest(expected_normalized, provided)
+        except Exception:
+            return False
+
+
 class PaymentManager:
     def __init__(self):
         self.payos = PayOSManager()
         self.paypal = PayPalManager()
+        self.nowpayments = NowPaymentsManager()
 
     def enabled_providers(self):
-        return [provider for provider in ("PAYOS", "PAYPAL") if self.provider_enabled(provider)]
+        return [provider for provider in ("PAYOS", "PAYPAL", "NOWPAYMENTS") if self.provider_enabled(provider)]
+
+    def manager_for(self, provider):
+        selected = str(provider or "PAYOS").upper()
+        if selected == "PAYPAL":
+            return self.paypal
+        if selected == "NOWPAYMENTS":
+            return self.nowpayments
+        return self.payos
 
     def provider_enabled(self, provider):
-        manager = self.paypal if str(provider).upper() == "PAYPAL" else self.payos
-        return manager.enabled
+        return self.manager_for(provider).enabled
 
     def preferred_provider(self, language="vi"):
         key = "PAYMENT_PROVIDER_EN" if str(language).lower() == "en" else "PAYMENT_PROVIDER_VI"
@@ -241,7 +373,7 @@ class PaymentManager:
         providers = []
         for item in configured.split(","):
             provider = item.strip()
-            if provider in {"PAYOS", "PAYPAL"} and provider not in providers and self.provider_enabled(provider):
+            if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS"} and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
         if providers:
             return providers
@@ -249,14 +381,14 @@ class PaymentManager:
 
     def create_payment_link(self, order_code, amount, description, provider=""):
         selected = str(provider or self.preferred_provider()).upper()
-        manager = self.paypal if selected == "PAYPAL" else self.payos
+        manager = self.manager_for(selected)
         return manager.create_payment_link(order_code, amount, description)
 
     def get_payment_status(self, order_ref):
         order = supabase_store.get_order(str(order_ref)) if supabase_store.enabled else None
         provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
         provider_order_id = str((order or {}).get("payment_provider_order_id") or order_ref)
-        manager = self.paypal if provider == "PAYPAL" else self.payos
+        manager = self.manager_for(provider)
         return manager.get_payment_status(provider_order_id)
 
 

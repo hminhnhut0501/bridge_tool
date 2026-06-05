@@ -32,6 +32,13 @@ def test_vietnamese_can_offer_both_payment_providers():
         assert payment_manager.providers_for_language("vi") == ["PAYOS", "PAYPAL"]
 
 
+def test_vietnamese_can_offer_crypto_provider():
+    with patch("payment.db.get_config", return_value="PAYOS,NOWPAYMENTS"), patch.object(
+        payment_manager, "provider_enabled", return_value=True
+    ):
+        assert payment_manager.providers_for_language("vi") == ["PAYOS", "NOWPAYMENTS"]
+
+
 def test_english_provider_list_does_not_fallback_to_vnd_gateway():
     with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
         payment_manager, "provider_enabled", side_effect=lambda provider: provider == "PAYOS"
@@ -46,3 +53,30 @@ def test_paypal_approved_order_is_captured_as_paid():
         "payment.requests.get", return_value=lookup
     ), patch("payment.requests.post", return_value=capture):
         assert payment_manager.paypal.get_payment_status("PAYPAL-1") == "PAID"
+
+
+def test_nowpayments_finished_status_is_paid():
+    assert payment_manager.nowpayments.normalize_status("finished") == "PAID"
+    assert payment_manager.nowpayments.normalize_status("confirmed") == "PENDING"
+    assert payment_manager.nowpayments.normalize_status("partially_paid") == "PENDING"
+    assert payment_manager.nowpayments.normalize_status("expired") == "ERROR"
+
+
+def test_nowpayments_invoice_returns_checkout_url():
+    response = type(
+        "Response",
+        (),
+        {
+            "ok": True,
+            "json": lambda self: {"id": "INV-1", "invoice_url": "https://nowpayments.io/invoice/INV-1"},
+        },
+    )()
+    with patch.object(type(payment_manager.nowpayments), "enabled", property(lambda self: True)), patch(
+        "payment.db.get_config",
+        side_effect=lambda key, default="": {"NOWPAYMENTS_PRICE_CURRENCY": "USD"}.get(key, default),
+    ), patch("payment.requests.post", return_value=response):
+        data = payment_manager.nowpayments.create_payment_link("123", 9.99, "PRIVE123")
+        assert data["provider"] == "NOWPAYMENTS"
+        assert data["provider_order_id"] == "INV-1"
+        assert data["approval_url"] == "https://nowpayments.io/invoice/INV-1"
+        assert data["currency_code"] == "USD"

@@ -271,22 +271,54 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "NOWPAYMENTS_PAYMENT_ENABLED",
+    label: "Bật thanh toán Crypto NOWPayments",
+    placeholder: "OFF",
+    help: "Chỉ hoạt động khi Render đã có NOWPAYMENTS_API_KEY và NOWPAYMENTS_IPN_SECRET.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
-    placeholder: "PAYOS,PAYPAL",
-    help: "Nhập PAYOS,PAYPAL để khách Việt được chọn cả VietQR và PayPal. PayPal luôn dùng bảng giá USD riêng.",
+    placeholder: "PAYOS,PAYPAL,NOWPAYMENTS",
+    help: "Nhập PAYOS,PAYPAL,NOWPAYMENTS để khách Việt được chọn VietQR, PayPal và Crypto. PayPal/Crypto dùng bảng giá USD riêng.",
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
     label: "Các cổng cho tiếng Anh",
-    placeholder: "PAYPAL",
-    help: "Khuyến nghị chỉ dùng PAYPAL. PayOS chỉ nhận giá VNĐ.",
+    placeholder: "PAYPAL,NOWPAYMENTS",
+    help: "Khuyến nghị dùng PAYPAL,NOWPAYMENTS. PayOS chỉ nhận giá VNĐ.",
   },
   {
     key: "PAYPAL_BRAND_NAME",
     label: "Tên shop trên PayPal",
     placeholder: "Prive Bot",
     help: "Tên hiển thị trên trang thanh toán PayPal.",
+  },
+  {
+    key: "NOWPAYMENTS_PRICE_CURRENCY",
+    label: "Tiền tệ giá Crypto",
+    placeholder: "USD",
+    help: "Nên giữ USD để dùng bảng giá USD riêng, không quy đổi từ VNĐ.",
+  },
+  {
+    key: "NOWPAYMENTS_PAY_CURRENCY",
+    label: "Coin cố định",
+    placeholder: "Để trống hoặc usdttrc20",
+    help: "Để trống để khách tự chọn coin/network. Nhập usdttrc20 nếu muốn ép thanh toán USDT TRC20.",
+  },
+  {
+    key: "NOWPAYMENTS_IPN_CALLBACK_URL",
+    label: "NOWPayments IPN URL",
+    placeholder: "https://prive-bot-backend.onrender.com/payment-webhooks/nowpayments",
+    help: "URL callback để NOWPayments báo trạng thái. Có thể để trống nếu Render có PUBLIC_BASE_URL hoặc RENDER_EXTERNAL_URL.",
+  },
+  {
+    key: "NOWPAYMENTS_TTL_SECONDS",
+    label: "Thời gian chờ Crypto",
+    placeholder: "3600",
+    help: "Số giây bot giữ đơn crypto ở trạng thái chờ. Mặc định 3600 giây vì blockchain xác nhận chậm hơn VietQR.",
   },
 ];
 
@@ -3795,13 +3827,13 @@ export default function Home() {
               <PanelHead title="Cấu hình vận hành Bot" subtitle="Chỉ chứa thiết lập hệ thống. Nội dung khách nhìn thấy, lệnh, cảnh báo và Menu Builder đã được tách thành menu riêng." />
               <div className="subtabs">
                 <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
-                <button className={contentTab === "payment" ? "active" : ""} onClick={() => setContentTab("payment")}>Thanh toán PayOS / PayPal</button>
+                <button className={contentTab === "payment" ? "active" : ""} onClick={() => setContentTab("payment")}>Thanh toán</button>
                 <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
                 <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
               </div>
             </section>
             {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal dùng giá USD riêng, không quy đổi tỷ giá. Credentials PayPal vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và NOWPayments dùng giá USD riêng, không quy đổi tỷ giá. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>

@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import os
 import time
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ from hidden_group_utils import (
 )
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
+from payment import payment_manager
 
 load_dotenv()
 
@@ -460,6 +462,58 @@ async def admin_webhook_reset():
         allowed_updates=dp.resolve_used_update_types(),
     )
     return {"data": await bot.get_webhook_info()}
+
+
+@app.post("/payment-webhooks/nowpayments")
+async def nowpayments_webhook(request: Request):
+    secret = os.getenv("NOWPAYMENTS_IPN_SECRET") or str(db.get_config("NOWPAYMENTS_IPN_SECRET", "") or "")
+    signature = request.headers.get("x-nowpayments-sig") or request.headers.get("X-NOWPAYMENTS-SIG")
+    raw_body = await request.body()
+    if not payment_manager.nowpayments.verify_ipn_signature(raw_body, signature, secret):
+        raise HTTPException(status_code=401, detail="Invalid NOWPayments signature")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid NOWPayments payload")
+
+    order_id = str(payload.get("order_id") or payload.get("orderId") or "").strip()
+    payment_id = str(payload.get("payment_id") or payload.get("invoice_id") or payload.get("id") or "").strip()
+    raw_status = str(payload.get("payment_status") or payload.get("status") or "").strip()
+    status = payment_manager.nowpayments.normalize_status(raw_status)
+    if not order_id:
+        raise HTTPException(status_code=400, detail="NOWPayments payload missing order_id")
+
+    order = supabase_store.get_order(order_id) if supabase_store.enabled else None
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if str(order.get("payment_provider") or "").upper() != "NOWPAYMENTS":
+        raise HTTPException(status_code=400, detail="Order provider mismatch")
+
+    try:
+        existing_metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+        supabase_store.update_order_fields(order_id, {
+            "metadata": {
+                **existing_metadata,
+                "nowpayments_last_status": raw_status,
+                "nowpayments_payment_id": payment_id,
+                "nowpayments_ipn_at": now_local().isoformat(timespec="seconds"),
+            },
+        })
+    except Exception as exc:
+        print(f"⚠️ Không lưu được metadata IPN NOWPayments cho đơn {order_id}: {exc}")
+
+    if status == "PAID":
+        from processor import process_successful_payment
+
+        await process_successful_payment(order_id)
+    elif raw_status.lower() in {"failed", "expired", "refunded"} and str(order.get("status", "")).upper() == "PENDING":
+        try:
+            supabase_store.expire_pending_order(order_id)
+        except Exception as exc:
+            print(f"⚠️ Không cập nhật EXPIRED cho đơn NOWPayments {order_id}: {exc}")
+
+    return {"ok": True, "order_id": order_id, "status": status, "raw_status": raw_status}
 
 
 @app.post("/webhook")

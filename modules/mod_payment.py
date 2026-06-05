@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
-from payment import payment_manager, payos_manager
+from payment import payment_manager
 from processor import expire_pending_payment, parse_int_config, process_successful_payment, auto_check_loop, cancelled_orders
 from bot_instance import bot
 from hidden_group_utils import (
@@ -55,7 +55,7 @@ def safe_int(value_str):
         return 999  # Trả về giá mặc định nếu lỗi
 
 def currency_for_provider(provider):
-    return "USD" if str(provider or "").upper() == "PAYPAL" else "VND"
+    return "VND" if str(provider or "").upper() == "PAYOS" else "USD"
 
 
 def default_currency_for_user(user_id):
@@ -247,22 +247,34 @@ def sale_caption(sale_info, original_amount, amount, currency="VND"):
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
     pretty_plan_name = display_plan_name(plan_name)
     provider = str(pay_data.get("provider") or "PAYOS").upper()
-    if provider == "PAYPAL":
+    if provider in {"PAYPAL", "NOWPAYMENTS"}:
         approval_url = str(pay_data.get("approval_url") or "").strip()
-        caption = t(
-            callback.from_user.id,
-            "MSG_PAYPAL_BILL_TEMPLATE",
-            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
-        ).replace("\\n", "\n")
+        if provider == "NOWPAYMENTS":
+            caption = t(
+                callback.from_user.id,
+                "MSG_NOWPAYMENTS_BILL_TEMPLATE",
+                "₿ <b>THANH TOÁN CRYPTO</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nSau khi blockchain xác nhận xong, bot sẽ tự cấp quyền. Quá trình này có thể mất vài phút.",
+            ).replace("\\n", "\n")
+        else:
+            caption = t(
+                callback.from_user.id,
+                "MSG_PAYPAL_BILL_TEMPLATE",
+                "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+            ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
-            .replace("{amount}", format_money(amount, "USD"))
+            .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or "USD")))
             .replace("{paypal_amount}", str(pay_data.get("paypal_amount") or ""))
             .replace("{desc}", description)
         )
         caption += extra_caption
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal"), url=approval_url))
+        checkout_label = t(
+            callback.from_user.id,
+            "BTN_NOWPAYMENTS_CHECKOUT",
+            "₿ Thanh toán Crypto",
+        ) if provider == "NOWPAYMENTS" else t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal")
+        kb.row(InlineKeyboardButton(text=checkout_label, url=approval_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 I've paid"), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Cancel"), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
@@ -309,11 +321,13 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="")
 
 
 def payment_meta(pay_data):
+    provider = str(pay_data.get("provider") or "PAYOS").upper()
+    default_currency = "VND" if provider == "PAYOS" else "USD"
     return {
-        "payment_provider": pay_data.get("provider", "PAYOS"),
+        "payment_provider": provider,
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
         "payment_approval_url": pay_data.get("approval_url", ""),
-        "payment_currency": pay_data.get("currency_code", "USD" if pay_data.get("provider") == "PAYPAL" else "VND"),
+        "payment_currency": pay_data.get("currency_code", default_currency),
     }
 
 
@@ -324,7 +338,7 @@ def payment_choice_keyboard(user_id, action, prefix):
     if len(providers) <= 1:
         return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)"}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments"}
     added = 0
     for provider in providers:
         callback_data = f"{prefix}|{provider}|{action}"
@@ -353,7 +367,7 @@ async def process_early_renew(callback: CallbackQuery):
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew")
         if keyboard:
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -510,7 +524,7 @@ async def process_buy_request(callback: CallbackQuery):
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy")
         if keyboard:
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -583,7 +597,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy")
         if keyboard:
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -654,7 +668,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paycoupon")
         if keyboard:
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. PayPal sử dụng giá USD riêng, VietQR sử dụng giá VNĐ."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -746,7 +760,11 @@ async def manual_check_payment(callback: CallbackQuery):
     if not await check_protection(callback): return
     order_id = callback.data.split("_")[1]
 
-    qr_ttl_seconds = max(60, parse_int_config("QR_TTL_SECONDS", 300))
+    order = supabase_store.get_order(order_id) if supabase_store.enabled else None
+    provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
+    ttl_key = "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
+    ttl_default = 3600 if provider == "NOWPAYMENTS" else 300
+    qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     try:
         if int(time.time()) - int(order_id) > qr_ttl_seconds:
             await callback.answer(t(callback.from_user.id, "ALERT_QR_EXPIRED", "⏳ Mã QR đã hết hạn. Vui lòng tạo đơn mới."), show_alert=True)
@@ -756,7 +774,7 @@ async def manual_check_payment(callback: CallbackQuery):
     except ValueError:
         pass
     
-    if payos_manager.get_payment_status(order_id) == "PAID":
+    if payment_manager.get_payment_status(order_id) == "PAID":
         await callback.answer(t(callback.from_user.id, "ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)
         await process_successful_payment(order_id)
         await safe_delete_private_message(callback.message)
