@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from unittest.mock import patch
 
 from payment import payment_manager
@@ -80,3 +82,31 @@ def test_nowpayments_invoice_returns_checkout_url():
         assert data["provider_order_id"] == "INV-1"
         assert data["approval_url"] == "https://nowpayments.io/invoice/INV-1"
         assert data["currency_code"] == "USD"
+
+
+def test_nowpayments_ipn_signature_accepts_valid_raw_payload():
+    payload = b'{"order_id":"123","payment_status":"finished"}'
+    signature = hmac.new(b"secret", payload, hashlib.sha512).hexdigest()
+    assert payment_manager.nowpayments.verify_ipn_signature(payload, signature, "secret")
+    assert not payment_manager.nowpayments.verify_ipn_signature(payload, signature, "wrong-secret")
+
+
+def test_payment_manager_routes_nowpayments_status_by_order_provider():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def get_order(order_ref):
+            return {
+                "order_id": order_ref,
+                "payment_provider": "NOWPAYMENTS",
+                "payment_provider_order_id": "INV-1",
+            }
+
+    with patch("payment.supabase_store", Store), patch.object(
+        payment_manager.nowpayments,
+        "get_payment_status",
+        return_value="PAID",
+    ) as check:
+        assert payment_manager.get_payment_status("123") == "PAID"
+        check.assert_called_once_with("INV-1")
