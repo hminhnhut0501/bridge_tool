@@ -40,6 +40,8 @@ class FakeStore:
         self.events = []
         self.orders = []
         self.expired_orders = []
+        self.due_query_called = False
+        self.full_query_called = False
 
     def get_user_identity(self, telegram_user_id):
         return {}
@@ -64,7 +66,19 @@ class FakeStore:
         })
 
     def list_scheduler_orders(self, limit=5000):
+        self.full_query_called = True
         return list(self.orders)
+
+    def list_scheduler_due_orders(self, due_before, limit=5000):
+        self.due_query_called = True
+        cutoff = scheduler.parse_expire_datetime(due_before)
+        rows = []
+        for order in self.orders:
+            status = str(order.get("status", "")).upper()
+            expire_at = scheduler.parse_expire_datetime(order.get("expire_at"))
+            if status == "EXPIRED" or (status == "PAID" and expire_at and cutoff and expire_at <= cutoff):
+                rows.append(order)
+        return rows[:limit]
 
     def order_to_sheet_row(self, order):
         return [
@@ -371,6 +385,34 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.muted, [])
         self.assertEqual(self.bot.kicked, [])
+
+    async def test_scheduler_uses_due_order_query_to_avoid_far_future_orders(self):
+        now = datetime(2026, 5, 25, 12, 0, 0)
+        scheduler.now_local = lambda: now
+        self.db.config["REMINDER_DAYS"] = "3"
+        self.store.orders = [
+            {
+                "order_id": "far-future",
+                "telegram_user_id": "42",
+                "full_name": "Far",
+                "plan_name": "VIP 30 ngày - Hang Cú Prime",
+                "status": "PAID",
+                "expire_at": "2026-06-25 12:00:00",
+            },
+            {
+                "order_id": "soon",
+                "telegram_user_id": "43",
+                "full_name": "Soon",
+                "plan_name": "VIP 30 ngày - Hang Cú Prime",
+                "status": "PAID",
+                "expire_at": "2026-05-27 12:00:00",
+            },
+        ]
+
+        await scheduler.check_expirations_professional()
+
+        self.assertTrue(self.store.due_query_called)
+        self.assertFalse(self.store.full_query_called)
 
 
 if __name__ == "__main__":

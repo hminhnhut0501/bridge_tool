@@ -428,23 +428,34 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
 
 async def check_expirations_professional():
     try:
-        logging.info("⏳ [SCHEDULER] Đang quét danh sách thành viên để kiểm tra hạn dùng...")
+        logging.info("⏳ [SCHEDULER] Đang kiểm tra hạn dùng tới hạn/quá hạn...")
         use_supabase = supabase_store.enabled
         if not use_supabase and not db.users_sheet:
             db.connect()
 
-        if use_supabase:
-            order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
-            users_data = [supabase_store.order_to_sheet_row(order) for order in supabase_store.list_scheduler_orders(limit=order_limit)]
-        else:
-            users_data = db.users_sheet.get_all_values()[1:]
-        
-        # Lấy số ngày báo trước từ Sheet (Mặc định báo trước 3 ngày)
         days_notice = config_int("REMINDER_DAYS", 3, minimum=0)
-        
         now = now_local()
         today_str = now.strftime("%Y-%m-%d")
-        logging.info(f"⏰ Scheduler dùng timezone Asia/Ho_Chi_Minh, hiện tại: {now:%Y-%m-%d %H:%M:%S}, nhắc trước {days_notice} ngày.")
+
+        if use_supabase:
+            order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
+            due_before = now + timedelta(days=days_notice)
+            try:
+                scheduler_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
+            except Exception as exc:
+                logging.warning("⚠️ Không dùng được query tối ưu scheduler, fallback quét rộng: %s", exc)
+                scheduler_orders = supabase_store.list_scheduler_orders(limit=order_limit)
+            users_data = [supabase_store.order_to_sheet_row(order) for order in scheduler_orders]
+        else:
+            users_data = db.users_sheet.get_all_values()[1:]
+
+        logging.info(
+            "⏰ Scheduler timezone Asia/Ho_Chi_Minh: %s, nhắc trước %s ngày, xử lý %s đơn/dòng.",
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            days_notice,
+            len(users_data),
+        )
+        summary = {"expired": 0, "expired_notice": 0, "reminded": 0, "skipped_not_due": 0, "invalid": 0}
         
         # Duyệt danh sách đơn PAID từ Supabase hoặc các dòng Users từ Sheet.
         for offset, row in enumerate(users_data, start=0):
@@ -481,6 +492,7 @@ async def check_expirations_professional():
 
             expire_date = parse_expire_datetime(expire_str)
             if not expire_date:
+                summary["invalid"] += 1
                 logging.warning(f"⚠️ Bỏ qua đơn/dòng {offer_ref}: không đọc được ngày hết hạn '{expire_str}' cho user {user_id}.")
                 continue
 
@@ -493,6 +505,7 @@ async def check_expirations_professional():
             # plan_group_ids() đã loại support group, nên các group ở đây là group VIP chính.
             # ==========================================
             if expire_date <= now:
+                summary["expired"] += 1
                 logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
                 if not plan_group_ids(plan_name):
                     logging.error(
@@ -536,6 +549,7 @@ async def check_expirations_professional():
                     try:
                         await send_html_message(user_id, msg_expired, kb.as_markup())
                         record_support_event("expired_notice_sent", user_id, order_id=order_id, plan_name=plan_name, raw_data={"expire_at": expire_str})
+                        summary["expired_notice"] += 1
                         logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
                     except Exception as e:
                         logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
@@ -583,6 +597,7 @@ async def check_expirations_professional():
                     await send_html_message(user_id, msg_reminder, kb.as_markup())
                     record_support_event("renewal_reminder_sent", user_id, order_id=order_id, plan_name=plan_name, raw_data={"days_remaining": days_remaining, "expire_at": expire_str})
                     notified_users.add(notif_key) # Lưu nháp để hôm nay không nhắc lại nữa
+                    summary["reminded"] += 1
                     if use_supabase:
                         supabase_store.mark_reminder_sent(order_id, today_str)
                     else:
@@ -591,7 +606,16 @@ async def check_expirations_professional():
                 except Exception as e:
                     logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
             else:
-                logging.info(f"⏭ Đơn/dòng {offer_ref}: User {user_id} còn {days_remaining} ngày, chưa tới điều kiện nhắc.")
+                summary["skipped_not_due"] += 1
+
+        logging.info(
+            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s.",
+            summary["expired"],
+            summary["expired_notice"],
+            summary["reminded"],
+            summary["skipped_not_due"],
+            summary["invalid"],
+        )
 
     except Exception as e:
         logging.error(f"❌ Lỗi hệ thống quét định kỳ: {e}")

@@ -228,6 +228,35 @@ class SupabaseStore:
             },
         )
 
+    def list_scheduler_due_orders(self, due_before, limit=1000):
+        due_value = _parse_datetime(due_before) or str(due_before)
+        paid_rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "status": "eq.PAID",
+                "expire_at": f"lte.{due_value}",
+                "order": "expire_at.asc",
+                "limit": str(limit),
+            },
+        )
+        remaining = max(0, int(limit) - len(paid_rows))
+        if remaining <= 0:
+            return paid_rows
+        expired_rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "status": "eq.EXPIRED",
+                "order": "expire_at.asc",
+                "limit": str(remaining),
+            },
+        )
+        seen = {str(row.get("order_id")) for row in paid_rows}
+        return paid_rows + [row for row in expired_rows if str(row.get("order_id")) not in seen]
+
     def list_paid_orders_for_user(self, telegram_user_id, limit=100):
         return self._request(
             "GET",
