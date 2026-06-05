@@ -5,6 +5,7 @@ os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
 import config_utils
 import hidden_group_utils
+import modules.mod_coupon as mod_coupon
 import modules.mod_payment as mod_payment
 
 
@@ -129,3 +130,26 @@ class HiddenGroupTests(unittest.TestCase):
         self.assertEqual(offer["source_ref"], "HIDEVIP")
         self.assertEqual(offer["metadata"]["hidden_group_id"], "prime_x")
         self.assertTrue(hidden_group_utils.extract_plan_token(offer["plan_name"]).startswith("HG:prime_x"))
+
+    def test_hidden_group_can_be_lifetime_only_when_monthly_price_is_zero(self):
+        group = {
+            "id": "life_only",
+            "name": "Life Only",
+            "price_1m_vnd": 0,
+            "price_life_vnd": 900000,
+            "price_1m_usd": 0,
+            "price_life_usd": 49.99,
+            "duration_1m_days": 30,
+            "lifetime_days": 3650,
+        }
+
+        markup = mod_coupon.hidden_buy_buttons("42", "HIDEVIP", [group])
+        button_callbacks = [
+            button.callback_data
+            for row in markup.inline_keyboard
+            for button in row
+            if button.callback_data
+        ]
+
+        self.assertIn("hgbuy|HIDEVIP|life_only|LIFE", button_callbacks)
+        self.assertNotIn("hgbuy|HIDEVIP|life_only|1M", button_callbacks)
