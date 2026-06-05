@@ -199,18 +199,33 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.events[0][1]["raw_data"]["failed_groups"], ["UNMAPPED_PLAN"])
         self.assertIn("chưa map được", processor.bot.messages[0]["text"])
 
-    def test_paypal_order_does_not_fallback_without_provider_columns(self):
+    def test_paypal_order_falls_back_without_provider_columns(self):
         store = SupabaseStore()
         calls = []
 
         def request(*args, **kwargs):
             calls.append(kwargs.get("json"))
-            raise RuntimeError("column payment_provider does not exist")
+            if len(calls) == 1:
+                raise RuntimeError("column payment_provider does not exist")
+            return [{"order_id": "1"}]
 
         store._request = request
-        with self.assertRaises(RuntimeError):
-            store.create_order("1", "42", "User", "Plan", 100, payment_provider="PAYPAL")
-        self.assertEqual(len(calls), 1)
+        result = store.create_order(
+            "1",
+            "42",
+            "User",
+            "Plan",
+            100,
+            payment_provider="PAYPAL",
+            payment_provider_order_id="PAYPAL-1",
+            payment_currency="USD",
+        )
+
+        self.assertEqual(result, [{"order_id": "1"}])
+        self.assertNotIn("payment_provider", calls[1])
+        self.assertEqual(calls[1]["metadata"]["payment_provider"], "PAYPAL")
+        self.assertEqual(calls[1]["metadata"]["payment_provider_order_id"], "PAYPAL-1")
+        self.assertEqual(calls[1]["metadata"]["payment_currency"], "USD")
 
     def test_payos_order_can_fallback_during_provider_migration(self):
         store = SupabaseStore()

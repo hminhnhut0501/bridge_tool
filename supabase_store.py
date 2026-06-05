@@ -453,18 +453,27 @@ class SupabaseStore:
                     "metadata",
                 )
             )
-            if not missing_optional_column or str(payment_provider).upper() == "PAYPAL":
+            if not missing_optional_column:
                 raise
             legacy_payload = dict(payload)
             legacy_payload.pop("payment_provider", None)
             legacy_payload.pop("payment_provider_order_id", None)
             legacy_payload.pop("payment_approval_url", None)
             legacy_payload.pop("payment_currency", None)
-            legacy_payload.pop("plan_token", None)
-            legacy_payload.pop("plan_category", None)
-            legacy_payload.pop("source_type", None)
-            legacy_payload.pop("source_ref", None)
-            legacy_payload.pop("metadata", None)
+            legacy_metadata = legacy_payload.get("metadata") if isinstance(legacy_payload.get("metadata"), dict) else {}
+            if payment_provider:
+                legacy_metadata["payment_provider"] = _clean_text(payment_provider).upper()
+            if payment_provider_order_id:
+                legacy_metadata["payment_provider_order_id"] = _clean_text(payment_provider_order_id)
+            if payment_approval_url:
+                legacy_metadata["payment_approval_url"] = _clean_text(payment_approval_url)
+            if payment_currency:
+                legacy_metadata["payment_currency"] = _clean_text(payment_currency).upper()
+            if legacy_metadata:
+                legacy_payload["metadata"] = legacy_metadata
+            for optional_column in ("plan_token", "plan_category", "source_type", "source_ref", "metadata"):
+                if optional_column in str(exc):
+                    legacy_payload.pop(optional_column, None)
             return self._request(
                 "POST",
                 "orders",

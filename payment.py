@@ -536,8 +536,9 @@ class PaymentManager:
 
     def get_payment_status(self, order_ref):
         order = supabase_store.get_order(str(order_ref)) if supabase_store.enabled else None
-        provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
-        provider_order_id = str((order or {}).get("payment_provider_order_id") or order_ref)
+        metadata = (order or {}).get("metadata") if isinstance((order or {}).get("metadata"), dict) else {}
+        provider = str((order or {}).get("payment_provider") or metadata.get("payment_provider") or "PAYOS").upper()
+        provider_order_id = str((order or {}).get("payment_provider_order_id") or metadata.get("payment_provider_order_id") or order_ref)
         manager = self.manager_for(provider)
         return manager.get_payment_status(provider_order_id)
 
