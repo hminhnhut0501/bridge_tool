@@ -72,6 +72,7 @@ import {
   getCoupons,
   getHiddenCodes,
   getHiddenGroups,
+  getHiddenRedemptions,
   getKickAudit,
   getMenuPages,
   getOrders,
@@ -92,6 +93,7 @@ import {
   upsertBlacklist,
   upsertHiddenCode,
   upsertHiddenGroup,
+  type HiddenRedemption,
   upsertSaleRule,
   type HiddenCode,
   type HiddenGroup,
@@ -111,6 +113,38 @@ type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" 
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 type ChannelPostTab = "draft" | "queue" | "scheduled" | "sent" | "failed" | "deleted";
+type HiddenSetupView = "groups" | "codes" | "activity";
+type HiddenGroupFormState = {
+  id: string;
+  name: string;
+  description: string;
+  chat_id: string;
+  price_1m_vnd: string;
+  price_life_vnd: string;
+  price_1m_usd: string;
+  price_life_usd: string;
+  duration_1m_days: string;
+  lifetime_days: string;
+  image_url: string;
+  requirement_type: string;
+  requirement_value: string;
+  sort_order: string;
+  is_active: boolean;
+};
+type HiddenCodeFormState = {
+  code: string;
+  name: string;
+  description: string;
+  scope_type: string;
+  group_ids: string[];
+  requirement_type: string;
+  requirement_value: string;
+  max_uses: string;
+  used_count: string;
+  valid_from: string;
+  valid_until: string;
+  is_active: boolean;
+};
 
 type Notice = {
   type: "ok" | "error";
@@ -1076,6 +1110,52 @@ const EMPTY_CHANNEL_POST_FORM = {
   notes: "",
 };
 
+const HIDDEN_REQUIREMENT_OPTIONS = [
+  { value: "NONE", label: "Không yêu cầu thêm" },
+  { value: "SVIP_ACTIVE", label: "Phải có SVIP active" },
+  { value: "SVIP_LIFETIME", label: "Phải có SVIP lifetime" },
+  { value: "PLAN_TOKEN_ACTIVE", label: "Phải có plan token active" },
+  { value: "PLAN_TOKEN_LIFETIME", label: "Phải có plan token lifetime" },
+];
+
+const HIDDEN_SCOPE_OPTIONS = [
+  { value: "SELECTED_GROUPS", label: "Chỉ hiện group được chọn" },
+  { value: "ALL_ACTIVE_HIDDEN_GROUPS", label: "Hiện toàn bộ hidden group đang bật" },
+];
+
+const EMPTY_HIDDEN_GROUP_FORM: HiddenGroupFormState = {
+  id: "",
+  name: "",
+  description: "",
+  chat_id: "",
+  price_1m_vnd: "0",
+  price_life_vnd: "0",
+  price_1m_usd: "0",
+  price_life_usd: "0",
+  duration_1m_days: "30",
+  lifetime_days: "3650",
+  image_url: "",
+  requirement_type: "NONE",
+  requirement_value: "",
+  sort_order: "1",
+  is_active: true,
+};
+
+const EMPTY_HIDDEN_CODE_FORM: HiddenCodeFormState = {
+  code: "",
+  name: "",
+  description: "",
+  scope_type: "SELECTED_GROUPS",
+  group_ids: [],
+  requirement_type: "SVIP_LIFETIME",
+  requirement_value: "",
+  max_uses: "0",
+  used_count: "0",
+  valid_from: "",
+  valid_until: "",
+  is_active: true,
+};
+
 const DEFAULT_LIFETIME_DAYS = "36500";
 
 const ORDER_PAGE_SIZE = 25;
@@ -1305,6 +1385,75 @@ function datetimeLocalToIso(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function hiddenRequirementLabel(value: string | null | undefined) {
+  return HIDDEN_REQUIREMENT_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Không yêu cầu thêm";
+}
+
+function hiddenScopeLabel(value: string | null | undefined) {
+  return HIDDEN_SCOPE_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Chọn thủ công";
+}
+
+function hiddenRequirementNeedsValue(value: string | null | undefined) {
+  return ["PLAN_TOKEN_ACTIVE", "PLAN_TOKEN_LIFETIME"].includes(String(value || "").toUpperCase());
+}
+
+function hiddenSlug(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+}
+
+function hiddenCodeSeed(value: string) {
+  return hiddenSlug(value).replace(/_/g, "-").toUpperCase();
+}
+
+function hiddenValidityText(code: HiddenCode) {
+  if (!code.valid_from && !code.valid_until) return "Không giới hạn thời gian";
+  return `${dateText(code.valid_from) === "-" ? "Ngay" : dateText(code.valid_from)} → ${dateText(code.valid_until) === "-" ? "Vô hạn" : dateText(code.valid_until)}`;
+}
+
+function hiddenGroupToForm(item?: HiddenGroup, nextSort = 1): HiddenGroupFormState {
+  return {
+    id: item?.id || "",
+    name: item?.name || "",
+    description: item?.description || "",
+    chat_id: item?.chat_id || "",
+    price_1m_vnd: String(item?.price_1m_vnd ?? 0),
+    price_life_vnd: String(item?.price_life_vnd ?? 0),
+    price_1m_usd: String(item?.price_1m_usd ?? 0),
+    price_life_usd: String(item?.price_life_usd ?? 0),
+    duration_1m_days: String(item?.duration_1m_days ?? 30),
+    lifetime_days: String(item?.lifetime_days ?? 3650),
+    image_url: item?.image_url || "",
+    requirement_type: item?.requirement_type || "NONE",
+    requirement_value: item?.requirement_value || "",
+    sort_order: String(item?.sort_order ?? nextSort),
+    is_active: item?.is_active ?? true,
+  };
+}
+
+function hiddenCodeToForm(item?: HiddenCode, defaultGroupIds: string[] = []): HiddenCodeFormState {
+  return {
+    code: item?.code || "",
+    name: item?.name || "",
+    description: item?.description || "",
+    scope_type: item?.scope_type || "SELECTED_GROUPS",
+    group_ids: item?.group_ids?.length ? [...item.group_ids] : [...defaultGroupIds],
+    requirement_type: item?.requirement_type || "SVIP_LIFETIME",
+    requirement_value: item?.requirement_value || "",
+    max_uses: String(item?.max_uses ?? 0),
+    used_count: String(item?.used_count ?? 0),
+    valid_from: dateTimeInputValue(item?.valid_from),
+    valid_until: dateTimeInputValue(item?.valid_until),
+    is_active: item?.is_active ?? true,
+  };
+}
+
 function channelPostTabFor(post: ChannelPost): ChannelPostTab {
   const status = String(post.status || "draft").toLowerCase();
   if (["queued", "pending", "sending"].includes(status)) return "queue";
@@ -1518,6 +1667,7 @@ export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<HiddenGroup[]>([]);
   const [hiddenCodes, setHiddenCodes] = useState<HiddenCode[]>([]);
+  const [hiddenRedemptions, setHiddenRedemptions] = useState<HiddenRedemption[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
@@ -1584,6 +1734,13 @@ export default function Home() {
   const [couponTab, setCouponTab] = useState<CouponTab>("unsent");
   const [couponPage, setCouponPage] = useState(1);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [hiddenSetupView, setHiddenSetupView] = useState<HiddenSetupView>("groups");
+  const [hiddenGroupModalOpen, setHiddenGroupModalOpen] = useState(false);
+  const [hiddenCodeModalOpen, setHiddenCodeModalOpen] = useState(false);
+  const [hiddenGroupForm, setHiddenGroupForm] = useState<HiddenGroupFormState>({ ...EMPTY_HIDDEN_GROUP_FORM });
+  const [hiddenCodeForm, setHiddenCodeForm] = useState<HiddenCodeFormState>({ ...EMPTY_HIDDEN_CODE_FORM });
+  const [hiddenGroupQuery, setHiddenGroupQuery] = useState("");
+  const [hiddenCodeQuery, setHiddenCodeQuery] = useState("");
   const [manualOrderForm, setManualOrderForm] = useState({ ...EMPTY_MANUAL_ORDER_FORM });
   const [manualOrderResult, setManualOrderResult] = useState<ManualOrderResult | null>(null);
   const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
@@ -1808,7 +1965,7 @@ export default function Home() {
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, hiddenGroupsRes, hiddenCodesRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, hiddenGroupsRes, hiddenCodesRes, hiddenRedemptionsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
@@ -1817,6 +1974,7 @@ export default function Home() {
         getCoupons(activeSecret),
         getHiddenGroups(activeSecret),
         getHiddenCodes(activeSecret),
+        getHiddenRedemptions(activeSecret, 200),
         getBlacklist(activeSecret),
         getSupportEvents(activeSecret),
         getKickAudit(activeSecret),
@@ -1833,6 +1991,7 @@ export default function Home() {
       setCoupons(couponsRes.data);
       setHiddenGroups(hiddenGroupsRes.data);
       setHiddenCodes(hiddenCodesRes.data);
+      setHiddenRedemptions(hiddenRedemptionsRes.data);
       setBlacklist(blacklistRes.data);
       setSupportEvents(supportEventsRes.data);
       setKickAudit(kickAuditRes.data);
@@ -1851,32 +2010,54 @@ export default function Home() {
     }
   }
 
-  async function editHiddenGroup(item?: HiddenGroup) {
+  function openNewHiddenGroupModal() {
+    setHiddenGroupForm(hiddenGroupToForm(undefined, hiddenGroups.length + 1));
+    setHiddenGroupModalOpen(true);
+  }
+
+  function openEditHiddenGroupModal(item: HiddenGroup) {
+    setHiddenGroupForm(hiddenGroupToForm(item, hiddenGroups.length + 1));
+    setHiddenGroupModalOpen(true);
+  }
+
+  async function saveHiddenGroup() {
     if (!savedSecret) return;
-    const draft = item || {
-      id: "",
-      name: "",
-      description: "",
-      chat_id: "",
-      price_1m_vnd: 0,
-      price_life_vnd: 0,
-      price_1m_usd: 0,
-      price_life_usd: 0,
-      duration_1m_days: 30,
-      lifetime_days: 3650,
-      image_url: "",
-      requirement_type: "NONE",
-      requirement_value: "",
-      sort_order: hiddenGroups.length + 1,
-      is_active: true,
+    const id = hiddenGroupForm.id.trim() || hiddenSlug(hiddenGroupForm.name);
+    const payload = {
+      id,
+      name: hiddenGroupForm.name.trim(),
+      description: hiddenGroupForm.description.trim(),
+      chat_id: hiddenGroupForm.chat_id.trim(),
+      price_1m_vnd: Number(hiddenGroupForm.price_1m_vnd || 0),
+      price_life_vnd: Number(hiddenGroupForm.price_life_vnd || 0),
+      price_1m_usd: Number(hiddenGroupForm.price_1m_usd || 0),
+      price_life_usd: Number(hiddenGroupForm.price_life_usd || 0),
+      duration_1m_days: Number(hiddenGroupForm.duration_1m_days || 30),
+      lifetime_days: Number(hiddenGroupForm.lifetime_days || 3650),
+      image_url: hiddenGroupForm.image_url.trim(),
+      requirement_type: hiddenGroupForm.requirement_type,
+      requirement_value: hiddenRequirementNeedsValue(hiddenGroupForm.requirement_type) ? hiddenGroupForm.requirement_value.trim() : "",
+      sort_order: Number(hiddenGroupForm.sort_order || hiddenGroups.length + 1),
+      is_active: hiddenGroupForm.is_active,
     };
-    const raw = window.prompt("Nhập JSON Hidden Group", JSON.stringify(draft, null, 2));
-    if (!raw) return;
+    if (!payload.id) {
+      showNotice("error", "Cần nhập ID kỹ thuật hoặc tên để hệ thống tự tạo ID.");
+      return;
+    }
+    if (!payload.name || !payload.chat_id) {
+      showNotice("error", "Cần đủ tên hiển thị và Telegram group ID.");
+      return;
+    }
+    if (hiddenRequirementNeedsValue(payload.requirement_type) && !payload.requirement_value) {
+      showNotice("error", "Rule theo plan token cần nhập thêm requirement value.");
+      return;
+    }
     try {
-      setSaving(`hidden-group-${item?.id || "new"}`);
-      await upsertHiddenGroup(savedSecret, JSON.parse(raw));
+      setSaving(`hidden-group-${payload.id || "new"}`);
+      await upsertHiddenGroup(savedSecret, payload);
+      setHiddenGroupModalOpen(false);
       await loadAll(savedSecret, { silent: true, resetPages: false });
-      showNotice("ok", item ? "Đã lưu Hidden Group." : "Đã tạo Hidden Group.");
+      showNotice("ok", hiddenGroups.some((item) => item.id === payload.id) ? "Đã cập nhật Hidden Group." : "Đã tạo Hidden Group.");
     } catch (err) {
       showNotice("error", err instanceof Error ? err.message : "Không lưu được Hidden Group.");
     } finally {
@@ -1898,29 +2079,65 @@ export default function Home() {
     }
   }
 
-  async function editHiddenCode(item?: HiddenCode) {
+  function openNewHiddenCodeModal() {
+    const defaultGroupIds = hiddenGroups.filter((item) => item.is_active).slice(0, 1).map((item) => item.id);
+    setHiddenCodeForm(hiddenCodeToForm(undefined, defaultGroupIds));
+    setHiddenCodeModalOpen(true);
+  }
+
+  function openEditHiddenCodeModal(item: HiddenCode) {
+    setHiddenCodeForm(hiddenCodeToForm(item));
+    setHiddenCodeModalOpen(true);
+  }
+
+  function toggleHiddenCodeGroup(groupId: string) {
+    const current = new Set(hiddenCodeForm.group_ids);
+    if (current.has(groupId)) current.delete(groupId);
+    else current.add(groupId);
+    setHiddenCodeForm({ ...hiddenCodeForm, group_ids: Array.from(current) });
+  }
+
+  async function saveHiddenCode() {
     if (!savedSecret) return;
-    const draft = item || {
-      code: "",
-      name: "",
-      description: "",
-      scope_type: "SELECTED_GROUPS",
-      group_ids: hiddenGroups.slice(0, 1).map((group) => group.id),
-      requirement_type: "SVIP_LIFETIME",
-      requirement_value: "",
-      max_uses: 0,
-      used_count: 0,
-      valid_from: "",
-      valid_until: "",
-      is_active: true,
+    const code = (hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase();
+    const validFrom = datetimeLocalToIso(hiddenCodeForm.valid_from);
+    const validUntil = datetimeLocalToIso(hiddenCodeForm.valid_until);
+    if (!code) {
+      showNotice("error", "Cần nhập mã hidden code hoặc tên để hệ thống tự tạo mã.");
+      return;
+    }
+    if (validFrom && validUntil && new Date(validUntil).getTime() < new Date(validFrom).getTime()) {
+      showNotice("error", "Thời gian hết hạn phải sau thời gian bắt đầu.");
+      return;
+    }
+    if (hiddenCodeForm.scope_type === "SELECTED_GROUPS" && !hiddenCodeForm.group_ids.length) {
+      showNotice("error", "Hidden code kiểu chọn thủ công cần ít nhất 1 hidden group.");
+      return;
+    }
+    if (hiddenRequirementNeedsValue(hiddenCodeForm.requirement_type) && !hiddenCodeForm.requirement_value.trim()) {
+      showNotice("error", "Rule theo plan token cần nhập requirement value.");
+      return;
+    }
+    const payload = {
+      code,
+      name: hiddenCodeForm.name.trim(),
+      description: hiddenCodeForm.description.trim(),
+      scope_type: hiddenCodeForm.scope_type,
+      group_ids: hiddenCodeForm.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? [] : hiddenCodeForm.group_ids,
+      requirement_type: hiddenCodeForm.requirement_type || "",
+      requirement_value: hiddenRequirementNeedsValue(hiddenCodeForm.requirement_type) ? hiddenCodeForm.requirement_value.trim() : "",
+      max_uses: Number(hiddenCodeForm.max_uses || 0),
+      used_count: Number(hiddenCodeForm.used_count || 0),
+      valid_from: validFrom,
+      valid_until: validUntil,
+      is_active: hiddenCodeForm.is_active,
     };
-    const raw = window.prompt("Nhập JSON Hidden Code", JSON.stringify(draft, null, 2));
-    if (!raw) return;
     try {
-      setSaving(`hidden-code-${item?.code || "new"}`);
-      await upsertHiddenCode(savedSecret, JSON.parse(raw));
+      setSaving(`hidden-code-${code}`);
+      await upsertHiddenCode(savedSecret, payload);
+      setHiddenCodeModalOpen(false);
       await loadAll(savedSecret, { silent: true, resetPages: false });
-      showNotice("ok", item ? "Đã lưu Hidden Code." : "Đã tạo Hidden Code.");
+      showNotice("ok", hiddenCodes.some((item) => item.code === code) ? "Đã cập nhật Hidden Code." : "Đã tạo Hidden Code.");
     } catch (err) {
       showNotice("error", err instanceof Error ? err.message : "Không lưu được Hidden Code.");
     } finally {
@@ -2262,6 +2479,50 @@ export default function Home() {
     const start = (safePage - 1) * COUPON_PAGE_SIZE;
     return visibleCoupons.slice(start, start + COUPON_PAGE_SIZE);
   }, [visibleCoupons, couponPage, totalCouponPages]);
+
+  const filteredHiddenGroups = useMemo(() => {
+    const keyword = hiddenGroupQuery.trim().toLowerCase();
+    if (!keyword) return hiddenGroups;
+    return hiddenGroups.filter((item) => [item.id, item.name, item.chat_id, item.description].some((value) => String(value || "").toLowerCase().includes(keyword)));
+  }, [hiddenGroups, hiddenGroupQuery]);
+
+  const filteredHiddenCodes = useMemo(() => {
+    const keyword = hiddenCodeQuery.trim().toLowerCase();
+    if (!keyword) return hiddenCodes;
+    return hiddenCodes.filter((item) => [
+      item.code,
+      item.name,
+      item.description,
+      item.scope_type,
+      item.requirement_type,
+      item.group_ids.join(","),
+    ].some((value) => String(value || "").toLowerCase().includes(keyword)));
+  }, [hiddenCodes, hiddenCodeQuery]);
+
+  const hiddenCodeUsageByGroup = useMemo(() => {
+    const index = new Map<string, number>();
+    for (const group of hiddenGroups) index.set(group.id, 0);
+    const activeGroupIds = hiddenGroups.filter((item) => item.is_active).map((item) => item.id);
+    for (const code of hiddenCodes) {
+      const targets = code.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? activeGroupIds : code.group_ids;
+      for (const groupId of targets) {
+        index.set(groupId, (index.get(groupId) || 0) + 1);
+      }
+    }
+    return index;
+  }, [hiddenGroups, hiddenCodes]);
+
+  async function copyHiddenCode(code: string) {
+    setSaving(`hidden-code-copy-${code}`);
+    try {
+      await navigator.clipboard.writeText(code);
+      showNotice("ok", `Đã copy mã ${code}.`);
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không copy được hidden code.");
+    } finally {
+      setSaving("");
+    }
+  }
 
   async function removeCoupon(code = couponForm.Code) {
     if (!code || !window.confirm(`Xoá coupon "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
@@ -3065,43 +3326,102 @@ export default function Home() {
             </section>
             <section className="panel">
               <PanelHead
-                title="Hidden Groups"
-                subtitle="Setup nhóm extra ẩn, giá và điều kiện mua. Bản đầu dùng editor JSON nhanh để thao tác ngay."
-                action={<button className="btn" onClick={() => editHiddenGroup()}><Plus size={16} /> Thêm Hidden Group</button>}
-              />
-              <div className="group-list">
-                {hiddenGroups.length ? hiddenGroups.map((item) => (
-                  <div className={item.is_active ? "group-row ok" : "group-row"} key={item.id}>
-                    <span>{item.id}</span>
-                    <strong>{item.name || "Chưa đặt tên"}</strong>
-                    <em>{item.chat_id || "Chưa có group ID"} • 30 ngày {item.price_1m_vnd || 0}đ • trọn đời {item.price_life_vnd || 0}đ • rule {item.requirement_type || "NONE"}</em>
-                    <div className="coupon-row-actions">
-                      <button className="btn secondary" onClick={() => editHiddenGroup(item)} disabled={saving === `hidden-group-${item.id}`}><Pencil size={16} /> Sửa JSON</button>
-                      <button className="btn danger" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}><Trash2 size={16} /> Xóa</button>
-                    </div>
+                title="Hidden access"
+                subtitle="Quản lý nhóm extra ẩn, mã reveal và lịch sử người đã mở catalog."
+                action={(
+                  <div className="panel-actions">
+                    {hiddenSetupView === "groups" ? <button className="btn" onClick={openNewHiddenGroupModal}><Plus size={16} /> Thêm Hidden Group</button> : null}
+                    {hiddenSetupView === "codes" ? <button className="btn" onClick={openNewHiddenCodeModal}><Plus size={16} /> Thêm Hidden Code</button> : null}
                   </div>
-                )) : <div className="empty-card">Chưa có Hidden Group nào.</div>}
-              </div>
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Hidden Codes"
-                subtitle="Quản lý mã reveal catalog hidden group. Có thể giới hạn rule và group_ids theo từng mã."
-                action={<button className="btn" onClick={() => editHiddenCode()}><Plus size={16} /> Thêm Hidden Code</button>}
+                )}
               />
-              <div className="group-list">
-                {hiddenCodes.length ? hiddenCodes.map((item) => (
-                  <div className={item.is_active ? "group-row ok" : "group-row"} key={item.code}>
-                    <span>{item.code}</span>
-                    <strong>{item.name || "Không tên"}</strong>
-                    <em>{item.scope_type} • groups: {item.group_ids.join(", ") || "-"} • used {item.used_count}/{item.max_uses || "∞"} • rule {item.requirement_type || "NONE"}</em>
-                    <div className="coupon-row-actions">
-                      <button className="btn secondary" onClick={() => editHiddenCode(item)} disabled={saving === `hidden-code-${item.code}`}><Pencil size={16} /> Sửa JSON</button>
-                      <button className="btn danger" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}><Trash2 size={16} /> Xóa</button>
-                    </div>
-                  </div>
-                )) : <div className="empty-card">Chưa có Hidden Code nào.</div>}
+              <div className="status-grid">
+                <Metric label="Hidden group" value={String(hiddenGroups.length)} />
+                <Metric label="Đang bật" value={String(hiddenGroups.filter((item) => item.is_active).length)} />
+                <Metric label="Hidden code" value={String(hiddenCodes.length)} />
+                <Metric label="Lượt mở catalog" value={String(hiddenRedemptions.length)} />
               </div>
+              <div className="subtabs hidden-subtabs">
+                <button className={hiddenSetupView === "groups" ? "active" : ""} onClick={() => setHiddenSetupView("groups")}>Nhóm ẩn</button>
+                <button className={hiddenSetupView === "codes" ? "active" : ""} onClick={() => setHiddenSetupView("codes")}>Mã reveal</button>
+                <button className={hiddenSetupView === "activity" ? "active" : ""} onClick={() => setHiddenSetupView("activity")}>Lịch sử mở mã</button>
+              </div>
+              {hiddenSetupView === "groups" ? (
+                <>
+                  <div className="hint compact">
+                    Mỗi hidden group là một entitlement riêng. ID nên ngắn gọn, ổn định như <code>prime_alpha</code> vì nó đi vào plan token và scheduler.
+                  </div>
+                  <div className="toolbar hidden-toolbar">
+                    <input value={hiddenGroupQuery} onChange={(event) => setHiddenGroupQuery(event.target.value)} placeholder="Tìm theo ID, tên nhóm, chat ID..." />
+                  </div>
+                  <div className="group-list">
+                    {filteredHiddenGroups.length ? filteredHiddenGroups.map((item) => (
+                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.id}>
+                        <span>{item.id}</span>
+                        <div className="hidden-row-copy">
+                          <strong>{item.name || "Chưa đặt tên"}</strong>
+                          <em>{item.chat_id || "Chưa có group ID"} • {hiddenRequirementLabel(item.requirement_type)} • {hiddenCodeUsageByGroup.get(item.id) || 0} mã đang trỏ vào</em>
+                          <div className="tag-list">
+                            <span>{item.is_active ? "Đang bán" : "Tạm tắt"}</span>
+                            <span>30 ngày {money(item.price_1m_vnd || 0)}</span>
+                            <span>Trọn đời {money(item.price_life_vnd || 0)}</span>
+                            <span>USD {Number(item.price_1m_usd || 0).toFixed(2)} / {Number(item.price_life_usd || 0).toFixed(2)}</span>
+                            <span>{item.duration_1m_days}d / {item.lifetime_days}d</span>
+                          </div>
+                        </div>
+                        <div className="coupon-row-actions">
+                          <button className="btn secondary" onClick={() => openEditHiddenGroupModal(item)} disabled={saving === `hidden-group-${item.id}`}><Pencil size={16} /> Sửa</button>
+                          <button className="btn danger" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}><Trash2 size={16} /> Xóa</button>
+                        </div>
+                      </div>
+                    )) : <div className="empty-card">Chưa có Hidden Group khớp bộ lọc.</div>}
+                  </div>
+                </>
+              ) : null}
+              {hiddenSetupView === "codes" ? (
+                <>
+                  <div className="hint compact">
+                    Hidden code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>SVIP_LIFETIME</code>.
+                  </div>
+                  <div className="toolbar hidden-toolbar">
+                    <input value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." />
+                  </div>
+                  <div className="group-list">
+                    {filteredHiddenCodes.length ? filteredHiddenCodes.map((item) => (
+                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.code}>
+                        <span>{item.code}</span>
+                        <div className="hidden-row-copy">
+                          <strong>{item.name || "Không tên"}</strong>
+                          <em>{hiddenScopeLabel(item.scope_type)} • {hiddenRequirementLabel(item.requirement_type)} • used {item.used_count}/{item.max_uses || "∞"}</em>
+                          <div className="tag-list">
+                            <span>{item.is_active ? "Đang bật" : "Tạm tắt"}</span>
+                            <span>{hiddenValidityText(item)}</span>
+                            <span>{item.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Toàn bộ hidden group active" : `${item.group_ids.length} group cụ thể`}</span>
+                            {(item.group_ids || []).slice(0, 4).map((groupId) => <span key={`${item.code}-${groupId}`}>{groupId}</span>)}
+                            {item.group_ids.length > 4 ? <span>+{item.group_ids.length - 4} group</span> : null}
+                          </div>
+                        </div>
+                        <div className="coupon-row-actions">
+                          <button className="btn secondary" onClick={() => copyHiddenCode(item.code)} disabled={saving === `hidden-code-copy-${item.code}`}><Ticket size={16} /> Copy mã</button>
+                          <button className="btn secondary" onClick={() => openEditHiddenCodeModal(item)} disabled={saving === `hidden-code-${item.code}`}><Pencil size={16} /> Sửa</button>
+                          <button className="btn danger" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}><Trash2 size={16} /> Xóa</button>
+                        </div>
+                      </div>
+                    )) : <div className="empty-card">Chưa có Hidden Code khớp bộ lọc.</div>}
+                  </div>
+                </>
+              ) : null}
+              {hiddenSetupView === "activity" ? (
+                <SimpleTable
+                  headers={["Thời gian", "Mã", "Người dùng", "Nhóm đã reveal"]}
+                  rows={hiddenRedemptions.map((item) => [
+                    dateText(item.created_at),
+                    <strong key={`code-${item.id || item.code}`}>{item.code}</strong>,
+                    <><strong>{item.full_name || item.username || item.telegram_user_id}</strong><div className="muted">{item.telegram_user_id}{item.username ? ` • @${item.username}` : ""}</div></>,
+                    item.revealed_group_ids?.length ? item.revealed_group_ids.join(", ") : "-",
+                  ])}
+                />
+              ) : null}
             </section>
           </div>
         ) : null}
@@ -3774,6 +4094,188 @@ export default function Home() {
                 <button className="btn secondary" onClick={() => setGroupModalOpen(false)}>Đóng</button>
                 <button className="btn danger" onClick={removeGroupConfig} disabled={saving === "group-delete"}><Trash2 size={16} /> Xoá nhóm</button>
                 <button className="btn" onClick={saveGroupConfig} disabled={saving === "group"}>{saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu nhóm</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {hiddenGroupModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={hiddenGroupForm.id ? `Hidden Group: ${hiddenGroupForm.id}` : "Tạo Hidden Group"}
+                subtitle="Thiết lập group extra ẩn, giá, hạn và điều kiện mua. Không còn phải nhập JSON thủ công."
+                action={<button className="icon-danger" onClick={() => setHiddenGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid">
+                <label className="field">
+                  <span>ID kỹ thuật</span>
+                  <input value={hiddenGroupForm.id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(event.target.value) })} placeholder="VD: prime_alpha" />
+                  <small>Dùng trong plan token dạng <code>HG:prime_alpha:1M</code>. Để trống thì hệ thống tự tạo từ tên.</small>
+                </label>
+                <label className="field">
+                  <span>Tên hiển thị</span>
+                  <input value={hiddenGroupForm.name} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, name: event.target.value })} placeholder="VD: Prime Alpha" />
+                </label>
+                <label className="field">
+                  <span>Telegram group ID</span>
+                  <input value={hiddenGroupForm.chat_id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, chat_id: event.target.value })} placeholder="-1001234567890" />
+                </label>
+                <label className="field wide">
+                  <span>Mô tả ngắn</span>
+                  <textarea value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu hidden group." />
+                </label>
+                <label className="field">
+                  <span>Giá VNĐ 30 ngày</span>
+                  <input value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: event.target.value })} inputMode="numeric" placeholder="99000" />
+                </label>
+                <label className="field">
+                  <span>Giá VNĐ trọn đời</span>
+                  <input value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: event.target.value })} inputMode="numeric" placeholder="299000" />
+                </label>
+                <label className="field">
+                  <span>Giá USD 30 ngày</span>
+                  <input value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: event.target.value })} inputMode="decimal" placeholder="4.99" />
+                </label>
+                <label className="field">
+                  <span>Giá USD trọn đời</span>
+                  <input value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: event.target.value })} inputMode="decimal" placeholder="14.99" />
+                </label>
+                <label className="field">
+                  <span>Hạn 30 ngày (days)</span>
+                  <input value={hiddenGroupForm.duration_1m_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, duration_1m_days: event.target.value })} inputMode="numeric" placeholder="30" />
+                </label>
+                <label className="field">
+                  <span>Hạn trọn đời (days)</span>
+                  <input value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" />
+                </label>
+                <label className="field">
+                  <span>Sort order</span>
+                  <input value={hiddenGroupForm.sort_order} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, sort_order: event.target.value })} inputMode="numeric" placeholder="1" />
+                </label>
+                <label className="field">
+                  <span>Ảnh / File ID</span>
+                  <input value={hiddenGroupForm.image_url} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, image_url: event.target.value })} placeholder="URL hoặc Telegram file_id nếu có" />
+                </label>
+                <label className="field">
+                  <span>Điều kiện mặc định</span>
+                  <select value={hiddenGroupForm.requirement_type} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenGroupForm.requirement_value : "" })}>
+                    {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Requirement value</span>
+                  <input value={hiddenGroupForm.requirement_value} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenGroupForm.requirement_type)} />
+                </label>
+                <label className="field">
+                  <span>Trạng thái</span>
+                  <select value={hiddenGroupForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, is_active: event.target.value === "ON" })}>
+                    <option value="ON">Đang bật</option>
+                    <option value="OFF">Tạm tắt</option>
+                  </select>
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</button>
+                {hiddenGroupForm.id ? <button className="btn secondary" onClick={() => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(hiddenGroupForm.name) || hiddenGroupForm.id })}><RefreshCw size={16} /> Tạo lại ID từ tên</button> : null}
+                <button className="btn" onClick={saveHiddenGroup} disabled={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}`}>{saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu Hidden Group</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {hiddenCodeModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={hiddenCodeForm.code ? `Hidden Code: ${hiddenCodeForm.code}` : "Tạo Hidden Code"}
+                subtitle="Mã reveal catalog hidden group. Có thể giới hạn group, điều kiện và khoảng thời gian sử dụng."
+                action={<button className="icon-danger" onClick={() => setHiddenCodeModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="modal-content">
+                <div className="form-grid">
+                  <label className="field">
+                    <span>Mã hidden</span>
+                    <input value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" />
+                    <small>Bot chỉ hiện hidden catalog cho người nhập đúng mã này.</small>
+                  </label>
+                  <label className="field">
+                    <span>Tên nội bộ</span>
+                    <input value={hiddenCodeForm.name} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, name: event.target.value })} placeholder="VD: Code bán cho cộng tác viên A" />
+                  </label>
+                  <label className="field">
+                    <span>Trạng thái</span>
+                    <select value={hiddenCodeForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, is_active: event.target.value === "ON" })}>
+                      <option value="ON">Đang bật</option>
+                      <option value="OFF">Tạm tắt</option>
+                    </select>
+                  </label>
+                  <label className="field wide">
+                    <span>Mô tả ghi chú</span>
+                    <textarea value={hiddenCodeForm.description} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, description: event.target.value })} placeholder="Ghi chú nội bộ: mã này dùng cho ai, campaign nào, mục đích gì..." />
+                  </label>
+                  <label className="field">
+                    <span>Phạm vi reveal</span>
+                    <select value={hiddenCodeForm.scope_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, scope_type: event.target.value })}>
+                      {HIDDEN_SCOPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Điều kiện override</span>
+                    <select value={hiddenCodeForm.requirement_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenCodeForm.requirement_value : "" })}>
+                      <option value="">Dùng rule của hidden group</option>
+                      {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Requirement value</span>
+                    <input value={hiddenCodeForm.requirement_value} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenCodeForm.requirement_type)} />
+                  </label>
+                  <label className="field">
+                    <span>Max uses</span>
+                    <input value={hiddenCodeForm.max_uses} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, max_uses: event.target.value })} inputMode="numeric" placeholder="0 = không giới hạn" />
+                  </label>
+                  <label className="field">
+                    <span>Used count</span>
+                    <input value={hiddenCodeForm.used_count} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, used_count: event.target.value })} inputMode="numeric" placeholder="0" />
+                  </label>
+                  <label className="field">
+                    <span>Hiệu lực từ</span>
+                    <input type="datetime-local" value={hiddenCodeForm.valid_from} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_from: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Hiệu lực đến</span>
+                    <input type="datetime-local" value={hiddenCodeForm.valid_until} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_until: event.target.value })} />
+                  </label>
+                </div>
+                <div className="coupon-scope">
+                  <div className="coupon-scope-head">
+                    <strong>Hidden groups được reveal</strong>
+                    <span className="muted">{hiddenCodeForm.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Đang áp dụng cho mọi hidden group active." : `${hiddenCodeForm.group_ids.length} group đã chọn`}</span>
+                  </div>
+                  {hiddenCodeForm.scope_type === "SELECTED_GROUPS" ? (
+                    hiddenGroups.length ? (
+                      <div className="check-grid">
+                        {hiddenGroups.map((group) => (
+                          <label key={group.id} className={hiddenCodeForm.group_ids.includes(group.id) ? "check-card active" : "check-card"}>
+                            <input type="checkbox" checked={hiddenCodeForm.group_ids.includes(group.id)} onChange={() => toggleHiddenCodeGroup(group.id)} />
+                            <div>
+                              <strong>{group.name || group.id}</strong>
+                              <div className="muted">{group.id} • {group.chat_id || "chưa có chat ID"}{group.is_active ? "" : " • đang tắt"}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    ) : <div className="empty-card">Cần tạo Hidden Group trước khi gán cho Hidden Code.</div>
+                  ) : (
+                    <div className="hint compact">Code này sẽ tự reveal toàn bộ Hidden Group đang bật, nên không cần chọn group thủ công.</div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</button>
+                <button className="btn secondary" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })}><RefreshCw size={16} /> Gợi ý mã từ tên</button>
+                <button className="btn" onClick={saveHiddenCode} disabled={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}`}>{saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu Hidden Code</button>
               </div>
             </section>
           </div>
