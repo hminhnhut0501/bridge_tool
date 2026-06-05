@@ -58,6 +58,8 @@ import {
   deleteConfig,
   deleteBlacklist,
   deleteCoupon,
+  deleteHiddenCode,
+  deleteHiddenGroup,
   deleteMenuPage,
   deleteSaleRule,
   getConfig,
@@ -68,6 +70,8 @@ import {
   getChannelPostEvents,
   getChannelPosts,
   getCoupons,
+  getHiddenCodes,
+  getHiddenGroups,
   getKickAudit,
   getMenuPages,
   getOrders,
@@ -86,7 +90,11 @@ import {
   updateOrder,
   updateOrderStatus,
   upsertBlacklist,
+  upsertHiddenCode,
+  upsertHiddenGroup,
   upsertSaleRule,
+  type HiddenCode,
+  type HiddenGroup,
   type SupportGroupCheck,
 } from "@/lib/api";
 
@@ -1508,6 +1516,8 @@ export default function Home() {
   const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [hiddenGroups, setHiddenGroups] = useState<HiddenGroup[]>([]);
+  const [hiddenCodes, setHiddenCodes] = useState<HiddenCode[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
@@ -1538,6 +1548,7 @@ export default function Home() {
   const [logDate, setLogDate] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [campaignRecipientPage, setCampaignRecipientPage] = useState(1);
   const [channelPostForm, setChannelPostForm] = useState({ ...EMPTY_CHANNEL_POST_FORM });
@@ -1553,6 +1564,8 @@ export default function Home() {
   const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
+  const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
@@ -1563,7 +1576,9 @@ export default function Home() {
   const [groupPriceLifeUsd, setGroupPriceLifeUsd] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
+  const [menuModalOpen, setMenuModalOpen] = useState(false);
   const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+  const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
   const [couponBatchCount, setCouponBatchCount] = useState("10");
   const [couponTab, setCouponTab] = useState<CouponTab>("unsent");
@@ -1573,6 +1588,7 @@ export default function Home() {
   const [manualOrderResult, setManualOrderResult] = useState<ManualOrderResult | null>(null);
   const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
+  const [blacklistModalOpen, setBlacklistModalOpen] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
@@ -1768,6 +1784,7 @@ export default function Home() {
         batch_size: campaignForm.batch_size,
       });
       setCampaignForm({ ...EMPTY_CAMPAIGN_FORM });
+      setCampaignModalOpen(false);
       setSelectedCampaignId(created.data.id);
       await refreshCampaigns();
     });
@@ -1791,13 +1808,15 @@ export default function Home() {
       setNotice(null);
     }
     try {
-      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
+      const [ordersRes, usersRes, configRes, menuRes, salesRes, couponsRes, hiddenGroupsRes, hiddenCodesRes, blacklistRes, supportEventsRes, kickAuditRes, activityEventsRes, campaignsRes, channelPostsRes, webhookRes] = await Promise.all([
         getOrders(activeSecret),
         getUsers(activeSecret),
         getConfig(activeSecret),
         getMenuPages(activeSecret),
         getSaleRules(activeSecret),
         getCoupons(activeSecret),
+        getHiddenGroups(activeSecret),
+        getHiddenCodes(activeSecret),
         getBlacklist(activeSecret),
         getSupportEvents(activeSecret),
         getKickAudit(activeSecret),
@@ -1812,6 +1831,8 @@ export default function Home() {
       setMenuPages(menuRes.data);
       setSaleRules(salesRes.data);
       setCoupons(couponsRes.data);
+      setHiddenGroups(hiddenGroupsRes.data);
+      setHiddenCodes(hiddenCodesRes.data);
       setBlacklist(blacklistRes.data);
       setSupportEvents(supportEventsRes.data);
       setKickAudit(kickAuditRes.data);
@@ -1866,6 +1887,11 @@ export default function Home() {
     setGroupPriceLifeUsd("");
   }
 
+  function openNewGroupModal() {
+    resetGroupForm();
+    setGroupModalOpen(true);
+  }
+
   function fillGroupForm(nextGroupNo: string) {
     setGroupNo(nextGroupNo);
     setGroupName(getConfigValue(config, `BTN_G${nextGroupNo}`));
@@ -1875,6 +1901,11 @@ export default function Home() {
     setGroupPriceLife(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE`));
     setGroupPrice1mUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_1M_USD`));
     setGroupPriceLifeUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE_USD`));
+  }
+
+  function openEditGroupModal(nextGroupNo: string) {
+    fillGroupForm(nextGroupNo);
+    setGroupModalOpen(true);
   }
 
   async function saveGroupConfig() {
@@ -1895,6 +1926,7 @@ export default function Home() {
       setGroupPriceLife("");
       setGroupPrice1mUsd("");
       setGroupPriceLifeUsd("");
+      setGroupModalOpen(false);
       await loadAll();
     });
   }
@@ -1906,6 +1938,7 @@ export default function Home() {
         await deleteConfig(savedSecret, key);
       }
       resetGroupForm(groupNo);
+      setGroupModalOpen(false);
       await loadAll();
     });
   }
@@ -1926,6 +1959,7 @@ export default function Home() {
     }
     await runAction("menu", async () => {
       await updateMenuPage(savedSecret, pageId, { ...menuForm, page_id: pageId });
+      setMenuModalOpen(false);
       await loadAll();
     });
   }
@@ -1981,6 +2015,7 @@ export default function Home() {
     await runAction(`menu-delete-${pageId}`, async () => {
       await deleteMenuPage(savedSecret, pageId);
       resetMenuForm();
+      setMenuModalOpen(false);
       await loadAll();
     });
   }
@@ -1988,6 +2023,7 @@ export default function Home() {
   async function saveSaleRule() {
     await runAction("sale", async () => {
       await upsertSaleRule(savedSecret, saleForm);
+      setSaleModalOpen(false);
       await loadAll();
     });
   }
@@ -2001,6 +2037,7 @@ export default function Home() {
     await runAction(`sale-delete-${saleId}`, async () => {
       await deleteSaleRule(savedSecret, saleId);
       resetSaleForm();
+      setSaleModalOpen(false);
       await loadAll();
     });
   }
@@ -2192,6 +2229,7 @@ export default function Home() {
         reason: blacklistForm.reason || "Chặn thủ công từ dashboard",
       });
       setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" });
+      setBlacklistModalOpen(false);
       await loadAll();
     });
   }
@@ -2201,6 +2239,7 @@ export default function Home() {
     await runAction(`blacklist-delete-${telegramUserId}`, async () => {
       await deleteBlacklist(savedSecret, telegramUserId);
       setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" });
+      setBlacklistModalOpen(false);
       await loadAll();
     });
   }
@@ -2897,61 +2936,37 @@ export default function Home() {
 
         {tab === "setup" ? (
           <div className="stack">
-            <ConfigEditor
-              title="Bảng giá SVIP chung"
-              subtitle="Nơi duy nhất chỉnh giá SVIP toàn bộ nhóm. Giá VNĐ dùng PayOS/VietQR; giá USD dùng PayPal."
-              fields={SVIP_PRICE_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
             <section className="panel">
               <PanelHead
-                title="Nhóm lẻ & bảng giá"
-                subtitle="Nơi duy nhất quản lý tên nhóm, Telegram group ID và giá bán từng nhóm bằng VNĐ/USD."
-                action={
-                  <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => resetGroupForm()}><Plus size={16} /> Thêm nhóm mới</button>
-                    <button className="btn danger" onClick={removeGroupConfig} disabled={saving === "group-delete"}><Trash2 size={16} /> Xoá nhóm</button>
-                    <button className="btn" onClick={saveGroupConfig} disabled={saving === "group"}><Save size={16} /> Lưu nhóm</button>
-                  </div>
-                }
+                title="Bảng giá SVIP chung"
+                subtitle="Giá SVIP được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
+                action={<button className="btn secondary" onClick={() => setSvipPriceSettingsOpen(true)}><Settings size={16} /> Cài đặt giá SVIP</button>}
               />
-              <div className="form-grid">
-                <label className="field">
-                  <span>Nhóm cần cấu hình</span>
-                  <select value={groupNo} onChange={(event) => fillGroupForm(event.target.value)}>
-                    {groupSelectOptions.map((item) => (
-                      <option key={item} value={item}>
-                        G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}
-                      </option>
-                    ))}
-                  </select>
-                  <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown, không cần nhớ mã kỹ thuật.</small>
-                </label>
-                <label className="field"><span>Tên nhóm tiếng Việt</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} /></label>
-                <label className="field"><span>Tên nhóm tiếng Anh</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
-                <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
-                <label className="field"><span>Giá VNĐ 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
-                <label className="field"><span>Giá VNĐ trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
-                <label className="field"><span>Giá USD 30 ngày</span><input value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" /></label>
-                <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
-              </div>
-              <div className="hint">
-                Giá chỉ chỉnh tại màn hình này. UI Bot chỉ quản lý nội dung hiển thị, không còn trường giá trùng lặp. Muốn lấy group ID: thêm bot vào group, cho bot quyền tạo invite link, rồi dùng group id dạng <code>-100...</code>.
+              <div className="system-list">
+                <Info label="SVIP 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_30D", "0") || 0))} />
+                <Info label="SVIP trọn đời VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_LIFE", "0") || 0))} />
+                <Info label="SVIP 30 ngày USD" value={getConfigValue(config, "PRICE_SVIP_30D_USD", "-") || "-"} />
+                <Info label="SVIP trọn đời USD" value={getConfigValue(config, "PRICE_SVIP_LIFE_USD", "-") || "-"} />
               </div>
             </section>
             <section className="panel">
-              <PanelHead title="Danh sách nhóm" subtitle="Chỉ hiện những nhóm bạn đã thêm. Bấm Thêm nhóm mới để tạo G tiếp theo." />
+              <PanelHead
+                title="Nhóm lẻ & bảng giá"
+                subtitle="Bấm một nhóm để sửa trong popup. Không còn form dài nằm sẵn trên trang."
+                action={<button className="btn" onClick={openNewGroupModal}><Plus size={16} /> Thêm nhóm mới</button>}
+              />
+              <div className="hint">
+                Giá chỉ chỉnh tại màn hình này. UI Bot chỉ quản lý nội dung hiển thị, không còn trường giá trùng lặp.
+              </div>
               <div className="group-list">
                 {visibleGroups.length ? visibleGroups.map((item) => {
                   const name = getConfigValue(config, `BTN_G${item}`);
                   const id = getConfigValue(config, `ID_G${item}`);
                   return (
-                    <button className={name && id ? "group-row ok" : "group-row"} key={item} onClick={() => fillGroupForm(String(item))}>
+                    <button className={name && id ? "group-row ok" : "group-row"} key={item} onClick={() => openEditGroupModal(String(item))}>
                       <span>G{item}</span>
                       <strong>{name || "Chưa đặt tên"}</strong>
-                      <em>{id || "Chưa có group ID"}</em>
+                      <em>{id || "Chưa có group ID"} • 30 ngày {getConfigValue(config, `PRICE_G${item}_1M`, "-")}đ • trọn đời {getConfigValue(config, `PRICE_G${item}_LIFE`, "-")}đ</em>
                     </button>
                   );
                 }) : <div className="empty-card">Chưa có nhóm nào. Bấm <strong>Thêm nhóm mới</strong>, nhập tên nhóm và Telegram group ID rồi lưu.</div>}
@@ -3112,40 +3127,16 @@ export default function Home() {
               <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} />
             </div>
             <section className="panel">
-              <PanelHead title="Tạo campaign" subtitle="Tạo campaign trước, kiểm tra tệp nhận, rồi bấm gửi. Worker sẽ gửi từng user theo delay để tránh spam." />
-              <div className="form-grid">
-                <label className="field"><span>Tên campaign</span><input value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" /></label>
-                <label className="field"><span>Tệp người nhận</span><select value={campaignForm.target_segment} onChange={(event) => setCampaignForm({ ...campaignForm, target_segment: event.target.value })}>
-                  <option value="ALL">Tất cả user từng tương tác</option>
-                  <option value="VIP_PAID">Đã từng mua VIP</option>
-                  <option value="VIP_ACTIVE">Đang còn VIP active</option>
-                  <option value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</option>
-                  <option value="NO_PURCHASE">Chưa mua gói</option>
-                </select><small>Blacklist active sẽ tự bị loại khỏi danh sách gửi.</small></label>
-                <label className="field"><span>Lọc theo gói đã mua</span><select value={campaignForm.plan_filter} onChange={(event) => setCampaignForm({ ...campaignForm, plan_filter: event.target.value })}>
-                  <option value="ALL">Tất cả gói</option>
-                  {campaignPlanOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select><small>Lấy từ tên gói trong các đơn PAID hiện có.</small></label>
-                <label className="field"><span>Cách so khớp gói</span><select value={campaignForm.plan_match_scope} onChange={(event) => setCampaignForm({ ...campaignForm, plan_match_scope: event.target.value })}>
-                  <option value="ANY_PAID">Từng mua gói này</option>
-                  <option value="ACTIVE_ONLY">Đang active gói này</option>
-                  <option value="LATEST">Gói PAID mới nhất là gói này</option>
-                </select><small>Chỉ áp dụng khi bạn chọn một gói cụ thể.</small></label>
-                <label className="field"><span>Delay mỗi user</span><input value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" /><small>Tối thiểu 2 giây. Khuyến nghị 5-10 giây.</small></label>
-                <label className="field"><span>Số gửi mỗi vòng</span><input value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" /><small>Worker sẽ kiểm tra trạng thái campaign sau mỗi vòng.</small></label>
-                <label className="field"><span>Định dạng</span><select value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })}><option value="HTML">HTML</option><option value="NONE">Text thường</option></select></label>
-                <label className="field wide"><span>Nội dung tin nhắn</span><textarea value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} /><small>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</small></label>
-              </div>
+              <PanelHead
+                title="Tạo campaign"
+                subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam."
+                action={<button className="btn" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }}><Plus size={16} /> Tạo campaign</button>}
+              />
               <div className="campaign-preview">
                 <strong>Preview: {campaignPreview?.total || 0} người</strong>
                 <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
                 <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
                 <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
-              </div>
-              <div className="panel-actions">
-                <button className="btn" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()}>
-                  {saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Tạo campaign
-                </button>
               </div>
             </section>
 
@@ -3424,24 +3415,17 @@ export default function Home() {
                   subtitle={menuLanguage === "en" ? "Tên trang bắt buộc kết thúc bằng _en, ví dụ main_menu_en." : "Trang gốc tiếng Việt không dùng hậu tố _en."}
                   action={
                     <div className="panel-actions">
-                      <button className="btn secondary" onClick={() => resetMenuForm()}><Plus size={16} /> Thêm trang</button>
-                      <button className="btn danger" onClick={() => removeMenuPage()} disabled={!menuForm.page_id}><Trash2 size={16} /> Xoá trang</button>
-                      <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu menu</button>
+                      <button className="btn" onClick={() => { resetMenuForm(); setMenuModalOpen(true); }}><Plus size={16} /> Thêm trang</button>
                     </div>
                   }
                 />
-                <div className="form-grid two">
-                  <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} /><small>{menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không dùng hậu tố _en."}</small></label>
-                  <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
-                  <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
-                  <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</small></label>
-                </div>
                 <SimpleTable
                   headers={["Trang", "Nội dung", "Nút"]}
                   rows={visibleMenuPages.map((item) => [item.page_id, item.body, item.layout])}
                   onRow={(idx) => {
                     const item = visibleMenuPages[idx];
                     setMenuForm({ page_id: item.page_id, image_url: item.image_url || "", body: item.body || "", layout: item.layout || "" });
+                    setMenuModalOpen(true);
                   }}
                   actions={(idx) => (
                     <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeMenuPage(visibleMenuPages[idx].page_id); }} title="Xoá trang">
@@ -3536,18 +3520,11 @@ export default function Home() {
                 action={
                   <div className="panel-actions">
                     <button className="btn secondary" onClick={() => setSecuritySettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
-                    <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
-                    <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
+                    <button className="btn" onClick={() => { setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" }); setBlacklistModalOpen(true); }}><Plus size={16} /> Thêm blacklist</button>
                   </div>
                 }
               />
               <div className="hint compact">Cấu hình bảo mật được tách vào popup để phần blacklist luôn gọn và dễ thao tác.</div>
-              <div className="form-grid">
-                <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
-                <label className="field"><span>Username</span><input value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" /></label>
-                <label className="field"><span>Tên hiển thị</span><input value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" /></label>
-                <label className="field"><span>Lý do</span><input value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" /></label>
-              </div>
               <SimpleTable
                 headers={["Telegram ID", "Username", "Tên", "Nguồn", "Lý do", "Trạng thái"]}
                 rows={blacklist.map((item) => [
@@ -3566,6 +3543,7 @@ export default function Home() {
                     full_name: item.full_name || "",
                     reason: item.reason || "",
                   });
+                  setBlacklistModalOpen(true);
                 }}
                 actions={(idx) => (
                   <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(blacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
@@ -3584,26 +3562,17 @@ export default function Home() {
               subtitle="Tạo giảm giá theo gói. Chọn dòng bên dưới để sửa, hoặc bấm Thêm sale để tạo chương trình mới."
               action={
                 <div className="panel-actions">
-                  <button className="btn secondary" onClick={resetSaleForm}><Plus size={16} /> Thêm sale</button>
-                  <button className="btn danger" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id}><Trash2 size={16} /> Xoá sale</button>
-                  <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
+                  <button className="btn" onClick={() => { resetSaleForm(); setSaleModalOpen(true); }}><Plus size={16} /> Thêm sale</button>
                 </div>
               }
             />
-            <div className="form-grid">
-              <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
-              <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{priceKeyOptions.map((item) => <option key={item} value={item}>{priceOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
-              <label className="field"><span>Giảm theo phần trăm</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" /></label>
-              <label className="field"><span>Hoặc giá sale cố định</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" /></label>
-              <label className="field"><span>Giới hạn slot</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" /></label>
-              <label className="field"><span>Trạng thái</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
-            </div>
             <SimpleTable
               headers={["Sale", "Gói", "Giảm %", "Giá sale", "Slot", "Bật"]}
               rows={saleRules.map((item) => [item.sale_id, item.price_key, String(item.discount_percent || "-"), String(item.sale_price || "-"), String(item.slot_limit || "-"), item.enabled ? "ON" : "OFF"])}
               onRow={(idx) => {
                 const item = saleRules[idx];
                 setSaleForm({ sale_id: item.sale_id, price_key: item.price_key, discount_percent: String(item.discount_percent || ""), sale_price: String(item.sale_price || ""), slot_limit: String(item.slot_limit || ""), enabled: item.enabled ? "ON" : "OFF", start_at: item.starts_at || "", end_at: item.ends_at || "" });
+                setSaleModalOpen(true);
               }}
               actions={(idx) => (
                 <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeSaleRule(saleRules[idx].sale_id); }} title="Xoá sale">
@@ -3636,6 +3605,165 @@ export default function Home() {
             <section className="panel">
               <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />
               <SimpleTable headers={["Tên kỹ thuật", "Giá trị"]} rows={config.map((item) => [item.key, item.value])} />
+            </section>
+          </div>
+        ) : null}
+
+        {svipPriceSettingsOpen ? (
+          <SettingsConfigModal title="Cài đặt giá SVIP chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá SVIP." fields={SVIP_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
+        ) : null}
+
+        {groupModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={`Cấu hình nhóm G${groupNo}`}
+                subtitle="Tên nhóm, group ID và giá bán được lưu tập trung tại đây."
+                action={<button className="icon-danger" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid">
+                <label className="field">
+                  <span>Nhóm cần cấu hình</span>
+                  <select value={groupNo} onChange={(event) => fillGroupForm(event.target.value)}>
+                    {groupSelectOptions.map((item) => (
+                      <option key={item} value={item}>G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}</option>
+                    ))}
+                  </select>
+                  <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown.</small>
+                </label>
+                <label className="field"><span>Tên nhóm tiếng Việt</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} /></label>
+                <label className="field"><span>Tên nhóm tiếng Anh</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
+                <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
+                <label className="field"><span>Giá VNĐ 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
+                <label className="field"><span>Giá VNĐ trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
+                <label className="field"><span>Giá USD 30 ngày</span><input value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" /></label>
+                <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setGroupModalOpen(false)}>Đóng</button>
+                <button className="btn danger" onClick={removeGroupConfig} disabled={saving === "group-delete"}><Trash2 size={16} /> Xoá nhóm</button>
+                <button className="btn" onClick={saveGroupConfig} disabled={saving === "group"}>{saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu nhóm</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {campaignModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title="Tạo campaign"
+                subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách."
+                action={<button className="icon-danger" onClick={() => setCampaignModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="modal-content">
+                <div className="form-grid">
+                  <label className="field"><span>Tên campaign</span><input value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" /></label>
+                  <label className="field"><span>Tệp người nhận</span><select value={campaignForm.target_segment} onChange={(event) => setCampaignForm({ ...campaignForm, target_segment: event.target.value })}>
+                    <option value="ALL">Tất cả user từng tương tác</option>
+                    <option value="VIP_PAID">Đã từng mua VIP</option>
+                    <option value="VIP_ACTIVE">Đang còn VIP active</option>
+                    <option value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</option>
+                    <option value="NO_PURCHASE">Chưa mua gói</option>
+                  </select><small>Blacklist active sẽ tự bị loại khỏi danh sách gửi.</small></label>
+                  <label className="field"><span>Lọc theo gói đã mua</span><select value={campaignForm.plan_filter} onChange={(event) => setCampaignForm({ ...campaignForm, plan_filter: event.target.value })}>
+                    <option value="ALL">Tất cả gói</option>
+                    {campaignPlanOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select><small>Lấy từ tên gói trong các đơn PAID hiện có.</small></label>
+                  <label className="field"><span>Cách so khớp gói</span><select value={campaignForm.plan_match_scope} onChange={(event) => setCampaignForm({ ...campaignForm, plan_match_scope: event.target.value })}>
+                    <option value="ANY_PAID">Từng mua gói này</option>
+                    <option value="ACTIVE_ONLY">Đang active gói này</option>
+                    <option value="LATEST">Gói PAID mới nhất là gói này</option>
+                  </select><small>Chỉ áp dụng khi bạn chọn một gói cụ thể.</small></label>
+                  <label className="field"><span>Delay mỗi user</span><input value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" /><small>Tối thiểu 2 giây.</small></label>
+                  <label className="field"><span>Số gửi mỗi vòng</span><input value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" /></label>
+                  <label className="field"><span>Định dạng</span><select value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })}><option value="HTML">HTML</option><option value="NONE">Text thường</option></select></label>
+                  <label className="field wide"><span>Nội dung tin nhắn</span><textarea value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} /><small>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</small></label>
+                </div>
+                <div className="campaign-preview">
+                  <strong>Preview: {campaignPreview?.total || 0} người</strong>
+                  <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
+                  <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
+                  <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setCampaignModalOpen(false)}>Đóng</button>
+                <button className="btn" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()}>
+                  {saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Tạo campaign
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {menuModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={menuForm.page_id ? `Menu: ${menuForm.page_id}` : "Thêm trang menu"}
+                subtitle={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc kết thúc bằng _en." : "Trang tiếng Việt không dùng hậu tố _en."}
+                action={<button className="icon-danger" onClick={() => setMenuModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} /><small>{menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."}</small></label>
+                <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
+                <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
+                <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</small></label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setMenuModalOpen(false)}>Đóng</button>
+                <button className="btn danger" onClick={() => removeMenuPage()} disabled={!menuForm.page_id}><Trash2 size={16} /> Xoá trang</button>
+                <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu menu</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {saleModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel wide-modal">
+              <PanelHead
+                title={saleForm.sale_id ? `Sale: ${saleForm.sale_id}` : "Thêm sale"}
+                subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói."
+                action={<button className="icon-danger" onClick={() => setSaleModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid">
+                <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
+                <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{priceKeyOptions.map((item) => <option key={item} value={item}>{priceOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
+                <label className="field"><span>Giảm theo phần trăm</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" /></label>
+                <label className="field"><span>Hoặc giá sale cố định</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" /></label>
+                <label className="field"><span>Giới hạn slot</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" /></label>
+                <label className="field"><span>Trạng thái</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setSaleModalOpen(false)}>Đóng</button>
+                <button className="btn danger" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id}><Trash2 size={16} /> Xoá sale</button>
+                <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {blacklistModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel">
+              <PanelHead
+                title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"}
+                subtitle="Chặn seller hoặc user spam theo Telegram ID."
+                action={<button className="icon-danger" onClick={() => setBlacklistModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+              />
+              <div className="form-grid two">
+                <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
+                <label className="field"><span>Username</span><input value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" /></label>
+                <label className="field"><span>Tên hiển thị</span><input value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" /></label>
+                <label className="field"><span>Lý do</span><input value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" /></label>
+              </div>
+              <div className="modal-actions">
+                <button className="btn secondary" onClick={() => setBlacklistModalOpen(false)}>Đóng</button>
+                <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
+                <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
+              </div>
             </section>
           </div>
         ) : null}
