@@ -153,3 +153,8 @@ class HiddenGroupTests(unittest.TestCase):
 
         self.assertIn("hgbuy|HIDEVIP|life_only|LIFE", button_callbacks)
         self.assertNotIn("hgbuy|HIDEVIP|life_only|1M", button_callbacks)
+
+    def test_hidden_code_is_detected_without_coupon_prefix(self):
+        self.assertTrue(mod_coupon.code_is_hidden_exact_match("HIDEVIP"))
+        self.assertTrue(mod_coupon.code_is_hidden_exact_match(" hidevip "))
+        self.assertFalse(mod_coupon.code_is_hidden_exact_match("THOSANCU_NOPE"))

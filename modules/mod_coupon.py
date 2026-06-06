@@ -21,6 +21,7 @@ from helpers import check_protection, is_admin_user
 from hidden_group_utils import (
     build_hidden_plan_name,
     display_plan_name,
+    get_hidden_code,
     hidden_code_available_groups,
     hidden_duration_days,
     hidden_duration_price,
@@ -151,6 +152,11 @@ def coupon_auto_prefixes():
 def code_has_auto_prefix(text):
     code = normalize_code(text)
     return bool(code) and any(code.startswith(prefix) for prefix in coupon_auto_prefixes())
+
+
+def code_is_hidden_exact_match(text):
+    code = normalize_code(text)
+    return bool(code) and bool(get_hidden_code(code))
 
 
 async def check_coupon_abuse(message, code):
@@ -928,7 +934,7 @@ async def coupon_code_received(message: Message, state: FSMContext):
 async def coupon_auto_code_received(message: Message):
     if not message.text:
         return
-    if not code_has_auto_prefix(message.text):
+    if not code_has_auto_prefix(message.text) and not code_is_hidden_exact_match(message.text):
         return
     if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
         await message.answer(t(message.from_user.id, "MSG_COUPON_AUTO_DISABLED", "Tự nhận diện coupon đang tắt. Vui lòng bật lại trong dashboard hoặc dùng /coupon nếu admin cho phép."))
