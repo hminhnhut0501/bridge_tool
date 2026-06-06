@@ -2857,6 +2857,7 @@ export default function Home() {
       const plans = uniqueValues(customer.orders.map((item) => item.plan_name));
       const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
       const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
+      const hasLifetimeSvip = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name) && String(item.plan_name || "").toLowerCase().includes("svip"));
       return {
         ...customer,
         paidOrders,
@@ -2867,6 +2868,7 @@ export default function Home() {
         plans,
         revenue,
         lastOrderAt,
+        hasLifetimeSvip,
         status: activeOrders.length ? "active" : paidOrders.length ? "expired" : "no_paid",
       };
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
@@ -2896,6 +2898,24 @@ export default function Home() {
   const selectedCustomer = useMemo(() => {
     return customerSummaries.find((item) => item.id === selectedCustomerId) || null;
   }, [customerSummaries, selectedCustomerId]);
+  const selectedCustomerOrders = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const score = (order: Order) => {
+      if (isOrderActive(order)) return 0;
+      if (order.status === "PAID") return 1;
+      if (order.status === "PENDING") return 2;
+      if (order.status === "EXPIRED") return 3;
+      return 4;
+    };
+    return [...selectedCustomer.orders].sort((a, b) => {
+      const statusDiff = score(a) - score(b);
+      if (statusDiff !== 0) return statusDiff;
+      const aExpire = new Date(a.expire_at || 0).getTime();
+      const bExpire = new Date(b.expire_at || 0).getTime();
+      if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
+      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+    });
+  }, [selectedCustomer]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const reminderNoticeDays = useMemo(() => Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3, [config]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
@@ -3648,7 +3668,7 @@ export default function Home() {
               <SimpleTable
                 headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
                 rows={pagedCustomers.map((customer) => [
-                  <><strong>{customer.name}</strong><div className="muted">{customer.id}</div></>,
+                  <><strong>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</strong><div className="muted">{customer.id}</div></>,
                   <span key="status" className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
                   String(customer.paidOrders.length),
                   <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
@@ -4822,7 +4842,7 @@ export default function Home() {
                   {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
                   {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
                 </div>
-                <CustomerOrdersTable orders={selectedCustomer.orders} saving={saving} onExpireChange={changeOrderExpire} onPlanChange={changeOrderPlan} onStatusChange={changeOrderStatus} />
+                <CustomerOrdersTable orders={selectedCustomerOrders} saving={saving} onExpireChange={changeOrderExpire} onPlanChange={changeOrderPlan} onStatusChange={changeOrderStatus} />
               </div>
             </section>
           </div>
@@ -4944,10 +4964,10 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
 }
 
 function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
-  const sorted = [...orders].sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
+  const sorted = [...orders];
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap customer-orders-wrap">
+      <table className="customer-orders-table">
         <thead><tr><th>Đơn</th><th>Gói / Group</th><th>Coupon</th><th>Hạn dùng</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead>
         <tbody>
           {sorted.map((order) => (
@@ -4964,7 +4984,15 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
               </td>
               <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
-              <td>{dateText(order.expire_at)}<div className="muted">{isOrderActive(order) ? "Còn hạn" : "Không active"}</div></td>
+              <td>
+                <div className="order-expire-cell">
+                  <strong>{dateText(order.expire_at)}</strong>
+                  <div className="tag-row">
+                    {isLifetimeText(order.plan_name) ? <span className="status badge-lifetime">Trọn đời</span> : null}
+                    {isOrderActive(order) ? <span className="status paid">Đang active</span> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <span className="status warning">Sắp hết hạn</span> : <span className="status expired">Hết hạn</span>}
+                  </div>
+                </div>
+              </td>
               <td>
                 <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
                   <option value="PENDING">PENDING</option>

@@ -707,7 +707,10 @@ td select {
 }
 
 .customer-detail {
+  max-height: calc(100vh - 170px);
   min-width: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .customer-head {
@@ -759,6 +762,23 @@ td select {
   padding: 5px 9px;
 }
 
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.status.badge-lifetime {
+  background: #efe7ff;
+  color: #6d28d9;
+}
+
+.status.warning {
+  background: #fff4d6;
+  color: #b45309;
+}
+
 .expire-editor {
   align-items: center;
   display: flex;
@@ -768,7 +788,8 @@ td select {
 .plan-editor {
   display: grid;
   gap: 8px;
-  min-width: 320px;
+  min-width: 0;
+  width: 100%;
 }
 
 .expire-editor input,
@@ -777,7 +798,34 @@ td select {
   border-radius: 6px;
   min-height: 34px;
   padding: 6px 8px;
+  width: 100%;
+  min-width: 0;
 }
+
+.customer-orders-wrap {
+  overflow: auto;
+}
+
+.customer-orders-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.customer-orders-table th,
+.customer-orders-table td {
+  vertical-align: top;
+}
+
+.customer-orders-table td {
+  word-break: break-word;
+}
+
+.customer-orders-table td:nth-child(1) { width: 13%; }
+.customer-orders-table td:nth-child(2) { width: 23%; }
+.customer-orders-table td:nth-child(3) { width: 13%; }
+.customer-orders-table td:nth-child(4) { width: 18%; }
+.customer-orders-table td:nth-child(5) { width: 12%; }
+.customer-orders-table td:nth-child(6) { width: 21%; }
 
 .modal-backdrop {
   align-items: flex-start;
@@ -807,6 +855,18 @@ td select {
 
 .modal-panel.customer-modal {
   max-width: 1120px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+}
+
+.modal-panel.customer-modal > .panel-head {
+  flex: 0 0 auto;
+}
+
+.modal-panel.customer-modal > .customer-detail {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .config-modal-backdrop {
@@ -1172,6 +1232,14 @@ td select {
 
   .plan-editor {
     min-width: 0;
+  }
+
+  .customer-orders-table td:nth-child(n) {
+    width: auto;
+  }
+
+  .customer-orders-table {
+    table-layout: auto;
   }
 
   .modal-backdrop {
