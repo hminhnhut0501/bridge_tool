@@ -258,6 +258,21 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 continue
 
             retained = gid in active_group_ids
+            retained_orders = []
+            if retained:
+                for other_order in orders:
+                    other_order_id = str(other_order.get("order_id") or "")
+                    other_user_id = str(other_order.get("telegram_user_id") or "")
+                    if other_order_id == order_id or other_user_id != user_id:
+                        continue
+                    if str(other_order.get("status") or "").upper() != "PAID":
+                        continue
+                    other_expire = parse_expire_datetime(other_order.get("expire_at"))
+                    other_plan = str(other_order.get("plan_name") or "")
+                    if (other_expire and other_expire > now) or (other_expire is None and other_plan):
+                        if gid in {normalize_chat_id(item) for item in plan_group_ids(other_plan)}:
+                            retained_orders.append(other_order_id)
+                retained_orders = sorted({item for item in retained_orders if item})
             latest_order_kick = latest_event(support_events, "member_kicked", user_id, order_id, gid)
             latest_group_kick = latest_event(support_events, "member_kicked", user_id, None, gid)
             latest_kick = latest_order_kick or latest_group_kick
@@ -314,6 +329,14 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "live_checked": live_state["checked"],
                 "live_status": live_state["status"],
                 "live_present": live_state["present"],
+                "retained_reason": (
+                    f"Còn {len(retained_orders)} đơn active khác giữ group"
+                    if retained and retained_orders
+                    else "Còn đơn active khác giữ group"
+                    if retained
+                    else ""
+                ),
+                "retained_orders": retained_orders,
             })
 
     priority = {"INVALID_EXPIRE_AT": 0, "NO_GROUP": 1, "WAITING_KICK": 2, "REJOINED": 3, "CHECK_ERROR": 4, "LEFT_NO_LOG": 5, "ACTIVE_RETAINED": 6, "KICKED": 7}

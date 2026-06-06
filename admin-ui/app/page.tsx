@@ -27,7 +27,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityEvent,
@@ -109,7 +109,7 @@ type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
 type LogDirectionFilter = "all" | "user" | "bot";
-type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit";
+type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 type ChannelPostTab = "draft" | "queue" | "scheduled" | "sent" | "failed" | "deleted";
@@ -1723,6 +1723,13 @@ function kickAuditStatusClass(status: string) {
   return "status pending";
 }
 
+function kickAuditReason(item: KickAuditRow) {
+  if (item.status === "ACTIVE_RETAINED") {
+    return item.retained_reason || "Còn đơn active khác nên không kick";
+  }
+  return item.latest_error || item.status_label || item.status || "-";
+}
+
 function supportEventLabel(type: string) {
   const labels: Record<string, string> = {
     support_joined: "Vừa join support",
@@ -3012,13 +3019,22 @@ export default function Home() {
         <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
         dateText(item.expire_at),
         <span key="status" className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
-        item.latest_kick_at ? dateText(item.latest_kick_at) : item.latest_error ? <span className="muted">{item.latest_error}</span> : "-",
+        kickAuditReason(item),
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
         item.needs_action && item.group_id ? (
           <button className="btn secondary" onClick={() => manualKickAudit(item)} disabled={saving === `kick-audit-${item.audit_id}`}>
             {saving === `kick-audit-${item.audit_id}` ? <Loader2 size={16} className="spin" /> : <XCircle size={16} />} Kick lại
           </button>
         ) : "-",
+      ]),
+      retained: kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").map((item) => [
+        <Fragment key={`retained-customer-${item.audit_id}`}><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+        <Fragment key={`retained-plan-${item.audit_id}`}><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+        <Fragment key={`retained-group-${item.audit_id}`}><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></Fragment>,
+        dateText(item.expire_at),
+        <span key={`retained-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <Fragment key={`retained-reason-${item.audit_id}`}><strong>{item.retained_reason || "Còn đơn active khác nên không kick"}</strong><div className="muted">{item.retained_orders?.length ? `Đơn giữ nhóm: ${item.retained_orders.join(", ")}` : "Hệ thống giữ quyền vì user còn membership active khác."}</div></Fragment>,
+        item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
       ]),
     };
     return rows;
@@ -3030,6 +3046,7 @@ export default function Home() {
     expiredNotice: ["Khách", "Telegram ID", "Gói", "Đơn", "Giờ báo hết hạn", "Hạn dùng"],
     kicked: ["Khách", "Telegram ID", "Gói", "Đơn", "Group", "Giờ kick"],
     audit: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Kick / lỗi gần nhất", "Live", "Thao tác"],
+    retained: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Lý do giữ quyền", "Live"],
   };
   const currentRenewalRows = renewalRows[renewalTab] || [];
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalRows.length / RENEWAL_PAGE_SIZE));
@@ -3839,6 +3856,7 @@ export default function Home() {
                 <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => { setRenewalTab("expiredNotice"); setRenewalPage(1); }}>Báo hết hạn ({expiredNoticeEvents.length})</button>
                 <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => { setRenewalTab("kicked"); setRenewalPage(1); }}>Đã kick ({uniqueKickedEvents.length})</button>
                 <button className={renewalTab === "audit" ? "active" : ""} onClick={() => { setRenewalTab("audit"); setRenewalPage(1); }}>Cần kiểm tra kick ({kickAudit.filter((item) => item.needs_action).length}/{kickAudit.length})</button>
+                <button className={renewalTab === "retained" ? "active" : ""} onClick={() => { setRenewalTab("retained"); setRenewalPage(1); }}>Còn active khác không kick ({kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").length})</button>
               </div>
               <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
               <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />

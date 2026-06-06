@@ -148,6 +148,8 @@ export type KickAuditRow = {
   live_checked: boolean;
   live_status: string;
   live_present: boolean | null;
+  retained_reason?: string | null;
+  retained_orders?: string[] | null;
 };
 
 export type KickAuditPayload = {

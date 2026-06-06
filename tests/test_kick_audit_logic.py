@@ -126,6 +126,36 @@ class KickAuditLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["status_label"], "Đã kick cùng group")
         self.assertFalse(rows[0]["needs_action"])
 
+    async def test_active_retained_audit_shows_reason_and_related_order(self):
+        web_backend.supabase_store = FakeStore(
+            [
+                {
+                    "order_id": "old-expired",
+                    "telegram_user_id": "42",
+                    "full_name": "User",
+                    "plan_name": "VIP 1 ngày - Hang Cú Asia",
+                    "status": "EXPIRED",
+                    "expire_at": "2026-05-25 21:19:00",
+                },
+                {
+                    "order_id": "active-keep",
+                    "telegram_user_id": "42",
+                    "full_name": "User",
+                    "plan_name": "VIP 30 ngày - Hang Cú Asia",
+                    "status": "PAID",
+                    "expire_at": "2026-06-25 21:19:00",
+                },
+            ],
+            [],
+        )
+
+        rows = await web_backend.build_kick_audit_rows()
+
+        retained = [row for row in rows if row["status"] == "ACTIVE_RETAINED"]
+        self.assertTrue(retained)
+        self.assertIn("Còn", retained[0]["retained_reason"])
+        self.assertEqual(retained[0]["retained_orders"], ["active-keep"])
+
     async def test_empty_timezone_falls_back_and_kick_audit_builds(self):
         self.db.config["BOT_TIMEZONE"] = ""
         web_backend.now_local = self.original_now_local
