@@ -1200,6 +1200,7 @@ const EMPTY_CHANNEL_POST_FORM = {
   status: "draft",
   target_chat_id: "",
   title: "",
+  image_ref: "",
   content: "",
   buttons_text: "",
   parse_mode: "HTML",
@@ -1984,16 +1985,17 @@ export default function Home() {
       status: post.status || "draft",
       target_chat_id: post.target_chat_id || "",
       title: post.title || "",
+      image_ref: post.image_ref || "",
       content: post.content || "",
       buttons_text: post.buttons_text || "",
       parse_mode: post.parse_mode || "HTML",
       disable_web_page_preview: Boolean(post.disable_web_page_preview),
-    scheduled_at: dateTimeInputValue(post.scheduled_at),
-    delete_at: dateTimeInputValue(post.delete_at),
-    repeat_daily: Boolean(post.repeat_daily),
-    sync_bot_schedule: Boolean(post.sync_bot_schedule),
-    notes: post.notes || "",
-  });
+      scheduled_at: dateTimeInputValue(post.scheduled_at),
+      delete_at: dateTimeInputValue(post.delete_at),
+      repeat_daily: Boolean(post.repeat_daily),
+      sync_bot_schedule: Boolean(post.sync_bot_schedule),
+      notes: post.notes || "",
+    });
     setChannelPostModalOpen(true);
   }
 
@@ -2002,6 +2004,7 @@ export default function Home() {
       const payload = {
         target_chat_id: channelPostForm.target_chat_id.trim(),
         title: channelPostForm.title,
+        image_ref: channelPostForm.image_ref,
         content: channelPostForm.content,
         buttons_text: channelPostForm.buttons_text,
         parse_mode: channelPostForm.parse_mode,
@@ -4611,6 +4614,11 @@ export default function Home() {
                     <small>Chỉ để admin dễ tìm, không bắt buộc hiển thị cho khách.</small>
                   </label>
                   <label className="field wide">
+                    <span>Ảnh / file_id Telegram</span>
+                    <input value={channelPostForm.image_ref} onChange={(event) => setChannelPostForm({ ...channelPostForm, image_ref: event.target.value })} placeholder="https://... hoặc file_id ảnh" />
+                    <small>Dán link ảnh công khai hoặc file_id ảnh từ Telegram. Để trống nếu chỉ muốn đăng text.</small>
+                  </label>
+                  <label className="field wide">
                     <span>Nội dung gửi Telegram</span>
                     <textarea value={channelPostForm.content} onChange={(event) => setChannelPostForm({ ...channelPostForm, content: event.target.value })} placeholder="Soạn nội dung bài đăng..." rows={9} />
                   </label>
@@ -4662,8 +4670,8 @@ export default function Home() {
                 </div>
                 <div className="channel-preview">
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
-                  <pre>{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
-                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"} • {channelPostForm.sync_bot_schedule ? "Gắn giờ bot" : "Không gắn giờ bot"}</small>
+                  <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
+                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"} • {channelPostForm.sync_bot_schedule ? "Gắn giờ bot" : "Không gắn giờ bot"}</small>
                 </div>
                 {channelEvents.length ? (
                   <div className="channel-events">

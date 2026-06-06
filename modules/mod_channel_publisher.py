@@ -148,13 +148,23 @@ async def publish_channel_post(row):
     try:
         from bot_instance import bot
 
-        sent = await bot.send_message(
-            chat_id=chat_id,
-            text=content,
-            parse_mode=parse_mode,
-            reply_markup=build_channel_markup(row.get("buttons_text")),
-            disable_web_page_preview=bool(row.get("disable_web_page_preview")),
-        )
+        image_ref = str(row.get("image_ref") or "").strip()
+        if image_ref:
+            sent = await bot.send_photo(
+                chat_id=chat_id,
+                photo=image_ref,
+                caption=content,
+                parse_mode=parse_mode,
+                reply_markup=build_channel_markup(row.get("buttons_text")),
+            )
+        else:
+            sent = await bot.send_message(
+                chat_id=chat_id,
+                text=content,
+                parse_mode=parse_mode,
+                reply_markup=build_channel_markup(row.get("buttons_text")),
+                disable_web_page_preview=bool(row.get("disable_web_page_preview")),
+            )
         next_status = "delete_scheduled" if row.get("delete_at") else "sent"
         supabase_store.patch_channel_post(
             row_id,
@@ -207,14 +217,15 @@ async def delete_channel_post(row):
                 {
                     "status": "scheduled",
                     "scheduled_at": next_scheduled_at,
-                    "delete_at": next_delete_at,
-                    "sent_message_id": None,
-                    "sent_at": None,
-                    "deleted_at": _now_iso(),
-                    "error": None,
-                    "error_code": None,
-                },
-            )
+                "delete_at": next_delete_at,
+                "sent_message_id": None,
+                "sent_at": None,
+                "image_ref": row.get("image_ref") or None,
+                "deleted_at": _now_iso(),
+                "error": None,
+                "error_code": None,
+            },
+        )
             supabase_store.record_channel_post_event(
                 row_id,
                 "repeat_rescheduled",

@@ -1410,6 +1410,7 @@ class SupabaseStore:
             "bot_key",
             "target_chat_id",
             "title",
+            "image_ref",
             "content",
             "buttons_text",
             "parse_mode",
@@ -1460,16 +1461,18 @@ class SupabaseStore:
             payload.setdefault("enabled", True)
             payload.setdefault("repeat_daily", False)
             payload.setdefault("sync_bot_schedule", False)
+            payload.setdefault("image_ref", None)
         return payload
 
     def _request_channel_post_write(self, method, params=None, payload=None, prefer="return=representation"):
         try:
             return self._request(method, "channel_posts", params=params, json=payload, prefer=prefer)
         except RuntimeError as exc:
-            missing_optional_column = any(column in str(exc) for column in ("repeat_daily", "sync_bot_schedule"))
+            missing_optional_column = any(column in str(exc) for column in ("repeat_daily", "sync_bot_schedule", "image_ref"))
             if not missing_optional_column:
                 raise
             legacy_payload = dict(payload or {})
+            legacy_payload.pop("image_ref", None)
             legacy_payload.pop("repeat_daily", None)
             legacy_payload.pop("sync_bot_schedule", None)
             return self._request(method, "channel_posts", params=params, json=legacy_payload, prefer=prefer)

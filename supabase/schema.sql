@@ -192,6 +192,7 @@ create table if not exists public.channel_posts (
   bot_key text not null default 'main',
   target_chat_id text not null,
   title text,
+  image_ref text,
   content text not null,
   buttons_text text,
   parse_mode text not null default 'HTML',

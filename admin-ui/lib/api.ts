@@ -200,6 +200,7 @@ export type ChannelPost = {
   bot_key: string;
   target_chat_id: string;
   title: string | null;
+  image_ref: string | null;
   content: string;
   buttons_text: string | null;
   parse_mode: string;
