@@ -252,6 +252,8 @@ export type ManualOrderPayload = {
   expire_at?: string;
   coupon_code?: string;
   sale_id?: string;
+  payment_currency?: string;
+  payment_provider?: string;
 };
 
 export type ManualOrderResult = {
@@ -260,6 +262,8 @@ export type ManualOrderResult = {
   full_name: string;
   plan_name: string;
   amount: number;
+  payment_currency?: string;
+  payment_provider?: string;
   paid_at: string;
   expire_at: string;
   group_names: string;

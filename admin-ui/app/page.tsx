@@ -1183,6 +1183,8 @@ const EMPTY_MANUAL_ORDER_FORM = {
   duration_days: "30",
   expire_at: "",
   coupon_code: "",
+  payment_currency: "VND",
+  payment_provider: "MANUAL",
 };
 
 const EMPTY_CAMPAIGN_FORM = {
@@ -1432,37 +1434,80 @@ function money(value: number) {
 }
 
 function orderMoney(order: Order, value = order.amount) {
-  if ((order.payment_currency || "VND").toUpperCase() === "USD") {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
-  }
+  const currency = String(order.payment_currency || "VND").toUpperCase();
+  if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
+  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency.replace("_TRC20", "")}`;
   return money(value || 0);
 }
 
 function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount" = "amount") {
   const totals = orders.reduce((sum, order) => {
-    const currency = (order.payment_currency || "VND").toUpperCase() === "USD" ? "USD" : "VND";
-    sum[currency] += Number(order[field] || 0);
+    const currency = normalizeRevenueCurrency(order.payment_currency);
+    sum[currency] = (sum[currency] || 0) + Number(order[field] || 0);
     return sum;
-  }, { VND: 0, USD: 0 });
-  const parts = [];
-  if (totals.VND || !totals.USD) parts.push(money(totals.VND));
-  if (totals.USD) parts.push(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totals.USD));
-  return parts.join(" + ");
+  }, {} as Record<string, number>);
+  const parts = Object.entries(totals).map(([currency, total]) => formatRevenueCurrency(currency, total));
+  return parts.length ? parts.join(" + ") : money(0);
 }
 
 function ordersAverageMoney(orders: Order[]) {
   const paid = orders.filter((order) => order.status === "PAID");
-  const byCurrency = {
-    VND: paid.filter((order) => (order.payment_currency || "VND").toUpperCase() !== "USD"),
-    USD: paid.filter((order) => (order.payment_currency || "VND").toUpperCase() === "USD"),
-  };
-  const parts = [];
-  if (byCurrency.VND.length) parts.push(money(byCurrency.VND.reduce((sum, order) => sum + Number(order.amount || 0), 0) / byCurrency.VND.length));
-  if (byCurrency.USD.length) {
-    const average = byCurrency.USD.reduce((sum, order) => sum + Number(order.amount || 0), 0) / byCurrency.USD.length;
-    parts.push(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(average));
-  }
+  const groups = groupRevenueByCurrency(paid);
+  const parts = Object.entries(groups).map(([currency, items]) => formatRevenueCurrency(currency, items.reduce((sum, order) => sum + Number(order.amount || 0), 0) / items.length));
   return parts.join(" + ") || money(0);
+}
+
+function normalizeRevenueCurrency(value: string | null | undefined) {
+  const currency = String(value || "VND").toUpperCase();
+  if (currency === "USD") return "USD";
+  if (currency === "VND" || !currency) return "VND";
+  if (currency.includes("USDT") || currency.includes("TRC20") || currency.includes("CRYPTO") || currency === "BTC" || currency === "ETH") return "CRYPTO";
+  return currency;
+}
+
+function formatRevenueCurrency(currency: string, value: number) {
+  if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
+  if (currency === "CRYPTO") return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} USDT`;
+  if (currency === "VND") return money(value || 0);
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency}`;
+}
+
+function groupRevenueByCurrency(orders: Order[]) {
+  return orders.reduce((sum, order) => {
+    const currency = normalizeRevenueCurrency(order.payment_currency);
+    if (!sum[currency]) sum[currency] = [];
+    sum[currency].push(order);
+    return sum;
+  }, {} as Record<string, Order[]>);
+}
+
+function providerLabel(value: string | null | undefined) {
+  const provider = String(value || "MANUAL").toUpperCase();
+  const labels: Record<string, string> = {
+    MANUAL: "Thủ công",
+    PAYOS: "PayOS",
+    PAYPAL: "PayPal",
+    NOWPAYMENTS: "NOWPayments",
+    TRON_USDT: "USDT TRC20",
+  };
+  return labels[provider] || provider;
+}
+
+function currencyLabel(value: string | null | undefined) {
+  const currency = normalizeRevenueCurrency(value);
+  const labels: Record<string, string> = {
+    VND: "VNĐ",
+    USD: "USD",
+    CRYPTO: "Crypto",
+  };
+  return labels[currency] || currency;
+}
+
+function providerRevenueFormat(provider: string, value: number) {
+  const normalized = String(provider || "MANUAL").toUpperCase();
+  if (normalized === "PAYPAL") return formatRevenueCurrency("USD", value);
+  if (normalized === "NOWPAYMENTS" || normalized === "TRON_USDT") return formatRevenueCurrency("CRYPTO", value);
+  return formatRevenueCurrency("VND", value);
 }
 
 function dateText(value: string | null | undefined) {
@@ -2775,6 +2820,15 @@ export default function Home() {
   const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
   const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
   const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
+  const paidOrders = useMemo(() => orders.filter((item) => item.status === "PAID"), [orders]);
+  const paidRevenueByCurrency = useMemo(() => groupRevenueByCurrency(paidOrders), [paidOrders]);
+  const paidRevenueByProvider = useMemo(() => {
+    return paidOrders.reduce((sum, order) => {
+      const provider = String(order.payment_provider || "MANUAL").toUpperCase();
+      sum[provider] = (sum[provider] || 0) + Number(order.amount || 0);
+      return sum;
+    }, {} as Record<string, number>);
+  }, [paidOrders]);
 
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
@@ -3292,6 +3346,8 @@ export default function Home() {
 
   async function saveManualOrder() {
     const planName = manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key);
+    const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
+    const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
     await runAction("manual-order", async () => {
       const res = await createManualOrder(savedSecret, {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
@@ -3302,6 +3358,8 @@ export default function Home() {
         expire_at: manualOrderForm.expire_at,
         coupon_code: manualOrderForm.coupon_code.trim(),
         sale_id: "MANUAL",
+        payment_currency: paymentCurrency,
+        payment_provider: paymentProvider,
       });
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
@@ -3412,6 +3470,12 @@ export default function Home() {
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
             </div>
             <div className="grid">
+              <Metric label="Doanh thu VNĐ" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="Doanh thu USD" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="Doanh thu Crypto" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="Doanh thu PayOS" value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)} />
+            </div>
+            <div className="grid">
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
               <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
               <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
@@ -3440,6 +3504,13 @@ export default function Home() {
               <Metric label="Tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
               <Metric label="Năm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} />
               <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} />
+            </div>
+            <div className="grid">
+              <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
+              <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} />
+              <Metric label="NOWPayments / USDT" value={providerRevenueFormat("NOWPAYMENTS", (paidRevenueByProvider.NOWPAYMENTS || 0) + (paidRevenueByProvider.TRON_USDT || 0))} />
             </div>
             <div className="grid">
               <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} />
@@ -4791,7 +4862,27 @@ export default function Home() {
                 </label>
                 <label className="field">
                   <span>Số tiền</span>
-                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="numeric" />
+                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" />
+                  <small>Nhập số thực. VNĐ thường không có thập phân, USD / crypto có thể có.</small>
+                </label>
+                <label className="field">
+                  <span>Tiền tệ</span>
+                  <select value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })}>
+                    <option value="VND">VNĐ</option>
+                    <option value="USD">USD</option>
+                    <option value="USDT">USDT / Crypto</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Phương thức thanh toán</span>
+                  <select value={manualOrderForm.payment_provider} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_provider: event.target.value })}>
+                    <option value="MANUAL">Thủ công</option>
+                    <option value="PAYOS">PayOS / VietQR</option>
+                    <option value="PAYPAL">PayPal</option>
+                    <option value="NOWPAYMENTS">NOWPayments</option>
+                    <option value="TRON_USDT">USDT TRC20</option>
+                  </select>
+                  <small>Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.</small>
                 </label>
                 <label className="field">
                   <span>Số ngày sử dụng</span>
@@ -4802,7 +4893,7 @@ export default function Home() {
                   <span>Ngày hết hạn cụ thể</span>
                   <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
                 </label>
-                <label className="field">
+                <label className="field wide">
                   <span>Coupon / ghi chú mã</span>
                   <input value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" />
                 </label>
@@ -4811,18 +4902,20 @@ export default function Home() {
                 <button className="btn secondary" onClick={() => setManualOrderModalOpen(false)}>Đóng</button>
                 <button className="btn" onClick={saveManualOrder} disabled={saving === "manual-order"}>{saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />} Tạo đơn & gen link</button>
               </div>
-              {manualOrderResult ? (
-                <div className="form-grid two">
-                  <label className="field wide">
-                    <span>Link đã tạo</span>
-                    <textarea readOnly value={[
-                      `Order: ${manualOrderResult.order_id}`,
-                      `Gói: ${manualOrderResult.plan_name}`,
-                      `Hết hạn: ${manualOrderResult.expire_at}`,
-                      "",
-                      stripHtml(manualOrderResult.links_text),
-                      manualOrderResult.support_text,
-                    ].filter(Boolean).join("\n")} />
+                {manualOrderResult ? (
+                  <div className="form-grid two">
+                    <label className="field wide">
+                      <span>Link đã tạo</span>
+                      <textarea readOnly value={[
+                        `Order: ${manualOrderResult.order_id}`,
+                        `Gói: ${manualOrderResult.plan_name}`,
+                        `Tiền tệ: ${currencyLabel(manualOrderResult.payment_currency || manualOrderForm.payment_currency)}`,
+                        `Phương thức: ${providerLabel(manualOrderResult.payment_provider || manualOrderForm.payment_provider)}`,
+                        `Hết hạn: ${manualOrderResult.expire_at}`,
+                        "",
+                        stripHtml(manualOrderResult.links_text),
+                        manualOrderResult.support_text,
+                      ].filter(Boolean).join("\n")} />
                   </label>
                   <div className="field wide">
                     <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
@@ -5019,6 +5112,10 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   }}>Lưu tên gói</button>
                 </div>
                 <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
+                <div className="tag-row">
+                  <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
+                  <span className="status pending">{providerLabel(order.payment_provider)}</span>
+                </div>
               </td>
               <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
               <td>
@@ -5065,7 +5162,13 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
             <tr key={order.order_id}>
               <td>{order.order_id}</td>
               <td><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></td>
-              <td>{order.plan_name}</td>
+              <td>
+                <strong>{order.plan_name}</strong>
+                <div className="tag-row">
+                  <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
+                  <span className="status pending">{providerLabel(order.payment_provider)}</span>
+                </div>
+              </td>
               <td>{orderMoney(order)}</td>
               <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : `-${order.coupon_discount_percent || 0}% / ${orderMoney(order, order.coupon_discount_amount || 0)}`}</div></> : "-"}</td>
               <td><span className={statusClass(order.status)}>{order.status}</span></td>

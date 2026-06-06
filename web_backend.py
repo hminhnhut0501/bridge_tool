@@ -590,9 +590,12 @@ async def admin_create_manual_order(request: Request):
         raise HTTPException(status_code=400, detail="Tên gói chưa khớp group nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
 
     try:
-        amount = int(float(str(body.get("amount", "0") or 0)))
+        amount = float(str(body.get("amount", "0") or 0))
     except (TypeError, ValueError):
-        amount = 0
+        amount = 0.0
+
+    payment_currency = str(body.get("payment_currency") or "VND").strip().upper() or "VND"
+    payment_provider = str(body.get("payment_provider") or "MANUAL").strip().upper() or "MANUAL"
 
     expire_at = parse_manual_expire_at(body.get("expire_at"))
     if expire_at is None:
@@ -616,6 +619,13 @@ async def admin_create_manual_order(request: Request):
         sale_id=sale_id,
         original_amount=body.get("original_amount", amount),
         coupon_code=coupon_code,
+        payment_currency=payment_currency,
+        payment_provider=payment_provider,
+        metadata={
+            "manual_order": True,
+            "payment_currency": payment_currency,
+            "payment_provider": payment_provider,
+        },
     )
     order_data = supabase_store.mark_order_paid(
         order_id,
@@ -659,6 +669,8 @@ async def admin_create_manual_order(request: Request):
             "full_name": full_name,
             "plan_name": plan_name,
             "amount": amount,
+            "payment_currency": payment_currency,
+            "payment_provider": payment_provider,
             "paid_at": paid_at.isoformat(timespec="seconds"),
             "expire_at": expire_at.isoformat(timespec="seconds"),
             "group_names": group_names,
