@@ -19,8 +19,6 @@ from config_utils import config_int, group_numbers
 from database import db, normalize_key
 from helpers import check_protection, is_admin_user
 from hidden_group_utils import (
-    build_hidden_plan_name,
-    display_plan_name,
     get_hidden_code,
     hidden_code_available_groups,
     hidden_duration_days,
@@ -626,10 +624,10 @@ def hidden_buy_buttons(user_id, code, groups):
         price_life = hidden_duration_price(group, "LIFE", currency)
         if price_1m > 0:
             price_text = f"${price_1m}" if currency == "USD" else f"{int(price_1m):,}đ".replace(",", ".")
-            kb.row(InlineKeyboardButton(text=f"{label} • {hidden_duration_days(group, '1M')} ngày • {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
+            kb.row(InlineKeyboardButton(text=f"Mua 30 ngày - {label} - {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
         if price_life > 0:
             price_text = f"${price_life}" if currency == "USD" else f"{int(price_life):,}đ".replace(",", ".")
-            kb.row(InlineKeyboardButton(text=f"{label} • trọn đời • {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
+            kb.row(InlineKeyboardButton(text=f"Mua trọn đời - {label} - {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
     return kb.as_markup()
 
@@ -649,18 +647,15 @@ async def send_hidden_code_catalog(message: Message, code, hidden_code):
         revealed_group_ids=[item.get("id") for item in groups],
     )
     lines = [
-        "<b>✅ Mã hidden hợp lệ</b>",
+        "<b>✅ Mã hợp lệ</b>",
         "",
-        "Các hidden group đang mở cho tài khoản của bạn:",
+        "Chọn gói bên dưới để mua:",
         "",
     ]
     for group in groups:
         lines.append(f"• <b>{escape_html(group.get('name') or group.get('id'))}</b>")
         if group.get("description"):
             lines.append(f"  {escape_html(group.get('description'))}")
-        preview_name = display_plan_name(build_hidden_plan_name(group, "1M"))
-        if preview_name:
-            lines.append(f"  Gói: {escape_html(preview_name)}")
         lines.append("")
     await message.answer("\n".join(lines).strip(), reply_markup=hidden_buy_buttons(user_id, code, groups), parse_mode="HTML")
 
