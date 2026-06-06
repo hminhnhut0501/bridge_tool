@@ -21,8 +21,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
 recent_kicks = {}
-SCHEDULER_DEFAULT_INTERVAL_SECONDS = 1800
-SCHEDULER_MIN_INTERVAL_SECONDS = 1800
+SCHEDULER_DEFAULT_INTERVAL_SECONDS = 10800
+SCHEDULER_MIN_INTERVAL_SECONDS = 10800
 
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
@@ -698,7 +698,7 @@ async def main():
             if kicked_at < kick_cutoff:
                 recent_kicks.pop(key, None)
             
-        # 30 phút/vòng là đủ kịp cho hạn VIP và nhẹ hơn cho Render free.
+        # 3 tiếng/vòng để giảm request Supabase/Telegram; cần chạy ngay có thể dùng lệnh admin quét hạn.
         interval_seconds = config_int(
             "SCHEDULER_INTERVAL_SECONDS",
             SCHEDULER_DEFAULT_INTERVAL_SECONDS,
