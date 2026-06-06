@@ -632,6 +632,22 @@ def hidden_buy_buttons(user_id, code, groups):
     return kb.as_markup()
 
 
+def hidden_group_display_lines(group):
+    raw_title = str(group.get("name") or group.get("id") or "").strip()
+    raw_description = str(group.get("description") or "").strip()
+    title = escape_html(raw_title)
+    description = escape_html(raw_description).strip()
+    if description:
+        normalized_title = re.sub(r"\s+", " ", normalize_key(raw_title)).strip()
+        normalized_description = re.sub(r"\s+", " ", normalize_key(raw_description)).strip()
+        if not normalized_description or normalized_description == normalized_title:
+            description = ""
+    lines = [f"• <b>{title}</b>"]
+    if description:
+        lines.append(f"  {description}")
+    return lines
+
+
 async def send_hidden_code_catalog(message: Message, code, hidden_code):
     groups = hidden_code_available_groups(hidden_code)
     if not groups:
@@ -653,9 +669,7 @@ async def send_hidden_code_catalog(message: Message, code, hidden_code):
         "",
     ]
     for group in groups:
-        lines.append(f"• <b>{escape_html(group.get('name') or group.get('id'))}</b>")
-        if group.get("description"):
-            lines.append(f"  {escape_html(group.get('description'))}")
+        lines.extend(hidden_group_display_lines(group))
         lines.append("")
     await message.answer("\n".join(lines).strip(), reply_markup=hidden_buy_buttons(user_id, code, groups), parse_mode="HTML")
 
