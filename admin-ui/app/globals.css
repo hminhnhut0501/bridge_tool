@@ -159,11 +159,50 @@ select:disabled {
   padding: 16px;
 }
 
+.metric-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: "";
+  inset: 0 auto auto 0;
+  height: 4px;
+  position: absolute;
+  width: 100%;
+}
+
+.metric-card.tone-vnd::before {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.metric-card.tone-usd::before {
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+.metric-card.tone-crypto::before {
+  background: linear-gradient(90deg, #7c3aed, #c084fc);
+}
+
+.metric-card.tone-payos::before {
+  background: linear-gradient(90deg, #0f766e, #14b8a6);
+}
+
+.metric-card.tone-paypal::before {
+  background: linear-gradient(90deg, #0f172a, #334155);
+}
+
 .metric {
   color: var(--ink);
   font-size: 30px;
   font-weight: 800;
   margin-top: 8px;
+}
+
+.metric-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
 }
 
 .panel {

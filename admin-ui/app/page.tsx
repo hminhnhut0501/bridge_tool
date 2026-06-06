@@ -2829,6 +2829,7 @@ export default function Home() {
       return sum;
     }, {} as Record<string, number>);
   }, [paidOrders]);
+  const hasPayosOrders = useMemo(() => paidOrders.some((item) => String(item.payment_provider || "").toUpperCase() === "PAYOS"), [paidOrders]);
 
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
@@ -3469,11 +3470,31 @@ export default function Home() {
               <Metric label="Khách gần đây" value={String(metrics.users)} />
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
             </div>
-            <div className="grid">
-              <Metric label="Doanh thu VNĐ" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="Doanh thu USD" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="Doanh thu Crypto" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="Doanh thu PayOS" value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)} />
+            <div className="grid metrics-band">
+              <Metric
+                label="Doanh thu VNĐ"
+                value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
+                tone="vnd"
+                note="Nguồn chính: PayOS / manual nội địa"
+              />
+              <Metric
+                label="Doanh thu USD"
+                value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
+                tone="usd"
+                note="Chỉ cho khách quốc tế"
+              />
+              <Metric
+                label="Doanh thu Crypto"
+                value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
+                tone="crypto"
+                note="USDT / NOWPayments"
+              />
+              <Metric
+                label="Doanh thu PayOS"
+                value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)}
+                tone="payos"
+                note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"}
+              />
             </div>
             <div className="grid">
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
@@ -3505,12 +3526,12 @@ export default function Home() {
               <Metric label="Năm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} />
               <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} />
             </div>
-            <div className="grid">
-              <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} />
-              <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} />
-              <Metric label="NOWPayments / USDT" value={providerRevenueFormat("NOWPAYMENTS", (paidRevenueByProvider.NOWPAYMENTS || 0) + (paidRevenueByProvider.TRON_USDT || 0))} />
+            <div className="grid metrics-band">
+              <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="vnd" />
+              <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="usd" />
+              <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="crypto" />
+              <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" />
+              <Metric label="NOWPayments / USDT" value={providerRevenueFormat("NOWPAYMENTS", (paidRevenueByProvider.NOWPAYMENTS || 0) + (paidRevenueByProvider.TRON_USDT || 0))} tone="crypto" />
             </div>
             <div className="grid">
               <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} />
@@ -4982,8 +5003,8 @@ export default function Home() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="card"><div className="muted">{label}</div><div className="metric">{value}</div></div>;
+function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
+  return <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}><div className="muted">{label}</div><div className="metric">{value}</div>{note ? <div className="metric-note">{note}</div> : null}</div>;
 }
 
 function PanelHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
