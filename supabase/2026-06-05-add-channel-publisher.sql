@@ -16,6 +16,8 @@ create table if not exists public.channel_posts (
   error text,
   error_code text,
   enabled boolean not null default true,
+  repeat_daily boolean not null default false,
+  sync_bot_schedule boolean not null default false,
   notes text,
   attempt_count integer not null default 0,
   last_attempt_at timestamptz,
@@ -24,6 +26,10 @@ create table if not exists public.channel_posts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.channel_posts
+  add column if not exists repeat_daily boolean not null default false,
+  add column if not exists sync_bot_schedule boolean not null default false;
 
 create table if not exists public.channel_post_events (
   id bigserial primary key,
@@ -37,6 +43,7 @@ create table if not exists public.channel_post_events (
 
 create index if not exists idx_channel_posts_status_schedule on public.channel_posts (bot_key, status, scheduled_at);
 create index if not exists idx_channel_posts_delete_schedule on public.channel_posts (bot_key, status, delete_at);
+create index if not exists idx_channel_posts_sync_schedule on public.channel_posts (bot_key, sync_bot_schedule, repeat_daily, enabled, scheduled_at, delete_at);
 create index if not exists idx_channel_posts_updated_at on public.channel_posts (updated_at desc);
 create index if not exists idx_channel_post_events_post on public.channel_post_events (channel_post_id, created_at desc);
 

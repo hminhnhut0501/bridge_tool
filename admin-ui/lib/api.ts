@@ -213,6 +213,8 @@ export type ChannelPost = {
   error: string | null;
   error_code: string | null;
   enabled: boolean;
+  repeat_daily?: boolean;
+  sync_bot_schedule?: boolean;
   notes: string | null;
   attempt_count: number;
   last_attempt_at: string | null;

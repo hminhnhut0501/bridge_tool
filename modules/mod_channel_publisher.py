@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
@@ -26,6 +26,18 @@ def parse_channel_datetime(value):
 def is_channel_due(value, now=None):
     parsed = parse_channel_datetime(value)
     return bool(parsed and parsed <= (now or datetime.now(timezone.utc)))
+
+
+def next_daily_pair(scheduled_at, delete_at, now=None):
+    scheduled = parse_channel_datetime(scheduled_at)
+    delete = parse_channel_datetime(delete_at)
+    if not scheduled or not delete:
+        return None, None
+    current = now or datetime.now(timezone.utc)
+    while scheduled <= current:
+        scheduled += timedelta(days=1)
+        delete += timedelta(days=1)
+    return scheduled.isoformat(), delete.isoformat()
 
 
 def _valid_url(value):
@@ -101,6 +113,10 @@ def _safe_int(value, default=0):
         return int(str(value or "").strip())
     except (TypeError, ValueError):
         return default
+
+
+def _truthy(value):
+    return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
 async def publish_channel_post(row):
@@ -183,10 +199,33 @@ async def delete_channel_post(row):
         from bot_instance import bot
 
         await bot.delete_message(chat_id=chat_id, message_id=message_id)
-        supabase_store.patch_channel_post(
-            row_id,
-            {"status": "deleted", "deleted_at": _now_iso(), "error": None, "error_code": None},
-        )
+        repeat_daily = _truthy(row.get("repeat_daily"))
+        next_scheduled_at, next_delete_at = next_daily_pair(row.get("scheduled_at"), row.get("delete_at")) if repeat_daily else (None, None)
+        if repeat_daily and next_scheduled_at and next_delete_at:
+            supabase_store.patch_channel_post(
+                row_id,
+                {
+                    "status": "scheduled",
+                    "scheduled_at": next_scheduled_at,
+                    "delete_at": next_delete_at,
+                    "sent_message_id": None,
+                    "sent_at": None,
+                    "deleted_at": _now_iso(),
+                    "error": None,
+                    "error_code": None,
+                },
+            )
+            supabase_store.record_channel_post_event(
+                row_id,
+                "repeat_rescheduled",
+                "Đã lên lịch lại cho ngày kế tiếp.",
+                {"scheduled_at": next_scheduled_at, "delete_at": next_delete_at},
+            )
+        else:
+            supabase_store.patch_channel_post(
+                row_id,
+                {"status": "deleted", "deleted_at": _now_iso(), "error": None, "error_code": None},
+            )
         supabase_store.record_channel_post_event(row_id, "delete_succeeded", "Đã xóa bài khỏi Telegram.")
         return True
     except (TelegramBadRequest, TelegramForbiddenError, Exception) as exc:
@@ -209,7 +248,7 @@ async def channel_publisher_worker():
         try:
             posts = supabase_store.list_channel_posts(limit=200)
             for row in posts:
-                if row.get("enabled") is False:
+                if not _truthy(row.get("enabled", True)):
                     continue
                 status = str(row.get("status") or "draft").strip().lower()
                 if status in {"pending", "queued"} or (status == "scheduled" and is_channel_due(row.get("scheduled_at"))):

@@ -1206,6 +1206,8 @@ const EMPTY_CHANNEL_POST_FORM = {
   disable_web_page_preview: false,
   scheduled_at: "",
   delete_at: "",
+  repeat_daily: false,
+  sync_bot_schedule: false,
   notes: "",
 };
 
@@ -1986,10 +1988,12 @@ export default function Home() {
       buttons_text: post.buttons_text || "",
       parse_mode: post.parse_mode || "HTML",
       disable_web_page_preview: Boolean(post.disable_web_page_preview),
-      scheduled_at: dateTimeInputValue(post.scheduled_at),
-      delete_at: dateTimeInputValue(post.delete_at),
-      notes: post.notes || "",
-    });
+    scheduled_at: dateTimeInputValue(post.scheduled_at),
+    delete_at: dateTimeInputValue(post.delete_at),
+    repeat_daily: Boolean(post.repeat_daily),
+    sync_bot_schedule: Boolean(post.sync_bot_schedule),
+    notes: post.notes || "",
+  });
     setChannelPostModalOpen(true);
   }
 
@@ -2005,6 +2009,8 @@ export default function Home() {
         notes: channelPostForm.notes,
         scheduled_at: mode === "schedule" ? datetimeLocalToIso(channelPostForm.scheduled_at) : null,
         delete_at: datetimeLocalToIso(channelPostForm.delete_at),
+        repeat_daily: Boolean(channelPostForm.repeat_daily),
+        sync_bot_schedule: Boolean(channelPostForm.sync_bot_schedule),
         status: mode === "schedule" ? "scheduled" : mode === "send_now" ? "queued" : channelPostForm.id ? channelPostForm.status || "draft" : "draft",
         created_by: "admin_cp",
       };
@@ -2013,6 +2019,12 @@ export default function Home() {
       }
       if (mode === "schedule" && !payload.scheduled_at) {
         throw new Error("Cần chọn giờ đăng hợp lệ.");
+      }
+      if (payload.sync_bot_schedule && !payload.repeat_daily) {
+        throw new Error("Muốn liên kết giờ bot hoạt động thì phải bật lặp lại mỗi ngày.");
+      }
+      if ((payload.repeat_daily || payload.sync_bot_schedule) && (!payload.scheduled_at || !payload.delete_at)) {
+        throw new Error("Bài lặp ngày cần có cả giờ đăng và giờ xóa.");
       }
       if (channelPostForm.id) {
         await updateChannelPost(savedSecret, channelPostForm.id, payload);
@@ -3773,7 +3785,7 @@ export default function Home() {
                   item.target_chat_id,
                   <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
                   <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
-                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}</div></>,
+                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}{item.repeat_daily ? " • Lặp ngày" : ""}{item.sync_bot_schedule ? " • Gắn giờ bot" : ""}</div></>,
                   item.error ? <><strong>{item.error_code || "telegram_error"}</strong><div className="muted">{item.error}</div></> : "-",
                 ])}
                 onRow={(idx) => editChannelPost(pagedChannelPosts[idx])}
@@ -4629,6 +4641,20 @@ export default function Home() {
                     <span>Hẹn giờ xóa</span>
                     <input type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} />
                   </label>
+                  <label className="check-card" style={{ gridColumn: "span 1" }}>
+                    <input type="checkbox" checked={Boolean(channelPostForm.repeat_daily)} onChange={(event) => setChannelPostForm({ ...channelPostForm, repeat_daily: event.target.checked })} />
+                    <div>
+                      <strong>Lặp lại mỗi ngày</strong>
+                      <div className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</div>
+                    </div>
+                  </label>
+                  <label className="check-card" style={{ gridColumn: "span 1" }}>
+                    <input type="checkbox" checked={Boolean(channelPostForm.sync_bot_schedule)} onChange={(event) => setChannelPostForm({ ...channelPostForm, sync_bot_schedule: event.target.checked })} />
+                    <div>
+                      <strong>Liên kết giờ bot hoạt động</strong>
+                      <div className="muted">Trong khung giờ này bot tự online, ngoài khung giờ bot vào bảo trì.</div>
+                    </div>
+                  </label>
                   <label className="field wide">
                     <span>Ghi chú</span>
                     <input value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" />
@@ -4637,7 +4663,7 @@ export default function Home() {
                 <div className="channel-preview">
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
-                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"}</small>
+                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"} • {channelPostForm.sync_bot_schedule ? "Gắn giờ bot" : "Không gắn giờ bot"}</small>
                 </div>
                 {channelEvents.length ? (
                   <div className="channel-events">

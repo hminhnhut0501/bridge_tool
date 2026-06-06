@@ -205,6 +205,8 @@ create table if not exists public.channel_posts (
   error text,
   error_code text,
   enabled boolean not null default true,
+  repeat_daily boolean not null default false,
+  sync_bot_schedule boolean not null default false,
   notes text,
   attempt_count integer not null default 0,
   last_attempt_at timestamptz,
@@ -279,6 +281,7 @@ create index if not exists idx_broadcast_recipients_user on public.broadcast_rec
 create index if not exists idx_broadcast_events_campaign_id on public.broadcast_events (campaign_id);
 create index if not exists idx_channel_posts_status_schedule on public.channel_posts (bot_key, status, scheduled_at);
 create index if not exists idx_channel_posts_delete_schedule on public.channel_posts (bot_key, status, delete_at);
+create index if not exists idx_channel_posts_sync_schedule on public.channel_posts (bot_key, sync_bot_schedule, repeat_daily, enabled, scheduled_at, delete_at);
 create index if not exists idx_channel_posts_updated_at on public.channel_posts (updated_at desc);
 create index if not exists idx_channel_post_events_post on public.channel_post_events (channel_post_id, created_at desc);
 create index if not exists idx_hidden_groups_active_order on public.hidden_groups (is_active, sort_order, name);

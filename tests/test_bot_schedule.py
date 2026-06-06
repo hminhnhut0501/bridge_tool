@@ -56,3 +56,27 @@ def test_manual_maintenance_takes_priority_over_schedule(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
 
     assert helpers.bot_unavailable_reason(local_datetime(9)) == "maintenance"
+
+
+def test_channel_linked_schedule_overrides_built_in_hours(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "OFF",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+    linked_posts = [{
+        "enabled": True,
+        "repeat_daily": True,
+        "sync_bot_schedule": True,
+        "scheduled_at": "2026-06-04T08:00:00+07:00",
+        "delete_at": "2026-06-04T23:00:00+07:00",
+    }]
+    monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", lambda limit=200: linked_posts)
+    helpers._channel_schedule_cache["loaded_at"] = 0
+    helpers._channel_schedule_cache["rows"] = []
+
+    assert helpers.bot_schedule_active(local_datetime(12))
+    assert not helpers.bot_schedule_active(local_datetime(23))

@@ -1423,6 +1423,8 @@ class SupabaseStore:
             "error",
             "error_code",
             "enabled",
+            "repeat_daily",
+            "sync_bot_schedule",
             "notes",
             "attempt_count",
             "last_attempt_at",
@@ -1436,7 +1438,7 @@ class SupabaseStore:
             value = raw.get(key)
             if key in {"sent_at", "scheduled_at", "delete_at", "deleted_at", "last_attempt_at"}:
                 payload[key] = _parse_datetime(value) if value else None
-            elif key in {"disable_web_page_preview", "enabled"}:
+            elif key in {"disable_web_page_preview", "enabled", "repeat_daily", "sync_bot_schedule"}:
                 payload[key] = str(value).strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"} if value is not None else (True if key == "enabled" else False)
             elif key == "attempt_count":
                 payload[key] = _parse_int(value, 0)
@@ -1456,7 +1458,21 @@ class SupabaseStore:
             payload.setdefault("parse_mode", "HTML")
             payload.setdefault("disable_web_page_preview", False)
             payload.setdefault("enabled", True)
+            payload.setdefault("repeat_daily", False)
+            payload.setdefault("sync_bot_schedule", False)
         return payload
+
+    def _request_channel_post_write(self, method, params=None, payload=None, prefer="return=representation"):
+        try:
+            return self._request(method, "channel_posts", params=params, json=payload, prefer=prefer)
+        except RuntimeError as exc:
+            missing_optional_column = any(column in str(exc) for column in ("repeat_daily", "sync_bot_schedule"))
+            if not missing_optional_column:
+                raise
+            legacy_payload = dict(payload or {})
+            legacy_payload.pop("repeat_daily", None)
+            legacy_payload.pop("sync_bot_schedule", None)
+            return self._request(method, "channel_posts", params=params, json=legacy_payload, prefer=prefer)
 
     def list_channel_posts(self, limit=200, status=None):
         params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
@@ -1478,7 +1494,7 @@ class SupabaseStore:
             raise ValueError("Thiếu channel/group nhận bài.")
         if not payload.get("content"):
             raise ValueError("Thiếu nội dung bài đăng.")
-        return self._request("POST", "channel_posts", json=payload, prefer="return=representation")[0]
+        return self._request_channel_post_write("POST", payload=payload, prefer="return=representation")[0]
 
     def patch_channel_post(self, post_id, raw, status=None):
         params = {"id": f"eq.{_clean_text(post_id)}"}
@@ -1487,7 +1503,26 @@ class SupabaseStore:
         payload = self._channel_post_payload(raw, partial=True)
         if not payload:
             return []
-        return self._request("PATCH", "channel_posts", params=params, json=payload, prefer="return=representation")
+        return self._request_channel_post_write("PATCH", params=params, payload=payload, prefer="return=representation")
+
+    def list_bot_schedule_channel_posts(self, limit=200):
+        try:
+            return self._request(
+                "GET",
+                "channel_posts",
+                params={
+                    "select": "id,status,scheduled_at,delete_at,repeat_daily,sync_bot_schedule,enabled",
+                    "sync_bot_schedule": "eq.true",
+                    "enabled": "eq.true",
+                    "status": "in.(scheduled,sending,sent,delete_scheduled,deleting)",
+                    "order": "scheduled_at.asc",
+                    "limit": str(limit),
+                },
+            )
+        except RuntimeError as exc:
+            if "sync_bot_schedule" in str(exc) or "repeat_daily" in str(exc):
+                return []
+            raise
 
     def channel_post_action(self, post_id, action, raw=None):
         raw = raw or {}

@@ -16,6 +16,8 @@ from supabase_store import supabase_store
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
 _bio_link_cache = {}
+_channel_schedule_cache = {"loaded_at": 0.0, "rows": []}
+CHANNEL_SCHEDULE_CACHE_SECONDS = 60
 
 
 def configured_admin_ids():
@@ -69,14 +71,60 @@ def time_in_active_window(current_time, start, end):
         return start <= current_time < end
     return current_time >= start or current_time < end
 
+def truthy_value(value):
+    return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+
 def bot_schedule_active(now=None):
+    local_now = now or datetime.now(bot_timezone())
+    linked_rows = channel_schedule_rows()
+    if linked_rows:
+        return channel_schedule_active(local_now, linked_rows)
     if not config_enabled("BOT_SCHEDULE_ENABLED", "OFF"):
         return True
     windows = parse_active_hours(db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00"))
     if not windows:
         return True
-    local_now = now or datetime.now(bot_timezone())
     return any(time_in_active_window(local_now.time().replace(tzinfo=None), start, end) for start, end in windows)
+
+def _load_channel_schedule_rows():
+    if not supabase_store.enabled:
+        return []
+    current_ts = time.time()
+    if current_ts - float(_channel_schedule_cache.get("loaded_at") or 0) > CHANNEL_SCHEDULE_CACHE_SECONDS:
+        _channel_schedule_cache["rows"] = supabase_store.list_bot_schedule_channel_posts(limit=200)
+        _channel_schedule_cache["loaded_at"] = current_ts
+    return _channel_schedule_cache.get("rows") or []
+
+def channel_schedule_rows():
+    try:
+        return [
+            row
+            for row in _load_channel_schedule_rows()
+            if truthy_value(row.get("enabled", True))
+            and truthy_value(row.get("sync_bot_schedule"))
+            and truthy_value(row.get("repeat_daily"))
+        ]
+    except Exception as exc:
+        print(f"⚠️ Không đọc được lịch bot từ channel_posts: {exc}")
+        return []
+
+def channel_schedule_active(now=None, rows=None):
+    local_now = now or datetime.now(bot_timezone())
+    current_time = local_now.time().replace(tzinfo=None)
+    posts = rows if rows is not None else channel_schedule_rows()
+    for row in posts or []:
+        scheduled_at = row.get("scheduled_at")
+        delete_at = row.get("delete_at")
+        if not scheduled_at or not delete_at:
+            continue
+        try:
+            start = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
+            end = datetime.fromisoformat(str(delete_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
+        except ValueError:
+            continue
+        if time_in_active_window(current_time, start, end):
+            return True
+    return False
 
 def bot_unavailable_reason(now=None):
     if config_enabled("MAINTENANCE_MODE", "OFF"):
