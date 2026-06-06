@@ -79,6 +79,31 @@ def row_value(row, index, default=""):
         return default
     return str(row[index]).strip()
 
+def member_status_value(member):
+    raw_status = getattr(member, "status", "")
+    return str(getattr(raw_status, "value", raw_status)).lower()
+
+async def get_chat_member_safe(chat_id, user_id):
+    try:
+        return await bot.get_chat_member(chat_id=chat_id, user_id=int(user_id))
+    except Exception as exc:
+        text = str(exc).lower()
+        if "user not found" in text or "participant_id_invalid" in text or "chat not found" in text:
+            return None
+        logging.warning("⚠️ Không kiểm tra được quyền user %s trong group %s: %s", user_id, chat_id, exc)
+        return "unknown"
+
+def member_is_admin_or_owner(member):
+    if member in (None, "unknown"):
+        return False
+    status = member_status_value(member)
+    return status in {"creator", "administrator", "owner"}
+
+def record_admin_action_skipped(event_type, user_id, chat_id, order_id, plan_name, reason, raw_data=None):
+    payload = {"reason": reason, "protected_status": "admin_or_owner"}
+    payload.update(raw_data or {})
+    record_support_event(event_type, user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+
 def should_skip_reminder(row, today_str):
     last_reminder_date = row_value(row, 10)
     return last_reminder_date == today_str
@@ -214,7 +239,22 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
         return False
     if latest_support_event("member_muted", user_id, order_id, gid):
         return True
+    if latest_support_event("member_mute_skipped_admin", user_id, order_id, gid):
+        return True
     if latest_support_event("member_kicked", user_id, order_id, gid):
+        return True
+    member = await get_chat_member_safe(gid, user_id)
+    if member_is_admin_or_owner(member):
+        record_admin_action_skipped(
+            "member_mute_skipped_admin",
+            user_id,
+            gid,
+            order_id,
+            plan_name,
+            "support_admin_protected",
+            raw_data={"expire_at": expire_str, "grace_days": support_group_grace_days()},
+        )
+        logging.info("🛡 Bỏ qua mute User %s trong group hỗ trợ %s vì là admin/owner.", user_id, gid)
         return True
     try:
         await mute_member(gid, user_id)
@@ -259,8 +299,7 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
 async def member_is_present(chat_id, user_id):
     try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=int(user_id))
-        raw_status = getattr(member, "status", "")
-        status = str(getattr(raw_status, "value", raw_status)).lower()
+        status = member_status_value(member)
         if status in {"left", "kicked", "banned"}:
             return False
         if hasattr(member, "is_member") and member.is_member is False:
@@ -313,6 +352,26 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
             return True
         if not await member_is_present(chat_id, user_id):
             return True
+
+    if latest_support_event("member_kick_skipped_admin", user_id, None, chat_id):
+        return True
+
+    member = await get_chat_member_safe(chat_id, user_id)
+    if member is None:
+        return True
+    if member_is_admin_or_owner(member):
+        recent_kicks[kick_key] = now
+        record_admin_action_skipped(
+            "member_kick_skipped_admin",
+            user_id,
+            chat_id,
+            order_id,
+            plan_name,
+            reason,
+            raw_data=raw_data,
+        )
+        logging.info("🛡 Bỏ qua kick User %s khỏi group %s vì là admin/owner.", user_id, chat_id)
+        return True
 
     try:
         await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))

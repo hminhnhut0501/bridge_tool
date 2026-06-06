@@ -104,13 +104,17 @@ class FakeBot:
     def __init__(self):
         self.kicked = []
         self.present = {}
+        self.statuses = {}
 
     async def get_chat_member(self, chat_id, user_id):
         present = self.present.get((str(chat_id), str(user_id)), True)
+        status = self.statuses.get((str(chat_id), str(user_id)), "member" if present else "left")
 
         class Member:
-            status = "member" if present else "left"
-            is_member = present
+            pass
+
+        Member.status = status
+        Member.is_member = present
 
         return Member()
 
@@ -305,6 +309,26 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot.kicked, [("-100444", "42")])
         self.assertEqual(self.store.events[-1]["raw_data"]["source"], "recheck_member_present")
 
+    async def test_admin_or_owner_is_not_kicked_and_does_not_retry(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        scheduler.now_local = lambda: now
+        rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "PAID", "", "2026-05-25 21:19:00"]]
+        self.bot.statuses[("-100444", "42")] = "creator"
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+        expired_groups_retry, errors_retry = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(expired_groups_retry, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(errors_retry, [])
+        self.assertEqual(self.bot.kicked, [])
+        self.assertEqual([event["event_type"] for event in self.store.events], ["member_kick_skipped_admin"])
+
     async def test_support_group_mutes_once_before_grace_kick(self):
         now = datetime(2026, 5, 25, 12, 0, 0)
         rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Boy", "0", "EXPIRED", "", "2026-05-10 12:00:00"]]
@@ -315,6 +339,17 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.muted, [("-100999", "42")])
         self.assertEqual([event["event_type"] for event in self.store.events], ["member_muted"])
         self.assertEqual(self.bot.kicked, [])
+
+    async def test_support_group_admin_is_not_muted(self):
+        now = datetime(2026, 5, 25, 12, 0, 0)
+        rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Boy", "0", "EXPIRED", "", "2026-05-10 12:00:00"]]
+        self.bot.statuses[("-100999", "42")] = "administrator"
+
+        await scheduler.process_support_grace_for_expired_order("42", "old", "VIP 1 ngày - Hang Cú Boy", "2026-05-10 12:00:00", rows, now)
+        await scheduler.process_support_grace_for_expired_order("42", "old", "VIP 1 ngày - Hang Cú Boy", "2026-05-10 12:00:00", rows, now)
+
+        self.assertEqual(self.muted, [])
+        self.assertEqual([event["event_type"] for event in self.store.events], ["member_mute_skipped_admin"])
 
     async def test_support_group_kicks_after_grace(self):
         now = datetime(2026, 5, 25, 12, 0, 0)

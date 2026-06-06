@@ -156,6 +156,7 @@ type LoadOptions = {
   silent?: boolean;
   resetPages?: boolean;
   scope?: LoadScope;
+  mode?: "full" | "light";
 };
 
 const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
@@ -1879,8 +1880,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!savedSecret) return;
+    if (!["campaigns", "channelPosts"].includes(tab)) return;
     const interval = window.setInterval(() => {
-      loadAll(savedSecret, { silent: true, resetPages: false, scope: tab });
+      loadAll(savedSecret, { silent: true, resetPages: false, scope: tab, mode: "light" });
     }, AUTO_REFRESH_SECONDS * 1000);
     return () => window.clearInterval(interval);
   }, [savedSecret, tab]);
@@ -2059,6 +2061,8 @@ export default function Home() {
     const silent = Boolean(options.silent);
     const resetPages = options.resetPages ?? !silent;
     const scope = options.scope || tab;
+    const mode = options.mode || "full";
+    const light = mode === "light";
     const isAll = scope === "all";
     const shouldLoad = (...tabs: Tab[]) => isAll || tabs.includes(scope as Tab);
     if (!silent) {
@@ -2071,20 +2075,20 @@ export default function Home() {
         if (enabled) tasks.push(promiseFactory().then((res) => setter(res.data)));
       };
 
-      const needsOrders = shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
-      const needsUsers = shouldLoad("overview", "analytics");
-      const needsConfig = true;
-      const needsMenu = shouldLoad("overview", "content", "botVi", "botEn", "menuBuilder");
-      const needsSales = shouldLoad("sales");
-      const needsCoupons = shouldLoad("overview", "coupons");
-      const needsHidden = shouldLoad("setup", "coupons");
-      const needsBlacklist = shouldLoad("security");
-      const needsSupportEvents = shouldLoad("activityLog", "renewals", "supportGroup");
-      const needsKickAudit = shouldLoad("renewals");
-      const needsActivityEvents = shouldLoad("activityLog", "analytics");
+      const needsOrders = !light && shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
+      const needsUsers = !light && shouldLoad("overview", "analytics");
+      const needsConfig = !light;
+      const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBuilder");
+      const needsSales = !light && shouldLoad("sales");
+      const needsCoupons = !light && shouldLoad("overview", "coupons");
+      const needsHidden = !light && shouldLoad("setup", "coupons");
+      const needsBlacklist = !light && shouldLoad("security");
+      const needsSupportEvents = !light && shouldLoad("activityLog", "renewals", "supportGroup");
+      const needsKickAudit = !light && shouldLoad("renewals");
+      const needsActivityEvents = !light && shouldLoad("activityLog", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
-      const needsWebhook = true;
+      const needsWebhook = !light;
 
       addTask(needsOrders, () => getOrders(activeSecret), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
