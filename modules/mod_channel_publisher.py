@@ -119,6 +119,13 @@ def _truthy(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
+def _caption_safe(text):
+    value = str(text or "").strip()
+    if len(value) <= 1024:
+        return value
+    return value[:1000].rstrip() + "…"
+
+
 async def publish_channel_post(row):
     row_id = row.get("id")
     chat_id = str(row.get("target_chat_id") or "").strip()
@@ -150,13 +157,22 @@ async def publish_channel_post(row):
 
         image_ref = str(row.get("image_ref") or "").strip()
         if image_ref:
+            caption = _caption_safe(content)
             sent = await bot.send_photo(
                 chat_id=chat_id,
                 photo=image_ref,
-                caption=content,
+                caption=caption,
                 parse_mode=parse_mode,
                 reply_markup=build_channel_markup(row.get("buttons_text")),
             )
+            if len(content) > len(caption):
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=content,
+                    parse_mode=parse_mode,
+                    reply_markup=None,
+                    disable_web_page_preview=bool(row.get("disable_web_page_preview")),
+                )
         else:
             sent = await bot.send_message(
                 chat_id=chat_id,
