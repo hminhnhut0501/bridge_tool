@@ -500,11 +500,21 @@ async def check_expirations_professional():
             order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
             due_before = now + timedelta(days=days_notice)
             try:
-                scheduler_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
+                due_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
             except Exception as exc:
                 logging.warning("⚠️ Không dùng được query tối ưu scheduler, fallback quét rộng: %s", exc)
-                scheduler_orders = supabase_store.list_scheduler_orders(limit=order_limit)
-            users_data = [supabase_store.order_to_sheet_row(order) for order in scheduler_orders]
+                due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
+            try:
+                active_orders = supabase_store.list_paid_orders(limit=order_limit)
+            except Exception as exc:
+                logging.warning("⚠️ Không lấy được danh sách PAID để bảo vệ kick nhầm, dùng lại tập due: %s", exc)
+                active_orders = []
+            merged_orders = {}
+            for order in [*active_orders, *due_orders]:
+                order_id = str(order.get("order_id") or "")
+                if order_id:
+                    merged_orders[order_id] = order
+            users_data = [supabase_store.order_to_sheet_row(order) for order in merged_orders.values()]
         else:
             users_data = db.users_sheet.get_all_values()[1:]
 

@@ -80,6 +80,9 @@ class FakeStore:
                 rows.append(order)
         return rows[:limit]
 
+    def list_paid_orders(self, limit=1000):
+        return [order for order in self.orders if str(order.get("status", "")).upper() == "PAID"][:limit]
+
     def order_to_sheet_row(self, order):
         return [
             order.get("order_id", ""),
@@ -269,6 +272,32 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(expired_groups, [])
         self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [])
+
+    async def test_supabase_due_query_keeps_far_future_paid_orders_for_active_membership(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        scheduler.now_local = lambda: now
+        self.store.orders = [
+            {
+                "order_id": "expired-old",
+                "telegram_user_id": "42",
+                "full_name": "User",
+                "plan_name": "VIP 1 ngày - Hang Cú Asia",
+                "status": "EXPIRED",
+                "expire_at": "2026-05-24 21:19:00",
+            },
+            {
+                "order_id": "active-far",
+                "telegram_user_id": "42",
+                "full_name": "User",
+                "plan_name": "VIP 30 ngày - Hang Cú Asia",
+                "status": "PAID",
+                "expire_at": "2026-06-30 21:19:00",
+            },
+        ]
+
+        await scheduler.check_expirations_professional()
+
         self.assertEqual(self.bot.kicked, [])
 
     async def test_invalid_active_expire_prevents_auto_kick(self):
