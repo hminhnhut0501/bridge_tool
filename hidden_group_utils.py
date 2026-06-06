@@ -100,6 +100,11 @@ def _db():
     return getattr(config_utils, "db", None) or getattr(database, "db")
 
 
+def hidden_text(key, default=""):
+    value = _db().get_config(key, default)
+    return normalize_text(value) or default
+
+
 def ensure_hidden_supabase_enabled():
     if not supabase_store.enabled:
         raise RuntimeError("Hidden groups yêu cầu Supabase. Hãy chạy migration SQL mới nhất và cấu hình SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.")
@@ -460,30 +465,36 @@ def user_has_requirement(user_id, requirement_type, requirement_value=""):
 def validate_hidden_code_for_user(code, user_id):
     hidden_code = get_hidden_code(code)
     if not hidden_code:
-        return None, "Mã không tồn tại."
+        return None, hidden_text("MSG_HIDDEN_NOT_FOUND", "Mã hidden không tồn tại.")
     if not hidden_code.get("is_active"):
-        return None, "Mã này đang tắt."
+        return None, hidden_text("MSG_HIDDEN_INACTIVE", "Mã hidden này đang tắt.")
     now = now_local()
     valid_from = parse_datetime(hidden_code.get("valid_from"))
     valid_until = parse_datetime(hidden_code.get("valid_until"))
     if valid_from and now < valid_from:
-        return None, "Mã này chưa đến thời gian mở."
+        return None, hidden_text("MSG_HIDDEN_NOT_STARTED", "Mã hidden này chưa đến thời gian mở.")
     if valid_until and now > valid_until:
-        return None, "Mã này đã hết hạn."
+        return None, hidden_text("MSG_HIDDEN_EXPIRED", "Mã hidden này đã hết hạn.")
     max_uses = parse_int(hidden_code.get("max_uses"), 0)
     used_count = parse_int(hidden_code.get("used_count"), 0)
     if max_uses > 0 and used_count >= max_uses:
-        return None, "Mã này đã hết lượt dùng."
+        return None, hidden_text("MSG_HIDDEN_LIMIT_REACHED", "Mã hidden này đã hết lượt dùng.")
     groups = hidden_code_available_groups(hidden_code)
     if not groups:
-        return None, "Mã hợp lệ nhưng chưa có hidden group nào đang bật."
+        return None, hidden_text("MSG_HIDDEN_NO_GROUPS", "Mã hợp lệ nhưng hiện chưa có hidden group nào đang bật.")
     requirement_type, requirement_value = hidden_code_requirement(hidden_code)
     if not user_has_requirement(user_id, requirement_type, requirement_value):
         if requirement_type == REQUIREMENT_SVIP_LIFETIME:
-            return None, "Bạn cần có gói SVIP trọn đời để mở mã này."
+            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME", "Bạn cần có gói SVIP trọn đời để mở mã này.")
         if requirement_type == REQUIREMENT_SVIP_ACTIVE:
-            return None, "Bạn cần có gói SVIP còn hạn để mở mã này."
-        return None, "Tài khoản của bạn chưa đủ điều kiện để mở mã này."
+            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE", "Bạn cần có gói SVIP còn hạn để mở mã này.")
+        if requirement_type == REQUIREMENT_PLAN_TOKEN_ACTIVE:
+            template = hidden_text("MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE", "Bạn chưa đủ điều kiện để mở mã này.")
+            return None, template.replace("{plan_token}", requirement_value)
+        if requirement_type == REQUIREMENT_PLAN_TOKEN_LIFETIME:
+            template = hidden_text("MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_LIFETIME", "Bạn cần có gói phù hợp để mở mã này.")
+            return None, template.replace("{plan_token}", requirement_value)
+        return None, hidden_text("MSG_HIDDEN_REQUIREMENT_GENERIC", "Tài khoản của bạn chưa đủ điều kiện để mở mã này.")
     return hidden_code, ""
 
 

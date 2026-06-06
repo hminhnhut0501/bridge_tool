@@ -635,7 +635,7 @@ def hidden_buy_buttons(user_id, code, groups):
 async def send_hidden_code_catalog(message: Message, code, hidden_code):
     groups = hidden_code_available_groups(hidden_code)
     if not groups:
-        await message.answer("❌ Mã hợp lệ nhưng hiện chưa có hidden group nào đang mở.", parse_mode="HTML")
+        await message.answer(t(message.from_user.id, "MSG_HIDDEN_NO_GROUPS", "❌ Mã hidden hợp lệ nhưng hiện chưa có hidden group nào đang mở."), parse_mode="HTML")
         return
     user_id = message.from_user.id
     mark_hidden_code_used(code)
@@ -647,9 +647,9 @@ async def send_hidden_code_catalog(message: Message, code, hidden_code):
         revealed_group_ids=[item.get("id") for item in groups],
     )
     lines = [
-        "<b>✅ Mã hợp lệ</b>",
+        t(user_id, "MSG_HIDDEN_VALID_TITLE", "<b>✅ Mã hidden hợp lệ</b>"),
         "",
-        "Chọn gói bên dưới để mua:",
+        t(user_id, "MSG_HIDDEN_VALID_BODY", "Chọn gói bên dưới để mua:"),
         "",
     ]
     for group in groups:

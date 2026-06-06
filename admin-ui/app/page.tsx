@@ -100,7 +100,7 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -160,7 +160,7 @@ type LoadOptions = {
   mode?: "full" | "light";
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "menuBuilder", "coupons", "security", "sales", "system"];
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "hiddenMessages", "menuBuilder", "coupons", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 60;
 
@@ -1000,6 +1000,84 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Tin gửi khi mã quá ngắn hoặc rỗng.",
   },
   {
+    key: "MSG_HIDDEN_VALID_TITLE",
+    label: "Hidden hợp lệ - tiêu đề",
+    placeholder: "✅ Mã hidden hợp lệ",
+    help: "Tiêu đề hiển thị khi hidden code hợp lệ.",
+  },
+  {
+    key: "MSG_HIDDEN_VALID_BODY",
+    label: "Hidden hợp lệ - nội dung",
+    placeholder: "Chọn gói bên dưới để mua:",
+    help: "Dòng mô tả hiển thị khi hidden code hợp lệ.",
+  },
+  {
+    key: "MSG_HIDDEN_NOT_FOUND",
+    label: "Hidden không tồn tại",
+    placeholder: "Mã hidden không tồn tại.",
+    help: "Tin hiển thị khi user nhập mã sai.",
+  },
+  {
+    key: "MSG_HIDDEN_INACTIVE",
+    label: "Hidden đang tắt",
+    placeholder: "Mã hidden này đang tắt.",
+    help: "Tin hiển thị khi code bị tắt.",
+  },
+  {
+    key: "MSG_HIDDEN_NOT_STARTED",
+    label: "Hidden chưa mở",
+    placeholder: "Mã hidden này chưa đến thời gian mở.",
+    help: "Tin hiển thị khi valid_from chưa tới.",
+  },
+  {
+    key: "MSG_HIDDEN_EXPIRED",
+    label: "Hidden hết hạn",
+    placeholder: "Mã hidden này đã hết hạn.",
+    help: "Tin hiển thị khi valid_until đã qua.",
+  },
+  {
+    key: "MSG_HIDDEN_LIMIT_REACHED",
+    label: "Hidden hết lượt",
+    placeholder: "Mã hidden này đã hết lượt dùng.",
+    help: "Tin hiển thị khi mã đã dùng đủ max_uses.",
+  },
+  {
+    key: "MSG_HIDDEN_NO_GROUPS",
+    label: "Hidden không có group",
+    placeholder: "Mã hidden hợp lệ nhưng hiện chưa có hidden group nào đang bật.",
+    help: "Tin hiển thị khi code hợp lệ nhưng không còn group active.",
+  },
+  {
+    key: "MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE",
+    label: "Hidden cần SVIP active",
+    placeholder: "Bạn cần có gói SVIP còn hạn để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu SVIP active.",
+  },
+  {
+    key: "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME",
+    label: "Hidden cần SVIP lifetime",
+    placeholder: "Bạn cần có gói SVIP trọn đời để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu SVIP lifetime.",
+  },
+  {
+    key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE",
+    label: "Hidden cần plan token active",
+    placeholder: "Bạn cần có gói {plan_token} còn hạn để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu plan token active.",
+  },
+  {
+    key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_LIFETIME",
+    label: "Hidden cần plan token lifetime",
+    placeholder: "Bạn cần có gói {plan_token} trọn đời để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu plan token lifetime.",
+  },
+  {
+    key: "MSG_HIDDEN_REQUIREMENT_GENERIC",
+    label: "Hidden không đủ điều kiện",
+    placeholder: "Tài khoản của bạn chưa đủ điều kiện để mở mã này.",
+    help: "Fallback nếu rule không khớp riêng.",
+  },
+  {
     key: "TXT_SVIP_DESCRIPTION",
     label: "Mô tả trang SVIP",
     placeholder: "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
@@ -1031,6 +1109,9 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Ảnh fallback cho trang tài khoản /me.",
   },
 ];
+
+const HIDDEN_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => field.key.startsWith("MSG_HIDDEN_"));
+const VISIBLE_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => !field.key.startsWith("MSG_HIDDEN_"));
 
 const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_BACK", label: "Nút quay lại", placeholder: "🔙 Quay lại Menu", help: "Dùng ở hầu hết trang bot." },
@@ -3431,6 +3512,7 @@ export default function Home() {
           <button className={tab === "botVi" ? "active" : ""} onClick={() => selectTab("botVi")}><FileText size={18} /> UI Bot tiếng Việt</button>
           <button className={tab === "botEn" ? "active" : ""} onClick={() => selectTab("botEn")}><FileText size={18} /> UI Bot tiếng Anh</button>
           <button className={tab === "botTools" ? "active" : ""} onClick={() => selectTab("botTools")}><ClipboardList size={18} /> Lệnh & cảnh báo</button>
+          <button className={tab === "hiddenMessages" ? "active" : ""} onClick={() => selectTab("hiddenMessages")}><Ticket size={18} /> Hidden text</button>
           <button className={tab === "menuBuilder" ? "active" : ""} onClick={() => selectTab("menuBuilder")}><FileText size={18} /> Menu Builder</button>
           <button className={tab === "coupons" ? "active" : ""} onClick={() => selectTab("coupons")}><Ticket size={18} /> Coupon</button>
           <button className={tab === "security" ? "active" : ""} onClick={() => selectTab("security")}><ShieldCheck size={18} /> {ui("Bảo mật", "Security")}</button>
@@ -4076,8 +4158,27 @@ export default function Home() {
             {botViTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Việt" subtitle="Không chứa giá. Giá bán được quản lý tập trung tại Nhóm & giá." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Việt" subtitle="Chỉ chỉnh nội dung mô tả. Tên group và giá nằm tại Nhóm & giá." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={VISIBLE_MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+          </div>
+        ) : null}
+
+        {tab === "hiddenMessages" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="Hidden text" subtitle="Toàn bộ text hiển thị khi nhập hidden code hoặc gặp lỗi hidden được gom ở đây." />
+              <div className="subtabs">
+                <button className="active">Messages</button>
+              </div>
+            </section>
+            <ConfigEditor
+              title="Hidden messages"
+              subtitle="Chỉnh text hợp lệ, không hợp lệ và các rule hidden tại một nơi."
+              fields={HIDDEN_MESSAGE_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
           </div>
         ) : null}
 
