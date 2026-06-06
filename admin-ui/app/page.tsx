@@ -107,7 +107,8 @@ type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
 type MenuLanguage = "vi" | "en";
 type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
-type CustomerStatusFilter = "all" | "active" | "expired" | "paid" | "coupon";
+type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
+type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
@@ -1802,6 +1803,7 @@ export default function Home() {
   const [customerPlanKind, setCustomerPlanKind] = useState("ALL");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -2830,6 +2832,7 @@ export default function Home() {
   const filteredOrderStats = useMemo(() => orderStats(filteredOrders), [filteredOrders]);
   const groupedFilteredOrders = useMemo(() => groupOrders(filteredOrders, orderGroupMode), [filteredOrders, orderGroupMode]);
   const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDER_PAGE_SIZE));
+  const reminderNoticeDays = useMemo(() => Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3, [config]);
   const pagedOrders = useMemo(() => {
     const safePage = Math.min(orderPage, totalOrderPages);
     const start = (safePage - 1) * ORDER_PAGE_SIZE;
@@ -2858,6 +2861,11 @@ export default function Home() {
       const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
       const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
       const hasLifetimeSvip = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name) && String(item.plan_name || "").toLowerCase().includes("svip"));
+      const hasLifetimeOrder = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name));
+      const expiringWithinWindow = customer.orders.some((item) => item.status === "PAID" && !isLifetimeText(item.plan_name) && (() => {
+        const days = daysUntil(item.expire_at);
+        return days >= 0 && days <= reminderNoticeDays;
+      })());
       return {
         ...customer,
         paidOrders,
@@ -2869,10 +2877,12 @@ export default function Home() {
         revenue,
         lastOrderAt,
         hasLifetimeSvip,
+        hasLifetimeOrder,
+        expiringWithinWindow,
         status: activeOrders.length ? "active" : paidOrders.length ? "expired" : "no_paid",
       };
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
-  }, [orders]);
+  }, [orders, reminderNoticeDays]);
   const customerNameById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item.name] as const)), [customerSummaries]);
   const customerGroupOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.groups)).sort(), [customerSummaries]);
   const filteredCustomers = useMemo(() => {
@@ -2881,6 +2891,8 @@ export default function Home() {
       const text = `${customer.id} ${customer.name} ${customer.plans.join(" ")} ${customer.groups.join(" ")} ${customer.coupons.join(" ")}`.toLowerCase();
       if (q && !text.includes(q)) return false;
       if (customerStatus === "active" && !customer.activeOrders.length) return false;
+      if (customerStatus === "expiring" && !customer.expiringWithinWindow) return false;
+      if (customerStatus === "lifetime" && !customer.hasLifetimeOrder) return false;
       if (customerStatus === "expired" && customer.activeOrders.length) return false;
       if (customerStatus === "paid" && !customer.paidOrders.length) return false;
       if (customerStatus === "coupon" && !customer.coupons.length) return false;
@@ -2917,7 +2929,6 @@ export default function Home() {
     });
   }, [selectedCustomer]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
-  const reminderNoticeDays = useMemo(() => Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3, [config]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
     return paidMemberOrders.filter((item) => {
@@ -3649,6 +3660,8 @@ export default function Home() {
                 <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as CustomerStatusFilter)}>
                   <option value="all">Tất cả khách</option>
                   <option value="active">Đang còn hạn</option>
+                  <option value="expiring">Sắp hết hạn</option>
+                  <option value="lifetime">Có gói trọn đời</option>
                   <option value="expired">Không còn gói active</option>
                   <option value="paid">Đã mua/kích hoạt thành công</option>
                   <option value="coupon">Có dùng coupon</option>
@@ -3669,7 +3682,7 @@ export default function Home() {
                 headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
                 rows={pagedCustomers.map((customer) => [
                   <><strong>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</strong><div className="muted">{customer.id}</div></>,
-                  <span key="status" className={customer.activeOrders.length ? "status paid" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
+                  <span key="status" className={customer.activeOrders.length ? "status paid" : customer.expiringWithinWindow ? "status warning" : customer.hasLifetimeOrder ? "status badge-lifetime" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.expiringWithinWindow ? "Sắp hết hạn" : customer.hasLifetimeOrder ? "Trọn đời" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
                   String(customer.paidOrders.length),
                   <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
                   dateText(customer.latestExpire),
@@ -3679,6 +3692,7 @@ export default function Home() {
                   <button className="btn secondary" onClick={() => {
                     const customer = pagedCustomers[idx];
                     setSelectedCustomerId(customer.id);
+                    setCustomerOrderTab("all");
                     setCustomerModalOpen(true);
                   }}>Chi tiết</button>
                 )}
@@ -4830,7 +4844,9 @@ export default function Home() {
               />
               <div className="customer-detail modal-content">
                 <div className="customer-head">
-                  <span className={selectedCustomer.activeOrders.length ? "status paid" : "status expired"}>{selectedCustomer.activeOrders.length ? "Đang còn hạn" : "Hết hạn / chờ kick"}</span>
+                  <span className={selectedCustomer.activeOrders.length ? "status paid" : selectedCustomer.expiringWithinWindow ? "status warning" : selectedCustomer.hasLifetimeOrder ? "status badge-lifetime" : "status expired"}>
+                    {selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
+                  </span>
                 </div>
                 <div className="customer-facts">
                   <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
@@ -4842,7 +4858,28 @@ export default function Home() {
                   {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
                   {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
                 </div>
-                <CustomerOrdersTable orders={selectedCustomerOrders} saving={saving} onExpireChange={changeOrderExpire} onPlanChange={changeOrderPlan} onStatusChange={changeOrderStatus} />
+                <div className="subtabs customer-order-tabs">
+                  <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
+                  <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
+                  <button className={customerOrderTab === "expiring" ? "active" : ""} onClick={() => setCustomerOrderTab("expiring")}>Sắp hết hạn ({selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})</button>
+                  <button className={customerOrderTab === "lifetime" ? "active" : ""} onClick={() => setCustomerOrderTab("lifetime")}>Trọn đời ({selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})</button>
+                  <button className={customerOrderTab === "paid" ? "active" : ""} onClick={() => setCustomerOrderTab("paid")}>PAID ({selectedCustomerOrders.filter((item) => item.status === "PAID").length})</button>
+                  <button className={customerOrderTab === "expired" ? "active" : ""} onClick={() => setCustomerOrderTab("expired")}>Expired ({selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})</button>
+                </div>
+                <CustomerOrdersTable
+                  orders={selectedCustomerOrders.filter((item) => {
+                    if (customerOrderTab === "active") return isOrderActive(item);
+                    if (customerOrderTab === "expiring") return !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays;
+                    if (customerOrderTab === "lifetime") return isLifetimeText(item.plan_name);
+                    if (customerOrderTab === "paid") return item.status === "PAID";
+                    if (customerOrderTab === "expired") return item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name));
+                    return true;
+                  })}
+                  saving={saving}
+                  onExpireChange={changeOrderExpire}
+                  onPlanChange={changeOrderPlan}
+                  onStatusChange={changeOrderStatus}
+                />
               </div>
             </section>
           </div>
