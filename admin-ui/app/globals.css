@@ -841,30 +841,60 @@ td select {
   min-width: 0;
 }
 
-.customer-orders-wrap {
-  overflow: auto;
+.customer-orders-list {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
 }
 
-.customer-orders-table {
-  table-layout: fixed;
+.customer-order-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.customer-order-card__top {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.customer-order-card__grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.customer-order-card__block {
+  min-width: 0;
+}
+
+.customer-order-card__block--wide {
+  grid-column: 1 / -1;
+}
+
+.customer-order-card .plan-editor {
+  max-width: 100%;
+}
+
+.customer-order-card .plan-editor input,
+.customer-order-card .expire-editor input,
+.customer-order-card select {
   width: 100%;
 }
 
-.customer-orders-table th,
-.customer-orders-table td {
-  vertical-align: top;
+.customer-order-card .expire-editor {
+  align-items: stretch;
 }
 
-.customer-orders-table td {
-  word-break: break-word;
+.customer-order-card .expire-editor button,
+.customer-order-card .plan-editor button {
+  white-space: nowrap;
 }
-
-.customer-orders-table td:nth-child(1) { width: 13%; }
-.customer-orders-table td:nth-child(2) { width: 23%; }
-.customer-orders-table td:nth-child(3) { width: 13%; }
-.customer-orders-table td:nth-child(4) { width: 18%; }
-.customer-orders-table td:nth-child(5) { width: 12%; }
-.customer-orders-table td:nth-child(6) { width: 21%; }
 
 .modal-backdrop {
   align-items: flex-start;
@@ -906,6 +936,51 @@ td select {
 .modal-panel.customer-modal > .customer-detail {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.customer-detail.modal-content {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  min-height: 0;
+  padding: 16px;
+}
+
+.customer-head {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.customer-facts {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.customer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 92px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.customer-order-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.customer-order-tabs button {
+  min-height: 42px;
+  padding: 10px 14px;
+}
+
+.customer-detail .table-wrap {
+  max-height: min(48vh, 520px);
+  overflow: auto;
 }
 
 .config-modal-backdrop {
@@ -1264,21 +1339,17 @@ td select {
     grid-template-columns: 1fr;
   }
 
-  .expire-editor {
-    align-items: flex-start;
+  .customer-order-card__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-order-card__top {
     flex-direction: column;
   }
 
-  .plan-editor {
-    min-width: 0;
-  }
-
-  .customer-orders-table td:nth-child(n) {
-    width: auto;
-  }
-
-  .customer-orders-table {
-    table-layout: auto;
+  .expire-editor {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .modal-backdrop {

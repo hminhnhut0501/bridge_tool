@@ -5254,58 +5254,70 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
 function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders];
   return (
-    <div className="table-wrap customer-orders-wrap">
-      <table className="customer-orders-table">
-        <thead><tr><th>Đơn</th><th>Gói / Group</th><th>Coupon</th><th>Hạn dùng</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead>
-        <tbody>
-          {sorted.map((order) => (
-            <tr key={order.order_id}>
-              <td><strong>{order.order_id}</strong><div className="muted">{dateText(order.created_at)}</div></td>
-              <td>
-                <div className="plan-editor">
-                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
-                  <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
-                    const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
-                    onPlanChange(order.order_id, input?.value || "");
-                  }}>Lưu tên gói</button>
-                </div>
-                <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
-                <div className="tag-row">
-                  <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
-                  <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
-                </div>
-              </td>
-              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
-              <td>
-                <div className="order-expire-cell">
-                  <strong>{dateText(order.expire_at)}</strong>
-                  <div className="tag-row">
-                    {isLifetimeText(order.plan_name) ? <span className="status badge-lifetime">Trọn đời</span> : null}
-                    {isOrderActive(order) ? <span className="status paid">Đang active</span> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <span className="status warning">Sắp hết hạn</span> : <span className="status expired">Hết hạn</span>}
-                  </div>
-                </div>
-              </td>
-              <td>
-                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
-                  <option value="PENDING">PENDING</option>
-                  <option value="PAID">PAID</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                  <option value="EXPIRED">EXPIRED</option>
-                </select>
-              </td>
-              <td>
-                <div className="expire-editor">
-                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
-                  <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
-                    const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
-                    onExpireChange(order.order_id, input?.value || "");
-                  }}>Lưu hạn</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="customer-orders-list">
+      {sorted.map((order) => (
+        <article key={order.order_id} className="customer-order-card">
+          <div className="customer-order-card__top">
+            <div>
+              <strong>{order.order_id}</strong>
+              <div className="muted">{dateText(order.created_at)}</div>
+            </div>
+            <div className="tag-row">
+              <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
+              <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
+            </div>
+          </div>
+
+          <div className="customer-order-card__grid">
+            <div className="customer-order-card__block">
+              <span className="muted">Gói / Group</span>
+              <div className="plan-editor">
+                <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
+                <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+                  const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
+                  onPlanChange(order.order_id, input?.value || "");
+                }}>Lưu tên gói</button>
+              </div>
+              <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
+            </div>
+
+            <div className="customer-order-card__block">
+              <span className="muted">Coupon</span>
+              {orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : <strong>-</strong>}
+            </div>
+
+            <div className="customer-order-card__block">
+              <span className="muted">Hạn dùng</span>
+              <strong>{dateText(order.expire_at)}</strong>
+              <div className="tag-row">
+                {isLifetimeText(order.plan_name) ? <span className="status badge-lifetime">Trọn đời</span> : null}
+                {isOrderActive(order) ? <span className="status paid">Đang active</span> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <span className="status warning">Sắp hết hạn</span> : <span className="status expired">Hết hạn</span>}
+              </div>
+            </div>
+
+            <div className="customer-order-card__block">
+              <span className="muted">Trạng thái</span>
+              <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
+                <option value="PENDING">PENDING</option>
+                <option value="PAID">PAID</option>
+                <option value="CANCELLED">CANCELLED</option>
+                <option value="EXPIRED">EXPIRED</option>
+              </select>
+            </div>
+
+            <div className="customer-order-card__block customer-order-card__block--wide">
+              <span className="muted">Cập nhật</span>
+              <div className="expire-editor">
+                <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
+                <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+                  const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
+                  onExpireChange(order.order_id, input?.value || "");
+                }}>Lưu hạn</button>
+              </div>
+            </div>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
