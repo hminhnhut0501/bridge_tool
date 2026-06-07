@@ -1604,6 +1604,17 @@ function providerRevenueFormat(provider: string, value: number) {
   return formatRevenueCurrency("VND", value);
 }
 
+function renderLimitedTags(items: string[], prefix: string, limit = 4) {
+  const visible = items.slice(0, limit);
+  const rest = items.length - visible.length;
+  return (
+    <>
+      {visible.map((item) => <span key={`${prefix}-${item}`}>{item}</span>)}
+      {rest > 0 ? <span>+{rest}</span> : null}
+    </>
+  );
+}
+
 function inferOrderProvider(order: Order) {
   const explicit = String(order.payment_provider || "").toUpperCase();
   if (explicit) return explicit;
@@ -5106,8 +5117,8 @@ export default function Home() {
                   <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
                 </div>
                 <div className="customer-tags">
-                  {selectedCustomer.groups.map((item) => <span key={`g-${item}`}>{item}</span>)}
-                  {selectedCustomer.coupons.map((item) => <span key={`c-${item}`}>Coupon: {item}</span>)}
+                  {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
+                  {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
                 </div>
                 <div className="subtabs customer-order-tabs">
                   <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
@@ -5253,10 +5264,11 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
 
 function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders];
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   return (
     <div className="customer-orders-list">
       {sorted.map((order) => (
-        <article key={order.order_id} className="customer-order-card">
+        <article key={order.order_id} className={`customer-order-card ${expandedOrders[order.order_id] ? "is-expanded" : ""}`}>
           <div className="customer-order-card__top">
             <div>
               <strong>{order.order_id}</strong>
@@ -5265,19 +5277,16 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             <div className="tag-row">
               <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
               <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
+              <button className="btn secondary customer-order-toggle" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))}>
+                {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
+              </button>
             </div>
           </div>
 
           <div className="customer-order-card__grid">
             <div className="customer-order-card__block">
               <span className="muted">Gói / Group</span>
-              <div className="plan-editor">
-                <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
-                <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
-                  const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
-                  onPlanChange(order.order_id, input?.value || "");
-                }}>Lưu tên gói</button>
-              </div>
+              <strong>{order.plan_name}</strong>
               <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
             </div>
 
@@ -5297,22 +5306,40 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
 
             <div className="customer-order-card__block">
               <span className="muted">Trạng thái</span>
-              <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
-                <option value="PENDING">PENDING</option>
-                <option value="PAID">PAID</option>
-                <option value="CANCELLED">CANCELLED</option>
-                <option value="EXPIRED">EXPIRED</option>
-              </select>
+              <span className={statusClass(order.status)}>{order.status}</span>
             </div>
 
-            <div className="customer-order-card__block customer-order-card__block--wide">
-              <span className="muted">Cập nhật</span>
-              <div className="expire-editor">
-                <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
-                <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
-                  const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
-                  onExpireChange(order.order_id, input?.value || "");
-                }}>Lưu hạn</button>
+            <div className={`customer-order-card__details ${expandedOrders[order.order_id] ? "show" : ""}`}>
+              <div className="customer-order-card__block">
+                <span className="muted">Sửa tên gói</span>
+                <div className="plan-editor">
+                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
+                  <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+                    const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
+                    onPlanChange(order.order_id, input?.value || "");
+                  }}>Lưu</button>
+                </div>
+              </div>
+
+              <div className="customer-order-card__block">
+                <span className="muted">Đổi trạng thái</span>
+                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
+                  <option value="PENDING">PENDING</option>
+                  <option value="PAID">PAID</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                  <option value="EXPIRED">EXPIRED</option>
+                </select>
+              </div>
+
+              <div className="customer-order-card__block customer-order-card__block--wide">
+                <span className="muted">Cập nhật hạn</span>
+                <div className="expire-editor">
+                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
+                  <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+                    const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
+                    onExpireChange(order.order_id, input?.value || "");
+                  }}>Lưu hạn</button>
+                </div>
               </div>
             </div>
           </div>

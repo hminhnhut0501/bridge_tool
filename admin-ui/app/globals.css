@@ -982,10 +982,12 @@ td select {
 .customer-orders-list {
   border-top: 1px solid var(--line);
   padding-top: 12px;
+  display: grid;
+  gap: 10px;
 }
 
 .customer-order-card__grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .customer-order-card__block--wide {
@@ -1020,6 +1022,36 @@ td select {
 .customer-order-card .expire-editor button,
 .customer-order-card .plan-editor button {
   min-height: 38px;
+}
+
+.customer-order-toggle {
+  min-height: 34px;
+  padding: 7px 12px;
+}
+
+.customer-order-card__details {
+  border-top: 1px dashed var(--line);
+  display: none;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.customer-order-card__details.show {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.customer-order-card__details .customer-order-card__block--wide {
+  grid-column: 1 / -1;
+}
+
+.customer-order-card:not(.is-expanded) .customer-order-card__grid {
+  align-items: center;
+}
+
+.customer-order-card:not(.is-expanded) .customer-order-card__grid .customer-order-card__block:nth-child(4),
+.customer-order-card:not(.is-expanded) .customer-order-card__grid .customer-order-card__block:nth-child(3) {
+  align-self: start;
 }
 
 .config-modal-backdrop {
