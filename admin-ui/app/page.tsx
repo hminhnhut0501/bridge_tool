@@ -1563,15 +1563,16 @@ function groupRevenueByCurrency(orders: Order[]) {
 }
 
 function providerLabel(value: string | null | undefined) {
-  const provider = String(value || "MANUAL").toUpperCase();
+  const provider = String(value || "").toUpperCase();
   const labels: Record<string, string> = {
     MANUAL: "Thủ công",
     PAYOS: "PayOS",
     PAYPAL: "PayPal",
     NOWPAYMENTS: "NOWPayments",
     TRON_USDT: "USDT TRC20",
+    UNKNOWN: "Chưa rõ",
   };
-  return labels[provider] || provider;
+  return labels[provider] || (provider ? provider : "Chưa rõ");
 }
 
 function currencyLabel(value: string | null | undefined) {
@@ -1589,6 +1590,29 @@ function providerRevenueFormat(provider: string, value: number) {
   if (normalized === "PAYPAL") return formatRevenueCurrency("USD", value);
   if (normalized === "NOWPAYMENTS" || normalized === "TRON_USDT") return formatRevenueCurrency("CRYPTO", value);
   return formatRevenueCurrency("VND", value);
+}
+
+function inferOrderProvider(order: Order) {
+  const explicit = String(order.payment_provider || "").toUpperCase();
+  if (explicit) return explicit;
+  const metadata = order.metadata && typeof order.metadata === "object" ? order.metadata as Record<string, unknown> : {};
+  const metadataProvider = String(
+    metadata.payment_provider ||
+    metadata.payment_method ||
+    metadata.provider ||
+    metadata.provider_name ||
+    metadata.payment_gateway ||
+    ""
+  ).toUpperCase();
+  if (["PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"].includes(metadataProvider)) return metadataProvider;
+  const approvalUrl = String(order.payment_approval_url || metadata.payment_approval_url || metadata.approval_url || "").toLowerCase();
+  const providerOrderId = String(order.payment_provider_order_id || metadata.payment_provider_order_id || metadata.provider_order_id || "").toLowerCase();
+  const sourceType = String(order.source_type || metadata.source_type || "").toUpperCase();
+  if (approvalUrl.includes("payos") || approvalUrl.includes("vietqr") || sourceType === "PAYOS" || providerOrderId.startsWith("payos_")) return "PAYOS";
+  if (approvalUrl.includes("paypal") || sourceType === "PAYPAL" || providerOrderId.startsWith("paypal_")) return "PAYPAL";
+  if (approvalUrl.includes("nowpayments") || sourceType === "NOWPAYMENTS" || providerOrderId.startsWith("nowpayments_")) return "NOWPAYMENTS";
+  if (approvalUrl.includes("trc20") || sourceType === "TRON_USDT") return "TRON_USDT";
+  return "UNKNOWN";
 }
 
 function dateText(value: string | null | undefined) {
@@ -2905,12 +2929,12 @@ export default function Home() {
   const paidRevenueByCurrency = useMemo(() => groupRevenueByCurrency(paidOrders), [paidOrders]);
   const paidRevenueByProvider = useMemo(() => {
     return paidOrders.reduce((sum, order) => {
-      const provider = String(order.payment_provider || "MANUAL").toUpperCase();
+      const provider = inferOrderProvider(order);
       sum[provider] = (sum[provider] || 0) + Number(order.amount || 0);
       return sum;
     }, {} as Record<string, number>);
   }, [paidOrders]);
-  const hasPayosOrders = useMemo(() => paidOrders.some((item) => String(item.payment_provider || "").toUpperCase() === "PAYOS"), [paidOrders]);
+  const hasPayosOrders = useMemo(() => paidOrders.some((item) => inferOrderProvider(item) === "PAYOS"), [paidOrders]);
 
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
@@ -5236,7 +5260,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
                 <div className="tag-row">
                   <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
-                  <span className="status pending">{providerLabel(order.payment_provider)}</span>
+                  <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
                 </div>
               </td>
               <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : "-"}</td>
@@ -5288,7 +5312,7 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
                 <strong>{order.plan_name}</strong>
                 <div className="tag-row">
                   <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
-                  <span className="status pending">{providerLabel(order.payment_provider)}</span>
+                  <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
                 </div>
               </td>
               <td>{orderMoney(order)}</td>

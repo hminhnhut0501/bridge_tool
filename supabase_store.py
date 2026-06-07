@@ -94,6 +94,38 @@ def _now_iso():
     return datetime.now(_bot_timezone()).isoformat()
 
 
+def _normalize_payment_provider(order):
+    if not isinstance(order, dict):
+        return order
+    provider = _clean_text(order.get("payment_provider")).upper()
+    if provider:
+        order["payment_provider"] = provider
+        return order
+    metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+    metadata_provider = _clean_text(
+        metadata.get("payment_provider")
+        or metadata.get("payment_method")
+        or metadata.get("provider")
+        or metadata.get("provider_name")
+        or metadata.get("payment_gateway")
+    ).upper()
+    if metadata_provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"}:
+        order["payment_provider"] = metadata_provider
+        return order
+    approval_url = _clean_text(order.get("payment_approval_url") or metadata.get("payment_approval_url") or metadata.get("approval_url")).lower()
+    provider_order_id = _clean_text(order.get("payment_provider_order_id") or metadata.get("payment_provider_order_id") or metadata.get("provider_order_id")).lower()
+    source_type = _clean_text(order.get("source_type") or metadata.get("source_type")).upper()
+    if "payos" in approval_url or "vietqr" in approval_url or source_type == "PAYOS" or provider_order_id.startswith("payos_"):
+        order["payment_provider"] = "PAYOS"
+    elif "paypal" in approval_url or source_type == "PAYPAL" or provider_order_id.startswith("paypal_"):
+        order["payment_provider"] = "PAYPAL"
+    elif "nowpayments" in approval_url or source_type == "NOWPAYMENTS" or provider_order_id.startswith("nowpayments_"):
+        order["payment_provider"] = "NOWPAYMENTS"
+    elif "trc20" in approval_url or source_type == "TRON_USDT":
+        order["payment_provider"] = "TRON_USDT"
+    return order
+
+
 class SupabaseStore:
     def __init__(self):
         self.url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
@@ -190,11 +222,12 @@ class SupabaseStore:
         )
 
     def list_orders(self, limit=200):
-        return self._request(
+        rows = self._request(
             "GET",
             "orders",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
+        return [_normalize_payment_provider(row) for row in rows]
 
     def get_order(self, order_id):
         rows = self._request(
@@ -202,10 +235,10 @@ class SupabaseStore:
             "orders",
             params={"select": "*", "order_id": f"eq.{order_id}", "limit": "1"},
         )
-        return rows[0] if rows else None
+        return _normalize_payment_provider(rows[0]) if rows else None
 
     def list_paid_orders(self, limit=1000):
-        return self._request(
+        rows = self._request(
             "GET",
             "orders",
             params={
@@ -215,9 +248,10 @@ class SupabaseStore:
                 "limit": str(limit),
             },
         )
+        return [_normalize_payment_provider(row) for row in rows]
 
     def list_scheduler_orders(self, limit=1000):
-        return self._request(
+        rows = self._request(
             "GET",
             "orders",
             params={
@@ -227,6 +261,7 @@ class SupabaseStore:
                 "limit": str(limit),
             },
         )
+        return [_normalize_payment_provider(row) for row in rows]
 
     def list_scheduler_due_orders(self, due_before, limit=1000):
         due_value = _parse_datetime(due_before) or str(due_before)
@@ -241,6 +276,7 @@ class SupabaseStore:
                 "limit": str(limit),
             },
         )
+        paid_rows = [_normalize_payment_provider(row) for row in paid_rows]
         remaining = max(0, int(limit) - len(paid_rows))
         if remaining <= 0:
             return paid_rows
@@ -254,11 +290,12 @@ class SupabaseStore:
                 "limit": str(remaining),
             },
         )
+        expired_rows = [_normalize_payment_provider(row) for row in expired_rows]
         seen = {str(row.get("order_id")) for row in paid_rows}
         return paid_rows + [row for row in expired_rows if str(row.get("order_id")) not in seen]
 
     def list_paid_orders_for_user(self, telegram_user_id, limit=100):
-        return self._request(
+        rows = self._request(
             "GET",
             "orders",
             params={
@@ -269,6 +306,7 @@ class SupabaseStore:
                 "limit": str(limit),
             },
         )
+        return [_normalize_payment_provider(row) for row in rows]
 
     def order_to_sheet_row(self, order):
         if not order:
