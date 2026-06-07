@@ -939,11 +939,12 @@ td select {
 }
 
 .customer-detail.modal-content {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  overflow: hidden;
+  overflow-y: auto;
   min-height: 0;
-  padding: 16px;
+  padding: 16px 16px 22px;
 }
 
 .customer-head {
@@ -962,7 +963,7 @@ td select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 92px;
+  max-height: 68px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -978,9 +979,47 @@ td select {
   padding: 10px 14px;
 }
 
-.customer-detail .table-wrap {
-  max-height: min(48vh, 520px);
-  overflow: auto;
+.customer-orders-list {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.customer-order-card__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.customer-order-card__block--wide {
+  grid-column: 1 / -1;
+}
+
+.customer-order-card__block span.muted {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.customer-order-card__block strong {
+  display: block;
+}
+
+.customer-order-card .plan-editor {
+  gap: 6px;
+}
+
+.customer-order-card .plan-editor input {
+  font-size: 15px;
+}
+
+.customer-order-card .expire-editor {
+  flex-wrap: wrap;
+}
+
+.customer-order-card .expire-editor input {
+  flex: 1 1 220px;
+}
+
+.customer-order-card .expire-editor button,
+.customer-order-card .plan-editor button {
+  min-height: 38px;
 }
 
 .config-modal-backdrop {
