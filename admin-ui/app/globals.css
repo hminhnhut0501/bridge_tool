@@ -963,9 +963,8 @@ td select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 68px;
-  overflow: auto;
-  padding-right: 4px;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .customer-order-tabs {
@@ -987,7 +986,7 @@ td select {
 }
 
 .customer-order-card__grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .customer-order-card__block--wide {
@@ -1038,11 +1037,15 @@ td select {
 
 .customer-order-card__details.show {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .customer-order-card__details .customer-order-card__block--wide {
   grid-column: 1 / -1;
+}
+
+.customer-order-card__details .customer-order-card__block {
+  min-width: 0;
 }
 
 .customer-order-card:not(.is-expanded) .customer-order-card__grid {
