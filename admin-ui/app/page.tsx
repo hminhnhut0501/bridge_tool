@@ -1514,8 +1514,20 @@ function money(value: number) {
   return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
 }
 
+function inferOrderCurrency(order: Order) {
+  const explicit = String(order.payment_currency || "").toUpperCase();
+  const provider = inferOrderProvider(order);
+  if (provider === "PAYPAL") return "USD";
+  if (provider === "NOWPAYMENTS" || provider === "TRON_USDT") return "USDT";
+  if (provider === "PAYOS") return "VND";
+  if (explicit === "USD") return "USD";
+  if (explicit === "VND" || !explicit) return "VND";
+  if (explicit.includes("USDT") || explicit.includes("TRC20") || explicit.includes("CRYPTO")) return "USDT";
+  return explicit || "VND";
+}
+
 function orderMoney(order: Order, value = order.amount) {
-  const currency = String(order.payment_currency || "VND").toUpperCase();
+  const currency = inferOrderCurrency(order);
   if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
   if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency.replace("_TRC20", "")}`;
   return money(value || 0);
@@ -1523,7 +1535,7 @@ function orderMoney(order: Order, value = order.amount) {
 
 function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount" = "amount") {
   const totals = orders.reduce((sum, order) => {
-    const currency = normalizeRevenueCurrency(order.payment_currency);
+    const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
     sum[currency] = (sum[currency] || 0) + Number(order[field] || 0);
     return sum;
   }, {} as Record<string, number>);
@@ -1555,7 +1567,7 @@ function formatRevenueCurrency(currency: string, value: number) {
 
 function groupRevenueByCurrency(orders: Order[]) {
   return orders.reduce((sum, order) => {
-    const currency = normalizeRevenueCurrency(order.payment_currency);
+    const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
     if (!sum[currency]) sum[currency] = [];
     sum[currency].push(order);
     return sum;
@@ -3618,8 +3630,8 @@ export default function Home() {
               </div>
             </section>
             <section className="panel">
-              <PanelHead title="Đơn hàng mới nhất" subtitle="5 đơn gần nhất." />
-              <OrdersTable orders={orders.slice(0, 5)} onStatusChange={changeOrderStatus} saving={saving} />
+              <PanelHead title="Đơn hàng mới nhất" subtitle="10 đơn gần nhất." />
+              <OrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} saving={saving} />
             </section>
           </div>
         ) : null}
@@ -5259,7 +5271,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </div>
                 <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
                 <div className="tag-row">
-                  <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
+                  <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
                   <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
                 </div>
               </td>
@@ -5311,7 +5323,7 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
               <td>
                 <strong>{order.plan_name}</strong>
                 <div className="tag-row">
-                  <span className="status badge-lifetime">{currencyLabel(order.payment_currency)}</span>
+                  <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
                   <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
                 </div>
               </td>
