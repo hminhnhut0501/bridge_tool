@@ -88,8 +88,28 @@ def parse_manual_expire_at(value: str | None):
     raw = str(value or "").strip()
     if not raw:
         return None
-    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
-    parsed = datetime.fromisoformat(normalized)
+    normalized = raw.replace(",", " ").strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        parsed = None
+        for fmt in (
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d %H:%M:%S",
+            "%d/%m/%Y %H:%M",
+            "%d/%m/%Y %H:%M:%S",
+        ):
+            try:
+                parsed = datetime.strptime(normalized, fmt)
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            raise
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=backend_timezone())
     return parsed.astimezone(backend_timezone())
