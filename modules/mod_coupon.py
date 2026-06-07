@@ -23,6 +23,7 @@ from hidden_group_utils import (
     hidden_code_available_groups,
     hidden_duration_days,
     hidden_duration_price,
+    hidden_text,
     mark_hidden_code_used,
     record_hidden_code_redemption,
     resolve_plan_groups,
@@ -618,16 +619,19 @@ async def build_invite_links(user_id, plan_name):
 def hidden_buy_buttons(user_id, code, groups):
     kb = InlineKeyboardBuilder()
     currency = "USD" if get_user_language(user_id) == "en" else "VND"
+    template = hidden_text("BTN_HIDDEN_BUY_TEMPLATE", "Mua {duration_label} - {name} - {price}")
     for group in groups:
         label = group.get("name") or group.get("id")
         price_1m = hidden_duration_price(group, "1M", currency)
         price_life = hidden_duration_price(group, "LIFE", currency)
         if price_1m > 0:
             price_text = f"${price_1m}" if currency == "USD" else f"{int(price_1m):,}đ".replace(",", ".")
-            kb.row(InlineKeyboardButton(text=f"Mua 30 ngày - {label} - {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
+            button_text = template.replace("{duration_label}", "30 ngày").replace("{name}", str(label)).replace("{price}", price_text).replace("{days}", str(hidden_duration_days(group, "1M"))).replace("{group_id}", str(group.get("id") or ""))
+            kb.row(InlineKeyboardButton(text=button_text, callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
         if price_life > 0:
             price_text = f"${price_life}" if currency == "USD" else f"{int(price_life):,}đ".replace(",", ".")
-            kb.row(InlineKeyboardButton(text=f"Mua trọn đời - {label} - {price_text}", callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
+            button_text = template.replace("{duration_label}", "trọn đời").replace("{name}", str(label)).replace("{price}", price_text).replace("{days}", str(hidden_duration_days(group, "LIFE"))).replace("{group_id}", str(group.get("id") or ""))
+            kb.row(InlineKeyboardButton(text=button_text, callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
     return kb.as_markup()
 
@@ -635,17 +639,12 @@ def hidden_buy_buttons(user_id, code, groups):
 def hidden_group_display_lines(group):
     raw_title = str(group.get("name") or group.get("id") or "").strip()
     raw_description = str(group.get("description") or "").strip()
-    title = escape_html(raw_title)
-    description = escape_html(raw_description).strip()
-    if description:
-        normalized_title = re.sub(r"\s+", " ", normalize_key(raw_title)).strip()
-        normalized_description = re.sub(r"\s+", " ", normalize_key(raw_description)).strip()
-        if not normalized_description or normalized_description == normalized_title:
-            description = ""
-    lines = [f"• <b>{title}</b>"]
-    if description:
-        lines.append(f"  {description}")
-    return lines
+    template = hidden_text("MSG_HIDDEN_GROUP_TEMPLATE", "• <b>{name}</b>\n  {description}")
+    normalized_title = re.sub(r"\s+", " ", normalize_key(raw_title)).strip()
+    normalized_description = re.sub(r"\s+", " ", normalize_key(raw_description)).strip()
+    description = raw_description if normalized_description and normalized_description != normalized_title else ""
+    rendered = template.replace("{name}", escape_html(raw_title)).replace("{description}", escape_html(description))
+    return [line.rstrip() for line in rendered.splitlines() if line.strip()]
 
 
 async def send_hidden_code_catalog(message: Message, code, hidden_code):

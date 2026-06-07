@@ -1012,6 +1012,19 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Dòng mô tả hiển thị khi hidden code hợp lệ.",
   },
   {
+    key: "MSG_HIDDEN_GROUP_TEMPLATE",
+    label: "Hidden group item",
+    placeholder: "• <b>{name}</b>\\n  {description}",
+    help: "Mẫu hiển thị từng hidden group trong catalog. Dùng {name}, {description}.",
+    kind: "textarea",
+  },
+  {
+    key: "BTN_HIDDEN_BUY_TEMPLATE",
+    label: "Nút mua hidden",
+    placeholder: "Mua {duration_label} - {name} - {price}",
+    help: "Mẫu text nút mua hidden group. Dùng {duration_label}, {name}, {price}, {days}, {group_id}.",
+  },
+  {
     key: "MSG_HIDDEN_NOT_FOUND",
     label: "Hidden không tồn tại",
     placeholder: "Mã hidden không tồn tại.",
