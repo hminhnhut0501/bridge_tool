@@ -55,6 +55,16 @@ def test_vietnamese_can_offer_binance_pay_provider():
         assert payment_manager.providers_for_language("vi") == ["PAYOS", "BINANCE_PAY"]
 
 
+def test_binance_pay_enabled_uses_config_token():
+    config = {
+        "BINANCE_PAY_SIEUTHICODE_ENABLED": "ON",
+        "BINANCE_PAY_SIEUTHICODE_TOKEN": "token-from-config",
+    }
+
+    with patch("payment.db.get_config", side_effect=lambda key, default="": config.get(key, default)):
+        assert payment_manager.binance_pay.enabled is True
+
+
 def test_english_provider_list_does_not_fallback_to_vnd_gateway():
     with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
         payment_manager, "provider_enabled", side_effect=lambda provider: provider == "PAYOS"

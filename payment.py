@@ -490,7 +490,7 @@ class BinancePaySieuthicodeManager:
 
     @property
     def enabled(self):
-        return _enabled("BINANCE_PAY_SIEUTHICODE_ENABLED", "OFF") and bool(SIEUTHICODE_BINANCE_PAY_TOKEN)
+        return _enabled("BINANCE_PAY_SIEUTHICODE_ENABLED", "OFF") and bool(self.token)
 
     @property
     def token(self):
