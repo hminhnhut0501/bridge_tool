@@ -183,6 +183,27 @@ const BOT_FIELDS: ConfigField[] = [
     help: "Số giây QR còn hiệu lực. 300 giây = 5 phút. Hết hạn bot sẽ xoá QR và nhắc tạo đơn mới.",
   },
   {
+    key: "PAYOS_VIETQR_TEMPLATE",
+    label: "Template ảnh VietQR",
+    placeholder: "qr_only",
+    help: "qr_only chỉ hiện QR; compact/compact2/print sẽ hiện thêm thông tin. Khuyến nghị qr_only nếu muốn ẩn tối đa.",
+    kind: "select",
+    options: [
+      { label: "Chỉ QR", value: "qr_only" },
+      { label: "Compact", value: "compact" },
+      { label: "Compact2", value: "compact2" },
+      { label: "Print", value: "print" },
+    ],
+  },
+  {
+    key: "PAYOS_VIETQR_SHOW_ACCOUNT_NAME",
+    label: "Hiện tên chủ TK trong QR",
+    placeholder: "OFF",
+    help: "Bật để thêm accountName lên ảnh QR. Tắt để ẩn tối đa thông tin trên ảnh.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "PAYMENT_CHECK_INTERVAL_SECONDS",
     label: "Tần suất tự kiểm tra thanh toán",
     placeholder: "10",

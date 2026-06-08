@@ -35,6 +35,14 @@ BANK_NAMES = {
     "970432": "VPBank", "970416": "ACB", "970405": "Agribank"
 }
 
+def vietqr_template():
+    template = str(db.get_config("PAYOS_VIETQR_TEMPLATE", "qr_only") or "qr_only").strip().lower()
+    return template if template in {"qr_only", "compact", "compact2", "print"} else "qr_only"
+
+
+def vietqr_show_account_name():
+    return str(db.get_config("PAYOS_VIETQR_SHOW_ACCOUNT_NAME", "OFF") or "OFF").strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
 # 🛡 BIẾN LƯU TRỮ CHỐNG SPAM
 user_cooldowns = {}
 
@@ -367,10 +375,19 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
     actual_stk = pay_data.get('accountNumber', 'N/A')
-    qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}.png?amount={amount}&addInfo={urllib.parse.quote(description)}"
+    template = vietqr_template()
+    qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-{template}.png?amount={amount}&addInfo={urllib.parse.quote(description)}"
+    if vietqr_show_account_name() and pay_data.get("accountName"):
+        qr_url += f"&accountName={urllib.parse.quote(str(pay_data['accountName']))}"
     
-    caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "🧾 Mã đơn: {desc}\n💵 Số tiền: {amount}").replace("\\n", "\n")
-    caption = caption.replace("{plan}", str(pretty_plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", "").replace("{stk}", "").replace("{desc}", description)
+    if vietqr_show_account_name() and pay_data.get("accountName"):
+        caption_template = "🧾 Mã đơn: {desc}\n💵 Số tiền: {amount}\n🏦 Ngân hàng: {bank}\n👤 Chủ TK: {name}\n🔢 Số TK: {stk}"
+        caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", caption_template).replace("\\n", "\n")
+        caption = caption.replace("{name}", str(pay_data["accountName"])).replace("{stk}", actual_stk)
+    else:
+        caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "🧾 Mã đơn: {desc}\n💵 Số tiền: {amount}").replace("\\n", "\n")
+        caption = caption.replace("{name}", "").replace("{stk}", "")
+    caption = caption.replace("{plan}", str(pretty_plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{desc}", description)
     caption += extra_caption
     
     kb = InlineKeyboardBuilder()
