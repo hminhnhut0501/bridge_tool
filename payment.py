@@ -29,6 +29,8 @@ NOWPAYMENTS_BASE_URL = os.getenv("NOWPAYMENTS_BASE_URL", "https://api.nowpayment
 TRONGRID_API_KEY = os.getenv("TRONGRID_API_KEY")
 TRONGRID_BASE_URL = os.getenv("TRONGRID_BASE_URL", "https://api.trongrid.io").rstrip("/")
 TRON_USDT_CONTRACT = os.getenv("TRON_USDT_CONTRACT", "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj")
+SIEUTHICODE_BINANCE_PAY_TOKEN = os.getenv("SIEUTHICODE_BINANCE_PAY_TOKEN")
+SIEUTHICODE_BINANCE_PAY_BASE_URL = os.getenv("SIEUTHICODE_BINANCE_PAY_BASE_URL", "https://api.sieuthicode.net").rstrip("/")
 
 
 def _enabled(key, default):
@@ -483,15 +485,156 @@ class TronUsdtManager:
             return "ERROR"
 
 
+class BinancePaySieuthicodeManager:
+    provider = "BINANCE_PAY"
+
+    @property
+    def enabled(self):
+        return _enabled("BINANCE_PAY_SIEUTHICODE_ENABLED", "OFF") and bool(SIEUTHICODE_BINANCE_PAY_TOKEN)
+
+    @property
+    def token(self):
+        return str(db.get_config("BINANCE_PAY_SIEUTHICODE_TOKEN", SIEUTHICODE_BINANCE_PAY_TOKEN or "") or "").strip()
+
+    def _history_v2_url(self):
+        return f"{SIEUTHICODE_BINANCE_PAY_BASE_URL}/historyapibinancev2/{self.token}"
+
+    def _history_url(self):
+        return f"{SIEUTHICODE_BINANCE_PAY_BASE_URL}/historyapibinance/{self.token}"
+
+    def create_payment_link(self, order_code, amount, description):
+        if not self.enabled:
+            return None
+        return {
+            "provider": self.provider,
+            "provider_order_id": str(order_code),
+            "approval_url": str(db.get_config("BINANCE_PAY_SIEUTHICODE_APPROVAL_URL", "") or ""),
+            "currency_code": "VND",
+            "binance_pay_amount": f"{Decimal(str(amount or 0)).quantize(Decimal('0.01')):.2f}",
+            "description": description,
+            "payment_note": str(order_code),
+        }
+
+    def _fetch_history_v2(self):
+        response = requests.get(self._history_v2_url(), timeout=20)
+        data = response.json()
+        if not response.ok:
+            raise RuntimeError(f"Sieuthicode Binance Pay v2 failed: {response.status_code} {data}")
+        if str(data.get("status") or "").lower() == "success" or str(data.get("code") or "") == "000000":
+            return data.get("transactions") or []
+        return []
+
+    def _fetch_history_raw(self):
+        response = requests.get(self._history_url(), timeout=20)
+        data = response.json()
+        if not response.ok:
+            raise RuntimeError(f"Sieuthicode Binance Pay failed: {response.status_code} {data}")
+        if str(data.get("code") or "") == "000000":
+            return data.get("data") or []
+        return []
+
+    @staticmethod
+    def _normalize_amount(value):
+        try:
+            return Decimal(str(value or "0")).quantize(Decimal("0.01"))
+        except Exception:
+            return Decimal("0.00")
+
+    @staticmethod
+    def _normalize_text(value):
+        return str(value or "").strip().casefold()
+
+    def _matches_order(self, tx, order_ref, amount):
+        order_ref = self._normalize_text(order_ref)
+        tx_amount = self._normalize_amount(tx.get("amount"))
+        if tx_amount != self._normalize_amount(amount):
+            return False
+        candidates = [
+            tx.get("orderId"),
+            tx.get("transactionID"),
+            tx.get("transactionId"),
+            tx.get("description"),
+            tx.get("note"),
+        ]
+        if any(order_ref and order_ref in self._normalize_text(candidate) for candidate in candidates):
+            return True
+        payer = tx.get("payerInfo") if isinstance(tx.get("payerInfo"), dict) else {}
+        if any(order_ref and order_ref in self._normalize_text(payer.get(field)) for field in ("name", "binanceId")):
+            return True
+        return False
+
+    def get_payment_status(self, order_ref):
+        order = supabase_store.get_order(str(order_ref)) if supabase_store.enabled else None
+        if not order:
+            return "PENDING"
+        if str(order.get("status") or "").upper() != "PENDING":
+            return "PAID" if str(order.get("status") or "").upper() == "PAID" else "ERROR"
+        try:
+            expected_amount = Decimal(str(order.get("amount") or "0")).quantize(Decimal("0.01"))
+            transactions = []
+            try:
+                transactions = self._fetch_history_v2()
+            except Exception:
+                transactions = self._fetch_history_raw()
+            for tx in transactions:
+                if not isinstance(tx, dict):
+                    continue
+                if str(tx.get("type") or "").upper() not in {"IN", "RECEIVE", "RECEIVED"} and not tx.get("payerInfo"):
+                    continue
+                if self._normalize_amount(tx.get("amount")) != expected_amount:
+                    continue
+                if self._matches_order(tx, order_ref, expected_amount):
+                    try:
+                        existing = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+                        supabase_store.update_order_fields(str(order_ref), {
+                            "metadata": {
+                                **existing,
+                                "binance_pay_transaction_id": str(tx.get("transactionID") or tx.get("transactionId") or ""),
+                                "binance_pay_order_id": str(tx.get("orderId") or ""),
+                                "binance_pay_amount": str(tx.get("amount") or ""),
+                                "binance_pay_currency": str(tx.get("currency") or ""),
+                                "binance_pay_note": str(tx.get("description") or tx.get("note") or ""),
+                            },
+                        })
+                    except Exception as meta_err:
+                        print(f"⚠️ Không lưu được metadata Binance Pay cho đơn {order_ref}: {meta_err}")
+                    return "PAID"
+            return "PENDING"
+        except Exception as exc:
+            print(f"⚠️ Lỗi kiểm tra Binance Pay Sieuthicode: {exc}")
+            return "ERROR"
+
+    def scan_pending_orders(self, limit=200):
+        if not self.enabled:
+            return []
+        try:
+            orders = supabase_store.list_pending_orders(limit=limit) if supabase_store.enabled else []
+        except Exception as exc:
+            print(f"⚠️ Lỗi đọc danh sách đơn pending Binance Pay: {exc}")
+            return []
+
+        matched = []
+        for order in orders:
+            if str(order.get("payment_provider") or "").upper() != self.provider:
+                continue
+            order_id = str(order.get("order_id") or "").strip()
+            if not order_id:
+                continue
+            if self.get_payment_status(order_id) == "PAID":
+                matched.append(order_id)
+        return matched
+
+
 class PaymentManager:
     def __init__(self):
         self.payos = PayOSManager()
         self.paypal = PayPalManager()
         self.nowpayments = NowPaymentsManager()
         self.tron_usdt = TronUsdtManager()
+        self.binance_pay = BinancePaySieuthicodeManager()
 
     def enabled_providers(self):
-        return [provider for provider in ("PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT") if self.provider_enabled(provider)]
+        return [provider for provider in ("PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY") if self.provider_enabled(provider)]
 
     def manager_for(self, provider):
         selected = str(provider or "PAYOS").upper()
@@ -501,6 +644,8 @@ class PaymentManager:
             return self.nowpayments
         if selected == "TRON_USDT":
             return self.tron_usdt
+        if selected == "BINANCE_PAY":
+            return self.binance_pay
         return self.payos
 
     def provider_enabled(self, provider):
@@ -521,10 +666,12 @@ class PaymentManager:
         providers = []
         for item in configured.split(","):
             provider = item.strip()
-            if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"} and provider not in providers and self.provider_enabled(provider):
+            if provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"} and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
         if key.endswith("_EN") and "TRON_USDT" not in providers and self.provider_enabled("TRON_USDT"):
             providers.append("TRON_USDT")
+        if key.endswith("_VI") and "BINANCE_PAY" not in providers and self.provider_enabled("BINANCE_PAY"):
+            providers.append("BINANCE_PAY")
         if providers:
             return providers
         return []
@@ -541,6 +688,13 @@ class PaymentManager:
         provider_order_id = str((order or {}).get("payment_provider_order_id") or metadata.get("payment_provider_order_id") or order_ref)
         manager = self.manager_for(provider)
         return manager.get_payment_status(provider_order_id)
+
+    def scan_pending_orders(self, provider=""):
+        selected = str(provider or "BINANCE_PAY").upper()
+        manager = self.manager_for(selected)
+        if hasattr(manager, "scan_pending_orders"):
+            return manager.scan_pending_orders()
+        return []
 
 
 payment_manager = PaymentManager()

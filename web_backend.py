@@ -406,6 +406,11 @@ async def start_background_workers():
         scheduler_worker = None
 
     try:
+        from processor import binance_pay_polling_worker
+    except Exception:
+        binance_pay_polling_worker = None
+
+    try:
         from modules.mod_coupon import coupon_cleanup_worker
     except Exception:
         coupon_cleanup_worker = None
@@ -424,6 +429,8 @@ async def start_background_workers():
         asyncio.create_task(maintenance_worker())
     if scheduler_worker:
         asyncio.create_task(scheduler_worker())
+    if binance_pay_polling_worker:
+        asyncio.create_task(binance_pay_polling_worker())
     if coupon_cleanup_worker:
         asyncio.create_task(coupon_cleanup_worker())
     if campaign_worker:
@@ -557,6 +564,24 @@ async def nowpayments_webhook(request: Request):
             print(f"⚠️ Không cập nhật EXPIRED cho đơn NOWPayments {order_id}: {exc}")
 
     return {"ok": True, "order_id": order_id, "status": status, "raw_status": raw_status}
+
+
+@app.post("/payment-webhooks/binance-pay/scan", dependencies=[Depends(require_admin)])
+async def binance_pay_scan():
+    if not payment_manager.binance_pay.enabled:
+        return {"ok": False, "status": "disabled", "matched": [], "delivered": []}
+
+    matched = await asyncio.to_thread(payment_manager.scan_pending_orders, "BINANCE_PAY")
+    delivered = []
+    for order_id in matched:
+        try:
+            from processor import process_successful_payment
+
+            await process_successful_payment(order_id)
+            delivered.append(order_id)
+        except Exception as exc:
+            print(f"⚠️ Lỗi giao hàng Binance Pay cho đơn {order_id}: {exc}")
+    return {"ok": True, "matched": matched, "delivered": delivered}
 
 
 @app.post("/webhook")

@@ -48,6 +48,13 @@ def test_vietnamese_can_offer_tron_usdt_provider():
         assert payment_manager.providers_for_language("vi") == ["PAYOS", "TRON_USDT"]
 
 
+def test_vietnamese_can_offer_binance_pay_provider():
+    with patch("payment.db.get_config", return_value="PAYOS,BINANCE_PAY"), patch.object(
+        payment_manager, "provider_enabled", return_value=True
+    ):
+        assert payment_manager.providers_for_language("vi") == ["PAYOS", "BINANCE_PAY"]
+
+
 def test_english_provider_list_does_not_fallback_to_vnd_gateway():
     with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
         payment_manager, "provider_enabled", side_effect=lambda provider: provider == "PAYOS"
@@ -166,3 +173,47 @@ def test_payment_manager_routes_tron_usdt_status_by_order_provider():
     ) as check:
         assert payment_manager.get_payment_status("123") == "PAID"
         check.assert_called_once_with("123")
+
+
+def test_payment_manager_routes_binance_pay_status_by_order_provider():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def get_order(order_ref):
+            return {
+                "order_id": order_ref,
+                "payment_provider": "BINANCE_PAY",
+                "payment_provider_order_id": order_ref,
+            }
+
+    with patch("payment.supabase_store", Store), patch.object(
+        payment_manager.binance_pay,
+        "get_payment_status",
+        return_value="PAID",
+    ) as check:
+        assert payment_manager.get_payment_status("123") == "PAID"
+        check.assert_called_once_with("123")
+
+
+def test_binance_pay_polling_scans_pending_orders():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_pending_orders(limit=1000):
+            return [
+                {"order_id": "1", "payment_provider": "BINANCE_PAY"},
+                {"order_id": "2", "payment_provider": "PAYOS"},
+            ]
+
+        @staticmethod
+        def get_order(order_ref):
+            return {"order_id": order_ref, "status": "PENDING"}
+
+    with patch("payment.supabase_store", Store), patch.object(
+        payment_manager.binance_pay,
+        "get_payment_status",
+        side_effect=lambda order_ref: "PAID" if order_ref == "1" else "PENDING",
+    ):
+        assert payment_manager.scan_pending_orders("BINANCE_PAY") == ["1"]

@@ -71,7 +71,8 @@ def safe_int(value_str):
         return 999  # Trả về giá mặc định nếu lỗi
 
 def currency_for_provider(provider):
-    return "VND" if str(provider or "").upper() == "PAYOS" else "USD"
+    normalized = str(provider or "").upper()
+    return "VND" if normalized in {"PAYOS", "BINANCE_PAY"} else "USD"
 
 
 def default_currency_for_user(user_id):
@@ -334,6 +335,35 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
         return sent
 
+    if provider == "BINANCE_PAY":
+        caption = t(
+            callback.from_user.id,
+            "MSG_BINANCE_PAY_BILL_TEMPLATE",
+            "🏦 <b>BINANCE PAY</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nVui lòng thanh toán theo hướng dẫn của cổng và bấm nút kiểm tra sau khi chuyển tiền.",
+        ).replace("\\n", "\n")
+        caption = (
+            caption.replace("{plan}", str(pretty_plan_name))
+            .replace("{amount}", format_money(amount, "VND"))
+            .replace("{desc}", description)
+        )
+        caption += extra_caption
+        kb = InlineKeyboardBuilder()
+        approval_url = str(pay_data.get("approval_url") or "").strip()
+        if approval_url:
+            kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BINANCE_PAY_CHECKOUT", "🏦 Mở Binance Pay"), url=approval_url))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
+        sent = await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        if supabase_store.enabled and sent:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        return sent
+
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
     actual_stk = pay_data.get('accountNumber', 'N/A')
@@ -368,7 +398,7 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="")
 
 def payment_meta(pay_data):
     provider = str(pay_data.get("provider") or "PAYOS").upper()
-    default_currency = "VND" if provider == "PAYOS" else "USDT" if provider == "TRON_USDT" else "USD"
+    default_currency = "VND" if provider in {"PAYOS", "BINANCE_PAY"} else "USDT" if provider == "TRON_USDT" else "USD"
     return {
         "payment_provider": provider,
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
@@ -384,7 +414,7 @@ def payment_choice_keyboard(user_id, action, prefix):
     if len(providers) <= 1:
         return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments", "TRON_USDT": "₮ USDT TRC20"}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments", "TRON_USDT": "₮ USDT TRC20", "BINANCE_PAY": "🏦 Binance Pay"}
     added = 0
     for provider in providers:
         callback_data = f"{prefix}|{provider}|{action}"

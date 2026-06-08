@@ -289,10 +289,18 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "BINANCE_PAY_SIEUTHICODE_ENABLED",
+    label: "Bật Binance Pay Sieuthicode",
+    placeholder: "OFF",
+    help: "Cổng quét lịch sử Binance Pay từ Sieuthicode để đối soát đơn VNĐ song song với PayOS.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
-    placeholder: "PAYOS,PAYPAL,TRON_USDT",
-    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT. PayPal/USDT dùng bảng giá USD riêng.",
+    placeholder: "PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY",
+    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY. PayPal/USDT dùng bảng giá USD riêng.",
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
@@ -335,6 +343,18 @@ const PAYMENT_FIELDS: ConfigField[] = [
     label: "Ví nhận USDT TRC20",
     placeholder: "T...",
     help: "Địa chỉ ví TRON nhận USDT TRC20. Không nhập seed/private key vào đây.",
+  },
+  {
+    key: "BINANCE_PAY_SIEUTHICODE_TOKEN",
+    label: "Token Binance Pay Sieuthicode",
+    placeholder: "TOKEN...",
+    help: "Token do Sieuthicode cấp để truy vấn lịch sử giao dịch Binance Pay.",
+  },
+  {
+    key: "BINANCE_PAY_SIEUTHICODE_APPROVAL_URL",
+    label: "URL mở Binance Pay",
+    placeholder: "https://pay.binance.com",
+    help: "URL mở cổng Binance Pay hoặc trang hướng dẫn thanh toán. Có thể để trống nếu không cần nút mở ngoài.",
   },
   {
     key: "TRON_USDT_UNIQUE_AMOUNT_ENABLED",
@@ -1532,7 +1552,7 @@ function inferOrderCurrency(order: Order) {
   const provider = inferOrderProvider(order);
   if (provider === "PAYPAL") return "USD";
   if (provider === "NOWPAYMENTS" || provider === "TRON_USDT") return "USDT";
-  if (provider === "PAYOS") return "VND";
+  if (provider === "PAYOS" || provider === "BINANCE_PAY") return "VND";
   if (explicit === "USD") return "USD";
   if (explicit === "VND" || !explicit) return "VND";
   if (explicit.includes("USDT") || explicit.includes("TRC20") || explicit.includes("CRYPTO")) return "USDT";
@@ -1595,6 +1615,7 @@ function providerLabel(value: string | null | undefined) {
     PAYPAL: "PayPal",
     NOWPAYMENTS: "NOWPayments",
     TRON_USDT: "USDT TRC20",
+    BINANCE_PAY: "Binance Pay",
     UNKNOWN: "Chưa rõ",
   };
   return labels[provider] || (provider ? provider : "Chưa rõ");
@@ -1614,6 +1635,7 @@ function providerRevenueFormat(provider: string, value: number) {
   const normalized = String(provider || "MANUAL").toUpperCase();
   if (normalized === "PAYPAL") return formatRevenueCurrency("USD", value);
   if (normalized === "NOWPAYMENTS" || normalized === "TRON_USDT") return formatRevenueCurrency("CRYPTO", value);
+  if (normalized === "BINANCE_PAY") return formatRevenueCurrency("VND", value);
   return formatRevenueCurrency("VND", value);
 }
 
@@ -1640,7 +1662,7 @@ function inferOrderProvider(order: Order) {
     metadata.payment_gateway ||
     ""
   ).toUpperCase();
-  if (["PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"].includes(metadataProvider)) return metadataProvider;
+  if (["PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"].includes(metadataProvider)) return metadataProvider;
   const approvalUrl = String(order.payment_approval_url || metadata.payment_approval_url || metadata.approval_url || "").toLowerCase();
   const providerOrderId = String(order.payment_provider_order_id || metadata.payment_provider_order_id || metadata.provider_order_id || "").toLowerCase();
   const sourceType = String(order.source_type || metadata.source_type || "").toUpperCase();
@@ -1648,6 +1670,7 @@ function inferOrderProvider(order: Order) {
   if (approvalUrl.includes("paypal") || sourceType === "PAYPAL" || providerOrderId.startsWith("paypal_")) return "PAYPAL";
   if (approvalUrl.includes("nowpayments") || sourceType === "NOWPAYMENTS" || providerOrderId.startsWith("nowpayments_")) return "NOWPAYMENTS";
   if (approvalUrl.includes("trc20") || sourceType === "TRON_USDT") return "TRON_USDT";
+  if (approvalUrl.includes("sieuthicode") || sourceType === "BINANCE_PAY" || providerOrderId.startsWith("binance_pay_")) return "BINANCE_PAY";
   return "UNKNOWN";
 }
 

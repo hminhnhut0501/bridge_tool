@@ -109,7 +109,7 @@ def _normalize_payment_provider(order):
         or metadata.get("provider_name")
         or metadata.get("payment_gateway")
     ).upper()
-    if metadata_provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT"}:
+    if metadata_provider in {"PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"}:
         order["payment_provider"] = metadata_provider
         return order
     approval_url = _clean_text(order.get("payment_approval_url") or metadata.get("payment_approval_url") or metadata.get("approval_url")).lower()
@@ -123,6 +123,8 @@ def _normalize_payment_provider(order):
         order["payment_provider"] = "NOWPAYMENTS"
     elif "trc20" in approval_url or source_type == "TRON_USDT":
         order["payment_provider"] = "TRON_USDT"
+    elif "sieuthicode" in approval_url or source_type == "BINANCE_PAY" or provider_order_id.startswith("binance_pay_"):
+        order["payment_provider"] = "BINANCE_PAY"
     return order
 
 
@@ -245,6 +247,19 @@ class SupabaseStore:
                 "select": "*",
                 "status": "eq.PAID",
                 "order": "expire_at.asc",
+                "limit": str(limit),
+            },
+        )
+        return [_normalize_payment_provider(row) for row in rows]
+
+    def list_pending_orders(self, limit=1000):
+        rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "status": "eq.PENDING",
+                "order": "created_at.asc",
                 "limit": str(limit),
             },
         )

@@ -23,3 +23,11 @@ def test_keep_manual_when_explicit():
     normalized = _normalize_payment_provider(order)
 
     assert normalized["payment_provider"] == "MANUAL"
+
+
+def test_infer_binance_pay_from_metadata_when_provider_missing():
+    order = {"payment_provider": "", "metadata": {"payment_provider": "binance_pay"}}
+
+    normalized = _normalize_payment_provider(order)
+
+    assert normalized["payment_provider"] == "BINANCE_PAY"
