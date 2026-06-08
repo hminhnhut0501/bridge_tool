@@ -127,6 +127,8 @@ def channel_schedule_active(now=None, rows=None):
     return False
 
 def bot_unavailable_reason(now=None):
+    if bot_schedule_active(now):
+        return ""
     if config_enabled("MAINTENANCE_MODE", "OFF"):
         return "maintenance"
     if not bot_schedule_active(now):
