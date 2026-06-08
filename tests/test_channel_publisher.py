@@ -69,13 +69,56 @@ def test_delete_channel_post_reschedules_daily_post(monkeypatch):
         "sent_message_id": "123",
         "status": "sent",
         "repeat_daily": True,
+        "sync_bot_schedule": True,
         "scheduled_at": "2026-06-05T08:00:00+00:00",
         "delete_at": "2026-06-05T10:00:00+00:00",
     }
 
     assert asyncio.run(channel_publisher.delete_channel_post(row))
     assert any("repeat_rescheduled" == item[1] for item in events)
-    assert any(item[1].get("status") == "scheduled" for item in patches)
+    scheduled_patch = next(item[1] for item in patches if item[1].get("status") == "scheduled")
+    assert scheduled_patch["repeat_daily"] is True
+    assert scheduled_patch["sync_bot_schedule"] is True
+
+
+def test_publish_channel_post_preserves_schedule_flags(monkeypatch):
+    events = []
+    patches = []
+
+    class FakeStore:
+        def patch_channel_post(self, post_id, raw, status=None):
+            patches.append((post_id, raw, status))
+            return [raw | {"id": post_id}]
+
+        def record_channel_post_event(self, post_id, event_type, message, details=None, bot_key="main"):
+            events.append((post_id, event_type, message, details or {}))
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            return SimpleNamespace(message_id=777, **kwargs)
+
+    monkeypatch.setattr(channel_publisher, "supabase_store", FakeStore())
+    monkeypatch.setitem(sys.modules, "bot_instance", SimpleNamespace(bot=FakeBot()))
+
+    row = {
+        "id": 11,
+        "target_chat_id": "-1001",
+        "content": "Hello world",
+        "buttons_text": "",
+        "status": "scheduled",
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False,
+        "enabled": True,
+        "repeat_daily": True,
+        "sync_bot_schedule": True,
+        "scheduled_at": "2026-06-05T08:00:00+00:00",
+        "delete_at": "2026-06-05T10:00:00+00:00",
+    }
+
+    assert asyncio.run(channel_publisher.publish_channel_post(row))
+    sent_patch = next(item[1] for item in patches if item[1].get("status") == "delete_scheduled")
+    assert sent_patch["repeat_daily"] is True
+    assert sent_patch["sync_bot_schedule"] is True
 
 
 def test_publish_channel_post_uses_photo_caption_when_image_ref_exists(monkeypatch):

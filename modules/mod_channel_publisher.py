@@ -40,6 +40,13 @@ def next_daily_pair(scheduled_at, delete_at, now=None):
     return scheduled.isoformat(), delete.isoformat()
 
 
+def _channel_schedule_flags(row):
+    return {
+        "repeat_daily": _truthy(row.get("repeat_daily")),
+        "sync_bot_schedule": _truthy(row.get("sync_bot_schedule")),
+    }
+
+
 def _valid_url(value):
     parsed = urlparse(str(value or "").strip())
     return parsed.scheme in {"http", "https", "tg"} and bool(parsed.netloc or parsed.scheme == "tg")
@@ -190,6 +197,7 @@ async def publish_channel_post(row):
                 "sent_at": _now_iso(),
                 "error": None,
                 "error_code": None,
+                **_channel_schedule_flags(row),
             },
         )
         supabase_store.record_channel_post_event(row_id, "send_succeeded", "Telegram đã nhận bài.", {"message_id": sent.message_id})
@@ -233,15 +241,16 @@ async def delete_channel_post(row):
                 {
                     "status": "scheduled",
                     "scheduled_at": next_scheduled_at,
-                "delete_at": next_delete_at,
-                "sent_message_id": None,
-                "sent_at": None,
-                "image_ref": row.get("image_ref") or None,
-                "deleted_at": _now_iso(),
-                "error": None,
-                "error_code": None,
-            },
-        )
+                    "delete_at": next_delete_at,
+                    "sent_message_id": None,
+                    "sent_at": None,
+                    "image_ref": row.get("image_ref") or None,
+                    "deleted_at": _now_iso(),
+                    "error": None,
+                    "error_code": None,
+                    **_channel_schedule_flags(row),
+                },
+            )
             supabase_store.record_channel_post_event(
                 row_id,
                 "repeat_rescheduled",
@@ -251,7 +260,13 @@ async def delete_channel_post(row):
         else:
             supabase_store.patch_channel_post(
                 row_id,
-                {"status": "deleted", "deleted_at": _now_iso(), "error": None, "error_code": None},
+                {
+                    "status": "deleted",
+                    "deleted_at": _now_iso(),
+                    "error": None,
+                    "error_code": None,
+                    **_channel_schedule_flags(row),
+                },
             )
         supabase_store.record_channel_post_event(row_id, "delete_succeeded", "Đã xóa bài khỏi Telegram.")
         return True
