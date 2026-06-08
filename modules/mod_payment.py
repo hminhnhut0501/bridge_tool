@@ -367,11 +367,10 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
     actual_stk = pay_data.get('accountNumber', 'N/A')
-    qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}-print.png?amount={amount}&addInfo={description}&accountName={urllib.parse.quote(pay_data['accountName'])}"
-    safe_name = str(pay_data['accountName']).replace('&', 'và').replace('<', '').replace('>', '')
+    qr_url = f"https://img.vietqr.io/image/{raw_bin}-{actual_stk}.png?amount={amount}&addInfo={urllib.parse.quote(description)}"
     
-    caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "Mã Đơn: {desc}\nSố tiền: {amount}").replace("\\n", "\n")
-    caption = caption.replace("{plan}", str(pretty_plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", safe_name).replace("{stk}", actual_stk).replace("{desc}", description)
+    caption = t(callback.from_user.id, "MSG_BILL_TEMPLATE", "🧾 Mã đơn: {desc}\n💵 Số tiền: {amount}").replace("\\n", "\n")
+    caption = caption.replace("{plan}", str(pretty_plan_name)).replace("{amount}", format_money(amount, "VND")).replace("{bank}", bank_display).replace("{name}", "").replace("{stk}", "").replace("{desc}", description)
     caption += extra_caption
     
     kb = InlineKeyboardBuilder()
