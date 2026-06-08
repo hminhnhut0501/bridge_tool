@@ -4113,10 +4113,21 @@ export default function Home() {
               <SimpleTable
                 headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
                 rows={pagedChannelPosts.map((item) => [
-                  <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}><strong>{item.title || `Bài #${item.id}`}</strong><div className="muted">{String(item.content || "").slice(0, 90)}</div></button>,
+                  <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}>
+                    <strong>{item.title || `Bài #${item.id}`}</strong>
+                    <div className="muted">{String(item.content || "").slice(0, 90)}</div>
+                    <div className="row-chips" style={{ marginTop: 8 }}>
+                      {item.repeat_daily ? <span className="badge green">Lặp ngày</span> : null}
+                      {item.sync_bot_schedule ? <span className="badge teal">Gắn giờ bot</span> : null}
+                      {item.delete_at ? <span className="badge blue">Có giờ xóa</span> : null}
+                    </div>
+                  </button>,
                   item.target_chat_id,
                   <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
-                  <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
+                  <>
+                    <strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong>
+                    <div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div>
+                  </>,
                   <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}{item.repeat_daily ? " • Lặp ngày" : ""}{item.sync_bot_schedule ? " • Gắn giờ bot" : ""}</div></>,
                   item.error ? <><strong>{item.error_code || "telegram_error"}</strong><div className="muted">{item.error}</div></> : "-",
                 ])}
@@ -5021,6 +5032,11 @@ export default function Home() {
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
                   <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"} • {channelPostForm.sync_bot_schedule ? "Gắn giờ bot" : "Không gắn giờ bot"}</small>
+                  <div className="row-chips" style={{ marginTop: 10 }}>
+                    {channelPostForm.repeat_daily ? <span className="badge green">Bật lặp ngày</span> : <span className="badge muted">Không lặp</span>}
+                    {channelPostForm.sync_bot_schedule ? <span className="badge teal">Bot theo lịch bài</span> : <span className="badge muted">Không gắn giờ bot</span>}
+                    {channelPostForm.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
+                  </div>
                 </div>
                 {channelEvents.length ? (
                   <div className="channel-events">

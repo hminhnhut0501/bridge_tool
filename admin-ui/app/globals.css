@@ -808,6 +808,43 @@ td select {
   margin-top: 6px;
 }
 
+.row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.badge.green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.teal {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.badge.blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge.muted {
+  background: #eef2f7;
+  color: #5b6472;
+}
+
 .status.badge-lifetime {
   background: #efe7ff;
   color: #6d28d9;
