@@ -372,13 +372,20 @@ class SupabaseStore:
 
     def set_config(self, key, value):
         payload = {"key": _clean_text(key).upper(), "value": str(value)}
-        return self._request(
+        rows = self._request(
             "POST",
             "bot_config",
             params={"on_conflict": "key"},
             json=payload,
             prefer="resolution=merge-duplicates,return=representation",
         )
+        try:
+            from helpers import invalidate_bot_runtime_state_cache
+
+            invalidate_bot_runtime_state_cache()
+        except Exception:
+            pass
+        return rows
 
     def set_configs(self, items):
         payload = [
@@ -388,13 +395,20 @@ class SupabaseStore:
         ]
         if not payload:
             return []
-        return self._request(
+        rows = self._request(
             "POST",
             "bot_config",
             params={"on_conflict": "key"},
             json=payload,
             prefer="resolution=merge-duplicates,return=representation",
         )
+        try:
+            from helpers import invalidate_bot_runtime_state_cache
+
+            invalidate_bot_runtime_state_cache()
+        except Exception:
+            pass
+        return rows
 
     def get_user_preference(self, telegram_user_id):
         rows = self._request(
@@ -422,11 +436,55 @@ class SupabaseStore:
         )
 
     def delete_config(self, key):
-        return self._request(
+        rows = self._request(
             "DELETE",
             "bot_config",
             params={"key": f"eq.{_clean_text(key).upper()}"},
             prefer="return=representation",
+        )
+        try:
+            from helpers import invalidate_bot_runtime_state_cache
+
+            invalidate_bot_runtime_state_cache()
+        except Exception:
+            pass
+        return rows
+
+    def get_bot_runtime_state(self):
+        rows = self._request(
+            "GET",
+            "bot_runtime_state",
+            params={"select": "*", "id": "eq.main", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def upsert_bot_runtime_state(self, raw):
+        payload = {
+            "id": _clean_text((raw or {}).get("id") or "main") or "main",
+            "effective_mode": _clean_text((raw or {}).get("effective_mode") or (raw or {}).get("source") or "always") or "always",
+            "source": _clean_text((raw or {}).get("source") or (raw or {}).get("effective_mode") or "always") or "always",
+            "active": bool((raw or {}).get("active", True)),
+            "title": _clean_text((raw or {}).get("title") or ""),
+            "window": _clean_text((raw or {}).get("window") or ""),
+            "detail": _clean_text((raw or {}).get("detail") or ""),
+            "timezone": _clean_text((raw or {}).get("timezone") or "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh",
+            "linked_count": _parse_int((raw or {}).get("linked_count"), 0),
+            "maintenance_mode": bool((raw or {}).get("maintenance_mode", False)),
+            "maintenance_override": bool((raw or {}).get("maintenance_override", False)),
+            "fixed_schedule_enabled": bool((raw or {}).get("fixed_schedule_enabled", False)),
+            "active_hours": _clean_text((raw or {}).get("active_hours") or ""),
+            "source_post_id": _clean_text((raw or {}).get("source_post_id") or ""),
+            "source_post_title": _clean_text((raw or {}).get("source_post_title") or ""),
+            "window_start": _parse_datetime((raw or {}).get("window_start")) if (raw or {}).get("window_start") else None,
+            "window_end": _parse_datetime((raw or {}).get("window_end")) if (raw or {}).get("window_end") else None,
+            "raw_data": (raw or {}).get("raw_data") or {},
+        }
+        return self._request(
+            "POST",
+            "bot_runtime_state",
+            params={"on_conflict": "id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
         )
 
     def create_order(
@@ -1553,8 +1611,10 @@ class SupabaseStore:
         rows = self._request_channel_post_write("POST", payload=payload, prefer="return=representation")
         try:
             from helpers import invalidate_channel_schedule_cache
+            from helpers import recompute_bot_runtime_state
 
             invalidate_channel_schedule_cache()
+            recompute_bot_runtime_state()
         except Exception:
             pass
         return rows[0]
@@ -1569,8 +1629,10 @@ class SupabaseStore:
         rows = self._request_channel_post_write("PATCH", params=params, payload=payload, prefer="return=representation")
         try:
             from helpers import invalidate_channel_schedule_cache
+            from helpers import recompute_bot_runtime_state
 
             invalidate_channel_schedule_cache()
+            recompute_bot_runtime_state()
         except Exception:
             pass
         return rows
@@ -1639,6 +1701,12 @@ class SupabaseStore:
         row = rows[0] if rows else None
         if row:
             self.record_channel_post_event(post_id, event_type, message, details, bot_key=row.get("bot_key") or "main")
+            try:
+                from helpers import recompute_bot_runtime_state
+
+                recompute_bot_runtime_state()
+            except Exception:
+                pass
         return row
 
     def list_channel_post_events(self, post_id=None, limit=200):

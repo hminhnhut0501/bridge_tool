@@ -163,6 +163,12 @@ class Database:
         if self.backend == "supabase" and supabase_store.enabled:
             supabase_store.set_config(normalized_key, value)
             self.cache_config[normalized_key] = str(value)
+            try:
+                from helpers import recompute_bot_runtime_state
+
+                recompute_bot_runtime_state()
+            except Exception:
+                pass
             return
 
         if not self.config_sheet:
@@ -177,6 +183,12 @@ class Database:
 
         self.config_sheet.append_row([normalized_key, str(value)])
         self.cache_config[normalized_key] = str(value)
+        try:
+            from helpers import recompute_bot_runtime_state
+
+            recompute_bot_runtime_state()
+        except Exception:
+            pass
 
     def get_page(self, page_id):
         normalized = normalize_key(page_id)

@@ -1,7 +1,15 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 import helpers
+
+
+@pytest.fixture(autouse=True)
+def stub_bot_runtime_state_io(monkeypatch):
+    monkeypatch.setattr(helpers.supabase_store, "get_bot_runtime_state", lambda: None, raising=False)
+    monkeypatch.setattr(helpers.supabase_store, "upsert_bot_runtime_state", lambda raw: [raw], raising=False)
 
 
 def local_datetime(hour, minute=0):
@@ -182,3 +190,44 @@ def test_channel_schedule_cache_can_be_invalidated(monkeypatch):
     helpers.invalidate_channel_schedule_cache()
     assert helpers.bot_schedule_active(local_datetime(12))
     assert calls == [200, 200]
+
+
+def test_recompute_bot_runtime_state_writes_payload(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "ON",
+        "BOT_ACTIVE_HOURS": "08:00-12:00",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+    writes = []
+
+    def fake_get_config(key, default=""):
+        return values.get(key, default)
+
+    def fake_list_bot_schedule_channel_posts(limit=200):
+        return [{
+            "id": 99,
+            "enabled": True,
+            "repeat_daily": True,
+            "sync_bot_schedule": True,
+            "scheduled_at": "2026-06-04T08:00:00+07:00",
+            "delete_at": "2026-06-04T23:00:00+07:00",
+            "title": "Bài giữ bot",
+        }]
+
+    def fake_upsert_bot_runtime_state(raw):
+        writes.append(raw)
+        return [raw]
+
+    monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    monkeypatch.setattr(helpers.supabase_store, "upsert_bot_runtime_state", fake_upsert_bot_runtime_state)
+    helpers.invalidate_bot_runtime_state_cache()
+
+    state = helpers.recompute_bot_runtime_state(local_datetime(9))
+    assert state["active"] is True
+    assert state["source"] == "channel"
+    assert state["effective_mode"] == "channel"
+    assert writes and writes[0]["active"] is True

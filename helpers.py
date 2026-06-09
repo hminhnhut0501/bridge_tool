@@ -17,12 +17,19 @@ ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đ
 user_welcome_msgs = {}
 _bio_link_cache = {}
 _channel_schedule_cache = {"loaded_at": 0.0, "rows": []}
+_bot_runtime_state_cache = {"loaded_at": 0.0, "row": None}
 CHANNEL_SCHEDULE_CACHE_SECONDS = 60
+BOT_RUNTIME_STATE_CACHE_SECONDS = 5
 
 
 def invalidate_channel_schedule_cache():
     _channel_schedule_cache["loaded_at"] = 0.0
     _channel_schedule_cache["rows"] = []
+
+
+def invalidate_bot_runtime_state_cache():
+    _bot_runtime_state_cache["loaded_at"] = 0.0
+    _bot_runtime_state_cache["row"] = None
 
 
 def configured_admin_ids():
@@ -80,7 +87,7 @@ def truthy_value(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 def bot_schedule_active(now=None):
-    return bool(bot_schedule_status(now).get("active"))
+    return bool(bot_runtime_state(now).get("active"))
 
 def bot_schedule_status(now=None):
     local_now = now or datetime.now(bot_timezone())
@@ -113,8 +120,12 @@ def bot_schedule_status(now=None):
         return {
             "source": "channel",
             "active": True,
+            "sourcePostId": str(active_linked_post.get("id") or ""),
+            "sourcePostTitle": active_linked_post.get("title") or f"Bài #{active_linked_post.get('id')}",
             "title": active_linked_post.get("title") or f"Bài #{active_linked_post.get('id')}",
             "window": f"{active_linked_post.get('scheduled_at')} → {active_linked_post.get('delete_at')}",
+            "windowStart": active_linked_post.get("scheduled_at") or "",
+            "windowEnd": active_linked_post.get("delete_at") or "",
             "detail": "Bài liên kết đang giữ bot online." + (" Bảo trì thủ công đang bị override." if maintenance_mode else ""),
             "timezone": timezone_name,
             "linkedCount": len(linked_rows),
@@ -127,8 +138,12 @@ def bot_schedule_status(now=None):
         return {
             "source": "maintenance",
             "active": False,
+            "sourcePostId": "",
+            "sourcePostTitle": "Bảo trì thủ công",
             "title": "Bảo trì thủ công",
             "window": "Bot đang bị khóa thủ công",
+            "windowStart": "",
+            "windowEnd": "",
             "detail": "Không có bài liên kết nào đang active.",
             "timezone": timezone_name,
             "linkedCount": len(linked_rows),
@@ -141,8 +156,12 @@ def bot_schedule_status(now=None):
         return {
             "source": "channel",
             "active": False,
+            "sourcePostId": "",
+            "sourcePostTitle": "Ngoài khung giờ bài liên kết",
             "title": "Ngoài khung giờ bài liên kết",
             "window": "Chưa có bài đăng liên kết đang active",
+            "windowStart": "",
+            "windowEnd": "",
             "detail": "Bot đang chờ khung giờ của bài đăng liên kết.",
             "timezone": timezone_name,
             "linkedCount": len(linked_rows),
@@ -156,8 +175,12 @@ def bot_schedule_status(now=None):
         return {
             "source": "fixed",
             "active": bool(active_fixed_window),
+            "sourcePostId": "",
+            "sourcePostTitle": "BOT_ACTIVE_HOURS",
             "title": f"Khung giờ {window_text}" if window_text else "Ngoài khung giờ",
             "window": window_text or ", ".join(f"{start.isoformat(timespec='minutes')}-{end.isoformat(timespec='minutes')}" for start, end in windows),
+            "windowStart": "",
+            "windowEnd": "",
             "detail": "Bot chạy theo BOT_ACTIVE_HOURS.",
             "timezone": timezone_name,
             "linkedCount": len(linked_rows),
@@ -169,8 +192,12 @@ def bot_schedule_status(now=None):
     return {
         "source": "always",
         "active": True,
+        "sourcePostId": "",
+        "sourcePostTitle": "Luôn hoạt động",
         "title": "Luôn hoạt động",
         "window": "Không dùng lịch bot cố định",
+        "windowStart": "",
+        "windowEnd": "",
         "detail": "Không bật bảo trì và không có lịch bài liên kết.",
         "timezone": timezone_name,
         "linkedCount": len(linked_rows),
@@ -179,6 +206,61 @@ def bot_schedule_status(now=None):
         "fixedScheduleEnabled": fixed_schedule_enabled,
         "activeHours": active_hours_raw,
     }
+
+
+def _bot_runtime_state_payload(now=None):
+    status = bot_schedule_status(now)
+    return {
+        "id": "main",
+        "effective_mode": status.get("source") or "always",
+        "source": status.get("source") or "always",
+        "active": bool(status.get("active")),
+        "title": status.get("title") or "",
+        "window": status.get("window") or "",
+        "detail": status.get("detail") or "",
+        "timezone": status.get("timezone") or "Asia/Ho_Chi_Minh",
+        "linked_count": int(status.get("linkedCount") or 0),
+        "maintenance_mode": bool(status.get("maintenanceMode")),
+        "maintenance_override": bool(status.get("maintenanceOverride")),
+        "fixed_schedule_enabled": bool(status.get("fixedScheduleEnabled")),
+        "active_hours": status.get("activeHours") or "",
+        "source_post_id": str(status.get("sourcePostId") or ""),
+        "source_post_title": status.get("sourcePostTitle") or status.get("title") or "",
+        "window_start": status.get("windowStart") or "",
+        "window_end": status.get("windowEnd") or "",
+        "raw_data": status,
+    }
+
+
+def bot_runtime_state(now=None):
+    if not supabase_store.enabled:
+        return _bot_runtime_state_payload(now)
+    current_ts = time.time()
+    cached_row = _bot_runtime_state_cache.get("row")
+    if cached_row and current_ts - float(_bot_runtime_state_cache.get("loaded_at") or 0) <= BOT_RUNTIME_STATE_CACHE_SECONDS:
+        return cached_row
+    try:
+        row = supabase_store.get_bot_runtime_state()
+        if row:
+            _bot_runtime_state_cache["row"] = row
+            _bot_runtime_state_cache["loaded_at"] = current_ts
+            return row
+    except Exception as exc:
+        print(f"⚠️ Không đọc được bot_runtime_state: {exc}")
+    return _bot_runtime_state_payload(now)
+
+
+def recompute_bot_runtime_state(now=None):
+    payload = _bot_runtime_state_payload(now)
+    if supabase_store.enabled:
+        try:
+            rows = supabase_store.upsert_bot_runtime_state(payload)
+            invalidate_bot_runtime_state_cache()
+            return rows[0] if rows else payload
+        except Exception as exc:
+            print(f"⚠️ Không ghi được bot_runtime_state: {exc}")
+    invalidate_bot_runtime_state_cache()
+    return payload
 
 def _load_channel_schedule_rows():
     if not supabase_store.enabled:
@@ -221,12 +303,12 @@ def channel_schedule_active(now=None, rows=None):
     return False
 
 def bot_unavailable_reason(now=None):
-    status = bot_schedule_status(now)
+    status = bot_runtime_state(now)
     if status.get("active"):
         return ""
-    if status.get("source") == "maintenance":
+    if str(status.get("effective_mode") or status.get("source") or "").strip().lower() == "maintenance":
         return "maintenance"
-    if status.get("source") in {"channel", "fixed"}:
+    if str(status.get("effective_mode") or status.get("source") or "").strip().lower() in {"channel", "fixed"}:
         return "schedule"
     return ""
 

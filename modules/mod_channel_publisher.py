@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from helpers import recompute_bot_runtime_state
 from supabase_store import _now_iso, supabase_store
 
 
@@ -200,6 +201,7 @@ async def publish_channel_post(row):
                 **_channel_schedule_flags(row),
             },
         )
+        recompute_bot_runtime_state()
         supabase_store.record_channel_post_event(row_id, "send_succeeded", "Telegram đã nhận bài.", {"message_id": sent.message_id})
         return True
     except (TelegramBadRequest, TelegramForbiddenError, Exception) as exc:
@@ -251,6 +253,7 @@ async def delete_channel_post(row):
                     **_channel_schedule_flags(row),
                 },
             )
+            recompute_bot_runtime_state()
             supabase_store.record_channel_post_event(
                 row_id,
                 "repeat_rescheduled",
@@ -268,6 +271,7 @@ async def delete_channel_post(row):
                     **_channel_schedule_flags(row),
                 },
             )
+            recompute_bot_runtime_state()
         supabase_store.record_channel_post_event(row_id, "delete_succeeded", "Đã xóa bài khỏi Telegram.")
         return True
     except (TelegramBadRequest, TelegramForbiddenError, Exception) as exc:

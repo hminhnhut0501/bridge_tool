@@ -38,9 +38,6 @@ async def set_commands():
 
 # Lưu trữ lịch sử bấm nút của User {user_id: timestamp}
 user_cooldowns = {}
-# Trạng thái bảo trì (True/False)
-MAINTENANCE_MODE = False 
-
 def is_spamming(user_id):
     current_time = time.time()
     last_time = user_cooldowns.get(user_id, 0)

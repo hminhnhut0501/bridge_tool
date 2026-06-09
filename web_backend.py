@@ -23,7 +23,7 @@ from hidden_group_utils import (
     upsert_hidden_code,
     upsert_hidden_group,
 )
-from helpers import bot_schedule_status
+from helpers import bot_schedule_status, bot_runtime_state, recompute_bot_runtime_state
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 from payment import payment_manager
@@ -426,6 +426,11 @@ async def start_background_workers():
     except Exception:
         channel_publisher_worker = None
 
+    try:
+        from modules.mod_runtime_state import bot_runtime_worker
+    except Exception:
+        bot_runtime_worker = None
+
     if maintenance_worker:
         asyncio.create_task(maintenance_worker())
     if scheduler_worker:
@@ -438,6 +443,8 @@ async def start_background_workers():
         asyncio.create_task(campaign_worker())
     if channel_publisher_worker:
         asyncio.create_task(channel_publisher_worker())
+    if bot_runtime_worker:
+        asyncio.create_task(bot_runtime_worker())
 
 
 @app.on_event("startup")
@@ -502,7 +509,12 @@ async def admin_webhook_info():
 
 @app.get("/admin-api/bot-schedule-status", dependencies=[Depends(require_admin)])
 async def admin_bot_schedule_status():
-    return {"data": bot_schedule_status()}
+    return {"data": bot_runtime_state()}
+
+
+@app.get("/admin-api/bot-runtime-state", dependencies=[Depends(require_admin)])
+async def admin_bot_runtime_state():
+    return {"data": bot_runtime_state()}
 
 
 @app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])
@@ -752,6 +764,7 @@ async def admin_set_config(key: str, request: Request):
     normalized_key = str(key).strip().upper()
     if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
         await set_commands()
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -770,6 +783,7 @@ async def admin_set_config_batch(request: Request):
             command_changed = True
     if command_changed:
         await set_commands()
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -777,6 +791,7 @@ async def admin_set_config_batch(request: Request):
 async def admin_delete_config(key: str):
     data = supabase_store.delete_config(key)
     db.cache_config.pop(str(key).strip().upper(), None)
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -795,6 +810,7 @@ async def admin_set_menu_page(page_id: str, request: Request):
         layout=body.get("layout", ""),
     )
     db.reload_config(force=True)
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -802,6 +818,7 @@ async def admin_set_menu_page(page_id: str, request: Request):
 async def admin_delete_menu_page(page_id: str):
     data = supabase_store.delete_menu_page(page_id)
     db.reload_config(force=True)
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -815,6 +832,7 @@ async def admin_upsert_sale_rule(request: Request):
     body = await request.json()
     data = supabase_store.upsert_sale_rule(body)
     db.reload_config(force=True)
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -822,6 +840,7 @@ async def admin_upsert_sale_rule(request: Request):
 async def admin_delete_sale_rule(sale_id: str):
     data = supabase_store.delete_sale_rule(sale_id)
     db.reload_config(force=True)
+    recompute_bot_runtime_state()
     return {"data": data}
 
 
@@ -1086,7 +1105,9 @@ async def admin_channel_posts(limit: int = 200, status: str | None = None):
 async def admin_create_channel_post(request: Request):
     body = await request.json()
     try:
-        return {"data": supabase_store.create_channel_post(body)}
+        data = supabase_store.create_channel_post(body)
+        recompute_bot_runtime_state()
+        return {"data": data}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -1100,7 +1121,9 @@ async def admin_create_channel_post(request: Request):
 async def admin_update_channel_post(post_id: str, request: Request):
     body = await request.json()
     try:
-        return {"data": supabase_store.patch_channel_post(post_id, body)}
+        data = supabase_store.patch_channel_post(post_id, body)
+        recompute_bot_runtime_state()
+        return {"data": data}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -1116,6 +1139,7 @@ async def admin_channel_post_action(post_id: str, request: Request):
     action = str(body.get("action") or "").strip()
     try:
         row = supabase_store.channel_post_action(post_id, action, body)
+        recompute_bot_runtime_state()
         return {"data": row}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

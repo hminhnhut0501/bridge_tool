@@ -40,6 +40,11 @@ try:
 except:
     coupon_cleanup_worker = None
 
+try:
+    from modules.mod_runtime_state import bot_runtime_worker
+except:
+    bot_runtime_worker = None
+
 # ==========================================
 # 🧩 CƠ CHẾ AUTO-DISCOVERY (NẠP ROUTERS)
 # ==========================================
@@ -96,6 +101,10 @@ async def main():
     if coupon_cleanup_worker:
         asyncio.create_task(coupon_cleanup_worker())
         print("🎟 [Worker] Đã kích hoạt Coupon Cleanup")
+
+    if bot_runtime_worker:
+        asyncio.create_task(bot_runtime_worker())
+        print("🧭 [Worker] Đã kích hoạt Bot Runtime State")
 
     print("🤖 Bot Hang Cu Privé+ đang sẵn sàng nhận lệnh...")
     
