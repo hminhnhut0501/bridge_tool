@@ -34,6 +34,10 @@ on public.bot_schedule_rules for all
 using ((auth.role() = 'service_role'::text))
 with check ((auth.role() = 'service_role'::text));
 
+alter table public.channel_posts
+  add column if not exists repeat_daily boolean not null default false,
+  add column if not exists sync_bot_schedule boolean not null default false;
+
 insert into public.bot_schedule_rules (
   bot_key,
   channel_post_id,
