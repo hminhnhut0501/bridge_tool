@@ -605,8 +605,6 @@ class BinancePaySieuthicodeManager:
             return "ERROR"
 
     def scan_pending_orders(self, limit=200):
-        if not self.enabled:
-            return []
         try:
             orders = supabase_store.list_pending_orders(limit=limit) if supabase_store.enabled else []
         except Exception as exc:
@@ -670,8 +668,6 @@ class PaymentManager:
                 providers.append(provider)
         if key.endswith("_EN") and "TRON_USDT" not in providers and self.provider_enabled("TRON_USDT"):
             providers.append("TRON_USDT")
-        if key.endswith("_VI") and "BINANCE_PAY" not in providers and self.provider_enabled("BINANCE_PAY"):
-            providers.append("BINANCE_PAY")
         if providers:
             return providers
         return []
