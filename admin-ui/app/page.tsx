@@ -17,6 +17,7 @@ import {
   PlayCircle,
   Plus,
   RefreshCw,
+  Download,
   Save,
   Send,
   Settings,
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   ActivityEvent,
   BroadcastCampaign,
@@ -78,6 +80,7 @@ import {
   getHiddenGroups,
   getHiddenRedemptions,
   getKickAudit,
+  getVipGroupAudit,
   getMenuPages,
   getOrders,
   getSaleRules,
@@ -103,6 +106,7 @@ import {
   upsertSaleRule,
   type HiddenCode,
   type HiddenGroup,
+  type VipGroupAuditRow,
   type SupportGroupCheck,
 } from "@/lib/api";
 
@@ -116,7 +120,7 @@ type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
 type LogDirectionFilter = "all" | "user" | "bot";
-type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained";
+type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained" | "vipOut";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 type ChannelPostTab = "draft" | "queue" | "scheduled" | "sent" | "failed" | "deleted";
@@ -2075,6 +2079,7 @@ export default function Home() {
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
+  const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [campaignRecipients, setCampaignRecipients] = useState<BroadcastRecipient[]>([]);
@@ -2424,6 +2429,7 @@ export default function Home() {
       const needsBlacklist = !light && shouldLoad("security");
       const needsSupportEvents = !light && shouldLoad("activityLog", "renewals", "supportGroup");
       const needsKickAudit = !light && shouldLoad("renewals");
+      const needsVipGroupAudit = !light && shouldLoad("renewals");
       const needsActivityEvents = !light && shouldLoad("activityLog", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
@@ -2444,6 +2450,7 @@ export default function Home() {
       addTask(needsBlacklist, () => getBlacklist(activeSecret), setBlacklist);
       addTask(needsSupportEvents, () => getSupportEvents(activeSecret), setSupportEvents);
       addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
+      addTask(needsVipGroupAudit, () => getVipGroupAudit(activeSecret), setVipGroupAudit);
       addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
@@ -2744,6 +2751,59 @@ export default function Home() {
       setKickAudit(res.data);
       if (live) showNotice("ok", "Đã kiểm tra live trạng thái kick trong group.");
     });
+  }
+
+  async function refreshVipGroupAudit(live = false) {
+    await runAction(live ? "vip-audit-live" : "vip-audit-refresh", async () => {
+      const res = await getVipGroupAudit(savedSecret, live);
+      setVipGroupAudit(res.data);
+      if (live) showNotice("ok", "Đã kiểm tra live trạng thái VIP group.");
+    });
+  }
+
+  function escapeCsvCell(value: unknown) {
+    const text = String(value ?? "");
+    if (/[",\n\r;]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+    return text;
+  }
+
+  function exportVipGroupAudit(format: "csv" | "xlsx") {
+    const rows: Record<string, string>[] = vipGroupAudit
+      .filter((item) => item.status !== "ACTIVE_RETAINED")
+      .map((item) => ({
+        "Khách": item.customer_name || "-",
+        "Telegram ID": item.telegram_user_id || "-",
+        "Đơn": item.order_id || "-",
+        "Gói": item.plan_name || "-",
+        "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
+        "Group": item.group_name || "-",
+        "Group ID": item.group_id || "-",
+        "Trạng thái": item.status_label || item.status,
+        "Live": item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
+        "Lỗi gần nhất": item.latest_error || "-",
+      }));
+    if (!rows.length) {
+      showNotice("error", "Không có dòng nào để export.");
+      return;
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `vip-group-out-${stamp}`;
+    if (format === "csv") {
+      const headers = Object.keys(rows[0]);
+      const csv = [headers.join(","), ...rows.map((row) => headers.map((key) => escapeCsvCell(row[key])).join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${filename}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "VIP Out");
+    XLSX.writeFile(workbook, `${filename}.xlsx`);
   }
 
   async function manualKickAudit(row: KickAuditRow) {
@@ -3398,9 +3458,18 @@ export default function Home() {
         <Fragment key={`retained-reason-${item.audit_id}`}><strong>{item.retained_reason || "Còn đơn active khác nên không kick"}</strong><div className="muted">{item.retained_orders?.length ? `Đơn giữ nhóm: ${item.retained_orders.join(", ")}` : "Hệ thống giữ quyền vì user còn membership active khác."}</div></Fragment>,
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
       ]),
+      vipOut: vipGroupAudit.filter((item) => item.status !== "ACTIVE_RETAINED").map((item) => [
+        <Fragment key={`vipout-customer-${item.audit_id}`}><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+        <Fragment key={`vipout-plan-${item.audit_id}`}><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+        <Fragment key={`vipout-group-${item.audit_id}`}><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></Fragment>,
+        dateText(item.expire_at),
+        <span key={`vipout-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <Fragment key={`vipout-live-${item.audit_id}`}><strong>{item.live_checked ? `${item.live_status || "-"}` : "Chưa live"}</strong><div className="muted">{item.live_present === true ? "Còn trong group" : item.live_present === false ? "Đã rời group" : "Chưa kiểm tra"}</div></Fragment>,
+        item.latest_error || "-",
+      ]),
     };
     return rows;
-  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, latestReminderByOrder, reminderNoticeDays, saving]);
+  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, vipGroupAudit, latestReminderByOrder, reminderNoticeDays, saving]);
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
     today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
@@ -3409,6 +3478,7 @@ export default function Home() {
     kicked: ["Khách", "Telegram ID", "Gói", "Đơn", "Group", "Giờ kick"],
     audit: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Kick / lỗi gần nhất", "Live", "Thao tác"],
     retained: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Lý do giữ quyền", "Live"],
+    vipOut: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Live", "Lỗi"],
   };
   const currentRenewalRows = renewalRows[renewalTab] || [];
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalRows.length / RENEWAL_PAGE_SIZE));
@@ -4272,6 +4342,15 @@ export default function Home() {
                 subtitle="Theo dõi hạn dùng, lịch nhắc, báo hết hạn và lịch sử kick theo từng tab để danh sách không bị quá dài."
                 action={
                   <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => refreshVipGroupAudit(true)} disabled={saving === "vip-audit-live"}>
+                      {saving === "vip-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra VIP live
+                    </button>
+                    <button className="btn secondary" onClick={() => exportVipGroupAudit("csv")} disabled={!vipGroupAudit.length}>
+                      <Download size={16} /> CSV
+                    </button>
+                    <button className="btn secondary" onClick={() => exportVipGroupAudit("xlsx")} disabled={!vipGroupAudit.length}>
+                      <Download size={16} /> XLSX
+                    </button>
                     <button className="btn secondary" onClick={() => refreshKickAudit(true)} disabled={saving === "kick-audit-live"}>
                       {saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra live
                     </button>
@@ -4287,6 +4366,7 @@ export default function Home() {
                 <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => { setRenewalTab("kicked"); setRenewalPage(1); }}>Đã kick ({uniqueKickedEvents.length})</button>
                 <button className={renewalTab === "audit" ? "active" : ""} onClick={() => { setRenewalTab("audit"); setRenewalPage(1); }}>Cần kiểm tra kick ({kickAudit.filter((item) => item.needs_action).length}/{kickAudit.length})</button>
                 <button className={renewalTab === "retained" ? "active" : ""} onClick={() => { setRenewalTab("retained"); setRenewalPage(1); }}>Còn active khác không kick ({kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").length})</button>
+                <button className={renewalTab === "vipOut" ? "active" : ""} onClick={() => { setRenewalTab("vipOut"); setRenewalPage(1); }}>VIP out ({vipGroupAudit.filter((item) => item.status !== "ACTIVE_RETAINED").length})</button>
               </div>
               <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
               <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />

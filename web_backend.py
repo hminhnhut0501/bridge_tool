@@ -26,6 +26,7 @@ from hidden_group_utils import (
 from helpers import bot_schedule_status, bot_runtime_state, bot_runtime_state_audit, recompute_bot_runtime_state
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
+from vip_group_audit_utils import build_vip_group_audit_rows
 from payment import payment_manager
 
 load_dotenv()
@@ -966,6 +967,15 @@ async def admin_kick_audit(live: bool = False):
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách kiểm tra kick: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách kiểm tra kick: {exc}")
+
+
+@app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])
+async def admin_vip_group_audit(live: bool = False):
+    try:
+        return {"data": await build_vip_group_audit_rows(live=live)}
+    except Exception as exc:
+        print(f"⚠️ Không dựng được danh sách quét VIP group: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét VIP group: {exc}")
 
 
 @app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])

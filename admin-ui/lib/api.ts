@@ -174,6 +174,27 @@ export type KickAuditRow = {
   retained_orders?: string[] | null;
 };
 
+export type VipGroupAuditRow = {
+  audit_id: string;
+  customer_name: string;
+  telegram_user_id: string;
+  order_id: string;
+  plan_name: string;
+  expire_at: string | null;
+  group_id: string;
+  group_name: string;
+  status: string;
+  status_label: string;
+  needs_action: boolean;
+  latest_kick_at: string | null;
+  latest_error: string | null;
+  live_checked: boolean;
+  live_status: string;
+  live_present: boolean | null;
+  order_active_group_ids?: string[] | null;
+  current_group_ids?: string[] | null;
+};
+
 export type KickAuditPayload = {
   telegram_user_id: string;
   order_id: string;
@@ -553,6 +574,10 @@ export async function getSupportEvents(secret: string, limit = 5000) {
 
 export async function getKickAudit(secret: string, live = false) {
   return request<{ data: KickAuditRow[] }>(`/admin-api/kick-audit?live=${live ? "true" : "false"}`, secret);
+}
+
+export async function getVipGroupAudit(secret: string, live = false) {
+  return request<{ data: VipGroupAuditRow[] }>(`/admin-api/vip-group-audit?live=${live ? "true" : "false"}`, secret);
 }
 
 export async function kickAuditMember(secret: string, payload: KickAuditPayload) {
