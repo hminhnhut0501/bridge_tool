@@ -233,7 +233,7 @@ create table if not exists public.bot_runtime_state (
   source text not null default 'always',
   active boolean not null default true,
   title text not null default '',
-  window text not null default '',
+  "window" text not null default '',
   detail text not null default '',
   timezone text not null default 'Asia/Ho_Chi_Minh',
   linked_count integer not null default 0,
