@@ -1352,6 +1352,35 @@ const EMPTY_CHANNEL_POST_FORM = {
   notes: "",
 };
 
+const CHANNEL_POST_FLAGS_MARKER_PREFIX = "[[cp_flags:";
+const CHANNEL_POST_FLAGS_MARKER_SUFFIX = "]]";
+
+function parseChannelPostNotes(notes: string | null | undefined) {
+  const raw = String(notes || "");
+  const markerStart = raw.indexOf(CHANNEL_POST_FLAGS_MARKER_PREFIX);
+  if (markerStart < 0) {
+    return { notes: raw, repeat_daily: false, sync_bot_schedule: false };
+  }
+  const markerEnd = raw.indexOf(CHANNEL_POST_FLAGS_MARKER_SUFFIX, markerStart);
+  if (markerEnd < 0) {
+    return { notes: raw, repeat_daily: false, sync_bot_schedule: false };
+  }
+  const marker = raw.slice(markerStart + CHANNEL_POST_FLAGS_MARKER_PREFIX.length, markerEnd);
+  const flags = new Set(marker.split(",").map((part) => part.trim()).filter(Boolean));
+  const cleanedNotes = `${raw.slice(0, markerStart)}${raw.slice(markerEnd + CHANNEL_POST_FLAGS_MARKER_SUFFIX.length)}`.trim();
+  return {
+    notes: cleanedNotes,
+    repeat_daily: flags.has("repeat_daily=1"),
+    sync_bot_schedule: flags.has("sync_bot_schedule=1"),
+  };
+}
+
+function buildChannelPostNotes(notes: string, repeatDaily: boolean, syncBotSchedule: boolean) {
+  const cleaned = String(notes || "").replace(/\s*\[\[cp_flags:[^\]]*\]\]\s*$/g, "").trim();
+  const marker = `${CHANNEL_POST_FLAGS_MARKER_PREFIX}repeat_daily=${repeatDaily ? 1 : 0},sync_bot_schedule=${syncBotSchedule ? 1 : 0}${CHANNEL_POST_FLAGS_MARKER_SUFFIX}`;
+  return cleaned ? `${cleaned}\n${marker}` : marker;
+}
+
 const HIDDEN_REQUIREMENT_OPTIONS = [
   { value: "NONE", label: "Không yêu cầu thêm" },
   { value: "SVIP_ACTIVE", label: "Phải có SVIP active" },
@@ -2279,6 +2308,7 @@ export default function Home() {
   }
 
   function editChannelPost(post: ChannelPost) {
+    const parsedNotes = parseChannelPostNotes(post.notes);
     setSelectedChannelPostId(post.id);
     setChannelPostForm({
       id: String(post.id),
@@ -2292,9 +2322,9 @@ export default function Home() {
       disable_web_page_preview: Boolean(post.disable_web_page_preview),
       scheduled_at: dateTimeInputValue(post.scheduled_at),
       delete_at: dateTimeInputValue(post.delete_at),
-      repeat_daily: Boolean(post.repeat_daily),
-      sync_bot_schedule: Boolean(post.sync_bot_schedule),
-      notes: post.notes || "",
+      repeat_daily: Boolean(post.repeat_daily) || parsedNotes.repeat_daily,
+      sync_bot_schedule: Boolean(post.sync_bot_schedule) || parsedNotes.sync_bot_schedule,
+      notes: parsedNotes.notes,
     });
     setChannelPostModalOpen(true);
   }
@@ -2310,7 +2340,7 @@ export default function Home() {
         buttons_text: channelPostForm.buttons_text,
         parse_mode: channelPostForm.parse_mode,
         disable_web_page_preview: channelPostForm.disable_web_page_preview,
-        notes: channelPostForm.notes,
+        notes: buildChannelPostNotes(channelPostForm.notes, Boolean(channelPostForm.repeat_daily), Boolean(channelPostForm.sync_bot_schedule)),
         repeat_daily: Boolean(channelPostForm.repeat_daily),
         sync_bot_schedule: Boolean(channelPostForm.sync_bot_schedule),
         status: mode === "schedule" ? "scheduled" : mode === "send_now" ? "queued" : channelPostForm.id ? channelPostForm.status || "draft" : "draft",
