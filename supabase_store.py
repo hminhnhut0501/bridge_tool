@@ -465,6 +465,14 @@ class SupabaseStore:
             params={"select": "*", "order": "active_from.asc", "limit": str(limit)},
         )
 
+    def get_bot_schedule_rule_for_post(self, post_id):
+        rows = self._request(
+            "GET",
+            "bot_schedule_rules",
+            params={"select": "*", "channel_post_id": f"eq.{_clean_text(post_id)}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
     def upsert_bot_schedule_rule(self, raw):
         payload = {
             "bot_key": _clean_text((raw or {}).get("bot_key") or "main") or "main",
@@ -1655,10 +1663,35 @@ class SupabaseStore:
             invalidate_channel_schedule_cache()
             recompute_bot_runtime_state()
             if rows:
-                sync_bot_schedule_rule_from_post(rows[0])
+                rule_source = dict(rows[0])
+                rule_source.update({
+                    "repeat_daily": payload.get("repeat_daily"),
+                    "sync_bot_schedule": payload.get("sync_bot_schedule"),
+                    "scheduled_at": payload.get("scheduled_at"),
+                    "delete_at": payload.get("delete_at"),
+                })
+                sync_bot_schedule_rule_from_post(rule_source)
         except Exception:
             pass
         return rows[0]
+
+    def _channel_rule_source(self, row, payload):
+        rule_source = dict(row or {})
+        existing_rule = None
+        if "repeat_daily" not in rule_source and "sync_bot_schedule" not in rule_source:
+            try:
+                existing_rule = self.get_bot_schedule_rule_for_post(rule_source.get("id"))
+            except Exception:
+                existing_rule = None
+        if existing_rule:
+            rule_source.setdefault("repeat_daily", existing_rule.get("repeat_daily"))
+            rule_source.setdefault("sync_bot_schedule", existing_rule.get("sync_bot_schedule"))
+            rule_source.setdefault("scheduled_at", existing_rule.get("active_from"))
+            rule_source.setdefault("delete_at", existing_rule.get("active_to"))
+        for key in ("repeat_daily", "sync_bot_schedule", "scheduled_at", "delete_at"):
+            if key in payload:
+                rule_source[key] = payload.get(key)
+        return rule_source
 
     def patch_channel_post(self, post_id, raw, status=None):
         params = {"id": f"eq.{_clean_text(post_id)}"}
@@ -1676,7 +1709,7 @@ class SupabaseStore:
             invalidate_channel_schedule_cache()
             recompute_bot_runtime_state()
             if rows:
-                sync_bot_schedule_rule_from_post(rows[0])
+                sync_bot_schedule_rule_from_post(self._channel_rule_source(rows[0], payload))
         except Exception:
             pass
         return rows
