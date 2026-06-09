@@ -130,6 +130,32 @@ def test_channel_linked_schedule_overrides_built_in_hours(monkeypatch):
     assert not helpers.bot_schedule_active(local_datetime(23))
 
 
+def test_fixed_schedule_still_works_when_linked_rows_exist_but_are_not_active(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "ON",
+        "BOT_ACTIVE_HOURS": "23:41-23:43",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+    linked_posts = [{
+        "enabled": True,
+        "repeat_daily": True,
+        "sync_bot_schedule": True,
+        "scheduled_at": "2026-06-04T08:00:00+07:00",
+        "delete_at": "2026-06-04T10:00:00+07:00",
+    }]
+    monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", lambda limit=200: linked_posts)
+    helpers._channel_schedule_cache["loaded_at"] = 0
+    helpers._channel_schedule_cache["rows"] = []
+
+    status = helpers.bot_schedule_status(local_datetime(23, 42))
+    assert status["source"] == "fixed"
+    assert status["active"] is True
+
+
 def test_manual_maintenance_wins_when_no_active_linked_schedule(monkeypatch):
     values = {
         "MAINTENANCE_MODE": "ON",

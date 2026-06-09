@@ -99,7 +99,6 @@ def bot_schedule_status(now=None):
     windows = parse_active_hours(active_hours_raw)
     current_time = local_now.time().replace(tzinfo=None)
     linked_rows = channel_schedule_rows()
-    has_linked_rows = bool(linked_rows)
     active_linked_post = None
     for row in linked_rows:
         scheduled_at = row.get("active_from") or row.get("scheduled_at")
@@ -115,7 +114,7 @@ def bot_schedule_status(now=None):
             active_linked_post = row
             break
     active_fixed_window = None
-    if not active_linked_post and not has_linked_rows and fixed_schedule_enabled and windows:
+    if not active_linked_post and fixed_schedule_enabled and windows:
         active_fixed_window = next((window for window in windows if time_in_active_window(current_time, window[0], window[1])), None)
     if active_linked_post:
         return {
@@ -132,6 +131,26 @@ def bot_schedule_status(now=None):
             "linkedCount": len(linked_rows),
             "maintenanceMode": maintenance_mode,
             "maintenanceOverride": maintenance_mode,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
+    if active_fixed_window:
+        start, end = active_fixed_window
+        window_text = f"{start.isoformat(timespec='minutes')} - {end.isoformat(timespec='minutes')}"
+        return {
+            "source": "fixed",
+            "active": True,
+            "sourcePostId": "",
+            "sourcePostTitle": "BOT_ACTIVE_HOURS",
+            "title": f"Khung giờ {window_text}",
+            "window": window_text,
+            "windowStart": "",
+            "windowEnd": "",
+            "detail": "Bot chạy theo BOT_ACTIVE_HOURS.",
+            "timezone": timezone_name,
+            "linkedCount": len(linked_rows),
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": False,
             "fixedScheduleEnabled": fixed_schedule_enabled,
             "activeHours": active_hours_raw,
         }
@@ -153,7 +172,7 @@ def bot_schedule_status(now=None):
             "fixedScheduleEnabled": fixed_schedule_enabled,
             "activeHours": active_hours_raw,
         }
-    if has_linked_rows:
+    if linked_rows:
         return {
             "source": "channel",
             "active": False,
@@ -175,7 +194,7 @@ def bot_schedule_status(now=None):
         window_text = next((f"{start.isoformat(timespec='minutes')} - {end.isoformat(timespec='minutes')}" for start, end in windows if time_in_active_window(current_time, start, end)), None)
         return {
             "source": "fixed",
-            "active": bool(active_fixed_window),
+            "active": bool(window_text),
             "sourcePostId": "",
             "sourcePostTitle": "BOT_ACTIVE_HOURS",
             "title": f"Khung giờ {window_text}" if window_text else "Ngoài khung giờ",
