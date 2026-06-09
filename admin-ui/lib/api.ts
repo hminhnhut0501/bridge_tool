@@ -145,6 +145,14 @@ export type BotScheduleStatus = {
   activeHours: string;
 };
 
+export type BotRuntimeStateAudit = {
+  stored: Record<string, unknown> | null;
+  live: Record<string, unknown>;
+  mismatch: boolean;
+  reason: string;
+  fields: string[];
+};
+
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -615,6 +623,10 @@ export async function getWebhookInfo(secret: string) {
 
 export async function getBotScheduleStatus(secret: string) {
   return request<{ data: BotScheduleStatus }>("/admin-api/bot-schedule-status", secret);
+}
+
+export async function getBotRuntimeStateAudit(secret: string) {
+  return request<{ data: BotRuntimeStateAudit }>("/admin-api/bot-runtime-state/audit", secret);
 }
 
 export async function resetWebhook(secret: string) {

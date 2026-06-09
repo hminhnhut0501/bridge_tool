@@ -20,6 +20,7 @@ _channel_schedule_cache = {"loaded_at": 0.0, "rows": []}
 _bot_runtime_state_cache = {"loaded_at": 0.0, "row": None}
 CHANNEL_SCHEDULE_CACHE_SECONDS = 60
 BOT_RUNTIME_STATE_CACHE_SECONDS = 5
+BOT_RUNTIME_STATE_STALE_SECONDS = 15
 
 
 def invalidate_channel_schedule_cache():
@@ -242,6 +243,37 @@ def bot_runtime_state(now=None):
     try:
         row = supabase_store.get_bot_runtime_state()
         if row:
+            updated_at = row.get("updated_at") or row.get("updatedAt")
+            row_is_stale = True
+            if updated_at:
+                try:
+                    parsed_updated_at = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
+                    row_is_stale = (datetime.now(parsed_updated_at.tzinfo or bot_timezone()) - parsed_updated_at).total_seconds() > BOT_RUNTIME_STATE_STALE_SECONDS
+                except Exception:
+                    row_is_stale = True
+            live_payload = None
+            if row_is_stale or not bool(row.get("active", True)):
+                live_payload = _bot_runtime_state_payload(now)
+            if live_payload:
+                row_active = bool(row.get("active", True))
+                live_active = bool(live_payload.get("active"))
+                row_source = str(row.get("source") or row.get("effective_mode") or "").strip().lower()
+                live_source = str(live_payload.get("source") or live_payload.get("effective_mode") or "").strip().lower()
+                row_window = str(row.get("window") or "")
+                live_window = str(live_payload.get("window") or "")
+                row_title = str(row.get("title") or "")
+                live_title = str(live_payload.get("title") or "")
+                if row_is_stale or row_active != live_active or row_source != live_source or row_window != live_window or row_title != live_title:
+                    try:
+                        rows = supabase_store.upsert_bot_runtime_state(live_payload)
+                        if rows:
+                            row = rows[0]
+                    except Exception as exc:
+                        print(f"⚠️ Không đồng bộ được bot_runtime_state: {exc}")
+                    invalidate_bot_runtime_state_cache()
+                    _bot_runtime_state_cache["row"] = row
+                    _bot_runtime_state_cache["loaded_at"] = current_ts
+                    return row
             _bot_runtime_state_cache["row"] = row
             _bot_runtime_state_cache["loaded_at"] = current_ts
             return row
@@ -261,6 +293,89 @@ def recompute_bot_runtime_state(now=None):
             print(f"⚠️ Không ghi được bot_runtime_state: {exc}")
     invalidate_bot_runtime_state_cache()
     return payload
+
+
+def bot_runtime_state_audit(now=None):
+    live_payload = _bot_runtime_state_payload(now)
+    stored_row = None
+    if supabase_store.enabled:
+        try:
+            stored_row = supabase_store.get_bot_runtime_state()
+        except Exception as exc:
+            print(f"⚠️ Không đọc được bot_runtime_state audit: {exc}")
+    if not stored_row:
+        return {
+            "stored": None,
+            "live": live_payload,
+            "mismatch": False,
+            "reason": "",
+            "fields": [],
+        }
+
+    def normalize_snapshot(row):
+        row = row or {}
+        return {
+            "effective_mode": str(row.get("effective_mode") or row.get("source") or "").strip().lower() or "always",
+            "source": str(row.get("source") or row.get("effective_mode") or "").strip().lower() or "always",
+            "active": bool(row.get("active", False)),
+            "title": str(row.get("title") or "").strip(),
+            "window": str(row.get("window") or "").strip(),
+            "detail": str(row.get("detail") or "").strip(),
+            "timezone": str(row.get("timezone") or "").strip() or "Asia/Ho_Chi_Minh",
+            "linked_count": int(row.get("linked_count") or 0),
+            "maintenance_mode": bool(row.get("maintenance_mode", False)),
+            "maintenance_override": bool(row.get("maintenance_override", False)),
+            "fixed_schedule_enabled": bool(row.get("fixed_schedule_enabled", False)),
+            "active_hours": str(row.get("active_hours") or "").strip(),
+            "source_post_id": str(row.get("source_post_id") or "").strip(),
+            "source_post_title": str(row.get("source_post_title") or "").strip(),
+            "window_start": str(row.get("window_start") or "").strip(),
+            "window_end": str(row.get("window_end") or "").strip(),
+        }
+
+    stored = normalize_snapshot(stored_row)
+    live = normalize_snapshot(live_payload)
+    mismatch_fields = []
+    for field in (
+        "effective_mode",
+        "source",
+        "active",
+        "title",
+        "window",
+        "timezone",
+        "linked_count",
+        "maintenance_mode",
+        "maintenance_override",
+        "fixed_schedule_enabled",
+        "active_hours",
+        "source_post_id",
+        "source_post_title",
+        "window_start",
+        "window_end",
+    ):
+        if stored.get(field) != live.get(field):
+            mismatch_fields.append(field)
+
+    reason = ""
+    if mismatch_fields:
+        if not live.get("active") and stored.get("active"):
+            reason = "Row lưu còn active nhưng state live đã rơi offline."
+        elif live.get("active") and not stored.get("active"):
+            reason = "Row lưu đang offline nhưng state live đang active."
+        elif stored.get("source") != live.get("source"):
+            reason = "Nguồn điều khiển trong DB lệch với state live."
+        elif stored.get("window") != live.get("window"):
+            reason = "Khung giờ trong DB lệch với state live."
+        else:
+            reason = "State lưu và state live đang không đồng bộ."
+
+    return {
+        "stored": stored,
+        "live": live,
+        "mismatch": bool(mismatch_fields),
+        "reason": reason,
+        "fields": mismatch_fields,
+    }
 
 def _load_channel_schedule_rows():
     if not supabase_store.enabled:

@@ -231,3 +231,66 @@ def test_recompute_bot_runtime_state_writes_payload(monkeypatch):
     assert state["source"] == "channel"
     assert state["effective_mode"] == "channel"
     assert writes and writes[0]["active"] is True
+
+
+def test_bot_runtime_state_self_heals_stale_inactive_row(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "OFF",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+    writes = []
+
+    def fake_get_config(key, default=""):
+        return values.get(key, default)
+
+    def fake_list_bot_schedule_channel_posts(limit=200):
+        return [{
+            "id": 100,
+            "enabled": True,
+            "repeat_daily": True,
+            "sync_bot_schedule": True,
+            "scheduled_at": "2026-06-04T08:00:00+07:00",
+            "delete_at": "2026-06-04T23:00:00+07:00",
+            "title": "Bài giữ bot",
+        }]
+
+    def fake_get_bot_runtime_state():
+        return {
+            "id": "main",
+            "effective_mode": "maintenance",
+            "source": "maintenance",
+            "active": False,
+            "title": "Bảo trì thủ công",
+            "window": "Bot đang bị khóa thủ công",
+            "detail": "Stale row",
+            "timezone": "Asia/Ho_Chi_Minh",
+            "linked_count": 0,
+            "maintenance_mode": True,
+            "maintenance_override": False,
+            "fixed_schedule_enabled": False,
+            "active_hours": "08:00-23:00",
+            "source_post_id": "",
+            "source_post_title": "Bảo trì thủ công",
+            "window_start": "",
+            "window_end": "",
+            "updated_at": "2026-06-04T00:00:00+00:00",
+        }
+
+    def fake_upsert_bot_runtime_state(raw):
+        writes.append(raw)
+        return [raw]
+
+    monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    monkeypatch.setattr(helpers.supabase_store, "get_bot_runtime_state", fake_get_bot_runtime_state)
+    monkeypatch.setattr(helpers.supabase_store, "upsert_bot_runtime_state", fake_upsert_bot_runtime_state)
+    helpers.invalidate_bot_runtime_state_cache()
+
+    state = helpers.bot_runtime_state(local_datetime(9))
+    assert state["active"] is True
+    assert state["source"] == "channel"
+    assert state["effective_mode"] == "channel"
+    assert writes and writes[0]["active"] is True

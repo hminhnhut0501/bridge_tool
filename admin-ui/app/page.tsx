@@ -33,6 +33,7 @@ import {
   ActivityEvent,
   BroadcastCampaign,
   BroadcastRecipient,
+  type BotRuntimeStateAudit,
   type BotScheduleStatus,
   CampaignPreview,
   ChannelPost,
@@ -67,6 +68,7 @@ import {
   getActivityEvents,
   getBlacklist,
   getBotScheduleStatus,
+  getBotRuntimeStateAudit,
   getCampaignRecipients,
   getCampaigns,
   getChannelPostEvents,
@@ -2109,6 +2111,7 @@ export default function Home() {
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
+  const [botRuntimeAuditApi, setBotRuntimeAuditApi] = useState<BotRuntimeStateAudit | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
@@ -2296,6 +2299,8 @@ export default function Home() {
     setChannelPosts(postsRes.data);
     const botScheduleRes = await getBotScheduleStatus(activeSecret);
     setBotScheduleStatusApi(botScheduleRes.data);
+    const botRuntimeAuditRes = await getBotRuntimeStateAudit(activeSecret);
+    setBotRuntimeAuditApi(botRuntimeAuditRes.data);
     if (selectedChannelPostId) {
       const eventsRes = await getChannelPostEvents(activeSecret, selectedChannelPostId);
       setChannelEvents(eventsRes.data);
@@ -3602,6 +3607,9 @@ export default function Home() {
     };
   }, [channelPosts, config]);
   const botScheduleStatus = botScheduleStatusApi || fallbackBotScheduleStatus;
+  const botRuntimeAudit = botRuntimeAuditApi;
+  const botRuntimeAuditStoredActive = Boolean(botRuntimeAudit?.stored?.["active"]);
+  const botRuntimeAuditLiveActive = Boolean(botRuntimeAudit?.live?.["active"]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4461,6 +4469,14 @@ export default function Home() {
                         <span>{botScheduleStatus.linkedCount ? `${botScheduleStatus.linkedCount} bài đang gắn giờ bot` : "Chưa có bài liên kết"}</span>
                       </div>
                     </div>
+                  </div>
+                  <div className="hint compact" style={{ padding: "0 16px 8px" }}>
+                    <strong>Audit runtime:</strong>{" "}
+                    {botRuntimeAudit
+                      ? botRuntimeAudit.mismatch
+                        ? `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Lệch: ${botRuntimeAudit.fields.join(", ") || "unknown"}${botRuntimeAudit.reason ? ` • ${botRuntimeAudit.reason}` : ""}`
+                        : `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Đồng bộ`
+                      : "Đang tải..."}
                   </div>
                   <div className="hint compact" style={{ padding: "0 16px 16px" }}>
                     Múi giờ bot: <strong>{botScheduleStatus.timezone}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus.maintenanceMode ? "ON" : "OFF"}</strong>

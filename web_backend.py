@@ -23,7 +23,7 @@ from hidden_group_utils import (
     upsert_hidden_code,
     upsert_hidden_group,
 )
-from helpers import bot_schedule_status, bot_runtime_state, recompute_bot_runtime_state
+from helpers import bot_schedule_status, bot_runtime_state, bot_runtime_state_audit, recompute_bot_runtime_state
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 from payment import payment_manager
@@ -515,6 +515,11 @@ async def admin_bot_schedule_status():
 @app.get("/admin-api/bot-runtime-state", dependencies=[Depends(require_admin)])
 async def admin_bot_runtime_state():
     return {"data": bot_runtime_state()}
+
+
+@app.get("/admin-api/bot-runtime-state/audit", dependencies=[Depends(require_admin)])
+async def admin_bot_runtime_state_audit():
+    return {"data": bot_runtime_state_audit()}
 
 
 @app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])
