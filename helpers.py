@@ -237,11 +237,9 @@ def bot_runtime_state(now=None):
     if not supabase_store.enabled:
         return _bot_runtime_state_payload(now)
     current_ts = time.time()
-    cached_row = _bot_runtime_state_cache.get("row")
-    if cached_row and current_ts - float(_bot_runtime_state_cache.get("loaded_at") or 0) <= BOT_RUNTIME_STATE_CACHE_SECONDS:
-        return cached_row
     try:
         row = supabase_store.get_bot_runtime_state()
+        live_payload = _bot_runtime_state_payload(now)
         if row:
             updated_at = row.get("updated_at") or row.get("updatedAt")
             row_is_stale = True
@@ -251,32 +249,27 @@ def bot_runtime_state(now=None):
                     row_is_stale = (datetime.now(parsed_updated_at.tzinfo or bot_timezone()) - parsed_updated_at).total_seconds() > BOT_RUNTIME_STATE_STALE_SECONDS
                 except Exception:
                     row_is_stale = True
-            live_payload = None
-            if row_is_stale or not bool(row.get("active", True)):
-                live_payload = _bot_runtime_state_payload(now)
-            if live_payload:
-                row_active = bool(row.get("active", True))
-                live_active = bool(live_payload.get("active"))
-                row_source = str(row.get("source") or row.get("effective_mode") or "").strip().lower()
-                live_source = str(live_payload.get("source") or live_payload.get("effective_mode") or "").strip().lower()
-                row_window = str(row.get("window") or "")
-                live_window = str(live_payload.get("window") or "")
-                row_title = str(row.get("title") or "")
-                live_title = str(live_payload.get("title") or "")
-                if row_is_stale or row_active != live_active or row_source != live_source or row_window != live_window or row_title != live_title:
-                    try:
-                        rows = supabase_store.upsert_bot_runtime_state(live_payload)
-                        if rows:
-                            row = rows[0]
-                    except Exception as exc:
-                        print(f"⚠️ Không đồng bộ được bot_runtime_state: {exc}")
-                    invalidate_bot_runtime_state_cache()
-                    _bot_runtime_state_cache["row"] = row
-                    _bot_runtime_state_cache["loaded_at"] = current_ts
-                    return row
-            _bot_runtime_state_cache["row"] = row
+            row_active = bool(row.get("active", True))
+            live_active = bool(live_payload.get("active"))
+            row_source = str(row.get("source") or row.get("effective_mode") or "").strip().lower()
+            live_source = str(live_payload.get("source") or live_payload.get("effective_mode") or "").strip().lower()
+            row_window = str(row.get("window") or "")
+            live_window = str(live_payload.get("window") or "")
+            row_title = str(row.get("title") or "")
+            live_title = str(live_payload.get("title") or "")
+            if row_is_stale or row_active != live_active or row_source != live_source or row_window != live_window or row_title != live_title:
+                try:
+                    rows = supabase_store.upsert_bot_runtime_state(live_payload)
+                    if rows:
+                        row = rows[0]
+                except Exception as exc:
+                    print(f"⚠️ Không đồng bộ được bot_runtime_state: {exc}")
+            _bot_runtime_state_cache["row"] = live_payload
             _bot_runtime_state_cache["loaded_at"] = current_ts
-            return row
+            return live_payload
+        _bot_runtime_state_cache["row"] = live_payload
+        _bot_runtime_state_cache["loaded_at"] = current_ts
+        return live_payload
     except Exception as exc:
         print(f"⚠️ Không đọc được bot_runtime_state: {exc}")
     return _bot_runtime_state_payload(now)
