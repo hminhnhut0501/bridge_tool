@@ -61,6 +61,7 @@ def test_delete_channel_post_reschedules_daily_post(monkeypatch):
             return None
 
     monkeypatch.setattr(channel_publisher, "supabase_store", FakeStore())
+    monkeypatch.setattr(channel_publisher, "channel_schedule_rule_for_post", lambda post_id: {"repeat_daily": True, "sync_bot_schedule": True})
     monkeypatch.setitem(sys.modules, "bot_instance", SimpleNamespace(bot=FakeBot()))
 
     row = {
@@ -68,8 +69,8 @@ def test_delete_channel_post_reschedules_daily_post(monkeypatch):
         "target_chat_id": "-1001",
         "sent_message_id": "123",
         "status": "sent",
-        "repeat_daily": True,
-        "sync_bot_schedule": True,
+        "repeat_daily": False,
+        "sync_bot_schedule": False,
         "scheduled_at": "2026-06-05T08:00:00+00:00",
         "delete_at": "2026-06-05T10:00:00+00:00",
     }

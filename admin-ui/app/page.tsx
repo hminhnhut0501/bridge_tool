@@ -2291,6 +2291,7 @@ export default function Home() {
   }
 
   function editChannelPost(post: ChannelPost) {
+    const linkedRule = linkedRuleByPostId.get(post.id);
     setSelectedChannelPostId(post.id);
     setChannelPostForm({
       id: String(post.id),
@@ -2304,8 +2305,8 @@ export default function Home() {
       disable_web_page_preview: Boolean(post.disable_web_page_preview),
       scheduled_at: dateTimeInputValue(post.scheduled_at),
       delete_at: dateTimeInputValue(post.delete_at),
-      repeat_daily: Boolean(post.repeat_daily),
-      sync_bot_schedule: Boolean(post.sync_bot_schedule),
+      repeat_daily: linkedRule ? Boolean(linkedRule.repeat_daily) : Boolean(post.repeat_daily),
+      sync_bot_schedule: linkedRule ? Boolean(linkedRule.sync_bot_schedule) : Boolean(post.sync_bot_schedule),
       notes: post.notes || "",
     });
     setChannelPostModalOpen(true);

@@ -392,6 +392,19 @@ def channel_schedule_rows():
         print(f"⚠️ Không đọc được lịch bot_rules: {exc}")
         return []
 
+def channel_schedule_rule_for_post(post_id):
+    try:
+        target_id = int(str(post_id or "").strip())
+    except (TypeError, ValueError):
+        return None
+    for row in _load_channel_schedule_rows():
+        try:
+            if int(str(row.get("channel_post_id") or "").strip()) == target_id:
+                return row
+        except (TypeError, ValueError):
+            continue
+    return None
+
 def channel_schedule_active(now=None, rows=None):
     local_now = now or datetime.now(bot_timezone())
     current_time = local_now.time().replace(tzinfo=None)
