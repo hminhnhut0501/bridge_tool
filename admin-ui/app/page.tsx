@@ -2453,6 +2453,7 @@ export default function Home() {
       const needsChannelPosts = shouldLoad("channelPosts");
       const needsWebhook = !light;
       const needsBotScheduleStatus = !light;
+      const needsBotRuntimeAudit = !light;
 
       addTask(needsOrders, () => getOrders(activeSecret), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
@@ -2471,6 +2472,7 @@ export default function Home() {
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
       addTask(needsWebhook, () => getWebhookInfo(activeSecret), setWebhook);
       addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
+      addTask(needsBotRuntimeAudit, () => getBotRuntimeStateAudit(activeSecret), setBotRuntimeAuditApi);
 
       await Promise.all(tasks);
       if (resetPages) {
@@ -3539,74 +3541,7 @@ export default function Home() {
     for (const item of channelPosts) counts[channelPostTabFor(item)] += 1;
     return counts;
   }, [channelPosts]);
-  const fallbackBotScheduleStatus = useMemo(() => {
-    const timezone = getConfigValue(config, "BOT_TIMEZONE", "Asia/Ho_Chi_Minh") || "Asia/Ho_Chi_Minh";
-    const maintenanceMode = String(getConfigValue(config, "MAINTENANCE_MODE", "OFF") || "OFF").trim().toUpperCase() === "ON";
-    const fixedScheduleEnabled = String(getConfigValue(config, "BOT_SCHEDULE_ENABLED", "OFF") || "OFF").trim().toUpperCase() === "ON";
-    const activeHoursRaw = getConfigValue(config, "BOT_ACTIVE_HOURS", "08:00-23:00") || "08:00-23:00";
-    const windows = parseActiveHoursText(activeHoursRaw);
-    const currentMinutes = minutesInTimeZone(timezone);
-    const linkedPosts = channelPosts.filter((item) => Boolean(item.enabled) && Boolean(item.sync_bot_schedule) && Boolean(item.repeat_daily) && item.scheduled_at && item.delete_at);
-    const activeLinkedPost = linkedPosts.find((item) => {
-      const startMinutes = minutesOfDateInTimeZone(item.scheduled_at, timezone);
-      const endMinutes = minutesOfDateInTimeZone(item.delete_at, timezone);
-      if (startMinutes === null || endMinutes === null) return false;
-      return timeWindowContains(currentMinutes, startMinutes, endMinutes);
-    }) || null;
-    const activeFixedWindow = windows.find((window) => timeWindowContains(currentMinutes, window.start, window.end)) || null;
-    if (activeLinkedPost) {
-      return {
-        source: "channel",
-        active: true,
-        title: activeLinkedPost.title || `Bài #${activeLinkedPost.id}`,
-        window: `${dateText(activeLinkedPost.scheduled_at)} → ${dateText(activeLinkedPost.delete_at)}`,
-        detail: maintenanceMode
-          ? "Bài liên kết đang giữ bot online và đang override bảo trì thủ công."
-          : "Bài liên kết đang giữ bot online.",
-        timezone,
-        linkedCount: linkedPosts.length,
-        maintenanceMode,
-        maintenanceOverride: maintenanceMode,
-      };
-    }
-    if (maintenanceMode) {
-      return {
-        source: "maintenance",
-        active: false,
-        title: "Bảo trì thủ công",
-        window: "Bot đang bị khóa thủ công",
-        detail: "Không có bài liên kết nào đang active.",
-        timezone,
-        linkedCount: linkedPosts.length,
-        activeFixedWindow: activeFixedWindow?.text || "",
-      };
-    }
-    if (fixedScheduleEnabled && windows.length) {
-      return {
-        source: "fixed",
-        active: Boolean(activeFixedWindow),
-        title: activeFixedWindow ? `Khung giờ ${activeFixedWindow.text}` : "Ngoài khung giờ",
-        window: activeFixedWindow ? `Đang theo ${activeFixedWindow.text}` : windows.map((item) => item.text).join(", "),
-        detail: "Bot chạy theo BOT_ACTIVE_HOURS.",
-        timezone,
-        linkedCount: linkedPosts.length,
-        maintenanceMode,
-        maintenanceOverride: false,
-      };
-    }
-    return {
-      source: "always",
-      active: true,
-      title: "Luôn hoạt động",
-      window: "Không dùng lịch bot cố định",
-      detail: "Không bật bảo trì và không có lịch bài liên kết.",
-      timezone,
-      linkedCount: linkedPosts.length,
-      maintenanceMode,
-      maintenanceOverride: false,
-    };
-  }, [channelPosts, config]);
-  const botScheduleStatus = botScheduleStatusApi || fallbackBotScheduleStatus;
+  const botScheduleStatus = botScheduleStatusApi;
   const botRuntimeAudit = botRuntimeAuditApi;
   const botRuntimeAuditStoredActive = Boolean(botRuntimeAudit?.stored?.["active"]);
   const botRuntimeAuditLiveActive = Boolean(botRuntimeAudit?.live?.["active"]);
@@ -4441,52 +4376,72 @@ export default function Home() {
                     subtitle="Đây là lớp hiển thị để biết bot đang online theo bài đăng nào, theo BOT_ACTIVE_HOURS hay đang bị bảo trì."
                   />
                   <div className="status-grid">
-                    <div className={`health-item ${botScheduleStatus.active ? "good" : "bad"}`}>
+                    <div className={`health-item ${botScheduleStatus?.active ? "good" : "bad"}`}>
                       <Activity size={18} />
                       <div>
-                        <strong>{botScheduleStatus.active ? "Bot đang hoạt động" : "Bot đang offline"}</strong>
-                        <span>{botScheduleStatus.title}</span>
+                        <strong>{botScheduleStatus ? (botScheduleStatus.active ? "Bot đang hoạt động" : "Bot đang offline") : "Không đọc được runtime"}</strong>
+                        <span>{botScheduleStatus?.title || "Không có dữ liệu runtime"}</span>
                       </div>
                     </div>
-                    <div className="health-item">
-                      <Settings size={18} />
-                      <div>
-                        <strong>Nguồn hiện tại</strong>
-                        <span>{botScheduleStatus.source === "channel" ? "Theo bài đăng liên kết" : botScheduleStatus.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
-                      </div>
-                    </div>
-                    <div className="health-item">
-                      <Send size={18} />
-                      <div>
-                        <strong>Khung giờ / lý do</strong>
-                        <span>{botScheduleStatus.window}</span>
-                      </div>
-                    </div>
-                    <div className="health-item">
-                      <ClipboardList size={18} />
-                      <div>
-                        <strong>Bài liên kết</strong>
-                        <span>{botScheduleStatus.linkedCount ? `${botScheduleStatus.linkedCount} bài đang gắn giờ bot` : "Chưa có bài liên kết"}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="hint compact" style={{ padding: "0 16px 8px" }}>
-                    <strong>Audit runtime:</strong>{" "}
-                    {botRuntimeAudit
-                      ? botRuntimeAudit.mismatch
-                        ? `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Lệch: ${botRuntimeAudit.fields.join(", ") || "unknown"}${botRuntimeAudit.reason ? ` • ${botRuntimeAudit.reason}` : ""}`
-                        : `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Đồng bộ`
-                      : "Đang tải..."}
-                  </div>
-                  <div className="hint compact" style={{ padding: "0 16px 16px" }}>
-                    Múi giờ bot: <strong>{botScheduleStatus.timezone}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus.maintenanceMode ? "ON" : "OFF"}</strong>
-                    {botScheduleStatus.maintenanceOverride ? (
+                    {botScheduleStatus ? (
                       <>
-                        {" "}
-                        • <span className="badge amber">Bảo trì bị lịch bài đăng override</span>
+                        <div className="health-item">
+                          <Settings size={18} />
+                          <div>
+                            <strong>Nguồn hiện tại</strong>
+                            <span>{botScheduleStatus?.source === "channel" ? "Theo bài đăng liên kết" : botScheduleStatus?.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus?.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
+                          </div>
+                        </div>
+                        <div className="health-item">
+                          <Send size={18} />
+                          <div>
+                            <strong>Khung giờ / lý do</strong>
+                            <span>{botScheduleStatus?.window || "Không có khung giờ runtime"}</span>
+                          </div>
+                        </div>
+                        <div className="health-item">
+                          <ClipboardList size={18} />
+                          <div>
+                            <strong>Bài liên kết</strong>
+                            <span>{botScheduleStatus?.linkedCount ? `${botScheduleStatus.linkedCount} bài đang gắn giờ bot` : "Chưa có bài liên kết"}</span>
+                          </div>
+                        </div>
                       </>
-                    ) : null}
+                    ) : (
+                      <div className="health-item bad">
+                        <Settings size={18} />
+                        <div>
+                          <strong>Không đọc được runtime</strong>
+                          <span>Không có dữ liệu bot_runtime_state từ API.</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {botScheduleStatus ? (
+                    <>
+                      <div className="hint compact" style={{ padding: "0 16px 8px" }}>
+                        <strong>Audit runtime:</strong>{" "}
+                        {botRuntimeAudit
+                          ? botRuntimeAudit.mismatch
+                            ? `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Lệch: ${botRuntimeAudit.fields.join(", ") || "unknown"}${botRuntimeAudit.reason ? ` • ${botRuntimeAudit.reason}` : ""}`
+                            : `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Đồng bộ`
+                          : "Không đọc được runtime audit."}
+                      </div>
+                      <div className="hint compact" style={{ padding: "0 16px 16px" }}>
+                        Múi giờ bot: <strong>{botScheduleStatus?.timezone || "-"}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus?.maintenanceMode ? "ON" : "OFF"}</strong>
+                        {botScheduleStatus?.maintenanceOverride ? (
+                          <>
+                            {" "}
+                            • <span className="badge amber">Bảo trì bị lịch bài đăng override</span>
+                          </>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="hint compact" style={{ padding: "0 16px 16px" }}>
+                      Không đọc được runtime từ API.
+                    </div>
+                  )}
                 </section>
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </>
