@@ -294,3 +294,36 @@ def test_bot_runtime_state_self_heals_stale_inactive_row(monkeypatch):
     assert state["source"] == "channel"
     assert state["effective_mode"] == "channel"
     assert writes and writes[0]["active"] is True
+
+
+def test_channel_schedule_rows_accepts_notes_marker_when_columns_missing(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "OFF",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+
+    def fake_get_config(key, default=""):
+        return values.get(key, default)
+
+    monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(
+        helpers.supabase_store,
+        "list_bot_schedule_channel_posts",
+        lambda limit=200: [{
+            "id": 101,
+            "enabled": True,
+            "status": "sent",
+            "scheduled_at": "2026-06-04T08:00:00+07:00",
+            "delete_at": "2026-06-04T23:00:00+07:00",
+            "notes": "[[cp_flags:repeat_daily=1,sync_bot_schedule=1]]",
+        }],
+    )
+    helpers.invalidate_channel_schedule_cache()
+    rows = helpers.channel_schedule_rows()
+    assert len(rows) == 1
+    state = helpers.bot_schedule_status(local_datetime(9))
+    assert state["source"] == "channel"
+    assert state["active"] is True

@@ -155,3 +155,37 @@ def test_publish_channel_post_uses_photo_caption_when_image_ref_exists(monkeypat
     assert asyncio.run(channel_publisher.publish_channel_post(row))
     assert any(item[1] == "send_succeeded" for item in events)
     assert any(item[1].get("status") == "sent" for item in patches)
+
+
+def test_delete_channel_post_uses_notes_flags_when_columns_missing(monkeypatch):
+    events = []
+    patches = []
+
+    class FakeStore:
+        def patch_channel_post(self, post_id, raw, status=None):
+            patches.append((post_id, raw, status))
+            return [raw | {"id": post_id}]
+
+        def record_channel_post_event(self, post_id, event_type, message, details=None, bot_key="main"):
+            events.append((post_id, event_type, message, details or {}))
+
+    class FakeBot:
+        async def delete_message(self, chat_id, message_id):
+            return None
+
+    monkeypatch.setattr(channel_publisher, "supabase_store", FakeStore())
+    monkeypatch.setitem(sys.modules, "bot_instance", SimpleNamespace(bot=FakeBot()))
+
+    row = {
+        "id": 12,
+        "target_chat_id": "-1001",
+        "sent_message_id": "321",
+        "status": "sent",
+        "scheduled_at": "2026-06-05T08:00:00+00:00",
+        "delete_at": "2026-06-05T10:00:00+00:00",
+        "notes": "[[cp_flags:repeat_daily=1,sync_bot_schedule=1]]",
+    }
+
+    assert asyncio.run(channel_publisher.delete_channel_post(row))
+    assert any(item[1].get("repeat_daily") is True for item in patches)
+    assert any(item[1].get("sync_bot_schedule") is True for item in patches)

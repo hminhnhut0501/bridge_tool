@@ -87,6 +87,24 @@ def time_in_active_window(current_time, start, end):
 def truthy_value(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
+CHANNEL_POST_FLAGS_MARKER_PREFIX = "[[cp_flags:"
+CHANNEL_POST_FLAGS_MARKER_SUFFIX = "]]"
+
+def parse_channel_post_flags(notes):
+    raw = str(notes or "")
+    marker_start = raw.find(CHANNEL_POST_FLAGS_MARKER_PREFIX)
+    if marker_start < 0:
+        return {"repeat_daily": False, "sync_bot_schedule": False}
+    marker_end = raw.find(CHANNEL_POST_FLAGS_MARKER_SUFFIX, marker_start)
+    if marker_end < 0:
+        return {"repeat_daily": False, "sync_bot_schedule": False}
+    marker = raw[marker_start + len(CHANNEL_POST_FLAGS_MARKER_PREFIX):marker_end]
+    flags = {part.strip() for part in marker.split(",") if part.strip()}
+    return {
+        "repeat_daily": "repeat_daily=1" in flags,
+        "sync_bot_schedule": "sync_bot_schedule=1" in flags,
+    }
+
 def bot_schedule_active(now=None):
     return bool(bot_runtime_state(now).get("active"))
 
@@ -385,8 +403,8 @@ def channel_schedule_rows():
             row
             for row in _load_channel_schedule_rows()
             if truthy_value(row.get("enabled", True))
-            and truthy_value(row.get("sync_bot_schedule"))
-            and truthy_value(row.get("repeat_daily"))
+            and (truthy_value(row.get("sync_bot_schedule")) or parse_channel_post_flags(row.get("notes")).get("sync_bot_schedule"))
+            and (truthy_value(row.get("repeat_daily")) or parse_channel_post_flags(row.get("notes")).get("repeat_daily"))
         ]
     except Exception as exc:
         print(f"⚠️ Không đọc được lịch bot từ channel_posts: {exc}")

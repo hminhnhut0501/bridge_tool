@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from helpers import recompute_bot_runtime_state
+from helpers import parse_channel_post_flags
 from supabase_store import _now_iso, supabase_store
 
 
@@ -42,9 +43,10 @@ def next_daily_pair(scheduled_at, delete_at, now=None):
 
 
 def _channel_schedule_flags(row):
+    parsed_flags = parse_channel_post_flags(row.get("notes"))
     return {
-        "repeat_daily": _truthy(row.get("repeat_daily")),
-        "sync_bot_schedule": _truthy(row.get("sync_bot_schedule")),
+        "repeat_daily": _truthy(row.get("repeat_daily")) or parsed_flags.get("repeat_daily"),
+        "sync_bot_schedule": _truthy(row.get("sync_bot_schedule")) or parsed_flags.get("sync_bot_schedule"),
     }
 
 

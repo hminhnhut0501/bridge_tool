@@ -1643,8 +1643,7 @@ class SupabaseStore:
                 "GET",
                 "channel_posts",
                 params={
-                    "select": "id,status,scheduled_at,delete_at,repeat_daily,sync_bot_schedule,enabled",
-                    "sync_bot_schedule": "eq.true",
+                    "select": "id,status,scheduled_at,delete_at,repeat_daily,sync_bot_schedule,enabled,notes",
                     "enabled": "eq.true",
                     "status": "in.(scheduled,sending,sent,delete_scheduled,deleting)",
                     "order": "scheduled_at.asc",
