@@ -607,7 +607,15 @@ export async function getChannelPosts(secret: string, limit = 200) {
 }
 
 export async function getBotScheduleRules(secret: string, limit = 200) {
-  return request<{ data: BotScheduleRule[] }>(`/admin-api/bot-schedule-rules?limit=${limit}`, secret);
+  try {
+    return await request<{ data: BotScheduleRule[] }>(`/admin-api/bot-schedule-rules?limit=${limit}`, secret);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('"detail":"Not Found"') || message.includes("Request failed: 404") || message.includes("Not Found")) {
+      return { data: [] as BotScheduleRule[] } as { data: BotScheduleRule[] };
+    }
+    throw error;
+  }
 }
 
 export async function createChannelPost(secret: string, payload: Record<string, unknown>) {
