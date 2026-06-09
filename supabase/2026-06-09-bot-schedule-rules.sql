@@ -49,24 +49,24 @@ insert into public.bot_schedule_rules (
   notes
 )
 select
-  coalesce(bot_key, 'main'),
-  id,
-  coalesce(enabled, true),
-  coalesce(repeat_daily, false),
-  coalesce(sync_bot_schedule, false),
-  scheduled_at,
-  delete_at,
+  coalesce(cp.bot_key, 'main'),
+  cp.id,
+  coalesce(cp.enabled, true),
+  coalesce(cp.repeat_daily, false),
+  coalesce(cp.sync_bot_schedule, false),
+  cp.scheduled_at,
+  cp.delete_at,
   'Asia/Ho_Chi_Minh',
-  coalesce(title, ''),
-  coalesce(status, ''),
-  coalesce(target_chat_id, ''),
-  notes
-from public.channel_posts
-where coalesce(enabled, true)
-  and coalesce(repeat_daily, false)
-  and coalesce(sync_bot_schedule, false)
-  and scheduled_at is not null
-  and delete_at is not null
+  coalesce(cp.title, ''),
+  coalesce(cp.status, ''),
+  coalesce(cp.target_chat_id, ''),
+  cp.notes
+from public.channel_posts as cp
+where coalesce(cp.enabled, true)
+  and coalesce(cp.repeat_daily, false)
+  and coalesce(cp.sync_bot_schedule, false)
+  and cp.scheduled_at is not null
+  and cp.delete_at is not null
 on conflict (channel_post_id) do update set
   bot_key = excluded.bot_key,
   enabled = excluded.enabled,
