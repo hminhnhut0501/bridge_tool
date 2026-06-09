@@ -3518,10 +3518,13 @@ export default function Home() {
         active: true,
         title: activeLinkedPost.title || `Bài #${activeLinkedPost.id}`,
         window: `${dateText(activeLinkedPost.scheduled_at)} → ${dateText(activeLinkedPost.delete_at)}`,
-        detail: `Bài liên kết đang giữ bot online`,
+        detail: maintenanceMode
+          ? "Bài liên kết đang giữ bot online và đang override bảo trì thủ công."
+          : "Bài liên kết đang giữ bot online.",
         timezone,
         linkedCount: linkedPosts.length,
         maintenanceMode,
+        maintenanceOverride: maintenanceMode,
       };
     }
     if (maintenanceMode) {
@@ -3546,6 +3549,7 @@ export default function Home() {
         timezone,
         linkedCount: linkedPosts.length,
         maintenanceMode,
+        maintenanceOverride: false,
       };
     }
     return {
@@ -3557,6 +3561,7 @@ export default function Home() {
       timezone,
       linkedCount: linkedPosts.length,
       maintenanceMode,
+      maintenanceOverride: false,
     };
   }, [channelPosts, config]);
   const visibleChannelPosts = useMemo(() => {
@@ -4421,6 +4426,12 @@ export default function Home() {
                   </div>
                   <div className="hint compact" style={{ padding: "0 16px 16px" }}>
                     Múi giờ bot: <strong>{botScheduleStatus.timezone}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus.maintenanceMode ? "ON" : "OFF"}</strong>
+                    {botScheduleStatus.maintenanceOverride ? (
+                      <>
+                        {" "}
+                        • <span className="badge amber">Bảo trì bị lịch bài đăng override</span>
+                      </>
+                    ) : null}
                   </div>
                 </section>
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
