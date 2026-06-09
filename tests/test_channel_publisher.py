@@ -77,8 +77,8 @@ def test_delete_channel_post_reschedules_daily_post(monkeypatch):
     assert asyncio.run(channel_publisher.delete_channel_post(row))
     assert any("repeat_rescheduled" == item[1] for item in events)
     scheduled_patch = next(item[1] for item in patches if item[1].get("status") == "scheduled")
-    assert scheduled_patch["repeat_daily"] is True
-    assert scheduled_patch["sync_bot_schedule"] is True
+    assert "repeat_daily" not in scheduled_patch
+    assert "sync_bot_schedule" not in scheduled_patch
 
 
 def test_publish_channel_post_preserves_schedule_flags(monkeypatch):
@@ -117,8 +117,8 @@ def test_publish_channel_post_preserves_schedule_flags(monkeypatch):
 
     assert asyncio.run(channel_publisher.publish_channel_post(row))
     sent_patch = next(item[1] for item in patches if item[1].get("status") == "delete_scheduled")
-    assert sent_patch["repeat_daily"] is True
-    assert sent_patch["sync_bot_schedule"] is True
+    assert "repeat_daily" not in sent_patch
+    assert "sync_bot_schedule" not in sent_patch
 
 
 def test_publish_channel_post_uses_photo_caption_when_image_ref_exists(monkeypatch):
@@ -154,10 +154,12 @@ def test_publish_channel_post_uses_photo_caption_when_image_ref_exists(monkeypat
 
     assert asyncio.run(channel_publisher.publish_channel_post(row))
     assert any(item[1] == "send_succeeded" for item in events)
-    assert any(item[1].get("status") == "sent" for item in patches)
+    sent_patch = next(item[1] for item in patches if item[1].get("status") == "sent")
+    assert "repeat_daily" not in sent_patch
+    assert "sync_bot_schedule" not in sent_patch
 
 
-def test_delete_channel_post_uses_notes_flags_when_columns_missing(monkeypatch):
+def test_delete_channel_post_preserves_repeat_and_sync_flags(monkeypatch):
     events = []
     patches = []
 
@@ -181,11 +183,12 @@ def test_delete_channel_post_uses_notes_flags_when_columns_missing(monkeypatch):
         "target_chat_id": "-1001",
         "sent_message_id": "321",
         "status": "sent",
+        "repeat_daily": True,
+        "sync_bot_schedule": True,
         "scheduled_at": "2026-06-05T08:00:00+00:00",
         "delete_at": "2026-06-05T10:00:00+00:00",
-        "notes": "[[cp_flags:repeat_daily=1,sync_bot_schedule=1]]",
     }
 
     assert asyncio.run(channel_publisher.delete_channel_post(row))
-    assert any(item[1].get("repeat_daily") is True for item in patches)
-    assert any(item[1].get("sync_bot_schedule") is True for item in patches)
+    assert any(item[1].get("status") == "scheduled" for item in patches)
+    assert any(item[1].get("status") == "deleting" for item in patches)

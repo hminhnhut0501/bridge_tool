@@ -8,7 +8,6 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from helpers import recompute_bot_runtime_state
-from helpers import parse_channel_post_flags
 from supabase_store import _now_iso, supabase_store
 
 
@@ -40,14 +39,6 @@ def next_daily_pair(scheduled_at, delete_at, now=None):
         scheduled += timedelta(days=1)
         delete += timedelta(days=1)
     return scheduled.isoformat(), delete.isoformat()
-
-
-def _channel_schedule_flags(row):
-    parsed_flags = parse_channel_post_flags(row.get("notes"))
-    return {
-        "repeat_daily": _truthy(row.get("repeat_daily")) or parsed_flags.get("repeat_daily"),
-        "sync_bot_schedule": _truthy(row.get("sync_bot_schedule")) or parsed_flags.get("sync_bot_schedule"),
-    }
 
 
 def _valid_url(value):
@@ -194,15 +185,14 @@ async def publish_channel_post(row):
         next_status = "delete_scheduled" if row.get("delete_at") else "sent"
         supabase_store.patch_channel_post(
             row_id,
-            {
-                "status": next_status,
-                "sent_message_id": str(sent.message_id),
-                "sent_at": _now_iso(),
-                "error": None,
-                "error_code": None,
-                **_channel_schedule_flags(row),
-            },
-        )
+                {
+                    "status": next_status,
+                    "sent_message_id": str(sent.message_id),
+                    "sent_at": _now_iso(),
+                    "error": None,
+                    "error_code": None,
+                },
+            )
         recompute_bot_runtime_state()
         supabase_store.record_channel_post_event(row_id, "send_succeeded", "Telegram đã nhận bài.", {"message_id": sent.message_id})
         return True
@@ -252,7 +242,6 @@ async def delete_channel_post(row):
                     "deleted_at": _now_iso(),
                     "error": None,
                     "error_code": None,
-                    **_channel_schedule_flags(row),
                 },
             )
             recompute_bot_runtime_state()
@@ -270,7 +259,6 @@ async def delete_channel_post(row):
                     "deleted_at": _now_iso(),
                     "error": None,
                     "error_code": None,
-                    **_channel_schedule_flags(row),
                 },
             )
             recompute_bot_runtime_state()

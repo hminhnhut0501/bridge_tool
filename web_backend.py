@@ -522,6 +522,15 @@ async def admin_bot_runtime_state_audit():
     return {"data": bot_runtime_state_audit()}
 
 
+@app.get("/admin-api/bot-schedule-rules", dependencies=[Depends(require_admin)])
+async def admin_bot_schedule_rules(limit: int = 200):
+    try:
+        return {"data": supabase_store.list_bot_schedule_rules(limit=limit)}
+    except Exception as exc:
+        print(f"⚠️ Không đọc được bot_schedule_rules: {exc}")
+        return {"data": []}
+
+
 @app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])
 async def admin_webhook_reset():
     webhook_url = os.getenv("WEBHOOK_URL")

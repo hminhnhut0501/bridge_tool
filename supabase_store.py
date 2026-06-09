@@ -458,6 +458,44 @@ class SupabaseStore:
         )
         return rows[0] if rows else None
 
+    def list_bot_schedule_rules(self, limit=200):
+        return self._request(
+            "GET",
+            "bot_schedule_rules",
+            params={"select": "*", "order": "active_from.asc", "limit": str(limit)},
+        )
+
+    def upsert_bot_schedule_rule(self, raw):
+        payload = {
+            "bot_key": _clean_text((raw or {}).get("bot_key") or "main") or "main",
+            "channel_post_id": _parse_int((raw or {}).get("channel_post_id"), 0),
+            "enabled": bool((raw or {}).get("enabled", True)),
+            "repeat_daily": bool((raw or {}).get("repeat_daily", False)),
+            "sync_bot_schedule": bool((raw or {}).get("sync_bot_schedule", False)),
+            "active_from": _parse_datetime((raw or {}).get("active_from")) if (raw or {}).get("active_from") else None,
+            "active_to": _parse_datetime((raw or {}).get("active_to")) if (raw or {}).get("active_to") else None,
+            "timezone": _clean_text((raw or {}).get("timezone") or "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh",
+            "source_post_title": _clean_text((raw or {}).get("source_post_title") or ""),
+            "source_post_status": _clean_text((raw or {}).get("source_post_status") or ""),
+            "source_post_target_chat_id": _clean_text((raw or {}).get("source_post_target_chat_id") or ""),
+            "notes": _clean_text((raw or {}).get("notes") or ""),
+        }
+        return self._request(
+            "POST",
+            "bot_schedule_rules",
+            params={"on_conflict": "channel_post_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def delete_bot_schedule_rule(self, channel_post_id):
+        return self._request(
+            "DELETE",
+            "bot_schedule_rules",
+            params={"channel_post_id": f"eq.{_clean_text(channel_post_id)}"},
+            prefer="return=representation",
+        )
+
     def upsert_bot_runtime_state(self, raw):
         payload = {
             "id": _clean_text((raw or {}).get("id") or "main") or "main",
@@ -1612,9 +1650,12 @@ class SupabaseStore:
         try:
             from helpers import invalidate_channel_schedule_cache
             from helpers import recompute_bot_runtime_state
+            from helpers import sync_bot_schedule_rule_from_post
 
             invalidate_channel_schedule_cache()
             recompute_bot_runtime_state()
+            if rows:
+                sync_bot_schedule_rule_from_post(rows[0])
         except Exception:
             pass
         return rows[0]
@@ -1630,9 +1671,12 @@ class SupabaseStore:
         try:
             from helpers import invalidate_channel_schedule_cache
             from helpers import recompute_bot_runtime_state
+            from helpers import sync_bot_schedule_rule_from_post
 
             invalidate_channel_schedule_cache()
             recompute_bot_runtime_state()
+            if rows:
+                sync_bot_schedule_rule_from_post(rows[0])
         except Exception:
             pass
         return rows

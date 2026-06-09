@@ -87,24 +87,6 @@ def time_in_active_window(current_time, start, end):
 def truthy_value(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
-CHANNEL_POST_FLAGS_MARKER_PREFIX = "[[cp_flags:"
-CHANNEL_POST_FLAGS_MARKER_SUFFIX = "]]"
-
-def parse_channel_post_flags(notes):
-    raw = str(notes or "")
-    marker_start = raw.find(CHANNEL_POST_FLAGS_MARKER_PREFIX)
-    if marker_start < 0:
-        return {"repeat_daily": False, "sync_bot_schedule": False}
-    marker_end = raw.find(CHANNEL_POST_FLAGS_MARKER_SUFFIX, marker_start)
-    if marker_end < 0:
-        return {"repeat_daily": False, "sync_bot_schedule": False}
-    marker = raw[marker_start + len(CHANNEL_POST_FLAGS_MARKER_PREFIX):marker_end]
-    flags = {part.strip() for part in marker.split(",") if part.strip()}
-    return {
-        "repeat_daily": "repeat_daily=1" in flags,
-        "sync_bot_schedule": "sync_bot_schedule=1" in flags,
-    }
-
 def bot_schedule_active(now=None):
     return bool(bot_runtime_state(now).get("active"))
 
@@ -120,8 +102,8 @@ def bot_schedule_status(now=None):
     has_linked_rows = bool(linked_rows)
     active_linked_post = None
     for row in linked_rows:
-        scheduled_at = row.get("scheduled_at")
-        delete_at = row.get("delete_at")
+        scheduled_at = row.get("active_from") or row.get("scheduled_at")
+        delete_at = row.get("active_to") or row.get("delete_at")
         if not scheduled_at or not delete_at:
             continue
         try:
@@ -393,7 +375,7 @@ def _load_channel_schedule_rows():
         return []
     current_ts = time.time()
     if current_ts - float(_channel_schedule_cache.get("loaded_at") or 0) > CHANNEL_SCHEDULE_CACHE_SECONDS:
-        _channel_schedule_cache["rows"] = supabase_store.list_bot_schedule_channel_posts(limit=200)
+        _channel_schedule_cache["rows"] = supabase_store.list_bot_schedule_rules(limit=200)
         _channel_schedule_cache["loaded_at"] = current_ts
     return _channel_schedule_cache.get("rows") or []
 
@@ -403,11 +385,11 @@ def channel_schedule_rows():
             row
             for row in _load_channel_schedule_rows()
             if truthy_value(row.get("enabled", True))
-            and (truthy_value(row.get("sync_bot_schedule")) or parse_channel_post_flags(row.get("notes")).get("sync_bot_schedule"))
-            and (truthy_value(row.get("repeat_daily")) or parse_channel_post_flags(row.get("notes")).get("repeat_daily"))
+            and truthy_value(row.get("sync_bot_schedule"))
+            and truthy_value(row.get("repeat_daily"))
         ]
     except Exception as exc:
-        print(f"⚠️ Không đọc được lịch bot từ channel_posts: {exc}")
+        print(f"⚠️ Không đọc được lịch bot_rules: {exc}")
         return []
 
 def channel_schedule_active(now=None, rows=None):
@@ -415,8 +397,8 @@ def channel_schedule_active(now=None, rows=None):
     current_time = local_now.time().replace(tzinfo=None)
     posts = rows if rows is not None else channel_schedule_rows()
     for row in posts or []:
-        scheduled_at = row.get("scheduled_at")
-        delete_at = row.get("delete_at")
+        scheduled_at = row.get("active_from") or row.get("scheduled_at")
+        delete_at = row.get("active_to") or row.get("delete_at")
         if not scheduled_at or not delete_at:
             continue
         try:
@@ -427,6 +409,48 @@ def channel_schedule_active(now=None, rows=None):
         if time_in_active_window(current_time, start, end):
             return True
     return False
+
+def sync_bot_schedule_rule_from_post(post):
+    if not supabase_store.enabled:
+        return None
+    post = post or {}
+    post_id = post.get("id")
+    if not post_id:
+        return None
+    repeat_daily = truthy_value(post.get("repeat_daily"))
+    sync_bot_schedule = truthy_value(post.get("sync_bot_schedule"))
+    scheduled_at = post.get("scheduled_at")
+    delete_at = post.get("delete_at")
+    if not (repeat_daily and sync_bot_schedule and scheduled_at and delete_at):
+        try:
+            supabase_store.delete_bot_schedule_rule(post_id)
+            invalidate_channel_schedule_cache()
+            recompute_bot_runtime_state()
+        except Exception as exc:
+            print(f"⚠️ Không xoá bot_schedule_rule: {exc}")
+        return None
+    payload = {
+        "bot_key": str(post.get("bot_key") or "main") or "main",
+        "channel_post_id": post_id,
+        "enabled": truthy_value(post.get("enabled", True)),
+        "repeat_daily": repeat_daily,
+        "sync_bot_schedule": sync_bot_schedule,
+        "active_from": scheduled_at,
+        "active_to": delete_at,
+        "timezone": str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip() or "Asia/Ho_Chi_Minh",
+        "source_post_title": str(post.get("title") or ""),
+        "source_post_status": str(post.get("status") or ""),
+        "source_post_target_chat_id": str(post.get("target_chat_id") or ""),
+        "notes": str(post.get("notes") or ""),
+    }
+    try:
+        rows = supabase_store.upsert_bot_schedule_rule(payload)
+        invalidate_channel_schedule_cache()
+        recompute_bot_runtime_state()
+        return rows[0] if rows else payload
+    except Exception as exc:
+        print(f"⚠️ Không ghi bot_schedule_rule: {exc}")
+        return None
 
 def bot_unavailable_reason(now=None):
     status = bot_runtime_state(now)

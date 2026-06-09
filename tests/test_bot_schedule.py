@@ -72,7 +72,7 @@ def test_manual_maintenance_is_ignored_when_schedule_is_active(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", lambda limit=200: linked_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", lambda limit=200: linked_posts)
     helpers._channel_schedule_cache["loaded_at"] = 0
     helpers._channel_schedule_cache["rows"] = []
 
@@ -95,7 +95,7 @@ def test_linked_schedule_overrides_manual_maintenance(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", lambda limit=200: linked_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", lambda limit=200: linked_posts)
     helpers._channel_schedule_cache["loaded_at"] = 0
     helpers._channel_schedule_cache["rows"] = []
 
@@ -122,7 +122,7 @@ def test_channel_linked_schedule_overrides_built_in_hours(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", lambda limit=200: linked_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", lambda limit=200: linked_posts)
     helpers._channel_schedule_cache["loaded_at"] = 0
     helpers._channel_schedule_cache["rows"] = []
 
@@ -146,7 +146,7 @@ def test_manual_maintenance_wins_when_no_active_linked_schedule(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", lambda key, default="": values.get(key, default))
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", lambda limit=200: linked_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", lambda limit=200: linked_posts)
     helpers._channel_schedule_cache["loaded_at"] = 0
     helpers._channel_schedule_cache["rows"] = []
 
@@ -173,14 +173,14 @@ def test_channel_schedule_cache_can_be_invalidated(monkeypatch):
     def fake_get_config(key, default=""):
         return values.get(key, default)
 
-    def fake_list_bot_schedule_channel_posts(limit=200):
+    def fake_list_bot_schedule_rules(limit=200):
         calls.append(limit)
         return linked_posts
 
     monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", fake_list_bot_schedule_rules)
     helpers._channel_schedule_cache["loaded_at"] = 0
     helpers._channel_schedule_cache["rows"] = []
 
@@ -204,14 +204,15 @@ def test_recompute_bot_runtime_state_writes_payload(monkeypatch):
     def fake_get_config(key, default=""):
         return values.get(key, default)
 
-    def fake_list_bot_schedule_channel_posts(limit=200):
+    def fake_list_bot_schedule_rules(limit=200):
         return [{
             "id": 99,
+            "bot_key": "main",
             "enabled": True,
             "repeat_daily": True,
             "sync_bot_schedule": True,
-            "scheduled_at": "2026-06-04T08:00:00+07:00",
-            "delete_at": "2026-06-04T23:00:00+07:00",
+            "active_from": "2026-06-04T08:00:00+07:00",
+            "active_to": "2026-06-04T23:00:00+07:00",
             "title": "Bài giữ bot",
         }]
 
@@ -222,7 +223,7 @@ def test_recompute_bot_runtime_state_writes_payload(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", fake_list_bot_schedule_rules)
     monkeypatch.setattr(helpers.supabase_store, "upsert_bot_runtime_state", fake_upsert_bot_runtime_state)
     helpers.invalidate_bot_runtime_state_cache()
 
@@ -244,14 +245,15 @@ def test_bot_runtime_state_self_heals_stale_inactive_row(monkeypatch):
     def fake_get_config(key, default=""):
         return values.get(key, default)
 
-    def fake_list_bot_schedule_channel_posts(limit=200):
+    def fake_list_bot_schedule_rules(limit=200):
         return [{
             "id": 100,
+            "bot_key": "main",
             "enabled": True,
             "repeat_daily": True,
             "sync_bot_schedule": True,
-            "scheduled_at": "2026-06-04T08:00:00+07:00",
-            "delete_at": "2026-06-04T23:00:00+07:00",
+            "active_from": "2026-06-04T08:00:00+07:00",
+            "active_to": "2026-06-04T23:00:00+07:00",
             "title": "Bài giữ bot",
         }]
 
@@ -284,7 +286,7 @@ def test_bot_runtime_state_self_heals_stale_inactive_row(monkeypatch):
     monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
     monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
-    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_rules", fake_list_bot_schedule_rules)
     monkeypatch.setattr(helpers.supabase_store, "get_bot_runtime_state", fake_get_bot_runtime_state)
     monkeypatch.setattr(helpers.supabase_store, "upsert_bot_runtime_state", fake_upsert_bot_runtime_state)
     helpers.invalidate_bot_runtime_state_cache()
@@ -296,7 +298,7 @@ def test_bot_runtime_state_self_heals_stale_inactive_row(monkeypatch):
     assert writes and writes[0]["active"] is True
 
 
-def test_channel_schedule_rows_accepts_notes_marker_when_columns_missing(monkeypatch):
+def test_channel_schedule_rows_use_bot_schedule_rules_table(monkeypatch):
     values = {
         "MAINTENANCE_MODE": "OFF",
         "BOT_SCHEDULE_ENABLED": "OFF",
@@ -311,14 +313,16 @@ def test_channel_schedule_rows_accepts_notes_marker_when_columns_missing(monkeyp
     monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
     monkeypatch.setattr(
         helpers.supabase_store,
-        "list_bot_schedule_channel_posts",
+        "list_bot_schedule_rules",
         lambda limit=200: [{
             "id": 101,
+            "bot_key": "main",
             "enabled": True,
-            "status": "sent",
-            "scheduled_at": "2026-06-04T08:00:00+07:00",
-            "delete_at": "2026-06-04T23:00:00+07:00",
-            "notes": "[[cp_flags:repeat_daily=1,sync_bot_schedule=1]]",
+            "repeat_daily": True,
+            "sync_bot_schedule": True,
+            "active_from": "2026-06-04T08:00:00+07:00",
+            "active_to": "2026-06-04T23:00:00+07:00",
+            "source_post_title": "Bài giữ bot",
         }],
     )
     helpers.invalidate_channel_schedule_cache()

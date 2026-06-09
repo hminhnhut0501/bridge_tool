@@ -249,6 +249,24 @@ export type ChannelPost = {
   updated_at: string;
 };
 
+export type BotScheduleRule = {
+  id: number;
+  bot_key: string;
+  channel_post_id: number;
+  enabled: boolean;
+  repeat_daily: boolean;
+  sync_bot_schedule: boolean;
+  active_from: string;
+  active_to: string;
+  timezone: string;
+  source_post_title: string;
+  source_post_status: string;
+  source_post_target_chat_id: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ChannelPostEvent = {
   id: number;
   bot_key: string;
@@ -586,6 +604,10 @@ export async function cancelCampaign(secret: string, campaignId: string) {
 
 export async function getChannelPosts(secret: string, limit = 200) {
   return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts?limit=${limit}`, secret);
+}
+
+export async function getBotScheduleRules(secret: string, limit = 200) {
+  return request<{ data: BotScheduleRule[] }>(`/admin-api/bot-schedule-rules?limit=${limit}`, secret);
 }
 
 export async function createChannelPost(secret: string, payload: Record<string, unknown>) {
