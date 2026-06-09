@@ -2240,23 +2240,34 @@ export default function Home() {
 
   async function saveChannelPost(mode: "draft" | "send_now" | "schedule") {
     await runAction(`channel-post-${mode}`, async () => {
-      const payload = {
+      const content = String(channelPostForm.content || "");
+      const payload: Record<string, unknown> = {
         target_chat_id: channelPostForm.target_chat_id.trim(),
         title: channelPostForm.title,
         image_ref: channelPostForm.image_ref,
-        content: channelPostForm.content,
+        content,
         buttons_text: channelPostForm.buttons_text,
         parse_mode: channelPostForm.parse_mode,
         disable_web_page_preview: channelPostForm.disable_web_page_preview,
         notes: channelPostForm.notes,
-        scheduled_at: mode === "schedule" ? datetimeLocalToIso(channelPostForm.scheduled_at) : null,
-        delete_at: datetimeLocalToIso(channelPostForm.delete_at),
         repeat_daily: Boolean(channelPostForm.repeat_daily),
         sync_bot_schedule: Boolean(channelPostForm.sync_bot_schedule),
         status: mode === "schedule" ? "scheduled" : mode === "send_now" ? "queued" : channelPostForm.id ? channelPostForm.status || "draft" : "draft",
         created_by: "admin_cp",
       };
-      if (!payload.target_chat_id || !payload.content.trim()) {
+      const scheduledAt = datetimeLocalToIso(channelPostForm.scheduled_at);
+      const deleteAt = datetimeLocalToIso(channelPostForm.delete_at);
+      if (mode === "schedule" || !channelPostForm.id) {
+        payload.scheduled_at = scheduledAt;
+      } else if (scheduledAt) {
+        payload.scheduled_at = scheduledAt;
+      }
+      if (deleteAt) {
+        payload.delete_at = deleteAt;
+      } else if (!channelPostForm.id) {
+        payload.delete_at = null;
+      }
+      if (!payload.target_chat_id || !content.trim()) {
         throw new Error("Cần nhập channel/group nhận bài và nội dung bài đăng.");
       }
       if (mode === "schedule" && !payload.scheduled_at) {
