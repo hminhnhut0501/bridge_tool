@@ -2294,6 +2294,8 @@ export default function Home() {
     if (!activeSecret) return;
     const postsRes = await getChannelPosts(activeSecret);
     setChannelPosts(postsRes.data);
+    const botScheduleRes = await getBotScheduleStatus(activeSecret);
+    setBotScheduleStatusApi(botScheduleRes.data);
     if (selectedChannelPostId) {
       const eventsRes = await getChannelPostEvents(activeSecret, selectedChannelPostId);
       setChannelEvents(eventsRes.data);
