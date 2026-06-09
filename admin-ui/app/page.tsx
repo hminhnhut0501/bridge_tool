@@ -1718,6 +1718,64 @@ function datetimeLocalToIso(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function parseActiveHoursText(raw: string) {
+  const windows: Array<{ start: number; end: number; text: string }> = [];
+  for (const chunk of String(raw || "").replace(/\n/g, ",").split(",")) {
+    const value = chunk.trim();
+    if (!value || !value.includes("-")) continue;
+    const [startRaw, endRaw] = value.split("-", 2).map((part) => part.trim());
+    const startMatch = /^(\d{1,2}):(\d{2})$/.exec(startRaw);
+    const endMatch = /^(\d{1,2}):(\d{2})$/.exec(endRaw);
+    if (!startMatch || !endMatch) continue;
+    const start = Number(startMatch[1]) * 60 + Number(startMatch[2]);
+    const end = Number(endMatch[1]) * 60 + Number(endMatch[2]);
+    windows.push({ start, end, text: `${startRaw} - ${endRaw}` });
+  }
+  return windows;
+}
+
+function minutesInTimeZone(timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const hour = Number(parts.find((item) => item.type === "hour")?.value || "0");
+    const minute = Number(parts.find((item) => item.type === "minute")?.value || "0");
+    return hour * 60 + minute;
+  } catch {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+}
+
+function minutesOfDateInTimeZone(value: string | null | undefined, timeZone: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const hour = Number(parts.find((item) => item.type === "hour")?.value || "0");
+    const minute = Number(parts.find((item) => item.type === "minute")?.value || "0");
+    return hour * 60 + minute;
+  } catch {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+}
+
+function timeWindowContains(currentMinutes: number, start: number, end: number) {
+  if (start === end) return true;
+  if (start < end) return currentMinutes >= start && currentMinutes < end;
+  return currentMinutes >= start || currentMinutes < end;
+}
+
 function hiddenRequirementLabel(value: string | null | undefined) {
   return HIDDEN_REQUIREMENT_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Không yêu cầu thêm";
 }
@@ -3439,6 +3497,68 @@ export default function Home() {
     for (const item of channelPosts) counts[channelPostTabFor(item)] += 1;
     return counts;
   }, [channelPosts]);
+  const botScheduleStatus = useMemo(() => {
+    const timezone = getConfigValue(config, "BOT_TIMEZONE", "Asia/Ho_Chi_Minh") || "Asia/Ho_Chi_Minh";
+    const maintenanceMode = String(getConfigValue(config, "MAINTENANCE_MODE", "OFF") || "OFF").trim().toUpperCase() === "ON";
+    const fixedScheduleEnabled = String(getConfigValue(config, "BOT_SCHEDULE_ENABLED", "OFF") || "OFF").trim().toUpperCase() === "ON";
+    const activeHoursRaw = getConfigValue(config, "BOT_ACTIVE_HOURS", "08:00-23:00") || "08:00-23:00";
+    const windows = parseActiveHoursText(activeHoursRaw);
+    const currentMinutes = minutesInTimeZone(timezone);
+    const linkedPosts = channelPosts.filter((item) => Boolean(item.enabled) && Boolean(item.sync_bot_schedule) && Boolean(item.repeat_daily) && item.scheduled_at && item.delete_at);
+    const activeLinkedPost = linkedPosts.find((item) => {
+      const startMinutes = minutesOfDateInTimeZone(item.scheduled_at, timezone);
+      const endMinutes = minutesOfDateInTimeZone(item.delete_at, timezone);
+      if (startMinutes === null || endMinutes === null) return false;
+      return timeWindowContains(currentMinutes, startMinutes, endMinutes);
+    }) || null;
+    const activeFixedWindow = windows.find((window) => timeWindowContains(currentMinutes, window.start, window.end)) || null;
+    if (activeLinkedPost) {
+      return {
+        source: "channel",
+        active: true,
+        title: activeLinkedPost.title || `Bài #${activeLinkedPost.id}`,
+        window: `${dateText(activeLinkedPost.scheduled_at)} → ${dateText(activeLinkedPost.delete_at)}`,
+        detail: `Bài liên kết đang giữ bot online`,
+        timezone,
+        linkedCount: linkedPosts.length,
+        maintenanceMode,
+      };
+    }
+    if (maintenanceMode) {
+      return {
+        source: "maintenance",
+        active: false,
+        title: "Bảo trì thủ công",
+        window: "Bot đang bị khóa thủ công",
+        detail: "Không có bài liên kết nào đang active.",
+        timezone,
+        linkedCount: linkedPosts.length,
+        activeFixedWindow: activeFixedWindow?.text || "",
+      };
+    }
+    if (fixedScheduleEnabled && windows.length) {
+      return {
+        source: "fixed",
+        active: Boolean(activeFixedWindow),
+        title: activeFixedWindow ? `Khung giờ ${activeFixedWindow.text}` : "Ngoài khung giờ",
+        window: activeFixedWindow ? `Đang theo ${activeFixedWindow.text}` : windows.map((item) => item.text).join(", "),
+        detail: "Bot chạy theo BOT_ACTIVE_HOURS.",
+        timezone,
+        linkedCount: linkedPosts.length,
+        maintenanceMode,
+      };
+    }
+    return {
+      source: "always",
+      active: true,
+      title: "Luôn hoạt động",
+      window: "Không dùng lịch bot cố định",
+      detail: "Không bật bảo trì và không có lịch bài liên kết.",
+      timezone,
+      linkedCount: linkedPosts.length,
+      maintenanceMode,
+    };
+  }, [channelPosts, config]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4262,7 +4382,50 @@ export default function Home() {
                 <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
               </div>
             </section>
-            {contentTab === "bot" ? <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "bot" ? (
+              <>
+                <section className="panel">
+                  <PanelHead
+                    title="Nguồn điều khiển giờ bot"
+                    subtitle="Đây là lớp hiển thị để biết bot đang online theo bài đăng nào, theo BOT_ACTIVE_HOURS hay đang bị bảo trì."
+                  />
+                  <div className="status-grid">
+                    <div className={`health-item ${botScheduleStatus.active ? "good" : "bad"}`}>
+                      <Activity size={18} />
+                      <div>
+                        <strong>{botScheduleStatus.active ? "Bot đang hoạt động" : "Bot đang offline"}</strong>
+                        <span>{botScheduleStatus.title}</span>
+                      </div>
+                    </div>
+                    <div className="health-item">
+                      <Settings size={18} />
+                      <div>
+                        <strong>Nguồn hiện tại</strong>
+                        <span>{botScheduleStatus.source === "channel" ? "Theo bài đăng liên kết" : botScheduleStatus.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
+                      </div>
+                    </div>
+                    <div className="health-item">
+                      <Send size={18} />
+                      <div>
+                        <strong>Khung giờ / lý do</strong>
+                        <span>{botScheduleStatus.window}</span>
+                      </div>
+                    </div>
+                    <div className="health-item">
+                      <ClipboardList size={18} />
+                      <div>
+                        <strong>Bài liên kết</strong>
+                        <span>{botScheduleStatus.linkedCount ? `${botScheduleStatus.linkedCount} bài đang gắn giờ bot` : "Chưa có bài liên kết"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hint compact" style={{ padding: "0 16px 16px" }}>
+                    Múi giờ bot: <strong>{botScheduleStatus.timezone}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus.maintenanceMode ? "ON" : "OFF"}</strong>
+                  </div>
+                </section>
+                <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              </>
+            ) : null}
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và NOWPayments dùng giá USD riêng, không quy đổi tỷ giá. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
