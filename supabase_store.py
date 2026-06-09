@@ -1550,7 +1550,14 @@ class SupabaseStore:
             raise ValueError("Thiếu channel/group nhận bài.")
         if not payload.get("content"):
             raise ValueError("Thiếu nội dung bài đăng.")
-        return self._request_channel_post_write("POST", payload=payload, prefer="return=representation")[0]
+        rows = self._request_channel_post_write("POST", payload=payload, prefer="return=representation")
+        try:
+            from helpers import invalidate_channel_schedule_cache
+
+            invalidate_channel_schedule_cache()
+        except Exception:
+            pass
+        return rows[0]
 
     def patch_channel_post(self, post_id, raw, status=None):
         params = {"id": f"eq.{_clean_text(post_id)}"}
@@ -1559,7 +1566,14 @@ class SupabaseStore:
         payload = self._channel_post_payload(raw, partial=True)
         if not payload:
             return []
-        return self._request_channel_post_write("PATCH", params=params, payload=payload, prefer="return=representation")
+        rows = self._request_channel_post_write("PATCH", params=params, payload=payload, prefer="return=representation")
+        try:
+            from helpers import invalidate_channel_schedule_cache
+
+            invalidate_channel_schedule_cache()
+        except Exception:
+            pass
+        return rows
 
     def list_bot_schedule_channel_posts(self, limit=200):
         try:

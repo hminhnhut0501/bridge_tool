@@ -145,3 +145,40 @@ def test_manual_maintenance_wins_when_no_active_linked_schedule(monkeypatch):
     status = helpers.bot_schedule_status(local_datetime(12))
     assert status["source"] == "maintenance"
     assert status["active"] is False
+
+
+def test_channel_schedule_cache_can_be_invalidated(monkeypatch):
+    values = {
+        "MAINTENANCE_MODE": "OFF",
+        "BOT_SCHEDULE_ENABLED": "OFF",
+        "BOT_TIMEZONE": "Asia/Ho_Chi_Minh",
+    }
+    calls = []
+    linked_posts = [{
+        "enabled": True,
+        "repeat_daily": True,
+        "sync_bot_schedule": True,
+        "scheduled_at": "2026-06-04T08:00:00+07:00",
+        "delete_at": "2026-06-04T23:00:00+07:00",
+    }]
+
+    def fake_get_config(key, default=""):
+        return values.get(key, default)
+
+    def fake_list_bot_schedule_channel_posts(limit=200):
+        calls.append(limit)
+        return linked_posts
+
+    monkeypatch.setattr(helpers.db, "get_config", fake_get_config)
+    monkeypatch.setattr(helpers.supabase_store, "url", "https://example.supabase.co")
+    monkeypatch.setattr(helpers.supabase_store, "key", "service-role")
+    monkeypatch.setattr(helpers.supabase_store, "list_bot_schedule_channel_posts", fake_list_bot_schedule_channel_posts)
+    helpers._channel_schedule_cache["loaded_at"] = 0
+    helpers._channel_schedule_cache["rows"] = []
+
+    assert helpers.bot_schedule_active(local_datetime(12))
+    assert calls == [200]
+
+    helpers.invalidate_channel_schedule_cache()
+    assert helpers.bot_schedule_active(local_datetime(12))
+    assert calls == [200, 200]

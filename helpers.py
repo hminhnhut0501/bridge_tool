@@ -20,6 +20,11 @@ _channel_schedule_cache = {"loaded_at": 0.0, "rows": []}
 CHANNEL_SCHEDULE_CACHE_SECONDS = 60
 
 
+def invalidate_channel_schedule_cache():
+    _channel_schedule_cache["loaded_at"] = 0.0
+    _channel_schedule_cache["rows"] = []
+
+
 def configured_admin_ids():
     raw = str(db.get_config("ADMIN_IDS", os.getenv("ADMIN_IDS", str(ADMIN_ID))) or "").strip()
     values = {str(ADMIN_ID)}
