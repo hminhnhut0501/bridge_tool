@@ -23,6 +23,7 @@ from hidden_group_utils import (
     upsert_hidden_code,
     upsert_hidden_group,
 )
+from helpers import bot_schedule_status
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 from payment import payment_manager
@@ -497,6 +498,11 @@ async def root():
 @app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])
 async def admin_webhook_info():
     return {"data": await bot.get_webhook_info()}
+
+
+@app.get("/admin-api/bot-schedule-status", dependencies=[Depends(require_admin)])
+async def admin_bot_schedule_status():
+    return {"data": bot_schedule_status()}
 
 
 @app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])

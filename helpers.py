@@ -75,16 +75,105 @@ def truthy_value(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 def bot_schedule_active(now=None):
+    return bool(bot_schedule_status(now).get("active"))
+
+def bot_schedule_status(now=None):
     local_now = now or datetime.now(bot_timezone())
+    timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip() or "Asia/Ho_Chi_Minh"
+    maintenance_mode = config_enabled("MAINTENANCE_MODE", "OFF")
+    fixed_schedule_enabled = config_enabled("BOT_SCHEDULE_ENABLED", "OFF")
+    active_hours_raw = db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00") or "08:00-23:00"
+    windows = parse_active_hours(active_hours_raw)
+    current_time = local_now.time().replace(tzinfo=None)
     linked_rows = channel_schedule_rows()
-    if linked_rows:
-        return channel_schedule_active(local_now, linked_rows)
-    if not config_enabled("BOT_SCHEDULE_ENABLED", "OFF"):
-        return True
-    windows = parse_active_hours(db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00"))
-    if not windows:
-        return True
-    return any(time_in_active_window(local_now.time().replace(tzinfo=None), start, end) for start, end in windows)
+    has_linked_rows = bool(linked_rows)
+    active_linked_post = None
+    for row in linked_rows:
+        scheduled_at = row.get("scheduled_at")
+        delete_at = row.get("delete_at")
+        if not scheduled_at or not delete_at:
+            continue
+        try:
+            start = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
+            end = datetime.fromisoformat(str(delete_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
+        except ValueError:
+            continue
+        if time_in_active_window(current_time, start, end):
+            active_linked_post = row
+            break
+    active_fixed_window = None
+    if not active_linked_post and not has_linked_rows and fixed_schedule_enabled and windows:
+        active_fixed_window = next((window for window in windows if time_in_active_window(current_time, window[0], window[1])), None)
+    if active_linked_post:
+        return {
+            "source": "channel",
+            "active": True,
+            "title": active_linked_post.get("title") or f"Bài #{active_linked_post.get('id')}",
+            "window": f"{active_linked_post.get('scheduled_at')} → {active_linked_post.get('delete_at')}",
+            "detail": "Bài liên kết đang giữ bot online." + (" Bảo trì thủ công đang bị override." if maintenance_mode else ""),
+            "timezone": timezone_name,
+            "linkedCount": len(linked_rows),
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": maintenance_mode,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
+    if maintenance_mode:
+        return {
+            "source": "maintenance",
+            "active": False,
+            "title": "Bảo trì thủ công",
+            "window": "Bot đang bị khóa thủ công",
+            "detail": "Không có bài liên kết nào đang active.",
+            "timezone": timezone_name,
+            "linkedCount": len(linked_rows),
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": False,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
+    if has_linked_rows:
+        return {
+            "source": "channel",
+            "active": False,
+            "title": "Ngoài khung giờ bài liên kết",
+            "window": "Chưa có bài đăng liên kết đang active",
+            "detail": "Bot đang chờ khung giờ của bài đăng liên kết.",
+            "timezone": timezone_name,
+            "linkedCount": len(linked_rows),
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": False,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
+    if fixed_schedule_enabled and windows:
+        window_text = next((f"{start.isoformat(timespec='minutes')} - {end.isoformat(timespec='minutes')}" for start, end in windows if time_in_active_window(current_time, start, end)), None)
+        return {
+            "source": "fixed",
+            "active": bool(active_fixed_window),
+            "title": f"Khung giờ {window_text}" if window_text else "Ngoài khung giờ",
+            "window": window_text or ", ".join(f"{start.isoformat(timespec='minutes')}-{end.isoformat(timespec='minutes')}" for start, end in windows),
+            "detail": "Bot chạy theo BOT_ACTIVE_HOURS.",
+            "timezone": timezone_name,
+            "linkedCount": len(linked_rows),
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": False,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
+    return {
+        "source": "always",
+        "active": True,
+        "title": "Luôn hoạt động",
+        "window": "Không dùng lịch bot cố định",
+        "detail": "Không bật bảo trì và không có lịch bài liên kết.",
+        "timezone": timezone_name,
+        "linkedCount": len(linked_rows),
+        "maintenanceMode": maintenance_mode,
+        "maintenanceOverride": False,
+        "fixedScheduleEnabled": fixed_schedule_enabled,
+        "activeHours": active_hours_raw,
+    }
 
 def _load_channel_schedule_rows():
     if not supabase_store.enabled:
@@ -127,11 +216,12 @@ def channel_schedule_active(now=None, rows=None):
     return False
 
 def bot_unavailable_reason(now=None):
-    if bot_schedule_active(now):
+    status = bot_schedule_status(now)
+    if status.get("active"):
         return ""
-    if config_enabled("MAINTENANCE_MODE", "OFF"):
+    if status.get("source") == "maintenance":
         return "maintenance"
-    if not bot_schedule_active(now):
+    if status.get("source") in {"channel", "fixed"}:
         return "schedule"
     return ""
 

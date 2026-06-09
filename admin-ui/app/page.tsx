@@ -33,6 +33,7 @@ import {
   ActivityEvent,
   BroadcastCampaign,
   BroadcastRecipient,
+  type BotScheduleStatus,
   CampaignPreview,
   ChannelPost,
   ChannelPostEvent,
@@ -65,6 +66,7 @@ import {
   getConfig,
   getActivityEvents,
   getBlacklist,
+  getBotScheduleStatus,
   getCampaignRecipients,
   getCampaigns,
   getChannelPostEvents,
@@ -2077,6 +2079,7 @@ export default function Home() {
   const [channelEvents, setChannelEvents] = useState<ChannelPostEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
+  const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
@@ -2412,6 +2415,7 @@ export default function Home() {
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
       const needsWebhook = !light;
+      const needsBotScheduleStatus = !light;
 
       addTask(needsOrders, () => getOrders(activeSecret), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
@@ -2429,6 +2433,7 @@ export default function Home() {
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
       addTask(needsWebhook, () => getWebhookInfo(activeSecret), setWebhook);
+      addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
 
       await Promise.all(tasks);
       if (resetPages) {
@@ -3497,7 +3502,7 @@ export default function Home() {
     for (const item of channelPosts) counts[channelPostTabFor(item)] += 1;
     return counts;
   }, [channelPosts]);
-  const botScheduleStatus = useMemo(() => {
+  const fallbackBotScheduleStatus = useMemo(() => {
     const timezone = getConfigValue(config, "BOT_TIMEZONE", "Asia/Ho_Chi_Minh") || "Asia/Ho_Chi_Minh";
     const maintenanceMode = String(getConfigValue(config, "MAINTENANCE_MODE", "OFF") || "OFF").trim().toUpperCase() === "ON";
     const fixedScheduleEnabled = String(getConfigValue(config, "BOT_SCHEDULE_ENABLED", "OFF") || "OFF").trim().toUpperCase() === "ON";
@@ -3564,6 +3569,7 @@ export default function Home() {
       maintenanceOverride: false,
     };
   }, [channelPosts, config]);
+  const botScheduleStatus = botScheduleStatusApi || fallbackBotScheduleStatus;
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)

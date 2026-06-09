@@ -131,6 +131,20 @@ export type WebhookInfo = {
   allowed_updates?: string[];
 };
 
+export type BotScheduleStatus = {
+  source: "channel" | "fixed" | "maintenance" | "always";
+  active: boolean;
+  title: string;
+  window: string;
+  detail: string;
+  timezone: string;
+  linkedCount: number;
+  maintenanceMode: boolean;
+  maintenanceOverride: boolean;
+  fixedScheduleEnabled: boolean;
+  activeHours: string;
+};
+
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -597,6 +611,10 @@ export async function checkSupportGroup(secret: string) {
 
 export async function getWebhookInfo(secret: string) {
   return request<{ data: WebhookInfo }>("/admin-api/webhook-info", secret);
+}
+
+export async function getBotScheduleStatus(secret: string) {
+  return request<{ data: BotScheduleStatus }>("/admin-api/bot-schedule-status", secret);
 }
 
 export async function resetWebhook(secret: string) {
