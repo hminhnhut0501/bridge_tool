@@ -35,7 +35,6 @@ import {
   ActivityEvent,
   BroadcastCampaign,
   BroadcastRecipient,
-  type BotRuntimeStateAudit,
   type BotScheduleStatus,
   CampaignPreview,
   ChannelPost,
@@ -70,7 +69,6 @@ import {
   getActivityEvents,
   getBlacklist,
   getBotScheduleStatus,
-  getBotRuntimeStateAudit,
   getCampaignRecipients,
   getCampaigns,
   getChannelPostEvents,
@@ -100,9 +98,7 @@ import {
   upsertBlacklist,
   upsertHiddenCode,
   upsertHiddenGroup,
-  getBotScheduleRules,
   type HiddenRedemption,
-  type BotScheduleRule,
   upsertSaleRule,
   type HiddenCode,
   type HiddenGroup,
@@ -1356,7 +1352,6 @@ const EMPTY_CHANNEL_POST_FORM = {
   scheduled_at: "",
   delete_at: "",
   repeat_daily: false,
-  sync_bot_schedule: false,
   notes: "",
 };
 
@@ -1728,64 +1723,6 @@ function datetimeLocalToIso(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function parseActiveHoursText(raw: string) {
-  const windows: Array<{ start: number; end: number; text: string }> = [];
-  for (const chunk of String(raw || "").replace(/\n/g, ",").split(",")) {
-    const value = chunk.trim();
-    if (!value || !value.includes("-")) continue;
-    const [startRaw, endRaw] = value.split("-", 2).map((part) => part.trim());
-    const startMatch = /^(\d{1,2}):(\d{2})$/.exec(startRaw);
-    const endMatch = /^(\d{1,2}):(\d{2})$/.exec(endRaw);
-    if (!startMatch || !endMatch) continue;
-    const start = Number(startMatch[1]) * 60 + Number(startMatch[2]);
-    const end = Number(endMatch[1]) * 60 + Number(endMatch[2]);
-    windows.push({ start, end, text: `${startRaw} - ${endRaw}` });
-  }
-  return windows;
-}
-
-function minutesInTimeZone(timeZone: string) {
-  try {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date());
-    const hour = Number(parts.find((item) => item.type === "hour")?.value || "0");
-    const minute = Number(parts.find((item) => item.type === "minute")?.value || "0");
-    return hour * 60 + minute;
-  } catch {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
-  }
-}
-
-function minutesOfDateInTimeZone(value: string | null | undefined, timeZone: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  try {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(date);
-    const hour = Number(parts.find((item) => item.type === "hour")?.value || "0");
-    const minute = Number(parts.find((item) => item.type === "minute")?.value || "0");
-    return hour * 60 + minute;
-  } catch {
-    return date.getHours() * 60 + date.getMinutes();
-  }
-}
-
-function timeWindowContains(currentMinutes: number, start: number, end: number) {
-  if (start === end) return true;
-  if (start < end) return currentMinutes >= start && currentMinutes < end;
-  return currentMinutes >= start || currentMinutes < end;
-}
-
 function hiddenRequirementLabel(value: string | null | undefined) {
   return HIDDEN_REQUIREMENT_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Không yêu cầu thêm";
 }
@@ -2085,12 +2022,10 @@ export default function Home() {
   const [campaignRecipients, setCampaignRecipients] = useState<BroadcastRecipient[]>([]);
   const [campaignPreview, setCampaignPreview] = useState<CampaignPreview | null>(null);
   const [channelPosts, setChannelPosts] = useState<ChannelPost[]>([]);
-  const [botScheduleRules, setBotScheduleRules] = useState<BotScheduleRule[]>([]);
   const [channelEvents, setChannelEvents] = useState<ChannelPostEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
-  const [botRuntimeAuditApi, setBotRuntimeAuditApi] = useState<BotRuntimeStateAudit | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
@@ -2276,12 +2211,8 @@ export default function Home() {
     if (!activeSecret) return;
     const postsRes = await getChannelPosts(activeSecret);
     setChannelPosts(postsRes.data);
-    const rulesRes = await getBotScheduleRules(activeSecret);
-    setBotScheduleRules(rulesRes.data);
     const botScheduleRes = await getBotScheduleStatus(activeSecret);
     setBotScheduleStatusApi(botScheduleRes.data);
-    const botRuntimeAuditRes = await getBotRuntimeStateAudit(activeSecret);
-    setBotRuntimeAuditApi(botRuntimeAuditRes.data);
     if (selectedChannelPostId) {
       const eventsRes = await getChannelPostEvents(activeSecret, selectedChannelPostId);
       setChannelEvents(eventsRes.data);
@@ -2296,7 +2227,6 @@ export default function Home() {
   }
 
   function editChannelPost(post: ChannelPost) {
-    const linkedRule = linkedRuleByPostId.get(post.id);
     setSelectedChannelPostId(post.id);
     setChannelPostForm({
       id: String(post.id),
@@ -2310,8 +2240,7 @@ export default function Home() {
       disable_web_page_preview: Boolean(post.disable_web_page_preview),
       scheduled_at: dateTimeInputValue(post.scheduled_at),
       delete_at: dateTimeInputValue(post.delete_at),
-      repeat_daily: linkedRule ? Boolean(linkedRule.repeat_daily) : Boolean(post.repeat_daily),
-      sync_bot_schedule: linkedRule ? Boolean(linkedRule.sync_bot_schedule) : Boolean(post.sync_bot_schedule),
+      repeat_daily: Boolean(post.repeat_daily),
       notes: post.notes || "",
     });
     setChannelPostModalOpen(true);
@@ -2330,7 +2259,6 @@ export default function Home() {
         disable_web_page_preview: channelPostForm.disable_web_page_preview,
         notes: channelPostForm.notes,
         repeat_daily: Boolean(channelPostForm.repeat_daily),
-        sync_bot_schedule: Boolean(channelPostForm.sync_bot_schedule),
         status: mode === "schedule" ? "scheduled" : mode === "send_now" ? "queued" : channelPostForm.id ? channelPostForm.status || "draft" : "draft",
         created_by: "admin_cp",
       };
@@ -2352,10 +2280,7 @@ export default function Home() {
       if (mode === "schedule" && !payload.scheduled_at) {
         throw new Error("Cần chọn giờ đăng hợp lệ.");
       }
-      if (payload.sync_bot_schedule && !payload.repeat_daily) {
-        throw new Error("Muốn liên kết giờ bot hoạt động thì phải bật lặp lại mỗi ngày.");
-      }
-      if ((payload.repeat_daily || payload.sync_bot_schedule) && (!payload.scheduled_at || !payload.delete_at)) {
+      if (payload.repeat_daily && (!payload.scheduled_at || !payload.delete_at)) {
         throw new Error("Bài lặp ngày cần có cả giờ đăng và giờ xóa.");
       }
       if (channelPostForm.id) {
@@ -2433,10 +2358,8 @@ export default function Home() {
       const needsActivityEvents = !light && shouldLoad("activityLog", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
-      const needsBotScheduleRules = !light && shouldLoad("content", "channelPosts");
       const needsWebhook = !light;
       const needsBotScheduleStatus = !light;
-      const needsBotRuntimeAudit = !light;
 
       addTask(needsOrders, () => getOrders(activeSecret), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
@@ -2454,10 +2377,8 @@ export default function Home() {
       addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
-      addTask(needsBotScheduleRules, () => getBotScheduleRules(activeSecret), setBotScheduleRules);
       addTask(needsWebhook, () => getWebhookInfo(activeSecret), setWebhook);
       addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
-      addTask(needsBotRuntimeAudit, () => getBotRuntimeStateAudit(activeSecret), setBotRuntimeAuditApi);
 
       await Promise.all(tasks);
       if (resetPages) {
@@ -3589,15 +3510,7 @@ export default function Home() {
     for (const item of channelPosts) counts[channelPostTabFor(item)] += 1;
     return counts;
   }, [channelPosts]);
-  const channelPostById = useMemo(() => new Map(channelPosts.map((item) => [item.id, item])), [channelPosts]);
   const botScheduleStatus = botScheduleStatusApi;
-  const botRuntimeAudit = botRuntimeAuditApi;
-  const botRuntimeAuditStoredActive = Boolean(botRuntimeAudit?.stored?.["active"]);
-  const botRuntimeAuditLiveActive = Boolean(botRuntimeAudit?.live?.["active"]);
-  const linkedBotScheduleRules = useMemo(() => {
-    return [...botScheduleRules].sort((a, b) => new Date(b.updated_at || b.created_at || "").getTime() - new Date(a.updated_at || a.created_at || "").getTime());
-  }, [botScheduleRules]);
-  const linkedRuleByPostId = useMemo(() => new Map(linkedBotScheduleRules.map((item) => [item.channel_post_id, item])), [linkedBotScheduleRules]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4284,16 +4197,13 @@ export default function Home() {
                 headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
                 rows={pagedChannelPosts.map((item) => [
                   (() => {
-                    const linkedRule = linkedRuleByPostId.get(item.id);
-                    const repeatDaily = linkedRule ? linkedRule.repeat_daily : Boolean(item.repeat_daily);
-                    const syncBotSchedule = linkedRule ? linkedRule.sync_bot_schedule : Boolean(item.sync_bot_schedule);
+                    const repeatDaily = Boolean(item.repeat_daily);
                     return (
                       <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}>
                         <strong>{item.title || `Bài #${item.id}`}</strong>
                         <div className="muted">{String(item.content || "").slice(0, 90)}</div>
                         <div className="row-chips" style={{ marginTop: 8 }}>
                           {repeatDaily ? <span className="badge green">Lặp ngày</span> : <span className="badge muted">Không lặp</span>}
-                          {syncBotSchedule ? <span className="badge teal">Gắn giờ bot</span> : <span className="badge muted">Không gắn giờ bot</span>}
                           {item.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
                         </div>
                       </button>
@@ -4305,7 +4215,7 @@ export default function Home() {
                     <strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong>
                     <div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div>
                   </>,
-                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}{(linkedRuleByPostId.get(item.id)?.repeat_daily ?? item.repeat_daily) ? " • Lặp ngày" : ""}{(linkedRuleByPostId.get(item.id)?.sync_bot_schedule ?? item.sync_bot_schedule) ? " • Gắn giờ bot" : ""}</div></>,
+                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}{item.repeat_daily ? " • Lặp ngày" : ""}</div></>,
                   item.error ? <><strong>{item.error_code || "telegram_error"}</strong><div className="muted">{item.error}</div></> : "-",
                 ])}
                 onRow={(idx) => editChannelPost(pagedChannelPosts[idx])}
@@ -4442,8 +4352,8 @@ export default function Home() {
               <>
                 <section className="panel">
                   <PanelHead
-                    title="Nguồn điều khiển giờ bot"
-                    subtitle="Đây là lớp hiển thị để biết bot đang online theo bài đăng nào, theo BOT_ACTIVE_HOURS hay đang bị bảo trì."
+                    title="Trạng thái giờ bot"
+                    subtitle="Bot chỉ còn chạy theo bảo trì thủ công, BOT_ACTIVE_HOURS hoặc luôn hoạt động. Bài đăng channel không còn điều khiển trạng thái bot."
                   />
                   <div className="status-grid">
                     <div className={`health-item ${botScheduleStatus?.active ? "good" : "bad"}`}>
@@ -4459,7 +4369,7 @@ export default function Home() {
                           <Settings size={18} />
                           <div>
                             <strong>Nguồn hiện tại</strong>
-                            <span>{botScheduleStatus?.source === "channel" ? "Theo bài đăng liên kết" : botScheduleStatus?.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus?.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
+                            <span>{botScheduleStatus?.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus?.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
                           </div>
                         </div>
                         <div className="health-item">
@@ -4472,8 +4382,8 @@ export default function Home() {
                         <div className="health-item">
                           <ClipboardList size={18} />
                           <div>
-                            <strong>Bài liên kết</strong>
-                            <span>{botScheduleStatus?.linkedCount ? `${botScheduleStatus.linkedCount} bài đang gắn giờ bot` : "Chưa có bài liên kết"}</span>
+                            <strong>Lặp bài channel</strong>
+                            <span>Độc lập với giờ hoạt động bot</span>
                           </div>
                         </div>
                       </>
@@ -4482,84 +4392,21 @@ export default function Home() {
                         <Settings size={18} />
                         <div>
                           <strong>Không đọc được runtime</strong>
-                          <span>Không có dữ liệu bot_runtime_state từ API.</span>
+                          <span>Không đọc được trạng thái giờ bot từ API.</span>
                         </div>
                       </div>
                     )}
                   </div>
                   {botScheduleStatus ? (
                     <>
-                      <div className="hint compact" style={{ padding: "0 16px 8px" }}>
-                        <strong>Audit runtime:</strong>{" "}
-                        {botRuntimeAudit
-                          ? botRuntimeAudit.mismatch
-                            ? `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Lệch: ${botRuntimeAudit.fields.join(", ") || "unknown"}${botRuntimeAudit.reason ? ` • ${botRuntimeAudit.reason}` : ""}`
-                            : `DB ${botRuntimeAuditStoredActive ? "active" : "offline"} • Live ${botRuntimeAuditLiveActive ? "active" : "offline"} • Đồng bộ`
-                          : "Không đọc được runtime audit."}
-                      </div>
                       <div className="hint compact" style={{ padding: "0 16px 16px" }}>
                         Múi giờ bot: <strong>{botScheduleStatus?.timezone || "-"}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus?.maintenanceMode ? "ON" : "OFF"}</strong>
-                        {botScheduleStatus?.maintenanceOverride ? (
-                          <>
-                            {" "}
-                            • <span className="badge amber">Bảo trì bị lịch bài đăng override</span>
-                          </>
-                        ) : null}
                       </div>
                     </>
                   ) : (
                     <div className="hint compact" style={{ padding: "0 16px 16px" }}>
                       Không đọc được runtime từ API.
                     </div>
-                  )}
-                </section>
-                <section className="panel">
-                  <PanelHead
-                    title="Lịch bot từ bài đăng"
-                    subtitle="Đây là nguồn sự thật của lịch liên kết. Mỗi dòng là một rule riêng, không còn đọc dự phòng từ notes hay suy diễn từ bài đăng."
-                    action={
-                      <div className="panel-actions">
-                        <button className="btn secondary" onClick={() => selectTab("channelPosts")}><Send size={16} /> Sang đăng channel</button>
-                        <button className="btn secondary" onClick={() => refreshChannelPosts()}><RefreshCw size={16} /> Tải lại rule</button>
-                      </div>
-                    }
-                  />
-                  {linkedBotScheduleRules.length ? (
-                    <SimpleTable
-                      headers={["Bài", "Khung giờ", "Cờ", "Nguồn", "Trạng thái"]}
-                      rows={linkedBotScheduleRules.map((rule) => [
-                        <button
-                          key={`bot-rule-${rule.channel_post_id}`}
-                          className="link-button"
-                          onClick={() => {
-                            const post = channelPostById.get(rule.channel_post_id);
-                            if (post) editChannelPost(post);
-                            else showNotice("error", `Không tìm thấy bài #${rule.channel_post_id} để mở.`);
-                          }}
-                        >
-                          <strong>{rule.source_post_title || `Bài #${rule.channel_post_id}`}</strong>
-                          <div className="muted">Post #{rule.channel_post_id}</div>
-                          </button>,
-                        <Fragment key={`bot-rule-window-${rule.channel_post_id}`}>
-                          <strong>{dateText(rule.active_from)}</strong>
-                          <div className="muted">Xóa: {dateText(rule.active_to)}</div>
-                        </Fragment>,
-                        <div key={`bot-rule-flags-${rule.channel_post_id}`} className="row-chips">
-                          {rule.repeat_daily ? <span className="badge green">Lặp ngày</span> : <span className="badge muted">Không lặp</span>}
-                          {rule.sync_bot_schedule ? <span className="badge teal">Gắn giờ bot</span> : <span className="badge muted">Không gắn giờ bot</span>}
-                          {rule.enabled ? <span className="badge blue">Bật</span> : <span className="badge muted">Tắt</span>}
-                        </div>,
-                        <Fragment key={`bot-rule-source-${rule.channel_post_id}`}>
-                          <strong>{rule.source_post_target_chat_id || "-"}</strong>
-                          <div className="muted">{rule.source_post_status || "-"}</div>
-                        </Fragment>,
-                        <Fragment key={`bot-rule-state-${rule.channel_post_id}`}>
-                          <span className={rule.enabled ? "badge green" : "badge muted"}>{rule.enabled ? "Hoạt động" : "Tắt"}</span>
-                        </Fragment>,
-                      ])}
-                    />
-                  ) : (
-                    <div className="empty-card">Chưa có rule nào. Tick lặp lại mỗi ngày + gắn giờ bot rồi lên lịch bài đăng để tạo rule.</div>
                   )}
                 </section>
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
@@ -5329,13 +5176,6 @@ export default function Home() {
                       <div className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</div>
                     </div>
                   </label>
-                  <label className="check-card" style={{ gridColumn: "span 1" }}>
-                    <input type="checkbox" checked={Boolean(channelPostForm.sync_bot_schedule)} onChange={(event) => setChannelPostForm({ ...channelPostForm, sync_bot_schedule: event.target.checked })} />
-                    <div>
-                      <strong>Liên kết giờ bot hoạt động</strong>
-                      <div className="muted">Trong khung giờ này bot tự online, ngoài khung giờ bot vào bảo trì.</div>
-                    </div>
-                  </label>
                   <label className="field wide">
                     <span>Ghi chú</span>
                     <input value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" />
@@ -5344,10 +5184,9 @@ export default function Home() {
                 <div className="channel-preview">
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
-                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"} • {channelPostForm.sync_bot_schedule ? "Gắn giờ bot" : "Không gắn giờ bot"}</small>
+                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
                   <div className="row-chips" style={{ marginTop: 10 }}>
                     {channelPostForm.repeat_daily ? <span className="badge green">Bật lặp ngày</span> : <span className="badge muted">Không lặp</span>}
-                    {channelPostForm.sync_bot_schedule ? <span className="badge teal">Bot theo lịch bài</span> : <span className="badge muted">Không gắn giờ bot</span>}
                     {channelPostForm.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
                   </div>
                 </div>

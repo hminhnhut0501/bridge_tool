@@ -16,21 +16,12 @@ from supabase_store import supabase_store
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
 _bio_link_cache = {}
-_channel_schedule_cache = {"loaded_at": 0.0, "rows": []}
-_bot_runtime_state_cache = {"loaded_at": 0.0, "row": None}
-CHANNEL_SCHEDULE_CACHE_SECONDS = 60
-BOT_RUNTIME_STATE_CACHE_SECONDS = 5
-BOT_RUNTIME_STATE_STALE_SECONDS = 15
-
-
 def invalidate_channel_schedule_cache():
-    _channel_schedule_cache["loaded_at"] = 0.0
-    _channel_schedule_cache["rows"] = []
+    return None
 
 
 def invalidate_bot_runtime_state_cache():
-    _bot_runtime_state_cache["loaded_at"] = 0.0
-    _bot_runtime_state_cache["row"] = None
+    return None
 
 
 def configured_admin_ids():
@@ -98,42 +89,9 @@ def bot_schedule_status(now=None):
     active_hours_raw = db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00") or "08:00-23:00"
     windows = parse_active_hours(active_hours_raw)
     current_time = local_now.time().replace(tzinfo=None)
-    linked_rows = channel_schedule_rows()
-    active_linked_post = None
-    for row in linked_rows:
-        scheduled_at = row.get("active_from") or row.get("scheduled_at")
-        delete_at = row.get("active_to") or row.get("delete_at")
-        if not scheduled_at or not delete_at:
-            continue
-        try:
-            start = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
-            end = datetime.fromisoformat(str(delete_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
-        except ValueError:
-            continue
-        if time_in_active_window(current_time, start, end):
-            active_linked_post = row
-            break
     active_fixed_window = None
-    if not active_linked_post and fixed_schedule_enabled and windows:
+    if fixed_schedule_enabled and windows:
         active_fixed_window = next((window for window in windows if time_in_active_window(current_time, window[0], window[1])), None)
-    if active_linked_post:
-        return {
-            "source": "channel",
-            "active": True,
-            "sourcePostId": str(active_linked_post.get("id") or ""),
-            "sourcePostTitle": active_linked_post.get("title") or f"Bài #{active_linked_post.get('id')}",
-            "title": active_linked_post.get("title") or f"Bài #{active_linked_post.get('id')}",
-            "window": f"{active_linked_post.get('scheduled_at')} → {active_linked_post.get('delete_at')}",
-            "windowStart": active_linked_post.get("scheduled_at") or "",
-            "windowEnd": active_linked_post.get("delete_at") or "",
-            "detail": "Bài liên kết đang giữ bot online." + (" Bảo trì thủ công đang bị override." if maintenance_mode else ""),
-            "timezone": timezone_name,
-            "linkedCount": len(linked_rows),
-            "maintenanceMode": maintenance_mode,
-            "maintenanceOverride": maintenance_mode,
-            "fixedScheduleEnabled": fixed_schedule_enabled,
-            "activeHours": active_hours_raw,
-        }
     if active_fixed_window:
         start, end = active_fixed_window
         window_text = f"{start.isoformat(timespec='minutes')} - {end.isoformat(timespec='minutes')}"
@@ -148,7 +106,7 @@ def bot_schedule_status(now=None):
             "windowEnd": "",
             "detail": "Bot chạy theo BOT_ACTIVE_HOURS.",
             "timezone": timezone_name,
-            "linkedCount": len(linked_rows),
+            "linkedCount": 0,
             "maintenanceMode": maintenance_mode,
             "maintenanceOverride": False,
             "fixedScheduleEnabled": fixed_schedule_enabled,
@@ -164,27 +122,9 @@ def bot_schedule_status(now=None):
             "window": "Bot đang bị khóa thủ công",
             "windowStart": "",
             "windowEnd": "",
-            "detail": "Không có bài liên kết nào đang active.",
+            "detail": "Bot đang bị khóa bởi chế độ bảo trì thủ công.",
             "timezone": timezone_name,
-            "linkedCount": len(linked_rows),
-            "maintenanceMode": maintenance_mode,
-            "maintenanceOverride": False,
-            "fixedScheduleEnabled": fixed_schedule_enabled,
-            "activeHours": active_hours_raw,
-        }
-    if linked_rows:
-        return {
-            "source": "channel",
-            "active": False,
-            "sourcePostId": "",
-            "sourcePostTitle": "Ngoài khung giờ bài liên kết",
-            "title": "Ngoài khung giờ bài liên kết",
-            "window": "Chưa có bài đăng liên kết đang active",
-            "windowStart": "",
-            "windowEnd": "",
-            "detail": "Bot đang chờ khung giờ của bài đăng liên kết.",
-            "timezone": timezone_name,
-            "linkedCount": len(linked_rows),
+            "linkedCount": 0,
             "maintenanceMode": maintenance_mode,
             "maintenanceOverride": False,
             "fixedScheduleEnabled": fixed_schedule_enabled,
@@ -203,7 +143,7 @@ def bot_schedule_status(now=None):
             "windowEnd": "",
             "detail": "Bot chạy theo BOT_ACTIVE_HOURS.",
             "timezone": timezone_name,
-            "linkedCount": len(linked_rows),
+            "linkedCount": 0,
             "maintenanceMode": maintenance_mode,
             "maintenanceOverride": False,
             "fixedScheduleEnabled": fixed_schedule_enabled,
@@ -218,9 +158,9 @@ def bot_schedule_status(now=None):
         "window": "Không dùng lịch bot cố định",
         "windowStart": "",
         "windowEnd": "",
-        "detail": "Không bật bảo trì và không có lịch bài liên kết.",
+        "detail": "Không bật bảo trì và không dùng lịch bot cố định.",
         "timezone": timezone_name,
-        "linkedCount": len(linked_rows),
+        "linkedCount": 0,
         "maintenanceMode": maintenance_mode,
         "maintenanceOverride": False,
         "fixedScheduleEnabled": fixed_schedule_enabled,
@@ -253,236 +193,22 @@ def _bot_runtime_state_payload(now=None):
 
 
 def bot_runtime_state(now=None):
-    if not supabase_store.enabled:
-        return _bot_runtime_state_payload(now)
-    current_ts = time.time()
-    try:
-        row = supabase_store.get_bot_runtime_state()
-        live_payload = _bot_runtime_state_payload(now)
-        if row:
-            updated_at = row.get("updated_at") or row.get("updatedAt")
-            row_is_stale = True
-            if updated_at:
-                try:
-                    parsed_updated_at = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
-                    row_is_stale = (datetime.now(parsed_updated_at.tzinfo or bot_timezone()) - parsed_updated_at).total_seconds() > BOT_RUNTIME_STATE_STALE_SECONDS
-                except Exception:
-                    row_is_stale = True
-            row_active = bool(row.get("active", True))
-            live_active = bool(live_payload.get("active"))
-            row_source = str(row.get("source") or row.get("effective_mode") or "").strip().lower()
-            live_source = str(live_payload.get("source") or live_payload.get("effective_mode") or "").strip().lower()
-            row_window = str(row.get("window") or "")
-            live_window = str(live_payload.get("window") or "")
-            row_title = str(row.get("title") or "")
-            live_title = str(live_payload.get("title") or "")
-            if row_is_stale or row_active != live_active or row_source != live_source or row_window != live_window or row_title != live_title:
-                try:
-                    rows = supabase_store.upsert_bot_runtime_state(live_payload)
-                    if rows:
-                        row = rows[0]
-                except Exception as exc:
-                    print(f"⚠️ Không đồng bộ được bot_runtime_state: {exc}")
-            _bot_runtime_state_cache["row"] = live_payload
-            _bot_runtime_state_cache["loaded_at"] = current_ts
-            return live_payload
-        _bot_runtime_state_cache["row"] = live_payload
-        _bot_runtime_state_cache["loaded_at"] = current_ts
-        return live_payload
-    except Exception as exc:
-        print(f"⚠️ Không đọc được bot_runtime_state: {exc}")
     return _bot_runtime_state_payload(now)
 
 
 def recompute_bot_runtime_state(now=None):
-    payload = _bot_runtime_state_payload(now)
-    if supabase_store.enabled:
-        try:
-            rows = supabase_store.upsert_bot_runtime_state(payload)
-            invalidate_bot_runtime_state_cache()
-            return rows[0] if rows else payload
-        except Exception as exc:
-            print(f"⚠️ Không ghi được bot_runtime_state: {exc}")
-    invalidate_bot_runtime_state_cache()
-    return payload
+    return _bot_runtime_state_payload(now)
 
 
 def bot_runtime_state_audit(now=None):
     live_payload = _bot_runtime_state_payload(now)
-    stored_row = None
-    if supabase_store.enabled:
-        try:
-            stored_row = supabase_store.get_bot_runtime_state()
-        except Exception as exc:
-            print(f"⚠️ Không đọc được bot_runtime_state audit: {exc}")
-    if not stored_row:
-        return {
-            "stored": None,
-            "live": live_payload,
-            "mismatch": False,
-            "reason": "",
-            "fields": [],
-        }
-
-    def normalize_snapshot(row):
-        row = row or {}
-        return {
-            "effective_mode": str(row.get("effective_mode") or row.get("source") or "").strip().lower() or "always",
-            "source": str(row.get("source") or row.get("effective_mode") or "").strip().lower() or "always",
-            "active": bool(row.get("active", False)),
-            "title": str(row.get("title") or "").strip(),
-            "window": str(row.get("window") or "").strip(),
-            "detail": str(row.get("detail") or "").strip(),
-            "timezone": str(row.get("timezone") or "").strip() or "Asia/Ho_Chi_Minh",
-            "linked_count": int(row.get("linked_count") or 0),
-            "maintenance_mode": bool(row.get("maintenance_mode", False)),
-            "maintenance_override": bool(row.get("maintenance_override", False)),
-            "fixed_schedule_enabled": bool(row.get("fixed_schedule_enabled", False)),
-            "active_hours": str(row.get("active_hours") or "").strip(),
-            "source_post_id": str(row.get("source_post_id") or "").strip(),
-            "source_post_title": str(row.get("source_post_title") or "").strip(),
-            "window_start": str(row.get("window_start") or "").strip(),
-            "window_end": str(row.get("window_end") or "").strip(),
-        }
-
-    stored = normalize_snapshot(stored_row)
-    live = normalize_snapshot(live_payload)
-    mismatch_fields = []
-    for field in (
-        "effective_mode",
-        "source",
-        "active",
-        "title",
-        "window",
-        "timezone",
-        "linked_count",
-        "maintenance_mode",
-        "maintenance_override",
-        "fixed_schedule_enabled",
-        "active_hours",
-        "source_post_id",
-        "source_post_title",
-        "window_start",
-        "window_end",
-    ):
-        if stored.get(field) != live.get(field):
-            mismatch_fields.append(field)
-
-    reason = ""
-    if mismatch_fields:
-        if not live.get("active") and stored.get("active"):
-            reason = "Row lưu còn active nhưng state live đã rơi offline."
-        elif live.get("active") and not stored.get("active"):
-            reason = "Row lưu đang offline nhưng state live đang active."
-        elif stored.get("source") != live.get("source"):
-            reason = "Nguồn điều khiển trong DB lệch với state live."
-        elif stored.get("window") != live.get("window"):
-            reason = "Khung giờ trong DB lệch với state live."
-        else:
-            reason = "State lưu và state live đang không đồng bộ."
-
     return {
-        "stored": stored,
-        "live": live,
-        "mismatch": bool(mismatch_fields),
-        "reason": reason,
-        "fields": mismatch_fields,
+        "stored": None,
+        "live": live_payload,
+        "mismatch": False,
+        "reason": "Runtime hiện được tính trực tiếp từ cấu hình bot, không lưu DB riêng.",
+        "fields": [],
     }
-
-def _load_channel_schedule_rows():
-    if not supabase_store.enabled:
-        return []
-    current_ts = time.time()
-    if current_ts - float(_channel_schedule_cache.get("loaded_at") or 0) > CHANNEL_SCHEDULE_CACHE_SECONDS:
-        _channel_schedule_cache["rows"] = supabase_store.list_bot_schedule_rules(limit=200)
-        _channel_schedule_cache["loaded_at"] = current_ts
-    return _channel_schedule_cache.get("rows") or []
-
-def channel_schedule_rows():
-    try:
-        return [
-            row
-            for row in _load_channel_schedule_rows()
-            if truthy_value(row.get("enabled", True))
-            and truthy_value(row.get("sync_bot_schedule"))
-            and truthy_value(row.get("repeat_daily"))
-        ]
-    except Exception as exc:
-        print(f"⚠️ Không đọc được lịch bot_rules: {exc}")
-        return []
-
-def channel_schedule_rule_for_post(post_id):
-    try:
-        target_id = int(str(post_id or "").strip())
-    except (TypeError, ValueError):
-        return None
-    for row in _load_channel_schedule_rows():
-        try:
-            if int(str(row.get("channel_post_id") or "").strip()) == target_id:
-                return row
-        except (TypeError, ValueError):
-            continue
-    return None
-
-def channel_schedule_active(now=None, rows=None):
-    local_now = now or datetime.now(bot_timezone())
-    current_time = local_now.time().replace(tzinfo=None)
-    posts = rows if rows is not None else channel_schedule_rows()
-    for row in posts or []:
-        scheduled_at = row.get("active_from") or row.get("scheduled_at")
-        delete_at = row.get("active_to") or row.get("delete_at")
-        if not scheduled_at or not delete_at:
-            continue
-        try:
-            start = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
-            end = datetime.fromisoformat(str(delete_at).replace("Z", "+00:00")).astimezone(bot_timezone()).time().replace(tzinfo=None)
-        except ValueError:
-            continue
-        if time_in_active_window(current_time, start, end):
-            return True
-    return False
-
-def sync_bot_schedule_rule_from_post(post):
-    if not supabase_store.enabled:
-        return None
-    post = post or {}
-    post_id = post.get("id")
-    if not post_id:
-        return None
-    repeat_daily = truthy_value(post.get("repeat_daily"))
-    sync_bot_schedule = truthy_value(post.get("sync_bot_schedule"))
-    scheduled_at = post.get("scheduled_at")
-    delete_at = post.get("delete_at")
-    if not (repeat_daily and sync_bot_schedule and scheduled_at and delete_at):
-        try:
-            supabase_store.delete_bot_schedule_rule(post_id)
-            invalidate_channel_schedule_cache()
-            recompute_bot_runtime_state()
-        except Exception as exc:
-            print(f"⚠️ Không xoá bot_schedule_rule: {exc}")
-        return None
-    payload = {
-        "bot_key": str(post.get("bot_key") or "main") or "main",
-        "channel_post_id": post_id,
-        "enabled": truthy_value(post.get("enabled", True)),
-        "repeat_daily": repeat_daily,
-        "sync_bot_schedule": sync_bot_schedule,
-        "active_from": scheduled_at,
-        "active_to": delete_at,
-        "timezone": str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip() or "Asia/Ho_Chi_Minh",
-        "source_post_title": str(post.get("title") or ""),
-        "source_post_status": str(post.get("status") or ""),
-        "source_post_target_chat_id": str(post.get("target_chat_id") or ""),
-        "notes": str(post.get("notes") or ""),
-    }
-    try:
-        rows = supabase_store.upsert_bot_schedule_rule(payload)
-        invalidate_channel_schedule_cache()
-        recompute_bot_runtime_state()
-        return rows[0] if rows else payload
-    except Exception as exc:
-        print(f"⚠️ Không ghi bot_schedule_rule: {exc}")
-        return None
 
 def bot_unavailable_reason(now=None):
     status = bot_runtime_state(now)

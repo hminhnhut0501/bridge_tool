@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from helpers import channel_schedule_rule_for_post, recompute_bot_runtime_state
 from supabase_store import _now_iso, supabase_store
 
 
@@ -120,19 +119,6 @@ def _truthy(value):
     return str(value).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
 
 
-def _channel_schedule_flags(row):
-    rule = channel_schedule_rule_for_post(row.get("id"))
-    if rule:
-        return {
-            "repeat_daily": _truthy(rule.get("repeat_daily")),
-            "sync_bot_schedule": _truthy(rule.get("sync_bot_schedule")),
-        }
-    return {
-        "repeat_daily": _truthy(row.get("repeat_daily")),
-        "sync_bot_schedule": _truthy(row.get("sync_bot_schedule")),
-    }
-
-
 def _caption_safe(text):
     value = str(text or "").strip()
     if len(value) <= 1024:
@@ -206,7 +192,6 @@ async def publish_channel_post(row):
                     "error_code": None,
                 },
             )
-        recompute_bot_runtime_state()
         supabase_store.record_channel_post_event(row_id, "send_succeeded", "Telegram đã nhận bài.", {"message_id": sent.message_id})
         return True
     except (TelegramBadRequest, TelegramForbiddenError, Exception) as exc:
@@ -240,7 +225,7 @@ async def delete_channel_post(row):
         from bot_instance import bot
 
         await bot.delete_message(chat_id=chat_id, message_id=message_id)
-        repeat_daily = _channel_schedule_flags(row)["repeat_daily"]
+        repeat_daily = _truthy(row.get("repeat_daily"))
         next_scheduled_at, next_delete_at = next_daily_pair(row.get("scheduled_at"), row.get("delete_at")) if repeat_daily else (None, None)
         if repeat_daily and next_scheduled_at and next_delete_at:
             supabase_store.patch_channel_post(
@@ -257,7 +242,6 @@ async def delete_channel_post(row):
                     "error_code": None,
                 },
             )
-            recompute_bot_runtime_state()
             supabase_store.record_channel_post_event(
                 row_id,
                 "repeat_rescheduled",
@@ -274,7 +258,6 @@ async def delete_channel_post(row):
                     "error_code": None,
                 },
             )
-            recompute_bot_runtime_state()
         supabase_store.record_channel_post_event(row_id, "delete_succeeded", "Đã xóa bài khỏi Telegram.")
         return True
     except (TelegramBadRequest, TelegramForbiddenError, Exception) as exc:

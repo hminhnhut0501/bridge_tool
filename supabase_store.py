@@ -450,89 +450,6 @@ class SupabaseStore:
             pass
         return rows
 
-    def get_bot_runtime_state(self):
-        rows = self._request(
-            "GET",
-            "bot_runtime_state",
-            params={"select": "*", "id": "eq.main", "limit": "1"},
-        )
-        return rows[0] if rows else None
-
-    def list_bot_schedule_rules(self, limit=200):
-        return self._request(
-            "GET",
-            "bot_schedule_rules",
-            params={"select": "*", "order": "active_from.asc", "limit": str(limit)},
-        )
-
-    def get_bot_schedule_rule_for_post(self, post_id):
-        rows = self._request(
-            "GET",
-            "bot_schedule_rules",
-            params={"select": "*", "channel_post_id": f"eq.{_clean_text(post_id)}", "limit": "1"},
-        )
-        return rows[0] if rows else None
-
-    def upsert_bot_schedule_rule(self, raw):
-        payload = {
-            "bot_key": _clean_text((raw or {}).get("bot_key") or "main") or "main",
-            "channel_post_id": _parse_int((raw or {}).get("channel_post_id"), 0),
-            "enabled": bool((raw or {}).get("enabled", True)),
-            "repeat_daily": bool((raw or {}).get("repeat_daily", False)),
-            "sync_bot_schedule": bool((raw or {}).get("sync_bot_schedule", False)),
-            "active_from": _parse_datetime((raw or {}).get("active_from")) if (raw or {}).get("active_from") else None,
-            "active_to": _parse_datetime((raw or {}).get("active_to")) if (raw or {}).get("active_to") else None,
-            "timezone": _clean_text((raw or {}).get("timezone") or "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh",
-            "source_post_title": _clean_text((raw or {}).get("source_post_title") or ""),
-            "source_post_status": _clean_text((raw or {}).get("source_post_status") or ""),
-            "source_post_target_chat_id": _clean_text((raw or {}).get("source_post_target_chat_id") or ""),
-            "notes": _clean_text((raw or {}).get("notes") or ""),
-        }
-        return self._request(
-            "POST",
-            "bot_schedule_rules",
-            params={"on_conflict": "channel_post_id"},
-            json=payload,
-            prefer="resolution=merge-duplicates,return=representation",
-        )
-
-    def delete_bot_schedule_rule(self, channel_post_id):
-        return self._request(
-            "DELETE",
-            "bot_schedule_rules",
-            params={"channel_post_id": f"eq.{_clean_text(channel_post_id)}"},
-            prefer="return=representation",
-        )
-
-    def upsert_bot_runtime_state(self, raw):
-        payload = {
-            "id": _clean_text((raw or {}).get("id") or "main") or "main",
-            "effective_mode": _clean_text((raw or {}).get("effective_mode") or (raw or {}).get("source") or "always") or "always",
-            "source": _clean_text((raw or {}).get("source") or (raw or {}).get("effective_mode") or "always") or "always",
-            "active": bool((raw or {}).get("active", True)),
-            "title": _clean_text((raw or {}).get("title") or ""),
-            "window": _clean_text((raw or {}).get("window") or ""),
-            "detail": _clean_text((raw or {}).get("detail") or ""),
-            "timezone": _clean_text((raw or {}).get("timezone") or "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh",
-            "linked_count": _parse_int((raw or {}).get("linked_count"), 0),
-            "maintenance_mode": bool((raw or {}).get("maintenance_mode", False)),
-            "maintenance_override": bool((raw or {}).get("maintenance_override", False)),
-            "fixed_schedule_enabled": bool((raw or {}).get("fixed_schedule_enabled", False)),
-            "active_hours": _clean_text((raw or {}).get("active_hours") or ""),
-            "source_post_id": _clean_text((raw or {}).get("source_post_id") or ""),
-            "source_post_title": _clean_text((raw or {}).get("source_post_title") or ""),
-            "window_start": _parse_datetime((raw or {}).get("window_start")) if (raw or {}).get("window_start") else None,
-            "window_end": _parse_datetime((raw or {}).get("window_end")) if (raw or {}).get("window_end") else None,
-            "raw_data": (raw or {}).get("raw_data") or {},
-        }
-        return self._request(
-            "POST",
-            "bot_runtime_state",
-            params={"on_conflict": "id"},
-            json=payload,
-            prefer="resolution=merge-duplicates,return=representation",
-        )
-
     def create_order(
         self,
         order_id,
@@ -1582,7 +1499,6 @@ class SupabaseStore:
             "error_code",
             "enabled",
             "repeat_daily",
-            "sync_bot_schedule",
             "notes",
             "attempt_count",
             "last_attempt_at",
@@ -1596,7 +1512,7 @@ class SupabaseStore:
             value = raw.get(key)
             if key in {"sent_at", "scheduled_at", "delete_at", "deleted_at", "last_attempt_at"}:
                 payload[key] = _parse_datetime(value) if value else None
-            elif key in {"disable_web_page_preview", "enabled", "repeat_daily", "sync_bot_schedule"}:
+            elif key in {"disable_web_page_preview", "enabled", "repeat_daily"}:
                 payload[key] = str(value).strip().upper() not in {"OFF", "FALSE", "NO", "0", "INACTIVE"} if value is not None else (True if key == "enabled" else False)
             elif key == "attempt_count":
                 payload[key] = _parse_int(value, 0)
@@ -1617,7 +1533,6 @@ class SupabaseStore:
             payload.setdefault("disable_web_page_preview", False)
             payload.setdefault("enabled", True)
             payload.setdefault("repeat_daily", False)
-            payload.setdefault("sync_bot_schedule", False)
             payload.setdefault("image_ref", None)
         return payload
 
@@ -1625,13 +1540,12 @@ class SupabaseStore:
         try:
             return self._request(method, "channel_posts", params=params, json=payload, prefer=prefer)
         except RuntimeError as exc:
-            missing_optional_column = any(column in str(exc) for column in ("repeat_daily", "sync_bot_schedule", "image_ref"))
+            missing_optional_column = any(column in str(exc) for column in ("repeat_daily", "image_ref"))
             if not missing_optional_column:
                 raise
             legacy_payload = dict(payload or {})
             legacy_payload.pop("image_ref", None)
             legacy_payload.pop("repeat_daily", None)
-            legacy_payload.pop("sync_bot_schedule", None)
             return self._request(method, "channel_posts", params=params, json=legacy_payload, prefer=prefer)
 
     def list_channel_posts(self, limit=200, status=None):
@@ -1657,41 +1571,11 @@ class SupabaseStore:
         rows = self._request_channel_post_write("POST", payload=payload, prefer="return=representation")
         try:
             from helpers import invalidate_channel_schedule_cache
-            from helpers import recompute_bot_runtime_state
-            from helpers import sync_bot_schedule_rule_from_post
 
             invalidate_channel_schedule_cache()
-            recompute_bot_runtime_state()
-            if rows:
-                rule_source = dict(rows[0])
-                rule_source.update({
-                    "repeat_daily": payload.get("repeat_daily"),
-                    "sync_bot_schedule": payload.get("sync_bot_schedule"),
-                    "scheduled_at": payload.get("scheduled_at"),
-                    "delete_at": payload.get("delete_at"),
-                })
-                sync_bot_schedule_rule_from_post(rule_source)
         except Exception:
             pass
         return rows[0]
-
-    def _channel_rule_source(self, row, payload):
-        rule_source = dict(row or {})
-        existing_rule = None
-        if "repeat_daily" not in rule_source and "sync_bot_schedule" not in rule_source:
-            try:
-                existing_rule = self.get_bot_schedule_rule_for_post(rule_source.get("id"))
-            except Exception:
-                existing_rule = None
-        if existing_rule:
-            rule_source.setdefault("repeat_daily", existing_rule.get("repeat_daily"))
-            rule_source.setdefault("sync_bot_schedule", existing_rule.get("sync_bot_schedule"))
-            rule_source.setdefault("scheduled_at", existing_rule.get("active_from"))
-            rule_source.setdefault("delete_at", existing_rule.get("active_to"))
-        for key in ("repeat_daily", "sync_bot_schedule", "scheduled_at", "delete_at"):
-            if key in payload:
-                rule_source[key] = payload.get(key)
-        return rule_source
 
     def patch_channel_post(self, post_id, raw, status=None):
         params = {"id": f"eq.{_clean_text(post_id)}"}
@@ -1703,13 +1587,8 @@ class SupabaseStore:
         rows = self._request_channel_post_write("PATCH", params=params, payload=payload, prefer="return=representation")
         try:
             from helpers import invalidate_channel_schedule_cache
-            from helpers import recompute_bot_runtime_state
-            from helpers import sync_bot_schedule_rule_from_post
 
             invalidate_channel_schedule_cache()
-            recompute_bot_runtime_state()
-            if rows:
-                sync_bot_schedule_rule_from_post(self._channel_rule_source(rows[0], payload))
         except Exception:
             pass
         return rows
@@ -1720,7 +1599,7 @@ class SupabaseStore:
                 "GET",
                 "channel_posts",
                 params={
-                    "select": "id,status,scheduled_at,delete_at,repeat_daily,sync_bot_schedule,enabled,notes",
+                    "select": "id,status,scheduled_at,delete_at,repeat_daily,enabled,notes",
                     "enabled": "eq.true",
                     "status": "in.(scheduled,sending,sent,delete_scheduled,deleting)",
                     "order": "scheduled_at.asc",
@@ -1728,7 +1607,7 @@ class SupabaseStore:
                 },
             )
         except RuntimeError as exc:
-            if "sync_bot_schedule" in str(exc) or "repeat_daily" in str(exc):
+            if "repeat_daily" in str(exc):
                 return []
             raise
 
@@ -1777,12 +1656,6 @@ class SupabaseStore:
         row = rows[0] if rows else None
         if row:
             self.record_channel_post_event(post_id, event_type, message, details, bot_key=row.get("bot_key") or "main")
-            try:
-                from helpers import recompute_bot_runtime_state
-
-                recompute_bot_runtime_state()
-            except Exception:
-                pass
         return row
 
     def list_channel_post_events(self, post_id=None, limit=200):

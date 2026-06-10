@@ -145,14 +145,6 @@ export type BotScheduleStatus = {
   activeHours: string;
 };
 
-export type BotRuntimeStateAudit = {
-  stored: Record<string, unknown> | null;
-  live: Record<string, unknown>;
-  mismatch: boolean;
-  reason: string;
-  fields: string[];
-};
-
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -260,30 +252,11 @@ export type ChannelPost = {
   error_code: string | null;
   enabled: boolean;
   repeat_daily?: boolean;
-  sync_bot_schedule?: boolean;
   notes: string | null;
   attempt_count: number;
   last_attempt_at: string | null;
   created_by: string | null;
   deleted_by: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type BotScheduleRule = {
-  id: number;
-  bot_key: string;
-  channel_post_id: number;
-  enabled: boolean;
-  repeat_daily: boolean;
-  sync_bot_schedule: boolean;
-  active_from: string;
-  active_to: string;
-  timezone: string;
-  source_post_title: string;
-  source_post_status: string;
-  source_post_target_chat_id: string;
-  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -631,18 +604,6 @@ export async function getChannelPosts(secret: string, limit = 200) {
   return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts?limit=${limit}`, secret);
 }
 
-export async function getBotScheduleRules(secret: string, limit = 200) {
-  try {
-    return await request<{ data: BotScheduleRule[] }>(`/admin-api/bot-schedule-rules?limit=${limit}`, secret);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('"detail":"Not Found"') || message.includes("Request failed: 404") || message.includes("Not Found")) {
-      return { data: [] as BotScheduleRule[] } as { data: BotScheduleRule[] };
-    }
-    throw error;
-  }
-}
-
 export async function createChannelPost(secret: string, payload: Record<string, unknown>) {
   return request<{ data: ChannelPost }>("/admin-api/channel-posts", secret, {
     method: "POST",
@@ -678,10 +639,6 @@ export async function getWebhookInfo(secret: string) {
 
 export async function getBotScheduleStatus(secret: string) {
   return request<{ data: BotScheduleStatus }>("/admin-api/bot-schedule-status", secret);
-}
-
-export async function getBotRuntimeStateAudit(secret: string) {
-  return request<{ data: BotRuntimeStateAudit }>("/admin-api/bot-runtime-state/audit", secret);
 }
 
 export async function resetWebhook(secret: string) {
