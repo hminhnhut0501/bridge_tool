@@ -2654,18 +2654,6 @@ export default function Home() {
     });
   }
 
-  async function runSupportGroupCheck() {
-    await runAction("support-check", async () => {
-      const res = await checkSupportGroup(savedSecret);
-      setSupportCheck(res.data);
-      if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
-        showNotice("ok", "Group hỗ trợ tạo link OK.");
-      } else {
-        showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
-      }
-    });
-  }
-
   async function refreshKickAudit(live = false) {
     await runAction(live ? "kick-audit-live" : "kick-audit-refresh", async () => {
       const res = await getKickAudit(savedSecret, live);
@@ -2679,6 +2667,18 @@ export default function Home() {
       const res = await getVipGroupAudit(savedSecret, live);
       setVipGroupAudit(res.data);
       if (live) showNotice("ok", "Đã kiểm tra live trạng thái VIP group.");
+    });
+  }
+
+  async function runSupportGroupCheck() {
+    await runAction("support-check", async () => {
+      const res = await checkSupportGroup(savedSecret);
+      setSupportCheck(res.data);
+      if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
+        showNotice("ok", "Group hỗ trợ tạo link OK.");
+      } else {
+        showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
+      }
     });
   }
 
@@ -3249,13 +3249,6 @@ export default function Home() {
     });
   }, [paidMemberOrders, reminderNoticeDays]);
   const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
-  const supportTodayEvents = useMemo(() => supportEvents.filter((item) => isTodayDate(item.created_at)), [supportEvents]);
-  const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
-  const supportGroupEvents = useMemo(() => {
-    if (!supportGroupId) return [];
-    return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
-  }, [supportEvents, supportGroupId]);
-  const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
   const supportNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const item of supportEvents) {
@@ -3265,9 +3258,15 @@ export default function Home() {
     }
     return map;
   }, [supportEvents]);
-  const supportKickedToday = useMemo(() => supportTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportTodayEvents]);
+  const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
+  const supportGroupEvents = useMemo(() => {
+    if (!supportGroupId) return [];
+    return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
+  }, [supportEvents, supportGroupId]);
+  const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
+  const supportKickedToday = useMemo(() => supportGroupTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportGroupTodayEvents]);
   const uniqueKickedEvents = useMemo(() => {
     const map = new Map<string, SupportEvent>();
     for (const item of supportEvents.filter((event) => event.event_type === "member_kicked")) {
@@ -3310,6 +3309,30 @@ export default function Home() {
       "-"
     );
   }
+  const supportEventRows = useMemo(() => {
+    const filtered = supportGroupEvents.filter((item) => {
+      if (supportTab === "joined") return item.event_type === "support_joined";
+      if (supportTab === "left") return item.event_type === "support_left";
+      if (supportTab === "muted") return item.event_type === "member_muted";
+      if (supportTab === "kicked") return item.event_type === "member_kicked";
+      return true;
+    });
+    return filtered.map((item) => [
+      supportEventLabel(item.event_type),
+      supportCustomerName(item),
+      item.telegram_user_id || "-",
+      item.chat_title || item.chat_id || "-",
+      dateText(item.created_at),
+      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
+    ]);
+  }, [supportGroupEvents, supportTab, customerNameById, supportNameById]);
+  const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
+  const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
+  const pagedSupportRows = useMemo(() => {
+    const safePage = Math.min(supportPage, totalSupportPages);
+    const start = (safePage - 1) * SUPPORT_PAGE_SIZE;
+    return supportEventRows.slice(start, start + SUPPORT_PAGE_SIZE);
+  }, [supportEventRows, supportPage, totalSupportPages]);
   const renewalRows = useMemo(() => {
     const rows: Record<RenewalSubTab, ReactNode[][]> = {
       soon: expiringSoon.map((item) => {
@@ -3408,32 +3431,6 @@ export default function Home() {
     const start = (safePage - 1) * RENEWAL_PAGE_SIZE;
     return currentRenewalRows.slice(start, start + RENEWAL_PAGE_SIZE);
   }, [currentRenewalRows, renewalPage, totalRenewalPages]);
-  const supportEventRows = useMemo(() => {
-    const filtered = supportGroupEvents.filter((item) => {
-      if (supportTab === "joined") return item.event_type === "support_joined";
-      if (supportTab === "left") return item.event_type === "support_left";
-      if (supportTab === "muted") return item.event_type === "member_muted";
-      if (supportTab === "kicked") return item.event_type === "member_kicked";
-      return true;
-    });
-    return filtered.map((item) => [
-      supportEventLabel(item.event_type),
-      supportCustomerName(item),
-      item.telegram_user_id || "-",
-      item.chat_title || item.chat_id || "-",
-      dateText(item.created_at),
-      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
-    ]);
-  }, [supportGroupEvents, supportTab, customerNameById, supportNameById]);
-  const supportEventHeaders = useMemo(() => {
-    return ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"];
-  }, [supportTab]);
-  const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
-  const pagedSupportRows = useMemo(() => {
-    const safePage = Math.min(supportPage, totalSupportPages);
-    const start = (safePage - 1) * SUPPORT_PAGE_SIZE;
-    return supportEventRows.slice(start, start + SUPPORT_PAGE_SIZE);
-  }, [supportEventRows, supportPage, totalSupportPages]);
   const logEntries = useMemo(() => {
     const privateActivityEvents = activityEvents.filter((event) => {
       const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
@@ -4243,7 +4240,7 @@ export default function Home() {
               <Metric label="Hết hạn hôm nay" value={String(expiringToday.length)} />
               <Metric label="Sắp hết hạn" value={String(expiringSoon.length)} />
               <Metric label="Đã nhắc hôm nay" value={String(renewalReminderEvents.filter((item) => isTodayDate(item.created_at)).length || remindedToday.length)} />
-              <Metric label="Đã kick hôm nay" value={String(supportKickedToday.length)} />
+              <Metric label="Đã kick hôm nay" value={String(uniqueKickedEvents.filter((item) => isTodayDate(item.created_at)).length)} />
               <Metric label="Cần kiểm tra kick" value={String(kickAudit.filter((item) => item.needs_action).length)} />
             </div>
             <section className="panel">
@@ -4290,9 +4287,9 @@ export default function Home() {
               <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} />
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} />
               <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} />
-              <Metric label="Kick hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_kicked").length)} />
+              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} />
               <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} />
-              <Metric label="Group hỗ trợ" value={supportCheck?.group_name || getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} />
+              <Metric label="Group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} />
             </div>
             <section className="panel">
               <PanelHead
@@ -5211,10 +5208,6 @@ export default function Home() {
 
         {renewalSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt gia hạn" subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên." fields={RENEWAL_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setRenewalSettingsOpen(false)} />
-        ) : null}
-
-        {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt group hỗ trợ" subtitle="Quản lý link join support, bật/tắt mute khi hết hạn và số ngày giữ mute trước khi kick." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
