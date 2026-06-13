@@ -3250,6 +3250,41 @@ export default function Home() {
       return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
     });
   }, [selectedCustomer]);
+  const selectedCustomerActiveGroups = useMemo(() => {
+    if (!selectedCustomer) return [];
+    return uniqueValues(selectedCustomer.activeOrders.flatMap(groupNamesForOrder)).sort((a, b) => a.localeCompare(b));
+  }, [selectedCustomer]);
+  const selectedCustomerSupportEvents = useMemo(() => {
+    if (!selectedCustomer) return [];
+    return supportEvents
+      .filter((item) => String(item.telegram_user_id || "").trim() === selectedCustomer.id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [selectedCustomer, supportEvents]);
+  const selectedCustomerTimelineRows = useMemo(() => {
+    return selectedCustomerSupportEvents.map((item) => {
+      const detailParts = [
+        item.order_id ? `Đơn ${item.order_id}` : "",
+        item.plan_name || "",
+        item.raw_data?.reason ? String(item.raw_data.reason) : "",
+      ].filter(Boolean);
+      return [
+        <span key={`event-${item.id}`} className={statusClass(item.event_type)}>{supportEventLabel(item.event_type)}</span>,
+        <><strong>{item.chat_title || item.chat_id || "-"}</strong><div className="muted">{item.chat_id || "-"}</div></>,
+        item.order_id || "-",
+        dateText(item.created_at),
+        detailParts.join(" • ") || "-",
+      ];
+    });
+  }, [selectedCustomerSupportEvents]);
+  const selectedCustomerTimelineCounts = useMemo(() => {
+    return {
+      total: selectedCustomerSupportEvents.length,
+      joined: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length,
+      left: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_left").length,
+      muted: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_muted").length,
+      kicked: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_kicked").length,
+    };
+  }, [selectedCustomerSupportEvents]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
@@ -5356,6 +5391,34 @@ export default function Home() {
                   {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
                   {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
                 </div>
+                <div className="grid">
+                  <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
+                  <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
+                  <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
+                  <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
+                </div>
+                {selectedCustomerActiveGroups.length ? (
+                  <section className="panel nested-panel">
+                    <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
+                    <div className="tag-list">
+                      {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
+                    </div>
+                  </section>
+                ) : null}
+                <section className="panel nested-panel">
+                  <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+                  <div className="subtabs customer-order-tabs">
+                    <button className="active">Tất cả ({selectedCustomerTimelineCounts.total})</button>
+                    <button className={selectedCustomerTimelineCounts.joined ? "active" : ""}>Join ({selectedCustomerTimelineCounts.joined})</button>
+                    <button className={selectedCustomerTimelineCounts.left ? "active" : ""}>Left ({selectedCustomerTimelineCounts.left})</button>
+                    <button className={selectedCustomerTimelineCounts.muted ? "active" : ""}>Mute ({selectedCustomerTimelineCounts.muted})</button>
+                    <button className={selectedCustomerTimelineCounts.kicked ? "active" : ""}>Kick ({selectedCustomerTimelineCounts.kicked})</button>
+                  </div>
+                  <SimpleTable
+                    headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
+                    rows={selectedCustomerTimelineRows.slice(0, 12)}
+                  />
+                </section>
                 <div className="subtabs customer-order-tabs">
                   <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
                   <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
