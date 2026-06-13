@@ -127,6 +127,28 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
         "full_name": context.get("full_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": context.get("expire_at", ""),
+        "links_text": context.get("links_text", ""),
+        "support_group_name": context.get("support_group_name", ""),
+        "support_link": context.get("support_link", ""),
+        "support_error": context.get("support_error", ""),
+    }
+    for key, value in values.items():
+        text = text.replace(f"{{{key}}}", str(value or ""))
+    return text.strip()
+
+
+def render_manual_order_message_text(template: str, context: dict[str, object]):
+    text = str(template or "").strip()
+    if not text:
+        text = "{links_text}\n{support_text}"
+    values = {
+        "order_id": context.get("order_id", ""),
+        "telegram_user_id": context.get("telegram_user_id", ""),
+        "full_name": context.get("full_name", ""),
+        "plan_name": context.get("plan_name", ""),
+        "expire_at": context.get("expire_at", ""),
+        "links_text": context.get("links_text", ""),
+        "support_text": context.get("support_text", ""),
         "support_group_name": context.get("support_group_name", ""),
         "support_link": context.get("support_link", ""),
         "support_error": context.get("support_error", ""),
@@ -702,6 +724,10 @@ async def admin_create_manual_order(request: Request):
         "MANUAL_ORDER_SUPPORT_TEMPLATE",
         "💬 {support_group_name}:\n{support_link}",
     ) or "").strip()
+    message_template = str(db.get_config(
+        "MANUAL_ORDER_MESSAGE_TEMPLATE",
+        "{links_text}\n{support_text}",
+    ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
         telegram_user_id=telegram_user_id,
@@ -780,6 +806,18 @@ async def admin_create_manual_order(request: Request):
             "support_link": support_link,
             "support_error": support_error,
             "support_text": support_text,
+            "manual_order_text": render_manual_order_message_text(message_template, {
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "full_name": full_name or telegram_user_id,
+                "plan_name": plan_name,
+                "expire_at": expire_at.isoformat(timespec="seconds"),
+                "links_text": links_text,
+                "support_text": support_text,
+                "support_group_name": support_group_name(),
+                "support_link": support_link,
+                "support_error": support_error,
+            }),
             "failed_groups": failed_groups,
         }
     }

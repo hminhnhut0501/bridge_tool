@@ -305,6 +305,7 @@ export type ManualOrderResult = {
   support_link: string | null;
   support_error: string;
   support_text: string;
+  manual_order_text: string;
 };
 
 export type HiddenGroup = {

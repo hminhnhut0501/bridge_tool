@@ -804,10 +804,17 @@ const SUPPORT_FIELDS: ConfigField[] = [
 
 const ORDER_FIELDS: ConfigField[] = [
   {
+    key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
+    label: "Template nội dung gen link đơn thủ công",
+    placeholder: "{links_text}\\n{support_text}",
+    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {links_text}, {support_text}, {support_group_name}, {support_link}, {support_error}.",
+    kind: "textarea",
+  },
+  {
     key: "MANUAL_ORDER_SUPPORT_TEMPLATE",
     label: "Template tin nhắn đơn thủ công",
     placeholder: "💬 {support_group_name}:\\n{support_link}",
-    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {support_group_name}, {support_link}, {support_error}.",
+    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {links_text}, {support_group_name}, {support_link}, {support_error}.",
     kind: "textarea",
   },
 ];
@@ -2069,9 +2076,9 @@ export default function Home() {
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
-  const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
+  const [orderSettingsOpen, setOrderSettingsOpen] = useState(false);
   const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
@@ -3680,16 +3687,7 @@ export default function Home() {
 
   async function copyManualLinks() {
     if (!manualOrderResult) return;
-    const text = [
-      `Đơn thủ công: ${manualOrderResult.order_id}`,
-      `Telegram ID: ${manualOrderResult.telegram_user_id}`,
-      `Gói: ${manualOrderResult.plan_name}`,
-      `Hạn sử dụng: ${dateText(manualOrderResult.expire_at)}`,
-      "",
-      stripHtml(manualOrderResult.links_text),
-      manualOrderResult.support_text,
-    ].filter(Boolean).join("\n");
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""));
     showNotice("ok", "Đã copy link đơn thủ công.");
   }
 
@@ -4013,18 +4011,15 @@ export default function Home() {
               <PanelHead
                 title="Thêm đơn thủ công"
                 subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link."
-                action={<button className="btn" onClick={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}><Plus size={18} /> Mở form tạo đơn</button>}
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => setOrderSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                    <button className="btn" onClick={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}><Plus size={18} /> Mở form tạo đơn</button>
+                  </div>
+                }
               />
               <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
             </section>
-            <ConfigEditor
-              title="Template tin nhắn đơn thủ công"
-              subtitle="Dùng để chỉnh nội dung support/link đi kèm khi tạo đơn thủ công."
-              fields={ORDER_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
             <section className="panel">
               <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
               <div className="toolbar orders-toolbar">
@@ -4350,7 +4345,6 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn dữ liệu VIP."
                 action={
                   <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => setSupportSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
                     <button className="btn" onClick={runSupportGroupCheck} disabled={saving === "support-check"}>{saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra</button>
                   </div>
                 }
@@ -5271,6 +5265,18 @@ export default function Home() {
           <SettingsConfigModal title="Cài đặt hệ thống" subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render." fields={SYSTEM_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSystemSettingsOpen(false)} />
         ) : null}
 
+        {orderSettingsOpen ? (
+          <SettingsConfigModal
+            title="Cài đặt đơn thủ công"
+            subtitle="Chỉnh template nội dung gen link và nội dung hỗ trợ đi kèm cho đơn thủ công."
+            fields={ORDER_FIELDS}
+            values={fieldValues}
+            setValues={setFieldValues}
+            onSave={saveFields}
+            onClose={() => setOrderSettingsOpen(false)}
+          />
+        ) : null}
+
         {manualOrderModalOpen ? (
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <section className="modal-panel wide-modal">
@@ -5347,15 +5353,8 @@ export default function Home() {
                     <label className="field wide">
                       <span>Link đã tạo</span>
                       <textarea readOnly value={[
-                        `Order: ${manualOrderResult.order_id}`,
-                        `Gói: ${manualOrderResult.plan_name}`,
-                        `Tiền tệ: ${currencyLabel(manualOrderResult.payment_currency || manualOrderForm.payment_currency)}`,
-                        `Phương thức: ${providerLabel(manualOrderResult.payment_provider || manualOrderForm.payment_provider)}`,
-                        `Hết hạn: ${dateText(manualOrderResult.expire_at)}`,
-                        "",
-                        stripHtml(manualOrderResult.links_text),
-                        manualOrderResult.support_text,
-                      ].filter(Boolean).join("\n")} />
+                        stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""),
+                      ].join("\n")} />
                   </label>
                   <div className="field wide">
                     <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
