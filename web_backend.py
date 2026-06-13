@@ -762,7 +762,7 @@ async def admin_create_manual_order(request: Request):
             "telegram_user_id": telegram_user_id,
             "full_name": full_name,
             "plan_name": plan_name,
-            "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
+            "expire_at": expire_at.isoformat(timespec="seconds"),
             "support_group_name": support_group_name(),
             "support_link": support_link,
             "support_error": "",
