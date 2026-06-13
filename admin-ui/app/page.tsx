@@ -115,6 +115,7 @@ type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
 type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
+type CustomerDetailTab = "orders" | "groups" | "timeline";
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained" | "vipOut";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
@@ -2057,8 +2058,8 @@ export default function Home() {
   const [customerPlanKind, setCustomerPlanKind] = useState("ALL");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
-  const [customerTraceOpen, setCustomerTraceOpen] = useState(false);
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -4014,7 +4015,7 @@ export default function Home() {
                 subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link."
                 action={
                   <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => setOrderSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                  <button className="btn secondary" onClick={() => setOrderSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
                     <button className="btn" onClick={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}><Plus size={18} /> Mở form tạo đơn</button>
                   </div>
                 }
@@ -4100,6 +4101,7 @@ export default function Home() {
                     const customer = pagedCustomers[idx];
                     setSelectedCustomerId(customer.id);
                     setCustomerOrderTab("all");
+                    setCustomerDetailTab("orders");
                     setCustomerModalOpen(true);
                   }}>Chi tiết</button>
                 )}
@@ -5368,65 +5370,67 @@ export default function Home() {
         ) : null}
 
         {customerModalOpen && selectedCustomer ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel customer-modal">
-              <PanelHead
-                title={selectedCustomer.name}
-                subtitle={`Telegram ID: ${selectedCustomer.id}`}
-                action={
-                  <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => setCustomerTraceOpen((value) => !value)}>
-                      <Eye size={16} /> {customerTraceOpen ? "Ẩn nhóm" : "Xem nhóm"}
-                    </button>
-                    <button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>
-                  </div>
-                }
-              />
-              <div className="customer-detail modal-content">
-                <div className="customer-head">
+          <div className="modal-backdrop customer-sidebar-backdrop" role="dialog" aria-modal="true">
+            <section className="modal-panel customer-sidebar-panel">
+              <aside className="customer-sidebar-nav">
+                <PanelHead
+                  title={selectedCustomer.name}
+                  subtitle={`Telegram ID: ${selectedCustomer.id}`}
+                  action={<button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                />
+                <div className="customer-sidebar-summary">
                   <span className={selectedCustomer.activeOrders.length ? "status paid" : selectedCustomer.expiringWithinWindow ? "status warning" : selectedCustomer.hasLifetimeOrder ? "status badge-lifetime" : "status expired"}>
                     {selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
                   </span>
+                  <div className="customer-sidebar-meta">
+                    <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
+                    <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
+                    <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
+                    <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
+                  </div>
+                  <div className="customer-tags">
+                    {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
+                    {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
+                  </div>
                 </div>
-                <div className="customer-facts">
-                  <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
-                  <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
-                  <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
-                  <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
+                <div className="customer-sidebar-tabs">
+                  <button className={customerDetailTab === "orders" ? "active" : ""} onClick={() => setCustomerDetailTab("orders")}>Đơn hàng</button>
+                  <button className={customerDetailTab === "groups" ? "active" : ""} onClick={() => setCustomerDetailTab("groups")}>Nhóm</button>
+                  <button className={customerDetailTab === "timeline" ? "active" : ""} onClick={() => setCustomerDetailTab("timeline")}>Theo dõi</button>
                 </div>
-                <div className="customer-tags">
-                  {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
-                  {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
-                </div>
-                <div className="subtabs customer-order-tabs">
-                  <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
-                  <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
-                  <button className={customerOrderTab === "expiring" ? "active" : ""} onClick={() => setCustomerOrderTab("expiring")}>Sắp hết hạn ({selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})</button>
-                  <button className={customerOrderTab === "lifetime" ? "active" : ""} onClick={() => setCustomerOrderTab("lifetime")}>Trọn đời ({selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})</button>
-                  <button className={customerOrderTab === "paid" ? "active" : ""} onClick={() => setCustomerOrderTab("paid")}>PAID ({selectedCustomerOrders.filter((item) => item.status === "PAID").length})</button>
-                  <button className={customerOrderTab === "expired" ? "active" : ""} onClick={() => setCustomerOrderTab("expired")}>Expired ({selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})</button>
-                </div>
-                <CustomerOrdersTable
-                  orders={selectedCustomerOrders.filter((item) => {
-                    if (customerOrderTab === "active") return isOrderActive(item);
-                    if (customerOrderTab === "expiring") return !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays;
-                    if (customerOrderTab === "lifetime") return isLifetimeText(item.plan_name);
-                    if (customerOrderTab === "paid") return item.status === "PAID";
-                    if (customerOrderTab === "expired") return item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name));
-                    return true;
-                  })}
-                  saving={saving}
-                  onExpireChange={changeOrderExpire}
-                  onPlanChange={changeOrderPlan}
-                  onStatusChange={changeOrderStatus}
-                />
-                {customerTraceOpen ? (
+              </aside>
+              <section className="customer-sidebar-content">
+                {customerDetailTab === "orders" ? (
+                  <>
+                    <div className="subtabs customer-order-tabs">
+                      <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
+                      <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
+                      <button className={customerOrderTab === "expiring" ? "active" : ""} onClick={() => setCustomerOrderTab("expiring")}>Sắp hết hạn ({selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})</button>
+                      <button className={customerOrderTab === "lifetime" ? "active" : ""} onClick={() => setCustomerOrderTab("lifetime")}>Trọn đời ({selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})</button>
+                      <button className={customerOrderTab === "paid" ? "active" : ""} onClick={() => setCustomerOrderTab("paid")}>PAID ({selectedCustomerOrders.filter((item) => item.status === "PAID").length})</button>
+                      <button className={customerOrderTab === "expired" ? "active" : ""} onClick={() => setCustomerOrderTab("expired")}>Expired ({selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})</button>
+                    </div>
+                    <CustomerOrdersTable
+                      orders={selectedCustomerOrders.filter((item) => {
+                        if (customerOrderTab === "active") return isOrderActive(item);
+                        if (customerOrderTab === "expiring") return !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays;
+                        if (customerOrderTab === "lifetime") return isLifetimeText(item.plan_name);
+                        if (customerOrderTab === "paid") return item.status === "PAID";
+                        if (customerOrderTab === "expired") return item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name));
+                        return true;
+                      })}
+                      saving={saving}
+                      onExpireChange={changeOrderExpire}
+                      onPlanChange={changeOrderPlan}
+                      onStatusChange={changeOrderStatus}
+                    />
+                  </>
+                ) : null}
+                {customerDetailTab === "groups" ? (
                   <>
                     <div className="grid">
                       <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
                       <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
-                      <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
-                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
                     </div>
                     {selectedCustomerActiveGroups.length ? (
                       <section className="panel nested-panel">
@@ -5435,16 +5439,19 @@ export default function Home() {
                           {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
                         </div>
                       </section>
-                    ) : null}
+                    ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
+                  </>
+                ) : null}
+                {customerDetailTab === "timeline" ? (
+                  <>
+                    <div className="grid">
+                      <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
+                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} />
+                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} />
+                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
+                    </div>
                     <section className="panel nested-panel">
                       <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
-                      <div className="subtabs customer-order-tabs">
-                        <button className="active">Tất cả ({selectedCustomerTimelineCounts.total})</button>
-                        <button className={selectedCustomerTimelineCounts.joined ? "active" : ""}>Join ({selectedCustomerTimelineCounts.joined})</button>
-                        <button className={selectedCustomerTimelineCounts.left ? "active" : ""}>Left ({selectedCustomerTimelineCounts.left})</button>
-                        <button className={selectedCustomerTimelineCounts.muted ? "active" : ""}>Mute ({selectedCustomerTimelineCounts.muted})</button>
-                        <button className={selectedCustomerTimelineCounts.kicked ? "active" : ""}>Kick ({selectedCustomerTimelineCounts.kicked})</button>
-                      </div>
                       <SimpleTable
                         headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
                         rows={selectedCustomerTimelineRows.slice(0, 12)}
@@ -5452,7 +5459,7 @@ export default function Home() {
                     </section>
                   </>
                 ) : null}
-              </div>
+              </section>
             </section>
           </div>
         ) : null}
