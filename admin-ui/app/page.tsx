@@ -5416,7 +5416,7 @@ export default function Home() {
                 <PanelHead
                   title={selectedCustomer.name}
                   subtitle={`Telegram ID: ${selectedCustomer.id}`}
-                  action={<button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                  action={<button className="icon-danger customer-close-btn" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
                 />
                 <div className="customer-sidebar-summary">
                   <span className={selectedCustomer.activeOrders.length ? "status paid" : selectedCustomer.expiringWithinWindow ? "status warning" : selectedCustomer.hasLifetimeOrder ? "status badge-lifetime" : "status expired"}>

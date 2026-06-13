@@ -994,7 +994,14 @@ td select {
 }
 
 .customer-sidebar-nav > .panel-head {
+  position: relative;
   border-bottom: 1px solid var(--line);
+}
+
+.customer-sidebar-nav > .panel-head .customer-close-btn {
+  position: absolute;
+  right: 16px;
+  top: 16px;
 }
 
 .customer-sidebar-summary {
