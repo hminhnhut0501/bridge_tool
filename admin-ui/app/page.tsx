@@ -116,6 +116,14 @@ type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
 type CustomerDetailTab = "orders" | "groups" | "timeline";
+type CustomerTraceEvent = {
+  key: string;
+  type: string;
+  group: string;
+  order: string;
+  createdAt: string;
+  detail: string;
+};
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained" | "vipOut";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
@@ -3270,30 +3278,62 @@ export default function Home() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [selectedCustomer, supportEvents]);
   const selectedCustomerTimelineRows = useMemo(() => {
-    return selectedCustomerSupportEvents.map((item) => {
-      const detailParts = [
-        item.order_id ? `Đơn ${item.order_id}` : "",
+    if (!selectedCustomer) return [];
+    const customerId = selectedCustomer.id;
+    const supportTrace: CustomerTraceEvent[] = selectedCustomerSupportEvents.map((item) => ({
+      key: `support-${item.id}`,
+      type: supportEventLabel(item.event_type),
+      group: item.chat_title || item.chat_id || "-",
+      order: item.order_id || "-",
+      createdAt: item.created_at,
+      detail: [
         item.plan_name || "",
         item.raw_data?.reason ? String(item.raw_data.reason) : "",
-      ].filter(Boolean);
-      return [
-        <span key={`event-${item.id}`} className={statusClass(item.event_type)}>{supportEventLabel(item.event_type)}</span>,
-        <><strong>{item.chat_title || item.chat_id || "-"}</strong><div className="muted">{item.chat_id || "-"}</div></>,
-        item.order_id || "-",
-        dateText(item.created_at),
-        detailParts.join(" • ") || "-",
-      ];
-    });
-  }, [selectedCustomerSupportEvents]);
+      ].filter(Boolean).join(" • ") || "-",
+    }));
+
+    const kickTrace: CustomerTraceEvent[] = kickAudit
+      .filter((item) => String(item.telegram_user_id || "").trim() === customerId)
+      .map((item) => ({
+        key: `kick-${item.audit_id}`,
+        type: item.status_label || item.status,
+        group: item.group_name || item.group_id || "-",
+        order: item.order_id || "-",
+        createdAt: item.latest_kick_at || item.expire_at || "",
+        detail: kickAuditReason(item),
+      }));
+
+    const vipTrace: CustomerTraceEvent[] = vipGroupAudit
+      .filter((item) => String(item.telegram_user_id || "").trim() === customerId)
+      .map((item) => ({
+        key: `vip-${item.audit_id}`,
+        type: item.status_label || item.status,
+        group: item.group_name || item.group_id || "-",
+        order: item.order_id || "-",
+        createdAt: item.latest_kick_at || item.expire_at || "",
+        detail: item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-",
+      }));
+
+    return [...supportTrace, ...kickTrace, ...vipTrace]
+      .filter((item) => item.createdAt)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map((item) => [
+        <span key={`${item.key}-type`} className={statusClass(item.type)}>{item.type}</span>,
+        <><strong>{item.group}</strong><div className="muted">{item.order}</div></>,
+        item.order,
+        dateText(item.createdAt),
+        item.detail,
+      ]);
+  }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit]);
   const selectedCustomerTimelineCounts = useMemo(() => {
     return {
-      total: selectedCustomerSupportEvents.length,
+      total: selectedCustomerTimelineRows.length,
       joined: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length,
       left: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_left").length,
       muted: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_muted").length,
       kicked: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_kicked").length,
     };
-  }, [selectedCustomerSupportEvents]);
+  }, [selectedCustomerSupportEvents, selectedCustomerTimelineRows]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
