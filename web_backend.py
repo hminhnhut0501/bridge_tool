@@ -117,6 +117,13 @@ def parse_manual_expire_at(value: str | None):
     return parsed.astimezone(backend_timezone())
 
 
+def format_manual_expire_at(value: str | None):
+    parsed = parse_manual_expire_at(value)
+    if not parsed:
+        return str(value or "").strip()
+    return parsed.strftime("%H:%M %d/%m/%y")
+
+
 def render_manual_order_support_text(template: str, context: dict[str, object]):
     text = str(template or "").strip()
     if not text:
@@ -126,7 +133,7 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
         "plan_name": context.get("plan_name", ""),
-        "expire_at": context.get("expire_at", ""),
+        "expire_at": format_manual_expire_at(context.get("expire_at", "")),
         "links_text": context.get("links_text", ""),
         "support_group_name": context.get("support_group_name", ""),
         "support_link": context.get("support_link", ""),
@@ -146,7 +153,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
         "plan_name": context.get("plan_name", ""),
-        "expire_at": context.get("expire_at", ""),
+        "expire_at": format_manual_expire_at(context.get("expire_at", "")),
         "links_text": context.get("links_text", ""),
         "support_text": context.get("support_text", ""),
         "support_group_name": context.get("support_group_name", ""),
@@ -755,7 +762,7 @@ async def admin_create_manual_order(request: Request):
             "telegram_user_id": telegram_user_id,
             "full_name": full_name,
             "plan_name": plan_name,
-            "expire_at": expire_at.isoformat(timespec="seconds"),
+            "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
             "support_group_name": support_group_name(),
             "support_link": support_link,
             "support_error": "",
@@ -796,7 +803,7 @@ async def admin_create_manual_order(request: Request):
             "payment_currency": payment_currency,
             "payment_provider": payment_provider,
             "paid_at": paid_at.isoformat(timespec="seconds"),
-            "expire_at": expire_at.isoformat(timespec="seconds"),
+            "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
             "group_names": group_names,
             "links_text": links_text,
             "support_link": support_link,
