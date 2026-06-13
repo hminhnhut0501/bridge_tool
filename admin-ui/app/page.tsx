@@ -2058,6 +2058,7 @@ export default function Home() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
+  const [customerTraceOpen, setCustomerTraceOpen] = useState(false);
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -5372,7 +5373,14 @@ export default function Home() {
               <PanelHead
                 title={selectedCustomer.name}
                 subtitle={`Telegram ID: ${selectedCustomer.id}`}
-                action={<button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={() => setCustomerTraceOpen((value) => !value)}>
+                      <Eye size={16} /> {customerTraceOpen ? "Ẩn nhóm" : "Xem nhóm"}
+                    </button>
+                    <button className="icon-danger" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>
+                  </div>
+                }
               />
               <div className="customer-detail modal-content">
                 <div className="customer-head">
@@ -5390,34 +5398,6 @@ export default function Home() {
                   {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
                   {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
                 </div>
-                <div className="grid">
-                  <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
-                  <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
-                  <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
-                  <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
-                </div>
-                {selectedCustomerActiveGroups.length ? (
-                  <section className="panel nested-panel">
-                    <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
-                    <div className="tag-list">
-                      {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
-                    </div>
-                  </section>
-                ) : null}
-                <section className="panel nested-panel">
-                  <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
-                  <div className="subtabs customer-order-tabs">
-                    <button className="active">Tất cả ({selectedCustomerTimelineCounts.total})</button>
-                    <button className={selectedCustomerTimelineCounts.joined ? "active" : ""}>Join ({selectedCustomerTimelineCounts.joined})</button>
-                    <button className={selectedCustomerTimelineCounts.left ? "active" : ""}>Left ({selectedCustomerTimelineCounts.left})</button>
-                    <button className={selectedCustomerTimelineCounts.muted ? "active" : ""}>Mute ({selectedCustomerTimelineCounts.muted})</button>
-                    <button className={selectedCustomerTimelineCounts.kicked ? "active" : ""}>Kick ({selectedCustomerTimelineCounts.kicked})</button>
-                  </div>
-                  <SimpleTable
-                    headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
-                    rows={selectedCustomerTimelineRows.slice(0, 12)}
-                  />
-                </section>
                 <div className="subtabs customer-order-tabs">
                   <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
                   <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
@@ -5440,6 +5420,38 @@ export default function Home() {
                   onPlanChange={changeOrderPlan}
                   onStatusChange={changeOrderStatus}
                 />
+                {customerTraceOpen ? (
+                  <>
+                    <div className="grid">
+                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
+                      <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
+                      <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
+                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
+                    </div>
+                    {selectedCustomerActiveGroups.length ? (
+                      <section className="panel nested-panel">
+                        <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
+                        <div className="tag-list">
+                          {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
+                        </div>
+                      </section>
+                    ) : null}
+                    <section className="panel nested-panel">
+                      <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+                      <div className="subtabs customer-order-tabs">
+                        <button className="active">Tất cả ({selectedCustomerTimelineCounts.total})</button>
+                        <button className={selectedCustomerTimelineCounts.joined ? "active" : ""}>Join ({selectedCustomerTimelineCounts.joined})</button>
+                        <button className={selectedCustomerTimelineCounts.left ? "active" : ""}>Left ({selectedCustomerTimelineCounts.left})</button>
+                        <button className={selectedCustomerTimelineCounts.muted ? "active" : ""}>Mute ({selectedCustomerTimelineCounts.muted})</button>
+                        <button className={selectedCustomerTimelineCounts.kicked ? "active" : ""}>Kick ({selectedCustomerTimelineCounts.kicked})</button>
+                      </div>
+                      <SimpleTable
+                        headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
+                        rows={selectedCustomerTimelineRows.slice(0, 12)}
+                      />
+                    </section>
+                  </>
+                ) : null}
               </div>
             </section>
           </div>
