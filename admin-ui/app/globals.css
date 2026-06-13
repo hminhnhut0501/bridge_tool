@@ -968,17 +968,19 @@ td select {
 }
 
 .customer-sidebar-backdrop {
-  padding: 0;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 
 .customer-sidebar-panel {
-  border-radius: 0;
+  border-radius: 12px;
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
-  height: 100vh;
-  max-height: none;
-  max-width: none;
+  height: calc(100vh - 48px);
+  max-height: calc(100vh - 48px);
+  max-width: 1540px;
+  overflow: hidden;
   width: min(100%, 1540px);
 }
 
