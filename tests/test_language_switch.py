@@ -12,8 +12,8 @@ def test_language_switch_toggle_hides_automatic_and_menu_builder_buttons(monkeyp
     values = {"LANGUAGE_SWITCH_ENABLED": "OFF"}
     monkeypatch.setattr(mod_engine.db, "get_config", lambda key, default="": values.get(key, default))
 
-    assert not mod_engine.menu_action_enabled("set_lang:en")
-    assert not mod_engine.menu_action_enabled("set_lang:vi")
+    assert mod_engine.menu_action_enabled("set_lang:en")
+    assert mod_engine.menu_action_enabled("set_lang:vi")
     assert not mod_engine.should_add_language_switch("main_menu", "")
 
 

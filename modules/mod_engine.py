@@ -84,8 +84,6 @@ def menu_action_enabled(action):
     coupon_actions = {"coupon_enter", "coupon_code", "redeem_code"}
     if action in coupon_actions and not config_enabled("COUPON_MENU_ENABLED", "OFF"):
         return False
-    if action.startswith("set_lang:") and not config_enabled("LANGUAGE_SWITCH_ENABLED", "ON"):
-        return False
     return True
 
 def valid_callback_data(action):

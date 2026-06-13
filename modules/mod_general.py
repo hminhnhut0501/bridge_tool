@@ -11,13 +11,23 @@ from bot_instance import bot
 from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
-from i18n import set_user_language, t
+from i18n import get_user_language, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 
 router = Router()
+
+
+def language_switch_keyboard(current_language):
+    kb = InlineKeyboardBuilder()
+    if current_language == "en":
+        kb.row(InlineKeyboardButton(text="🇻🇳 Tiếng Việt", callback_data="set_lang:vi"))
+    else:
+        kb.row(InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang:en"))
+    kb.row(InlineKeyboardButton(text="🏠 Main menu", callback_data="back_main"))
+    return kb.as_markup()
 
 def format_membership_expire(value, user_id=None):
     raw = str(value or "").strip()
@@ -139,6 +149,26 @@ async def cmd_start(message: Message):
     if await send_sale_announcement(message):
         return
     await render_page(message, "main_menu")
+
+@router.message(Command("menu"))
+@router.message(Command("home"))
+async def cmd_menu(message: Message):
+    if not await check_protection(message): return
+    db.reload_config(force=True)
+    await cleanup_welcome(message.from_user.id, message.chat.id)
+    await render_page(message, "main_menu")
+
+@router.message(Command("lang"))
+@router.message(Command("language"))
+async def cmd_language(message: Message):
+    if not await check_protection(message): return
+    current_language = get_user_language(message.from_user.id)
+    text = (
+        "Choose your language and I’ll bring you back to the main menu."
+        if current_language == "en"
+        else "Chọn ngôn ngữ để quay lại menu chính."
+    )
+    await message.answer(text, reply_markup=language_switch_keyboard(current_language))
 
 @router.callback_query(F.data == "back_main")
 async def back_to_main(callback: CallbackQuery):
