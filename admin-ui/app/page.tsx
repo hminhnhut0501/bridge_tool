@@ -815,15 +815,8 @@ const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
     label: "Template nội dung gen link đơn thủ công",
-    placeholder: "{links_text}\\n{support_text}",
+    placeholder: "{links_text}\\n\\n{support_text}",
     help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {links_text}, {support_text}, {support_group_name}, {support_link}, {support_error}.",
-    kind: "textarea",
-  },
-  {
-    key: "MANUAL_ORDER_SUPPORT_TEMPLATE",
-    label: "Template tin nhắn đơn thủ công",
-    placeholder: "💬 {support_group_name}:\\n{support_link}",
-    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {links_text}, {support_group_name}, {support_link}, {support_error}.",
     kind: "textarea",
   },
 ];

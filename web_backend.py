@@ -720,10 +720,6 @@ async def admin_create_manual_order(request: Request):
     paid_at = now_local()
     order_id = str(int(time.time() * 1000))
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
-    support_template = str(db.get_config(
-        "MANUAL_ORDER_SUPPORT_TEMPLATE",
-        "💬 {support_group_name}:\n{support_link}",
-    ) or "").strip()
     message_template = str(db.get_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
         "{links_text}\n{support_text}",
@@ -754,7 +750,7 @@ async def admin_create_manual_order(request: Request):
     links_text, group_names, failed_groups = await build_invite_links(user_id, plan_name)
     support_link, support_error = await create_support_invite_link(user_id)
     if support_link:
-        support_text = render_manual_order_support_text(support_template, {
+        support_text = render_manual_order_support_text("", {
             "order_id": order_id,
             "telegram_user_id": telegram_user_id,
             "full_name": full_name,
