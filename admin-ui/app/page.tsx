@@ -800,6 +800,9 @@ const SUPPORT_FIELDS: ConfigField[] = [
     placeholder: "14",
     help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm trả phí.",
   },
+];
+
+const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_SUPPORT_TEMPLATE",
     label: "Template tin nhắn đơn thủ công",
@@ -2117,7 +2120,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     setFieldValues(nextValues);
@@ -3979,6 +3982,14 @@ export default function Home() {
               />
               <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
             </section>
+            <ConfigEditor
+              title="Template tin nhắn đơn thủ công"
+              subtitle="Dùng để chỉnh nội dung support/link đi kèm khi tạo đơn thủ công."
+              fields={ORDER_FIELDS}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
             <section className="panel">
               <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
               <div className="toolbar orders-toolbar">
