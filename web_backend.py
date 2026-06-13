@@ -117,6 +117,25 @@ def parse_manual_expire_at(value: str | None):
     return parsed.astimezone(backend_timezone())
 
 
+def render_manual_order_support_text(template: str, context: dict[str, object]):
+    text = str(template or "").strip()
+    if not text:
+        text = "💬 {support_group_name}:\n{support_link}"
+    values = {
+        "order_id": context.get("order_id", ""),
+        "telegram_user_id": context.get("telegram_user_id", ""),
+        "full_name": context.get("full_name", ""),
+        "plan_name": context.get("plan_name", ""),
+        "expire_at": context.get("expire_at", ""),
+        "support_group_name": context.get("support_group_name", ""),
+        "support_link": context.get("support_link", ""),
+        "support_error": context.get("support_error", ""),
+    }
+    for key, value in values.items():
+        text = text.replace(f"{{{key}}}", str(value or ""))
+    return text.strip()
+
+
 def normalize_chat_id(value):
     raw = str(value or "").strip()
     if raw.endswith(".0"):
@@ -679,6 +698,10 @@ async def admin_create_manual_order(request: Request):
     paid_at = now_local()
     order_id = str(int(time.time() * 1000))
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
+    support_template = str(db.get_config(
+        "MANUAL_ORDER_SUPPORT_TEMPLATE",
+        "💬 {support_group_name}:\n{support_link}",
+    ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
         telegram_user_id=telegram_user_id,
@@ -704,11 +727,21 @@ async def admin_create_manual_order(request: Request):
 
     links_text, group_names, failed_groups = await build_invite_links(user_id, plan_name)
     support_link, support_error = await create_support_invite_link(user_id)
-    support_text = ""
     if support_link:
-        support_text = f"💬 {support_group_name()}:\n{support_link}\n"
+        support_text = render_manual_order_support_text(support_template, {
+            "order_id": order_id,
+            "telegram_user_id": telegram_user_id,
+            "full_name": full_name,
+            "plan_name": plan_name,
+            "expire_at": expire_at.isoformat(timespec="seconds"),
+            "support_group_name": support_group_name(),
+            "support_link": support_link,
+            "support_error": "",
+        })
     elif support_error:
         support_text = f"💬 {support_group_name()}: Không tạo được link hỗ trợ ({support_error})"
+    else:
+        support_text = ""
 
     try:
         supabase_store.record_support_event(

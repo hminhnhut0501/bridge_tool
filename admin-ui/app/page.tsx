@@ -800,6 +800,13 @@ const SUPPORT_FIELDS: ConfigField[] = [
     placeholder: "14",
     help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm trả phí.",
   },
+  {
+    key: "MANUAL_ORDER_SUPPORT_TEMPLATE",
+    label: "Template tin nhắn đơn thủ công",
+    placeholder: "💬 {support_group_name}:\\n{support_link}",
+    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {support_group_name}, {support_link}, {support_error}.",
+    kind: "textarea",
+  },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
