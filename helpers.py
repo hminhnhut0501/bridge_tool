@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from aiogram.types import Message, CallbackQuery, InputMediaPhoto
 from aiogram.exceptions import TelegramBadRequest
 from aiogram import BaseMiddleware
@@ -22,6 +24,29 @@ def invalidate_channel_schedule_cache():
 
 def invalidate_bot_runtime_state_cache():
     return None
+
+
+def create_background_task(coro, *, name: str, context: str = ""):
+    task = asyncio.create_task(coro, name=name)
+
+    def _log_task_result(done_task: asyncio.Task):
+        try:
+            exc = done_task.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception as err:
+            logging.exception("❌ Task %s lỗi khi đọc kết quả: %s", name, err)
+            return
+        if exc:
+            logging.error(
+                "❌ Task nền %s%s crashed",
+                name,
+                f" ({context})" if context else "",
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+
+    task.add_done_callback(_log_task_result)
+    return task
 
 
 def configured_admin_ids():

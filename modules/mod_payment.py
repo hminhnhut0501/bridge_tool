@@ -21,7 +21,7 @@ from hidden_group_utils import (
 )
 from supabase_store import supabase_store
 
-from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message
+from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message, create_background_task
 from i18n import get_user_language, t
 from modules.mod_engine import render_page
 from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
@@ -539,7 +539,7 @@ async def process_early_renew(callback: CallbackQuery):
     await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
     await safe_delete_private_message(msg_wait)
     await safe_delete_private_message(callback.message)
-    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
+    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="renew_offer")
 
 @router.callback_query(F.data.startswith("group_"))
 async def view_group_detail(callback: CallbackQuery):
@@ -660,7 +660,7 @@ async def process_buy_request(callback: CallbackQuery):
         await safe_delete_private_message(msg_wait)
         await safe_delete_private_message(callback.message)
             
-        asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
+        create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="buy_request")
     else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
 
 
@@ -728,7 +728,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
     await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data)
     await safe_delete_private_message(msg_wait)
     await safe_delete_private_message(callback.message)
-    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
+    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="hidden_buy_request")
 
 
 @router.callback_query(F.data.startswith("couponbuy|") | F.data.startswith("paycoupon|"))
@@ -829,7 +829,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
     await safe_delete_private_message(msg_wait)
     await safe_delete_private_message(callback.message)
-    asyncio.create_task(auto_check_loop(order_id, callback.from_user.id))
+    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="coupon_buy_request")
 
 @router.callback_query(F.data.startswith("check_"))
 async def manual_check_payment(callback: CallbackQuery):

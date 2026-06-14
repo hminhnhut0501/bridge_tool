@@ -21,6 +21,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 from bot_instance import bot, dp, set_commands
 from database import db
 from analytics import setup_analytics
+from helpers import create_background_task
 
 # Import các hàm worker chạy ngầm từ các module
 # Lưu ý: Đảm bảo đường dẫn file chính xác theo cấu trúc của bạn
@@ -91,19 +92,19 @@ async def main():
     
     # 4. 🔥 KÍCH HOẠT CÁC TÁC VỤ CHẠY NGẦM (WORKERS)
     if maintenance_worker:
-        asyncio.create_task(maintenance_worker())
+        create_background_task(maintenance_worker(), name="maintenance_worker", context="main")
         print("🛠 [Worker] Đã kích hoạt Lao công (Maintenance)")
         
     if scheduler_worker:
-        asyncio.create_task(scheduler_worker())
+        create_background_task(scheduler_worker(), name="scheduler_worker", context="main")
         print("⏰ [Worker] Đã kích hoạt Scheduler (Quét hết hạn)")
 
     if coupon_cleanup_worker:
-        asyncio.create_task(coupon_cleanup_worker())
+        create_background_task(coupon_cleanup_worker(), name="coupon_cleanup_worker", context="main")
         print("🎟 [Worker] Đã kích hoạt Coupon Cleanup")
 
     if bot_runtime_worker:
-        asyncio.create_task(bot_runtime_worker())
+        create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="main")
         print("🧭 [Worker] Đã kích hoạt Bot Runtime State")
 
     print("🤖 Bot Hang Cu Privé+ đang sẵn sàng nhận lệnh...")

@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 
 from database import db, normalize_key
 from supabase_store import supabase_store
+from helpers import create_background_task
 
 USERS_HEADERS = [
     "User_ID",
@@ -699,7 +700,7 @@ def setup_analytics(dp):
     if _queue is None:
         _queue = asyncio.Queue(maxsize=1000)
     if _worker_task is None or _worker_task.done():
-        _worker_task = asyncio.create_task(_analytics_worker())
+        _worker_task = create_background_task(_analytics_worker(), name="analytics_worker", context="analytics")
 
     middleware = AnalyticsMiddleware()
     dp.message.outer_middleware(middleware)

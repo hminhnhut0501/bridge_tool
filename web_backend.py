@@ -24,6 +24,7 @@ from hidden_group_utils import (
     upsert_hidden_group,
 )
 from helpers import bot_schedule_status, bot_runtime_state_audit
+from helpers import create_background_task
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 from vip_group_audit_utils import build_vip_group_audit_rows
@@ -481,19 +482,19 @@ async def start_background_workers():
         bot_runtime_worker = None
 
     if maintenance_worker:
-        asyncio.create_task(maintenance_worker())
+        create_background_task(maintenance_worker(), name="maintenance_worker", context="web_backend")
     if scheduler_worker:
-        asyncio.create_task(scheduler_worker())
+        create_background_task(scheduler_worker(), name="scheduler_worker", context="web_backend")
     if binance_pay_polling_worker:
-        asyncio.create_task(binance_pay_polling_worker())
+        create_background_task(binance_pay_polling_worker(), name="binance_pay_polling_worker", context="web_backend")
     if coupon_cleanup_worker:
-        asyncio.create_task(coupon_cleanup_worker())
+        create_background_task(coupon_cleanup_worker(), name="coupon_cleanup_worker", context="web_backend")
     if campaign_worker:
-        asyncio.create_task(campaign_worker())
+        create_background_task(campaign_worker(), name="campaign_worker", context="web_backend")
     if channel_publisher_worker:
-        asyncio.create_task(channel_publisher_worker())
+        create_background_task(channel_publisher_worker(), name="channel_publisher_worker", context="web_backend")
     if bot_runtime_worker:
-        asyncio.create_task(bot_runtime_worker())
+        create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="web_backend")
 
 
 @app.on_event("startup")
