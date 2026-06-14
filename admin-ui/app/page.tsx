@@ -2708,6 +2708,57 @@ export default function Home() {
     return text;
   }
 
+  function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
+    if (!rows.length) {
+      showNotice("error", "Không có dòng nào để export.");
+      return;
+    }
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(","), ...rows.map((row) => headers.map((key) => escapeCsvCell(row[key])).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportOrdersCsv() {
+    const rows = filteredOrders.map((item) => ({
+      "Mã đơn": item.order_id || "-",
+      "Telegram ID": item.telegram_user_id || "-",
+      "Khách": item.full_name || "-",
+      "Gói": item.plan_name || "-",
+      "Số tiền": item.amount || 0,
+      "Trạng thái": item.status || "-",
+      "Thanh toán lúc": item.paid_at ? dateText(item.paid_at) : "-",
+      "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
+      "Sale ID": item.sale_id || "-",
+      "Coupon": item.coupon_code || "-",
+      "Cổng": item.payment_provider || "-",
+    }));
+    downloadCsv(`orders-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`, rows);
+  }
+
+  function exportCustomersCsv() {
+    const rows = filteredCustomers.map((item) => ({
+      "Telegram ID": item.id,
+      "Khách": item.name || "-",
+      "Trạng thái": item.activeOrders.length ? "Đang còn hạn" : item.expiringWithinWindow ? "Sắp hết hạn" : item.hasLifetimeOrder ? "Trọn đời" : item.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID",
+      "PAID": item.paidOrders.length,
+      "Active": item.activeOrders.length,
+      "Hạn gần nhất": item.latestExpire ? dateText(item.latestExpire) : "-",
+      "Doanh thu": ordersMoney(item.paidOrders),
+      "Gói": item.plans.join(" | ") || "-",
+      "Group": item.groups.join(" | ") || "-",
+      "Coupon": item.coupons.join(" | ") || "-",
+      "Đơn": item.orders.length,
+      "Trọn đời": item.hasLifetimeOrder ? "Có" : "Không",
+    }));
+    downloadCsv(`customers-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`, rows);
+  }
+
   function exportVipGroupAudit(format: "csv" | "xlsx") {
     const rows: Record<string, string>[] = vipGroupAudit
       .filter((item) => item.status !== "ACTIVE_RETAINED")
@@ -4056,7 +4107,17 @@ export default function Home() {
               <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
             </section>
             <section className="panel">
-              <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." />
+              <PanelHead
+                title="Đơn hàng"
+                subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn."
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={exportOrdersCsv} disabled={!filteredOrders.length}>
+                      <Download size={16} /> CSV
+                    </button>
+                  </div>
+                }
+              />
               <div className="toolbar orders-toolbar">
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." />
                 <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
@@ -4095,7 +4156,17 @@ export default function Home() {
               <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item) => item.paidOrders))} />
             </div>
             <section className="panel">
-              <PanelHead title="Khách hàng" subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái." />
+              <PanelHead
+                title="Khách hàng"
+                subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái."
+                action={
+                  <div className="panel-actions">
+                    <button className="btn secondary" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>
+                      <Download size={16} /> CSV
+                    </button>
+                  </div>
+                }
+              />
               <div className="toolbar orders-toolbar">
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
                 <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as CustomerStatusFilter)}>
