@@ -338,6 +338,29 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot.kicked, [("-100444", "42")])
         self.assertEqual(self.store.events[-1]["raw_data"]["source"], "recheck_member_present")
 
+    async def test_finalized_kick_blocks_repeat_recheck(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        scheduler.now_local = lambda: now
+        rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "PAID", "", "2026-05-25 21:19:00"]]
+        self.bot.present[("-100444", "42")] = True
+        self.store.events.append({
+            "event_type": "member_kick_closed",
+            "telegram_user_id": "42",
+            "chat_id": "-100444",
+            "order_id": "old",
+            "plan_name": "VIP 1 ngày - Hang Cú Asia",
+            "created_at": now.isoformat(),
+        })
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "old", "VIP 1 ngày - Hang Cú Asia", "2026-05-25 21:19:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [])
+        self.assertEqual(len(self.store.events), 1)
+
     async def test_admin_or_owner_is_not_kicked_and_does_not_retry(self):
         now = datetime(2026, 5, 25, 21, 20, 0)
         scheduler.now_local = lambda: now

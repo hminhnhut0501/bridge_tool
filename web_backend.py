@@ -1062,6 +1062,16 @@ async def admin_kick_audit_member(request: Request):
             plan_name=plan_name,
             raw_data={"reason": "manual_kick_audit", "source": "dashboard"},
         )
+        record_support_event(
+            "member_kick_closed",
+            user_id,
+            full_name=customer_name,
+            chat_id=chat_id,
+            chat_title=group_label_for_chat_id(chat_id),
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin"},
+        )
     except Exception as exc:
         record_support_event(
             "member_kick_failed",

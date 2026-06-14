@@ -233,6 +233,9 @@ def latest_support_event(event_type, user_id, order_id, chat_id):
         logging.warning("⚠️ Không đọc được support event %s user=%s order=%s chat=%s: %s", event_type, user_id, order_id, chat_id, exc)
         return None
 
+def is_kick_finalized(user_id, order_id, chat_id):
+    return bool(latest_support_event("member_kick_closed", user_id, order_id, chat_id))
+
 async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
     gid = support_group_id()
     if not (support_group_enabled() and support_group_mute_enabled() and gid):
@@ -317,6 +320,14 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
     normalized_chat_id = normalize_chat_id(chat_id)
     kick_key = (normalized_chat_id, str(user_id))
     cooldown_minutes = config_int("KICK_RECHECK_COOLDOWN_MINUTES", 1440, minimum=1)
+    if is_kick_finalized(user_id, order_id, normalized_chat_id):
+        logging.info(
+            "⏭ Bỏ qua kick User %s group %s đơn %s vì đã có member_kick_closed.",
+            user_id,
+            chat_id,
+            order_id,
+        )
+        return True
     recent_at = recent_kicks.get(kick_key)
     if recent_at and now - recent_at < timedelta(minutes=cooldown_minutes):
         logging.info(
@@ -383,6 +394,19 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
             payload["previous_kick_event_at"] = existing_kick.get("created_at")
             payload["source"] = "recheck_member_present"
         record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+        record_support_event(
+            "member_kick_closed",
+            user_id,
+            chat_id=chat_id,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={
+                "reason": reason,
+                "source": "kick_finalized",
+                "closed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                **(raw_data or {}),
+            },
+        )
         logging.info("🚪 Đã kick User %s khỏi group %s vì %s.", user_id, chat_id, reason)
         return True
     except Exception as exc:
