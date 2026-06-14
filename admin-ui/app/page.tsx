@@ -1987,6 +1987,9 @@ function kickAuditReason(item: KickAuditRow) {
 
 function supportEventLabel(type: string) {
   const labels: Record<string, string> = {
+    order_created: "Tạo đơn",
+    order_paid: "Thanh toán",
+    order_expired: "Hết hạn",
     support_joined: "Vừa join support",
     support_left: "Rời support",
     renewal_reminder_sent: "Đã nhắc gia hạn",
@@ -3324,6 +3327,19 @@ export default function Home() {
   const selectedCustomerTimelineRows = useMemo(() => {
     if (!selectedCustomer) return [];
     const customerId = selectedCustomer.id;
+    const orderTrace: CustomerTraceEvent[] = selectedCustomer.orders.map((item) => ({
+      key: `order-${item.order_id}`,
+      type: item.status === "PAID" ? "order_paid" : item.status === "EXPIRED" ? "order_expired" : "order_created",
+      group: groupNamesForOrder(item).join(", ") || "-",
+      order: item.order_id || "-",
+      createdAt: item.paid_at || item.created_at || item.expired_notice_at || "",
+      detail: [
+        item.plan_name || "",
+        item.coupon_code ? `Coupon: ${item.coupon_code}` : "",
+        item.expire_at ? `Hạn: ${dateText(item.expire_at)}` : "",
+        item.status ? `Trạng thái: ${item.status}` : "",
+      ].filter(Boolean).join(" • ") || "-",
+    }));
     const supportTrace: CustomerTraceEvent[] = selectedCustomerSupportEvents.map((item) => ({
       key: `support-${item.id}`,
       type: supportEventLabel(item.event_type),
@@ -3358,11 +3374,11 @@ export default function Home() {
         detail: item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-",
       }));
 
-    return [...supportTrace, ...kickTrace, ...vipTrace]
+    return [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
       .filter((item) => item.createdAt)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((item) => [
-        <span key={`${item.key}-type`} className={statusClass(item.type)}>{item.type}</span>,
+        <span key={`${item.key}-type`} className={statusClass(item.type)}>{supportEventLabel(item.type)}</span>,
         <><strong>{item.group}</strong><div className="muted">{item.order}</div></>,
         item.order,
         dateText(item.createdAt),
@@ -3370,14 +3386,20 @@ export default function Home() {
       ]);
   }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit]);
   const selectedCustomerTimelineCounts = useMemo(() => {
+    if (!selectedCustomer) return { total: 0, joined: 0, left: 0, muted: 0, kicked: 0 };
+    const supportJoined = selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length;
+    const supportLeft = selectedCustomerSupportEvents.filter((item) => item.event_type === "support_left").length;
+    const supportMuted = selectedCustomerSupportEvents.filter((item) => item.event_type === "member_muted").length;
+    const supportKicked = selectedCustomerSupportEvents.filter((item) => item.event_type === "member_kicked").length;
+    const orderKicked = kickAudit.filter((item) => String(item.telegram_user_id || "").trim() === selectedCustomer.id && item.status !== "ACTIVE_RETAINED").length;
     return {
       total: selectedCustomerTimelineRows.length,
-      joined: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length,
-      left: selectedCustomerSupportEvents.filter((item) => item.event_type === "support_left").length,
-      muted: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_muted").length,
-      kicked: selectedCustomerSupportEvents.filter((item) => item.event_type === "member_kicked").length,
+      joined: supportJoined,
+      left: supportLeft,
+      muted: supportMuted,
+      kicked: supportKicked + orderKicked,
     };
-  }, [selectedCustomerSupportEvents, selectedCustomerTimelineRows]);
+  }, [selectedCustomer, selectedCustomerSupportEvents, selectedCustomerTimelineRows, kickAudit]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
   const expiringSoon = useMemo(() => {
