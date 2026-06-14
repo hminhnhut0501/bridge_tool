@@ -10,7 +10,7 @@ router = Router()
 
 async def bot_runtime_worker():
     logging.info("🧭 Bot runtime state worker đã khởi động.")
-    await recompute_bot_runtime_state()
+    recompute_bot_runtime_state()
     while True:
         try:
             recompute_bot_runtime_state()
