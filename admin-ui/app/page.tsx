@@ -5476,11 +5476,13 @@ export default function Home() {
         {customerModalOpen && selectedCustomer ? (
           <div className="modal-backdrop customer-sidebar-backdrop" role="dialog" aria-modal="true">
             <section className="modal-panel customer-sidebar-panel">
+              <button className="icon-danger customer-close-btn" onClick={() => setCustomerModalOpen(false)} title="Đóng" aria-label="Đóng">
+                <XCircle size={18} />
+              </button>
               <aside className="customer-sidebar-nav">
                 <PanelHead
                   title={selectedCustomer.name}
                   subtitle={`Telegram ID: ${selectedCustomer.id}`}
-                  action={<button className="icon-danger customer-close-btn" onClick={() => setCustomerModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
                 />
                 <div className="customer-sidebar-summary">
                   <span className={selectedCustomer.activeOrders.length ? "status paid" : selectedCustomer.expiringWithinWindow ? "status warning" : selectedCustomer.hasLifetimeOrder ? "status badge-lifetime" : "status expired"}>

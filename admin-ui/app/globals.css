@@ -998,10 +998,11 @@ td select {
   border-bottom: 1px solid var(--line);
 }
 
-.customer-sidebar-nav > .panel-head .customer-close-btn {
+.customer-sidebar-panel .customer-close-btn {
   position: absolute;
-  right: 16px;
   top: 16px;
+  right: 16px;
+  z-index: 2;
 }
 
 .customer-sidebar-summary {
