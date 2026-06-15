@@ -3327,6 +3327,60 @@ export default function Home() {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.activeOrders.flatMap(groupNamesForOrder)).sort((a, b) => a.localeCompare(b));
   }, [selectedCustomer]);
+  const selectedCustomerGroupAuditSummary = useMemo(() => {
+    if (!selectedCustomer) return { total: 0, liveChecked: 0, retained: 0, kicked: 0, currentGroups: 0 };
+    const customerId = selectedCustomer.id;
+    const vipRows = vipGroupAudit.filter((item) => String(item.telegram_user_id || "").trim() === customerId);
+    const kickRows = kickAudit.filter((item) => String(item.telegram_user_id || "").trim() === customerId);
+    const total = vipRows.length + kickRows.length;
+    const liveChecked = [...vipRows, ...kickRows].filter((item) => item.live_checked).length;
+    const retained = kickRows.filter((item) => item.status === "ACTIVE_RETAINED").length;
+    const kicked = kickRows.filter((item) => item.status !== "ACTIVE_RETAINED").length;
+    return {
+      total,
+      liveChecked,
+      retained,
+      kicked,
+      currentGroups: selectedCustomerActiveGroups.length,
+    };
+  }, [selectedCustomer, vipGroupAudit, kickAudit, selectedCustomerActiveGroups.length]);
+  const selectedCustomerGroupAuditRows = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const customerId = selectedCustomer.id;
+    const vipRows = vipGroupAudit
+      .filter((item) => String(item.telegram_user_id || "").trim() === customerId)
+      .map((item) => ({
+        key: `vip-${item.audit_id}`,
+        type: item.status,
+        sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
+        row: [
+          <span key={`vip-${item.audit_id}-status`} className={statusClass(item.status)}>{item.status_label || item.status}</span>,
+          <><strong>{item.group_name || item.group_id || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
+          <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
+          item.expire_at ? dateText(item.expire_at) : "-",
+          item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live",
+          item.latest_error || "-",
+        ],
+      }));
+    const kickRows = kickAudit
+      .filter((item) => String(item.telegram_user_id || "").trim() === customerId)
+      .map((item) => ({
+        key: `kick-${item.audit_id}`,
+        type: item.status,
+        sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
+        row: [
+          <span key={`kick-${item.audit_id}-status`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+          <><strong>{item.group_name || item.group_id || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
+          <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
+          item.expire_at ? dateText(item.expire_at) : "-",
+          item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live",
+          kickAuditReason(item),
+        ],
+      }));
+    return [...vipRows, ...kickRows]
+      .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
+      .map((item) => item.row);
+  }, [selectedCustomer, vipGroupAudit, kickAudit]);
   const selectedCustomerSupportEvents = useMemo(() => {
     if (!selectedCustomer) return [];
     return supportEvents
@@ -5580,15 +5634,34 @@ export default function Home() {
                     <div className="grid">
                       <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
                       <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
+                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} />
+                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} />
                     </div>
-                    {selectedCustomerActiveGroups.length ? (
-                      <section className="panel nested-panel">
-                        <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
+                    <div className="grid">
+                      <Metric label="Group giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} />
+                      <Metric label="Group đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} />
+                      <Metric label="Nhóm active hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} />
+                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} />
+                    </div>
+                    <section className="panel nested-panel">
+                      <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
+                      {selectedCustomerActiveGroups.length ? (
                         <div className="tag-list">
                           {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
                         </div>
-                      </section>
-                    ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
+                      ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
+                    </section>
+                    <section className="panel nested-panel">
+                      <PanelHead title="Dấu vết group" subtitle="Audit mà bot ghi nhận được từ quyền hiện tại, live check và trạng thái kick/giữ quyền." />
+                      {selectedCustomerGroupAuditRows.length ? (
+                        <SimpleTable
+                          headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
+                          rows={selectedCustomerGroupAuditRows}
+                        />
+                      ) : (
+                        <div className="empty-card">Chưa có audit group nào cho khách này.</div>
+                      )}
+                    </section>
                   </>
                 ) : null}
                 {customerDetailTab === "timeline" ? (
