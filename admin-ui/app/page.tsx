@@ -116,6 +116,7 @@ type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
 type CustomerDetailTab = "orders" | "groups" | "timeline";
+type CustomerTimelineSubTab = "all" | "joinLeft" | "role" | "restricted" | "kickMute" | "orders";
 type CustomerTraceEvent = {
   key: string;
   type: string;
@@ -2070,6 +2071,7 @@ export default function Home() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
+  const [customerTimelineSubTab, setCustomerTimelineSubTab] = useState<CustomerTimelineSubTab>("all");
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
@@ -3381,17 +3383,28 @@ export default function Home() {
         detail: item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-",
       }));
 
-    return [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
+    const rows = [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
       .filter((item) => item.createdAt)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .map((item) => [
-        <span key={`${item.key}-type`} className={statusClass(item.type)}>{supportEventLabel(item.type)}</span>,
-        <><strong>{item.group}</strong><div className="muted">{item.order}</div></>,
-        item.order,
-        dateText(item.createdAt),
-        item.detail,
-      ]);
-  }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit]);
+      .map((item) => ({
+        key: item.key,
+        type: item.type,
+        row: [
+          <span key={`${item.key}-type`} className={statusClass(item.type)}>{supportEventLabel(item.type)}</span>,
+          <><strong>{item.group}</strong><div className="muted">{item.order}</div></>,
+          item.order,
+          dateText(item.createdAt),
+          item.detail,
+        ],
+      }));
+    if (customerTimelineSubTab === "all") return rows.map((item) => item.row);
+    if (customerTimelineSubTab === "joinLeft") return rows.filter((item) => ["vip_joined", "vip_left", "support_joined", "support_left"].includes(item.type)).map((item) => item.row);
+    if (customerTimelineSubTab === "role") return rows.filter((item) => ["vip_role_changed"].includes(item.type)).map((item) => item.row);
+    if (customerTimelineSubTab === "restricted") return rows.filter((item) => ["vip_restricted_changed", "vip_muted", "vip_unmuted"].includes(item.type)).map((item) => item.row);
+    if (customerTimelineSubTab === "kickMute") return rows.filter((item) => ["vip_kicked", "vip_muted", "vip_unmuted", "member_kicked", "member_muted", "member_unmuted"].includes(item.type)).map((item) => item.row);
+    if (customerTimelineSubTab === "orders") return rows.filter((item) => ["order_created", "order_paid", "order_expired"].includes(item.type)).map((item) => item.row);
+    return rows.map((item) => item.row);
+  }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit, customerTimelineSubTab]);
   const selectedCustomerTimelineCounts = useMemo(() => {
     if (!selectedCustomer) return { total: 0, joined: 0, left: 0, muted: 0, kicked: 0 };
     const supportJoined = selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length;
@@ -4235,6 +4248,7 @@ export default function Home() {
                     setSelectedCustomerId(customer.id);
                     setCustomerOrderTab("all");
                     setCustomerDetailTab("orders");
+                    setCustomerTimelineSubTab("all");
                     setCustomerModalOpen(true);
                   }}>Chi tiết</button>
                 )}
@@ -5579,6 +5593,14 @@ export default function Home() {
                 ) : null}
                 {customerDetailTab === "timeline" ? (
                   <>
+                    <div className="subtabs customer-order-tabs">
+                      <button className={customerTimelineSubTab === "all" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("all")}>Tất cả</button>
+                      <button className={customerTimelineSubTab === "joinLeft" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("joinLeft")}>Join/Left</button>
+                      <button className={customerTimelineSubTab === "role" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("role")}>Role</button>
+                      <button className={customerTimelineSubTab === "restricted" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("restricted")}>Restricted</button>
+                      <button className={customerTimelineSubTab === "kickMute" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("kickMute")}>Kick/Mute</button>
+                      <button className={customerTimelineSubTab === "orders" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("orders")}>Order timeline</button>
+                    </div>
                     <div className="grid">
                       <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
                       <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} />
