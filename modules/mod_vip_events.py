@@ -47,6 +47,14 @@ def event_payload(old_status, new_status, old_member, new_member):
     return payload
 
 
+def is_restricted_status(status):
+    return status == "restricted"
+
+
+def is_role_status(status):
+    return status in {"administrator", "creator"}
+
+
 @router.chat_member()
 async def vip_group_member_update(event: ChatMemberUpdated):
     if str(event.chat.id).strip() not in vip_group_ids():
@@ -65,23 +73,27 @@ async def vip_group_member_update(event: ChatMemberUpdated):
     if new_status in {"left", "kicked"}:
         event_type = "vip_kicked" if new_status == "kicked" else "vip_left"
     elif old_status in {"left", "kicked"} and new_status in {"member", "restricted"}:
-        if new_status == "restricted" and new_can_send is False:
-            event_type = "vip_muted"
+        if is_restricted_status(new_status) and new_can_send is False:
+            event_type = "vip_restricted_changed"
         else:
             event_type = "vip_joined"
-    elif new_status == "restricted":
+    elif is_restricted_status(new_status):
         if new_can_send is False:
-            event_type = "vip_muted"
+            event_type = "vip_restricted_changed"
         elif old_status == "restricted" and old_can_send is False and new_can_send is not False:
             event_type = "vip_unmuted"
         elif old_status in {"member", "administrator", "creator"}:
-            event_type = "vip_muted"
+            event_type = "vip_restricted_changed"
     elif old_status == "restricted" and old_can_send is False and new_can_send is not False:
         event_type = "vip_unmuted"
+    elif is_role_status(new_status) and not is_role_status(old_status):
+        event_type = "vip_role_changed"
+    elif is_role_status(old_status) and not is_role_status(new_status):
+        event_type = "vip_role_changed"
     elif old_status in {"member", "restricted", "administrator"} and new_status in {"administrator", "creator"}:
-        event_type = "vip_promoted"
+        event_type = "vip_role_changed"
     elif old_status in {"administrator", "creator"} and new_status in {"member", "restricted"}:
-        event_type = "vip_demoted"
+        event_type = "vip_role_changed"
 
     if not event_type:
         return
