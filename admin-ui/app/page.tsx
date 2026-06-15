@@ -58,6 +58,7 @@ import {
   createCoupon,
   createCoupons,
   createManualOrder,
+  deleteOrder,
   deleteConfig,
   deleteBlacklist,
   deleteCoupon,
@@ -3144,6 +3145,16 @@ export default function Home() {
     });
   }
 
+  async function removeOrder(orderId: string, label = "") {
+    const prompt = label ? `Xóa đơn ${orderId} (${label})?` : `Xóa đơn ${orderId}?`;
+    if (!window.confirm(prompt)) return;
+    if (!window.confirm("Hành động này sẽ xóa bản ghi đơn hàng khỏi hệ thống. Tiếp tục?")) return;
+    await runAction(`order-delete-${orderId}`, async () => {
+      await deleteOrder(savedSecret, orderId);
+      await loadAll();
+    });
+  }
+
   async function handleWebhookReset() {
     await runAction("webhook", async () => {
       const res = await resetWebhook(savedSecret);
@@ -4004,7 +4015,7 @@ export default function Home() {
             </section>
             <section className="panel">
               <PanelHead title="Đơn hàng mới nhất" subtitle="10 đơn gần nhất." />
-              <OrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} saving={saving} />
+              <OrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
             </section>
           </div>
         ) : null}
@@ -4237,7 +4248,7 @@ export default function Home() {
                 </select>
               </div>
               {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
-              <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} saving={saving} />
+              <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
               <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
             </section>
           </div>
@@ -5896,11 +5907,11 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   );
 }
 
-function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; saving: string }) {
+function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr><th>Mã đơn</th><th>Khách</th><th>Gói</th><th>Tiền</th><th>Coupon</th><th>Trạng thái</th><th>Tạo lúc</th><th>Đổi trạng thái</th></tr></thead>
+        <thead><tr><th>Mã đơn</th><th>Khách</th><th>Gói</th><th>Tiền</th><th>Coupon</th><th>Trạng thái</th><th>Tạo lúc</th><th>Đổi trạng thái</th><th>Xóa</th></tr></thead>
         <tbody>
           {orders.map((order) => (
             <tr key={order.order_id}>
@@ -5924,6 +5935,16 @@ function OrdersTable({ orders, onStatusChange, saving }: { orders: Order[]; onSt
                   <option value="CANCELLED">Đã hủy</option>
                   <option value="EXPIRED">Hết hạn</option>
                 </select>
+              </td>
+              <td>
+                <button
+                  className="btn danger"
+                  disabled={saving === `order-delete-${order.order_id}`}
+                  onClick={() => onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id)}
+                  title="Xóa đơn"
+                >
+                  <Trash2 size={16} />
+                </button>
               </td>
             </tr>
           ))}

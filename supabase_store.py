@@ -223,6 +223,14 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def delete_order(self, order_id):
+        return self._request(
+            "DELETE",
+            "orders",
+            params={"order_id": f"eq.{_clean_text(order_id)}"},
+            prefer="return=representation",
+        )
+
     def list_orders(self, limit=200):
         rows = self._request(
             "GET",

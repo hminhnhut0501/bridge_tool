@@ -422,6 +422,12 @@ export async function updateOrder(secret: string, orderId: string, payload: Part
   });
 }
 
+export async function deleteOrder(secret: string, orderId: string) {
+  return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
+    method: "DELETE",
+  });
+}
+
 export async function createManualOrder(secret: string, payload: ManualOrderPayload) {
   return request<{ data: ManualOrderResult }>("/admin-api/manual-orders", secret, {
     method: "POST",

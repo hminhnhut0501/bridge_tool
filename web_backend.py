@@ -683,6 +683,33 @@ async def admin_update_order(order_id: str, request: Request):
     return {"data": data}
 
 
+@app.delete("/admin-api/orders/{order_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_order(order_id: str):
+    order = supabase_store.get_order(order_id)
+    if not order:
+        return {"data": []}
+    data = supabase_store.delete_order(order_id)
+    try:
+        supabase_store.record_support_event(
+            "order_deleted",
+            order.get("telegram_user_id"),
+            full_name=order.get("full_name"),
+            order_id=order_id,
+            plan_name=order.get("plan_name"),
+            raw_data={
+                "amount": order.get("amount"),
+                "status": order.get("status"),
+                "payment_provider": order.get("payment_provider"),
+                "payment_currency": order.get("payment_currency"),
+                "deleted_at": datetime.now(tz=backend_timezone()).isoformat(timespec="seconds"),
+            },
+        )
+    except Exception as exc:
+        if not is_missing_supabase_table_error(exc, "support_events"):
+            print(f"⚠️ Không ghi được order_deleted: {exc}")
+    return {"data": data}
+
+
 @app.post("/admin-api/manual-orders", dependencies=[Depends(require_admin)])
 async def admin_create_manual_order(request: Request):
     body = await request.json()
