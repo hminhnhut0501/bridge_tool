@@ -5108,11 +5108,11 @@ export default function Home() {
                     border: 1,
                     borderColor: "divider",
                     bgcolor: "background.paper",
-                    borderRadius: 3,
+                    borderRadius: 2,
                     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
                   }}
                 >
-                  <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
                     {(() => {
                       const customerStatusTone = selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple");
                       return (
@@ -5163,7 +5163,7 @@ export default function Home() {
                         minHeight: 44,
                         px: 1.5,
                         py: 1.1,
-                        borderRadius: 2.5,
+                          borderRadius: 2,
                         textTransform: "none",
                         fontWeight: 700,
                         fontSize: "0.95rem",
@@ -5452,7 +5452,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   return (
     <Stack spacing={1.5}>
       {sorted.map((order) => (
-        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
             <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box>

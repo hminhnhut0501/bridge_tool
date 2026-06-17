@@ -20,7 +20,7 @@ const baseTheme = createTheme({
     divider: "#d9e0e8",
   },
   shape: {
-    borderRadius: 14,
+    borderRadius: 16,
   },
   typography: {
     fontFamily: [
@@ -114,6 +114,34 @@ const baseTheme = createTheme({
         },
         body: {
           letterSpacing: "-0.005em",
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 16,
+          borderColor: "#d9e0e8",
+          boxShadow: "0 1px 0 rgba(16, 24, 40, 0.03), 0 10px 24px rgba(16, 24, 40, 0.04)",
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderColor: "#d9e0e8",
+        },
+        rounded: {
+          borderRadius: 16,
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 24,
+          border: "1px solid #d9e0e8",
+          boxShadow: "0 20px 60px rgba(15, 23, 42, 0.18)",
         },
       },
     },

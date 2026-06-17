@@ -233,7 +233,7 @@ export function SettingsConfigModal(props: { title: string; subtitle: string; fi
 
 export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth} sx={{ "& .MuiDialog-paper": { borderRadius: 3, overflow: "hidden" } }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth}>
       <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
         <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{subtitle}</Typography> : null}
