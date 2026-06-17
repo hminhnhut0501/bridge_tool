@@ -32,6 +32,17 @@ export function Metric({ label, value, tone, note }: { label: string; value: str
   const bg = tone === "vnd" ? "#f0fdf4" : tone === "usd" ? "#eff6ff" : tone === "crypto" ? "#f5f3ff" : tone === "payos" ? "#ecfeff" : tone === "paypal" ? "#f8fafc" : "#f8fafc";
   const glow = tone === "vnd" ? "rgba(34, 197, 94, 0.22)" : tone === "usd" ? "rgba(59, 130, 246, 0.22)" : tone === "crypto" ? "rgba(168, 85, 247, 0.22)" : tone === "payos" ? "rgba(20, 184, 166, 0.22)" : tone === "paypal" ? "rgba(71, 85, 105, 0.18)" : "rgba(13, 107, 93, 0.22)";
   const Icon = tone === "vnd" ? TrendingUp : tone === "usd" ? CreditCard : tone === "crypto" ? Coins : tone === "payos" ? ShieldCheck : tone === "paypal" ? BadgeDollarSign : null;
+  const compactValue = (() => {
+    const cleaned = value
+      .replace(/^PAYOS:\s*/i, "")
+      .replace(/^PAYPAL:\s*/i, "")
+      .replace(/^NOWPAYMENTS:\s*/i, "")
+      .replace(/^NOWPAYMENTS\s*\/\s*USDT:\s*/i, "")
+      .replace(/^CRYPTO:\s*/i, "")
+      .replace(/\bCRYPTO\b$/i, "")
+      .trim();
+    return cleaned || value;
+  })();
   return (
     <Card
       sx={{
@@ -60,14 +71,14 @@ export function Metric({ label, value, tone, note }: { label: string; value: str
             fontWeight: 900,
             lineHeight: 0.95,
             letterSpacing: "-0.03em",
-            fontSize: { xs: "1.8rem", sm: "2rem", md: "2.15rem" },
+            fontSize: { xs: "1.65rem", sm: "1.9rem", md: "2.05rem" },
             wordBreak: "break-word",
             overflowWrap: "anywhere",
             maxWidth: "100%",
             color: "text.primary",
           }}
         >
-          {value}
+          {compactValue}
         </Typography>
         {note ? <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>{note}</Typography> : null}
       </CardContent>
