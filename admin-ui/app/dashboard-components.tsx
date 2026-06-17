@@ -57,6 +57,20 @@ export function statusChipSx(kind: keyof typeof statusPalette) {
   };
 }
 
+export function statusButtonSx(kind: keyof typeof statusPalette) {
+  const token = statusPalette[kind];
+  return {
+    fontWeight: 700,
+    borderColor: token.border,
+    color: token.main,
+    bgcolor: token.bg,
+    "&:hover": {
+      bgcolor: token.bg,
+      borderColor: token.main,
+    },
+  };
+}
+
 export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
   const toneToken = tone ? tonePalette[tone] : tonePalette.neutral;
   const accent = toneToken.main;
@@ -343,7 +357,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
               </Select>
             </TableCell>
             <TableCell>
-              <Button color="error" variant="outlined" size="small" onClick={() => onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id)} disabled={saving === `order-delete-${order.order_id}`}>
+              <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={() => onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id)} disabled={saving === `order-delete-${order.order_id}`}>
                 <Trash2 size={16} />
               </Button>
             </TableCell>

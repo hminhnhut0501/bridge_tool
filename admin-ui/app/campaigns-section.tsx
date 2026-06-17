@@ -3,7 +3,7 @@
 
 import { Box, Button, Chip, Stack } from "@mui/material";
 import { PauseCircle, PlayCircle, Plus } from "lucide-react";
-import { Metric, PanelHead, Pagination, SimpleTable } from "./dashboard-components";
+import { Metric, PanelHead, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
 
 export function CampaignsSection(props: any) {
   const { campaigns, campaignPreview, selectedCampaign, campaignRecipientCounts, pagedCampaignRecipients, campaignRecipients, totalCampaignRecipientPages, campaignRecipientPage, setCampaignRecipientPage, changeCampaignStatus, setSelectedCampaignId, setCampaignModalOpen, setCampaignForm, EMPTY_CAMPAIGN_FORM } = props;
@@ -19,9 +19,9 @@ export function CampaignsSection(props: any) {
         <PanelHead title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button>} />
         <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
           <strong>Preview: {campaignPreview?.total || 0} người</strong>
-          <Chip size="small" label={`Active: ${campaignPreview?.counts?.VIP_ACTIVE || 0}`} />
-          <Chip size="small" label={`Hết hạn: ${campaignPreview?.counts?.VIP_EXPIRED || 0}`} />
-          <Chip size="small" label={`Chưa mua: ${campaignPreview?.counts?.NO_PURCHASE || 0}`} />
+          <Chip size="small" label={`Active: ${campaignPreview?.counts?.VIP_ACTIVE || 0}`} variant="outlined" sx={statusChipSx("success")} />
+          <Chip size="small" label={`Hết hạn: ${campaignPreview?.counts?.VIP_EXPIRED || 0}`} variant="outlined" sx={statusChipSx("warning")} />
+          <Chip size="small" label={`Chưa mua: ${campaignPreview?.counts?.NO_PURCHASE || 0}`} variant="outlined" sx={statusChipSx("muted")} />
         </Box>
       </section>
       <section className="panel">
@@ -35,9 +35,9 @@ export function CampaignsSection(props: any) {
             <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,
             `${item.delay_seconds}s`,
             <Box key={`actions-${item.id}`} sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-              {item.status !== "RUNNING" && item.status !== "DONE" && item.status !== "CANCELLED" ? <Button variant="outlined" size="small" onClick={() => changeCampaignStatus(item.id, "start")} startIcon={<PlayCircle size={15} />}>Gửi</Button> : null}
-              {item.status === "RUNNING" ? <Button variant="outlined" size="small" onClick={() => changeCampaignStatus(item.id, "pause")} startIcon={<PauseCircle size={15} />}>Tạm dừng</Button> : null}
-              {item.status !== "DONE" && item.status !== "CANCELLED" ? <Button color="error" variant="outlined" size="small" onClick={() => changeCampaignStatus(item.id, "cancel")}>Huỷ</Button> : null}
+              {item.status !== "RUNNING" && item.status !== "DONE" && item.status !== "CANCELLED" ? <Button variant="outlined" size="small" sx={statusButtonSx("success")} onClick={() => changeCampaignStatus(item.id, "start")} startIcon={<PlayCircle size={15} />}>Gửi</Button> : null}
+              {item.status === "RUNNING" ? <Button variant="outlined" size="small" sx={statusButtonSx("warning")} onClick={() => changeCampaignStatus(item.id, "pause")} startIcon={<PauseCircle size={15} />}>Tạm dừng</Button> : null}
+              {item.status !== "DONE" && item.status !== "CANCELLED" ? <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={() => changeCampaignStatus(item.id, "cancel")}>Huỷ</Button> : null}
             </Box>,
           ])}
         />

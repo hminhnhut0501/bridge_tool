@@ -3,7 +3,7 @@
 
 import { Box, Button, Stack } from "@mui/material";
 import { Plus, Send, Trash2 } from "lucide-react";
-import { Metric, PanelHead, Pagination, SimpleTable } from "./dashboard-components";
+import { Metric, PanelHead, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
 
 export function ChannelPostsSection(props: any) {
   const { channelPosts, channelPostCounts, channelPostTab, setChannelPostTab, openNewChannelPostModal, pagedChannelPosts, channelPostPage, totalChannelPostPages, visibleChannelPosts, setChannelPostPage, editChannelPost, runChannelPostAction, channelPostStatusClass, channelPostStatusLabel } = props;
@@ -18,7 +18,7 @@ export function ChannelPostsSection(props: any) {
       <section className="panel">
         <PanelHead title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button>} />
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", p: 2 }}>
-          {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => <Button key={tab} variant={channelPostTab === tab ? "contained" : "outlined"} onClick={() => setChannelPostTab(tab)}>{tab}</Button>)}
+          {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => <Button key={tab} variant={channelPostTab === tab ? "contained" : "outlined"} sx={channelPostTab === tab ? statusButtonSx("success") : statusButtonSx("muted")} onClick={() => setChannelPostTab(tab)}>{tab}</Button>)}
         </Box>
         <SimpleTable
           headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
@@ -37,7 +37,7 @@ export function ChannelPostsSection(props: any) {
             return (
               <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
                 {["draft", "failed", "delete_failed"].includes(status) ? <Button variant="outlined" size="small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "send_now"); }} startIcon={<Send size={15} />}>Gửi</Button> : null}
-                {["sent", "delete_scheduled"].includes(status) ? <Button color="error" variant="outlined" size="small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "delete_now"); }} startIcon={<Trash2 size={15} />}>Xóa</Button> : null}
+                {["sent", "delete_scheduled"].includes(status) ? <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "delete_now"); }} startIcon={<Trash2 size={15} />}>Xóa</Button> : null}
               </Box>
             );
           }}
