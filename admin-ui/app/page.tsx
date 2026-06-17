@@ -5198,7 +5198,24 @@ export default function Home() {
 }
 
 function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
-  return <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}><div className="muted">{label}</div><div className="metric">{value}</div>{note ? <div className="metric-note">{note}</div> : null}</div>;
+  const compactValue = (() => {
+    const cleaned = value
+      .replace(/^PAYOS:\s*/i, "")
+      .replace(/^PAYPAL:\s*/i, "")
+      .replace(/^NOWPAYMENTS:\s*/i, "")
+      .replace(/^NOWPAYMENTS\s*\/\s*USDT:\s*/i, "")
+      .replace(/^CRYPTO:\s*/i, "")
+      .replace(/\bCRYPTO\b$/i, "")
+      .trim();
+    return cleaned || value;
+  })();
+  return (
+    <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}>
+      <div className="muted">{label}</div>
+      <div className="metric">{compactValue}</div>
+      {note ? <div className="metric-note">{note}</div> : null}
+    </div>
+  );
 }
 
 function PanelHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
