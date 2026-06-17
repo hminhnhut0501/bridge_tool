@@ -1,8 +1,9 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Box, Button, MenuItem, Select, Stack, TextField } from "@mui/material";
+import { Box, Button, Chip, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { Metric, Pagination, PanelHead, SimpleTable } from "./dashboard-components";
+import { dateText } from "./dashboard-helpers";
 
 export function CustomersSection(props: any) {
   const {
@@ -53,12 +54,24 @@ export function CustomersSection(props: any) {
         <SimpleTable
           headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
           rows={pagedCustomers.map((customer: any) => [
-            <><strong>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</strong><div className="muted">{customer.id}</div></>,
-            <span key="status" className={customer.activeOrders.length ? "status paid" : customer.expiringWithinWindow ? "status warning" : customer.hasLifetimeOrder ? "status badge-lifetime" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.expiringWithinWindow ? "Sắp hết hạn" : customer.hasLifetimeOrder ? "Trọn đời" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
-            String(customer.paidOrders.length),
-            <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
-            customer.latestExpire,
-            ordersMoney(customer.paidOrders),
+            <Box key={`customer-${customer.id}`} sx={{ display: "grid", gap: 0.25 }}>
+              <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</Typography>
+              <Typography variant="body2" color="text.secondary">{customer.id}</Typography>
+            </Box>,
+            <Chip
+              key={`status-${customer.id}`}
+              size="small"
+              label={customer.activeOrders.length ? "Đang còn hạn" : customer.expiringWithinWindow ? "Sắp hết hạn" : customer.hasLifetimeOrder ? "Trọn đời" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}
+              color={customer.activeOrders.length ? "success" : customer.expiringWithinWindow ? "warning" : customer.hasLifetimeOrder ? "secondary" : customer.paidOrders.length ? "error" : "default"}
+              sx={{ fontWeight: 700, width: "fit-content" }}
+            />,
+            <Typography key={`paid-${customer.id}`} sx={{ fontWeight: 700 }}>{customer.paidOrders.length}</Typography>,
+            <Box key={`plans-${customer.id}`} sx={{ display: "grid", gap: 0.25 }}>
+              <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{customer.plans[0] || "-"}</Typography>
+              <Typography variant="body2" color="text.secondary">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</Typography>
+            </Box>,
+            <Typography key={`expire-${customer.id}`} sx={{ fontWeight: 600 }}>{dateText(customer.latestExpire)}</Typography>,
+            <Typography key={`money-${customer.id}`} sx={{ fontWeight: 700 }}>{ordersMoney(customer.paidOrders)}</Typography>,
           ])}
           actions={(idx: number) => (
             <Button variant="outlined" size="small" onClick={() => {
