@@ -5090,19 +5090,10 @@ export default function Home() {
                     borderColor: "divider",
                     bgcolor: "background.paper",
                     borderRadius: 2,
+                    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
                   }}
                 >
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>{selectedCustomer.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">Telegram ID: {selectedCustomer.id}</Typography>
-                    </Box>
-                    <Button color="error" variant="outlined" size="small" onClick={() => setCustomerModalOpen(false)}>
-                      <XCircle size={18} />
-                    </Button>
-                  </Box>
-
-                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "action.hover", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "linear-gradient(180deg, rgba(13,107,93,0.06), rgba(13,107,93,0.02))", border: 1, borderColor: "divider" }}>
                     <Chip
                       size="small"
                       label={selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
@@ -5144,7 +5135,14 @@ export default function Home() {
                         variant={customerDetailTab === item.key ? "contained" : "outlined"}
                         color={customerDetailTab === item.key ? "success" : "inherit"}
                         onClick={() => setCustomerDetailTab(item.key as typeof customerDetailTab)}
-                        sx={{ justifyContent: "flex-start", py: 1.25, px: 1.5 }}
+                        sx={{
+                          justifyContent: "flex-start",
+                          py: 1.15,
+                          px: 1.5,
+                          borderRadius: 2,
+                          textTransform: "none",
+                          fontWeight: 700,
+                        }}
                       >
                         {item.label}
                       </Button>
@@ -5156,12 +5154,24 @@ export default function Home() {
                 {customerDetailTab === "orders" ? (
                   <>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
-                      <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
-                      <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
-                      <button className={customerOrderTab === "expiring" ? "active" : ""} onClick={() => setCustomerOrderTab("expiring")}>Sắp hết hạn ({selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})</button>
-                      <button className={customerOrderTab === "lifetime" ? "active" : ""} onClick={() => setCustomerOrderTab("lifetime")}>Trọn đời ({selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})</button>
-                      <button className={customerOrderTab === "paid" ? "active" : ""} onClick={() => setCustomerOrderTab("paid")}>PAID ({selectedCustomerOrders.filter((item) => item.status === "PAID").length})</button>
-                      <button className={customerOrderTab === "expired" ? "active" : ""} onClick={() => setCustomerOrderTab("expired")}>Expired ({selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})</button>
+                      {[
+                        { key: "all", label: `Tất cả (${selectedCustomerOrders.length})` },
+                        { key: "active", label: `Active (${selectedCustomerOrders.filter((item) => isOrderActive(item)).length})` },
+                        { key: "expiring", label: `Sắp hết hạn (${selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})` },
+                        { key: "lifetime", label: `Trọn đời (${selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})` },
+                        { key: "paid", label: `PAID (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})` },
+                        { key: "expired", label: `Expired (${selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})` },
+                      ].map((item) => (
+                        <Button
+                          key={item.key}
+                          variant={customerOrderTab === item.key ? "contained" : "outlined"}
+                          color={customerOrderTab === item.key ? "success" : "inherit"}
+                          onClick={() => setCustomerOrderTab(item.key as typeof customerOrderTab)}
+                          sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700, px: 1.5 }}
+                        >
+                          {item.label}
+                        </Button>
+                      ))}
                     </Box>
                     <CustomerOrdersTable
                       orders={selectedCustomerOrders.filter((item) => {
@@ -5180,19 +5190,19 @@ export default function Home() {
                   </>
                 ) : null}
                 {customerDetailTab === "groups" ? (
-                  <>
-                    <div className="grid">
+                    <>
+                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
                       <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
                       <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
                       <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} />
                       <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} />
-                    </div>
-                    <div className="grid">
+                    </Box>
+                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
                       <Metric label="Group giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} />
                       <Metric label="Group đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} />
                       <Metric label="Nhóm active hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} />
                       <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} />
-                    </div>
+                    </Box>
                     <section className="panel nested-panel">
                       <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
                       {selectedCustomerActiveGroups.length ? (
