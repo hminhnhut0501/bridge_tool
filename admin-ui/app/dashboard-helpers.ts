@@ -99,6 +99,18 @@ export function dateText(value: string | null | undefined) {
   return new Date(value).toLocaleString("vi-VN");
 }
 
+export function dateTextShort(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }) + " " + new Date(value).toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function dateTimeInputValue(value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);

@@ -50,6 +50,7 @@ import {
   channelPostStatusLabel,
   dateMinusDaysText,
   dateText,
+  dateTextShort,
   dateTimeInputValue,
   daysUntil,
   isoDayKey,
@@ -2429,10 +2430,10 @@ export default function Home() {
     const rows = filteredCustomers.map((item) => ({
       "Telegram ID": item.id,
       "Khách": item.name || "-",
-      "Trạng thái": item.activeOrders.length ? "Đang còn hạn" : item.expiringWithinWindow ? "Sắp hết hạn" : item.hasLifetimeOrder ? "Trọn đời" : item.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID",
+      "Trạng thái": item.statusLabel,
       "PAID": item.paidOrders.length,
       "Active": item.activeOrders.length,
-      "Hạn gần nhất": item.latestExpire ? dateText(item.latestExpire) : "-",
+      "Hạn gần nhất": item.latestExpire ? dateTextShort(item.latestExpire) : "-",
       "Doanh thu": ordersMoney(item.paidOrders),
       "Gói": item.plans.join(" | ") || "-",
       "Group": item.groups.join(" | ") || "-",
@@ -5129,7 +5130,7 @@ export default function Home() {
                       </Box>
                       <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">Hạn gần nhất</Typography>
-                        <Typography sx={{ fontWeight: 800 }}>{dateText(selectedCustomer.latestExpire)}</Typography>
+        <Typography sx={{ fontWeight: 800 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
                       </Box>
                       <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">Tổng tiền</Typography>

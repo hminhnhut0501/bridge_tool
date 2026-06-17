@@ -3,7 +3,7 @@
 
 import { Box, Button, Chip, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { Metric, Pagination, PanelHead, SimpleTable } from "./dashboard-components";
-import { dateText } from "./dashboard-helpers";
+import { dateTextShort } from "./dashboard-helpers";
 
 export function CustomersSection(props: any) {
   const {
@@ -70,7 +70,7 @@ export function CustomersSection(props: any) {
               <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{customer.plans[0] || "-"}</Typography>
               <Typography variant="body2" color="text.secondary">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</Typography>
             </Box>,
-            <Typography key={`expire-${customer.id}`} sx={{ fontWeight: 600 }}>{dateText(customer.latestExpire)}</Typography>,
+            <Typography key={`expire-${customer.id}`} sx={{ fontWeight: 600 }}>{dateTextShort(customer.latestExpire)}</Typography>,
             <Typography key={`money-${customer.id}`} sx={{ fontWeight: 700 }}>{ordersMoney(customer.paidOrders)}</Typography>,
           ])}
           actions={(idx: number) => (
