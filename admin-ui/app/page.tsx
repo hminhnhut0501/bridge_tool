@@ -33,6 +33,7 @@ import {
   Button,
   Chip,
   Drawer,
+  Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -5074,46 +5075,94 @@ export default function Home() {
 
         {customerModalOpen && selectedCustomer ? (
           <MuiDialogShell open title={selectedCustomer.name} subtitle={`Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerModalOpen(false)} maxWidth="xl">
-              <button className="icon-danger customer-close-btn" onClick={() => setCustomerModalOpen(false)} title="Đóng" aria-label="Đóng">
-                <XCircle size={18} />
-              </button>
-              <aside className="customer-sidebar-nav">
-                <PanelHead
-                  title={selectedCustomer.name}
-                  subtitle={`Telegram ID: ${selectedCustomer.id}`}
-                />
-                <div className="customer-sidebar-summary">
-                  <span className={selectedCustomer.activeOrders.length ? "status paid" : selectedCustomer.expiringWithinWindow ? "status warning" : selectedCustomer.hasLifetimeOrder ? "status badge-lifetime" : "status expired"}>
-                    {selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
-                  </span>
-                  <div className="customer-sidebar-meta">
-                    <div><span>Đơn PAID</span><strong>{selectedCustomer.paidOrders.length}</strong></div>
-                    <div><span>Gói active</span><strong>{selectedCustomer.activeOrders.length}</strong></div>
-                    <div><span>Hạn gần nhất</span><strong>{dateText(selectedCustomer.latestExpire)}</strong></div>
-                    <div><span>Tổng tiền</span><strong>{money(selectedCustomer.revenue)}</strong></div>
-                  </div>
-                  <div className="customer-tags">
-                    {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
-                    {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
-                  </div>
-                </div>
-                <div className="customer-sidebar-tabs">
-                  <button className={customerDetailTab === "orders" ? "active" : ""} onClick={() => setCustomerDetailTab("orders")}>Đơn hàng</button>
-                  <button className={customerDetailTab === "groups" ? "active" : ""} onClick={() => setCustomerDetailTab("groups")}>Nhóm</button>
-                  <button className={customerDetailTab === "timeline" ? "active" : ""} onClick={() => setCustomerDetailTab("timeline")}>Theo dõi</button>
-                </div>
-              </aside>
-              <section className="customer-sidebar-content">
+              <Box sx={{ display: "flex", gap: 2.5, alignItems: "stretch", minHeight: "72vh", flexDirection: { xs: "column", md: "row" } }}>
+                <Box
+                  component="aside"
+                  sx={{
+                    width: { xs: "100%", md: 300 },
+                    flexShrink: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                    p: 2,
+                    borderRight: { xs: 0, md: 1 },
+                    borderBottom: { xs: 1, md: 0 },
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>{selectedCustomer.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">Telegram ID: {selectedCustomer.id}</Typography>
+                    </Box>
+                    <Button color="error" variant="outlined" size="small" onClick={() => setCustomerModalOpen(false)}>
+                      <XCircle size={18} />
+                    </Button>
+                  </Box>
+
+                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "action.hover", border: 1, borderColor: "divider" }}>
+                    <Chip
+                      size="small"
+                      label={selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
+                      color={selectedCustomer.activeOrders.length ? "success" : selectedCustomer.expiringWithinWindow ? "warning" : selectedCustomer.hasLifetimeOrder ? "secondary" : "error"}
+                      sx={{ fontWeight: 700, mb: 1 }}
+                    />
+                    <Stack spacing={1.25}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">Đơn PAID</Typography>
+                        <Typography sx={{ fontWeight: 800 }}>{selectedCustomer.paidOrders.length}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">Gói active</Typography>
+                        <Typography sx={{ fontWeight: 800 }}>{selectedCustomer.activeOrders.length}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">Hạn gần nhất</Typography>
+                        <Typography sx={{ fontWeight: 800 }}>{dateText(selectedCustomer.latestExpire)}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">Tổng tiền</Typography>
+                        <Typography sx={{ fontWeight: 800 }}>{money(selectedCustomer.revenue)}</Typography>
+                      </Box>
+                    </Stack>
+                    <Box sx={{ mt: 1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                      {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
+                      {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
+                    </Box>
+                  </Box>
+
+                  <Stack spacing={1}>
+                    {[
+                      { key: "orders", label: "Đơn hàng" },
+                      { key: "groups", label: "Nhóm" },
+                      { key: "timeline", label: "Theo dõi" },
+                    ].map((item) => (
+                      <Button
+                        key={item.key}
+                        variant={customerDetailTab === item.key ? "contained" : "outlined"}
+                        color={customerDetailTab === item.key ? "success" : "inherit"}
+                        onClick={() => setCustomerDetailTab(item.key as typeof customerDetailTab)}
+                        sx={{ justifyContent: "flex-start", py: 1.25, px: 1.5 }}
+                      >
+                        {item.label}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Box>
+
+              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.5 }}>
                 {customerDetailTab === "orders" ? (
                   <>
-                    <div className="subtabs customer-order-tabs">
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
                       <button className={customerOrderTab === "all" ? "active" : ""} onClick={() => setCustomerOrderTab("all")}>Tất cả ({selectedCustomerOrders.length})</button>
                       <button className={customerOrderTab === "active" ? "active" : ""} onClick={() => setCustomerOrderTab("active")}>Active ({selectedCustomerOrders.filter((item) => isOrderActive(item)).length})</button>
                       <button className={customerOrderTab === "expiring" ? "active" : ""} onClick={() => setCustomerOrderTab("expiring")}>Sắp hết hạn ({selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})</button>
                       <button className={customerOrderTab === "lifetime" ? "active" : ""} onClick={() => setCustomerOrderTab("lifetime")}>Trọn đời ({selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})</button>
                       <button className={customerOrderTab === "paid" ? "active" : ""} onClick={() => setCustomerOrderTab("paid")}>PAID ({selectedCustomerOrders.filter((item) => item.status === "PAID").length})</button>
                       <button className={customerOrderTab === "expired" ? "active" : ""} onClick={() => setCustomerOrderTab("expired")}>Expired ({selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})</button>
-                    </div>
+                    </Box>
                     <CustomerOrdersTable
                       orders={selectedCustomerOrders.filter((item) => {
                         if (customerOrderTab === "active") return isOrderActive(item);
@@ -5189,8 +5238,9 @@ export default function Home() {
                       />
                     </section>
                   </>
-                ) : null}
-              </section>
+                  ) : null}
+              </Box>
+              </Box>
           </MuiDialogShell>
         ) : null}
       </Box>
