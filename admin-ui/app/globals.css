@@ -1692,16 +1692,6 @@ td select {
   border-radius: 0;
 }
 
-/* Panel variants */
-.panel.content-hub {
-  overflow: visible;
-}
-
-.panel.nested-panel {
-  border: 0;
-  background: transparent;
-}
-
 /* Panel actions variants */
 .panel-actions.modal-toolbar {
   background: #fbfcfd;
