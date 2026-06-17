@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeRegistry from "./theme-registry";
 
 export const metadata: Metadata = {
   title: "Prive Admin",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <ThemeRegistry>{children}</ThemeRegistry>
+      </body>
     </html>
   );
 }

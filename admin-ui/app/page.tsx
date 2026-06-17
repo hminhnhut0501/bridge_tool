@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-unused-vars */
 
 import {
   Activity,
@@ -12,9 +13,7 @@ import {
   Gift,
   Loader2,
   Megaphone,
-  PauseCircle,
   Pencil,
-  PlayCircle,
   Plus,
   RefreshCw,
   Download,
@@ -28,9 +27,61 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  AppBar,
+  Box,
+  Button,
+  Drawer,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+import {
+  channelPostStatusClass,
+  channelPostStatusLabel,
+  dateMinusDaysText,
+  dateText,
+  dateTimeInputValue,
+  daysUntil,
+  isoDayKey,
+  describeActivityEvent,
+  describeSupportEvent,
+  displayText,
+  formatRevenueCurrency,
+  groupNamesForOrder,
+  hiddenCodeSeed,
+  hiddenRequirementLabel,
+  hiddenScopeLabel,
+  hiddenSlug,
+  hiddenValidityText,
+  inferOrderCurrency,
+  inferOrderProvider,
+  isLifetimeText,
+  isOrderActive,
+  isTodayDate,
+  isWithinPeriod,
+  kickAuditReason,
+  kickAuditStatusClass,
+  money,
+  normalizeRevenueCurrency,
+  orderCouponCode,
+  orderExpireValue,
+  orderPlanKind,
+  orderMoney,
+  payloadText,
+  providerRevenueFormat,
+  statusClass,
+  supportEventLabel,
+  uniqueValues,
+} from "./dashboard-helpers";
+import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, type GroupMode } from "./dashboard-business";
+import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, SimpleTable as MuiSimpleTable } from "./dashboard-components";
+import type { OrderPeriod } from "./dashboard-types";
+import { AnalyticsSection, OrdersSection } from "./dashboard-sections";
+import { CustomersSection } from "./customers-section";
+import { CampaignsSection } from "./campaigns-section";
+import { ChannelPostsSection } from "./channel-posts-section";
 import {
   ActivityEvent,
   BroadcastCampaign,
@@ -112,8 +163,6 @@ type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
 type MenuLanguage = "vi" | "en";
-type OrderPeriod = "all" | "today" | "7d" | "month" | "year";
-type GroupMode = "none" | "day" | "month";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
 type CustomerDetailTab = "orders" | "groups" | "timeline";
@@ -1501,10 +1550,6 @@ function couponTabOf(coupon: Coupon): CouponTab {
   return "unsent";
 }
 
-function orderCouponCode(order: Order) {
-  return order.coupon_code || (Number(order.amount || 0) === 0 && order.sale_id ? order.sale_id : "");
-}
-
 function stripHtml(value: string) {
   return String(value || "")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -1514,103 +1559,6 @@ function stripHtml(value: string) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .trim();
-}
-
-function isLifetimeText(value: string | null | undefined) {
-  const text = String(value || "").toLowerCase();
-  return text.includes("trọn đời") || text.includes("tron doi") || text.includes("lifetime");
-}
-
-function isOrderActive(order: Order) {
-  if (order.status !== "PAID") return false;
-  if (isLifetimeText(order.plan_name)) return true;
-  if (!order.expire_at) return false;
-  const expire = new Date(order.expire_at);
-  return !Number.isNaN(expire.getTime()) && expire.getTime() > Date.now();
-}
-
-function orderPlanKind(order: Order) {
-  const plan = String(order.plan_name || "").toLowerCase();
-  if (isLifetimeText(plan)) return "Trọn đời";
-  if (plan.includes("1 ngày") || plan.includes("1 day")) return "1 ngày";
-  if (plan.includes("30")) return "30 ngày";
-  return "Khác";
-}
-
-function orderExpireValue(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
-function groupNamesForOrder(order: Order) {
-  const plan = String(order.plan_name || "");
-  if (!plan) return [];
-  const lowerPlan = plan.toLowerCase();
-  if (lowerPlan.includes("full") || lowerPlan.includes("svip")) return ["Full nhóm"];
-  const afterDash = plan.includes(" - ") ? plan.split(" - ").slice(1).join(" - ").trim() : "";
-  return afterDash ? [afterDash] : [];
-}
-
-function uniqueValues(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean)));
-}
-
-function payloadText(payload: Record<string, unknown>, key: string) {
-  const value = payload?.[key];
-  return value === null || value === undefined ? "" : String(value);
-}
-
-function displayText(value: unknown) {
-  const text = value === null || value === undefined ? "" : String(value).trim();
-  return text === "-" ? "" : text;
-}
-
-function describeActivityEvent(event: ActivityEvent) {
-  const payload = event.payload || {};
-  const eventType = payloadText(payload, "event_type") || event.event_name;
-  if (eventType === "message") {
-    const command = payloadText(payload, "command");
-    return command ? `User gửi lệnh /${command}` : "User gửi tin nhắn cho bot";
-  }
-  if (eventType === "callback") {
-    const callback = payloadText(payload, "callback_data");
-    return callback ? `User bấm nút: ${callback}` : "User bấm nút trong bot";
-  }
-  return eventType || "Tương tác user";
-}
-
-function describeSupportEvent(event: SupportEvent) {
-  return supportEventLabel(event.event_type);
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
-}
-
-function inferOrderCurrency(order: Order) {
-  const explicit = String(order.payment_currency || "").toUpperCase();
-  const provider = inferOrderProvider(order);
-  if (provider === "PAYPAL") return "USD";
-  if (provider === "NOWPAYMENTS" || provider === "TRON_USDT") return "USDT";
-  if (provider === "PAYOS" || provider === "BINANCE_PAY") return "VND";
-  if (explicit === "USD") return "USD";
-  if (explicit === "VND" || !explicit) return "VND";
-  if (explicit.includes("USDT") || explicit.includes("TRC20") || explicit.includes("CRYPTO")) return "USDT";
-  return explicit || "VND";
-}
-
-function orderMoney(order: Order, value = order.amount) {
-  const currency = inferOrderCurrency(order);
-  if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
-  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency.replace("_TRC20", "")}`;
-  return money(value || 0);
 }
 
 function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount" = "amount") {
@@ -1629,22 +1577,6 @@ function ordersAverageMoney(orders: Order[]) {
   const parts = Object.entries(groups).map(([currency, items]) => formatRevenueCurrency(currency, items.reduce((sum, order) => sum + Number(order.amount || 0), 0) / items.length));
   return parts.join(" + ") || money(0);
 }
-
-function normalizeRevenueCurrency(value: string | null | undefined) {
-  const currency = String(value || "VND").toUpperCase();
-  if (currency === "USD") return "USD";
-  if (currency === "VND" || !currency) return "VND";
-  if (currency.includes("USDT") || currency.includes("TRC20") || currency.includes("CRYPTO") || currency === "BTC" || currency === "ETH") return "CRYPTO";
-  return currency;
-}
-
-function formatRevenueCurrency(currency: string, value: number) {
-  if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
-  if (currency === "CRYPTO") return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} USDT`;
-  if (currency === "VND") return money(value || 0);
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency}`;
-}
-
 function groupRevenueByCurrency(orders: Order[]) {
   return orders.reduce((sum, order) => {
     const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
@@ -1678,14 +1610,6 @@ function currencyLabel(value: string | null | undefined) {
   return labels[currency] || currency;
 }
 
-function providerRevenueFormat(provider: string, value: number) {
-  const normalized = String(provider || "MANUAL").toUpperCase();
-  if (normalized === "PAYPAL") return formatRevenueCurrency("USD", value);
-  if (normalized === "NOWPAYMENTS" || normalized === "TRON_USDT") return formatRevenueCurrency("CRYPTO", value);
-  if (normalized === "BINANCE_PAY") return formatRevenueCurrency("VND", value);
-  return formatRevenueCurrency("VND", value);
-}
-
 function renderLimitedTags(items: string[], prefix: string, limit = 4) {
   const visible = items.slice(0, limit);
   const rest = items.length - visible.length;
@@ -1697,85 +1621,14 @@ function renderLimitedTags(items: string[], prefix: string, limit = 4) {
   );
 }
 
-function inferOrderProvider(order: Order) {
-  const explicit = String(order.payment_provider || "").toUpperCase();
-  if (explicit) return explicit;
-  const metadata = order.metadata && typeof order.metadata === "object" ? order.metadata as Record<string, unknown> : {};
-  const metadataProvider = String(
-    metadata.payment_provider ||
-    metadata.payment_method ||
-    metadata.provider ||
-    metadata.provider_name ||
-    metadata.payment_gateway ||
-    ""
-  ).toUpperCase();
-  if (["PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"].includes(metadataProvider)) return metadataProvider;
-  const approvalUrl = String(order.payment_approval_url || metadata.payment_approval_url || metadata.approval_url || "").toLowerCase();
-  const providerOrderId = String(order.payment_provider_order_id || metadata.payment_provider_order_id || metadata.provider_order_id || "").toLowerCase();
-  const sourceType = String(order.source_type || metadata.source_type || "").toUpperCase();
-  if (approvalUrl.includes("payos") || approvalUrl.includes("vietqr") || sourceType === "PAYOS" || providerOrderId.startsWith("payos_")) return "PAYOS";
-  if (approvalUrl.includes("paypal") || sourceType === "PAYPAL" || providerOrderId.startsWith("paypal_")) return "PAYPAL";
-  if (approvalUrl.includes("nowpayments") || sourceType === "NOWPAYMENTS" || providerOrderId.startsWith("nowpayments_")) return "NOWPAYMENTS";
-  if (approvalUrl.includes("trc20") || sourceType === "TRON_USDT") return "TRON_USDT";
-  if (approvalUrl.includes("sieuthicode") || sourceType === "BINANCE_PAY" || providerOrderId.startsWith("binance_pay_")) return "BINANCE_PAY";
-  return "UNKNOWN";
-}
-
-function dateText(value: string | null | undefined) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
-}
-
-function dateTimeInputValue(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
 function datetimeLocalToIso(value: string) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
-
-function hiddenRequirementLabel(value: string | null | undefined) {
-  return HIDDEN_REQUIREMENT_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Không yêu cầu thêm";
-}
-
-function hiddenScopeLabel(value: string | null | undefined) {
-  return HIDDEN_SCOPE_OPTIONS.find((item) => item.value === String(value || "").toUpperCase())?.label || "Chọn thủ công";
-}
-
 function hiddenRequirementNeedsValue(value: string | null | undefined) {
   return ["PLAN_TOKEN_ACTIVE", "PLAN_TOKEN_LIFETIME"].includes(String(value || "").toUpperCase());
 }
-
-function hiddenSlug(value: string) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/đ/g, "d")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 48);
-}
-
-function hiddenCodeSeed(value: string) {
-  return hiddenSlug(value).replace(/_/g, "-").toUpperCase();
-}
-
-function hiddenValidityText(code: HiddenCode) {
-  if (!code.valid_from && !code.valid_until) return "Không giới hạn thời gian";
-  return `${dateText(code.valid_from) === "-" ? "Ngay" : dateText(code.valid_from)} → ${dateText(code.valid_until) === "-" ? "Vô hạn" : dateText(code.valid_until)}`;
-}
-
 function hiddenGroupToForm(item?: HiddenGroup, nextSort = 1): HiddenGroupFormState {
   return {
     id: item?.id || "",
@@ -1822,31 +1675,6 @@ function channelPostTabFor(post: ChannelPost): ChannelPostTab {
   if (status === "deleted") return "deleted";
   return "draft";
 }
-
-function channelPostStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    draft: "Nháp",
-    queued: "Chờ gửi",
-    pending: "Chờ gửi",
-    sending: "Đang gửi",
-    scheduled: "Đã lên lịch",
-    sent: "Đã đăng",
-    delete_scheduled: "Chờ xóa",
-    deleting: "Đang xóa",
-    deleted: "Đã xóa",
-    failed: "Lỗi gửi",
-    delete_failed: "Lỗi xóa",
-  };
-  return labels[String(status || "").toLowerCase()] || status || "-";
-}
-
-function channelPostStatusClass(status: string) {
-  const normalized = String(status || "").toLowerCase();
-  if (["sent", "deleted"].includes(normalized)) return "status paid";
-  if (["failed", "delete_failed"].includes(normalized)) return "status expired";
-  return "status pending";
-}
-
 function datePlusDaysText(value: string | null | undefined, days: number) {
   if (!value) return "-";
   const date = new Date(value);
@@ -1855,175 +1683,10 @@ function datePlusDaysText(value: string | null | undefined, days: number) {
   return dateText(date.toISOString());
 }
 
-function dateMinusDaysText(value: string | null | undefined, days: number) {
-  return datePlusDaysText(value, -days);
-}
-
 function normalizeChatId(value: string | number | null | undefined) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
   return raw.endsWith(".0") ? raw.slice(0, -2) : raw;
-}
-
-function dateOnly(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-function isTodayDate(value: string | null | undefined) {
-  return Boolean(value && dateOnly(value) === dateOnly(new Date().toISOString()));
-}
-
-function daysUntil(value: string | null | undefined) {
-  if (!value) return 999999;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 999999;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / 86400000);
-}
-
-function dayKey(value: string | null | undefined) {
-  if (!value) return "Không rõ ngày";
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(value));
-}
-
-function isoDayKey(value: string | null | undefined) {
-  if (!value) return "UNKNOWN";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "UNKNOWN";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function monthKey(value: string | null | undefined) {
-  if (!value) return "Không rõ tháng";
-  return new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "numeric" }).format(new Date(value));
-}
-
-function isWithinPeriod(value: string | null | undefined, period: OrderPeriod) {
-  if (period === "all") return true;
-  if (!value) return false;
-
-  const date = new Date(value);
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-
-  if (period === "today") return date >= start;
-  if (period === "7d") {
-    const sevenDaysAgo = new Date(start);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    return date >= sevenDaysAgo;
-  }
-  if (period === "month") {
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    return date >= monthStart;
-  }
-  if (period === "year") {
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    return date >= yearStart;
-  }
-  return true;
-}
-
-function uniquePaidCustomers(orders: Order[]) {
-  return new Set(orders.filter((item) => item.status === "PAID").map((item) => item.telegram_user_id)).size;
-}
-
-function orderStats(orders: Order[]) {
-  const paidOrders = orders.filter((item) => item.status === "PAID");
-  const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const discount = paidOrders.reduce((sum, item) => sum + (item.coupon_discount_amount || 0), 0);
-  return {
-    total: orders.length,
-    paid: paidOrders.length,
-    pending: orders.filter((item) => item.status === "PENDING").length,
-    cancelled: orders.filter((item) => item.status === "CANCELLED").length,
-    expired: orders.filter((item) => item.status === "EXPIRED").length,
-    revenue,
-    discount,
-    averageOrder: paidOrders.length ? Math.round(revenue / paidOrders.length) : 0,
-    conversion: orders.length ? Math.round((paidOrders.length / orders.length) * 100) : 0,
-    customers: uniquePaidCustomers(orders),
-  };
-}
-
-function groupOrders(orders: Order[], mode: GroupMode) {
-  if (mode === "none") return [];
-  const groups = new Map<string, Order[]>();
-  for (const order of orders) {
-    const key = mode === "day" ? dayKey(order.created_at) : monthKey(order.created_at);
-    groups.set(key, [...(groups.get(key) || []), order]);
-  }
-  return Array.from(groups.entries()).map(([label, items]) => ({ label, items, stats: orderStats(items) }));
-}
-
-function statusClass(status: string) {
-  const normalized = status.toLowerCase();
-  if (["paid", "sent", "done", "running"].includes(normalized)) return "status paid";
-  if (["expired", "cancelled", "failed"].includes(normalized)) return "status expired";
-  return "status pending";
-}
-
-function kickAuditStatusClass(status: string) {
-  if (["KICKED", "LEFT_NO_LOG", "ACTIVE_RETAINED"].includes(status)) return "status paid";
-  if (["WAITING_KICK", "REJOINED", "CHECK_ERROR", "NO_GROUP", "INVALID_EXPIRE_AT"].includes(status)) return "status expired";
-  return "status pending";
-}
-
-function kickAuditReason(item: KickAuditRow) {
-  if (item.status === "ACTIVE_RETAINED") {
-    return item.retained_reason || "Còn đơn active khác nên không kick";
-  }
-  return item.latest_error || item.status_label || item.status || "-";
-}
-
-function supportEventLabel(type: string) {
-  const labels: Record<string, string> = {
-    order_created: "Tạo đơn",
-    order_paid: "Thanh toán",
-    order_expired: "Hết hạn",
-    vip_joined: "VIP join",
-    vip_left: "VIP rời",
-    vip_kicked: "VIP kick",
-    vip_muted: "VIP mute",
-    vip_unmuted: "VIP unmute",
-    vip_role_changed: "VIP đổi quyền",
-    vip_restricted_changed: "VIP đổi restrict",
-    support_joined: "Vừa join support",
-    support_left: "Rời support",
-    renewal_reminder_sent: "Đã nhắc gia hạn",
-    expired_notice_sent: "Đã báo hết hạn",
-    member_muted: "Đã mute",
-    member_unmuted: "Đã mở mute",
-    member_kicked: "Đã kick",
-  };
-  return labels[type] || type;
-}
-
-function getConfigValue(config: ConfigRow[], key: string, fallback = "") {
-  return config.find((item) => item.key === key)?.value ?? fallback;
-}
-
-function isGroupConfigured(config: ConfigRow[], groupNo: number) {
-  return Boolean(getConfigValue(config, `BTN_G${groupNo}`) && getConfigValue(config, `ID_G${groupNo}`));
-}
-
-function hasAnyGroupConfig(config: ConfigRow[], groupNo: number) {
-  return groupConfigKeys(String(groupNo)).some((key) => Boolean(getConfigValue(config, key)));
-}
-
-function groupConfigKeys(groupNo: string) {
-  return [`BTN_G${groupNo}`, `BTN_G${groupNo}_EN`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `DESC_G${groupNo}_EN`, `IMG_G${groupNo}`];
 }
 
 export default function Home() {
@@ -3570,7 +3233,7 @@ export default function Home() {
       dateText(item.created_at),
       [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
     ]);
-  }, [supportGroupEvents, supportTab, customerNameById, supportNameById]);
+  }, [supportGroupEvents, supportTab, supportCustomerName]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
   const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
   const pagedSupportRows = useMemo(() => {
@@ -3658,7 +3321,7 @@ export default function Home() {
       ]),
     };
     return rows;
-  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, vipGroupAudit, latestReminderByOrder, reminderNoticeDays, saving]);
+  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, vipGroupAudit, latestReminderByOrder, reminderNoticeDays, saving, renewalCustomerName, manualKickAudit]);
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
     today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
@@ -3669,7 +3332,7 @@ export default function Home() {
     retained: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Lý do giữ quyền", "Live"],
     vipOut: ["Khách", "Gói / Đơn", "Group", "Hạn dùng", "Trạng thái", "Live", "Lỗi"],
   };
-  const currentRenewalRows = renewalRows[renewalTab] || [];
+  const currentRenewalRows = useMemo(() => renewalRows[renewalTab] || [], [renewalRows, renewalTab]);
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalRows.length / RENEWAL_PAGE_SIZE));
   const pagedRenewalRows = useMemo(() => {
     const safePage = Math.min(renewalPage, totalRenewalPages);
@@ -3707,7 +3370,7 @@ export default function Home() {
       createdAt: event.created_at,
     }));
     return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [activityEvents, supportEvents, customerNameById, supportNameById]);
+  }, [activityEvents, supportEvents, supportCustomerName]);
   const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
   const logDateOptions = useMemo(() => uniqueValues(logEntries.map((item) => isoDayKey(item.createdAt))).sort((a, b) => {
     if (a === "UNKNOWN") return 1;
@@ -3910,8 +3573,43 @@ export default function Home() {
   }
 
   return (
-    <main className="shell">
-      <aside className="sidebar">
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar position="fixed" elevation={0} color="default" sx={{ borderBottom: "1px solid", borderColor: "divider", bgcolor: "rgba(255,255,255,0.92)", backdropFilter: "blur(14px)", zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+        <Toolbar sx={{ gap: 2 }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
+            </Typography>
+          </Box>
+          <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+            {ui("Tải lại", "Reload")}
+          </Button>
+          <Button variant="text" onClick={logout}>
+            {ui("Đăng xuất", "Log out")}
+          </Button>
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant="permanent"
+        sx={{
+          width: 280,
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: 280,
+            boxSizing: "border-box",
+            borderRight: "1px solid",
+            borderColor: "divider",
+            bgcolor: "#111827",
+            color: "#f9fafb",
+          },
+        }}
+      >
+        <Toolbar />
+        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "22px 16px" }}>
         <div className="brand">Prive Admin</div>
         <div className="side-status">
           <span className={webhook?.url ? "dot ok" : "dot bad"} />
@@ -3939,9 +3637,10 @@ export default function Home() {
           <button className={tab === "sales" ? "active" : ""} onClick={() => selectTab("sales")}><BadgePercent size={18} /> Sale</button>
           <button className={tab === "system" ? "active" : ""} onClick={() => selectTab("system")}><Settings size={18} /> {ui("Hệ thống", "System")}</button>
         </nav>
-      </aside>
+        </aside>
+      </Drawer>
 
-      <section className="main">
+      <Box component="section" className="main" sx={{ flexGrow: 1, ml: "280px", pt: 10 }}>
         <div className="topbar">
           <div>
             <h1 className="title">{ui("Quản lý bot Privé+", "Privé+ Bot Admin")}</h1>
@@ -4015,41 +3714,26 @@ export default function Home() {
             </section>
             <section className="panel">
               <PanelHead title="Đơn hàng mới nhất" subtitle="10 đơn gần nhất." />
-              <OrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
+              <MuiOrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
             </section>
           </div>
         ) : null}
 
         {tab === "analytics" ? (
-          <div className="stack">
-            <div className="grid">
-              <Metric label="Hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
-              <Metric label="Tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
-              <Metric label="Năm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} />
-              <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} />
-            </div>
-            <div className="grid metrics-band">
-              <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="vnd" />
-              <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="usd" />
-              <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item) => isWithinPeriod(item.created_at, "month")).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="crypto" />
-              <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" />
-              <Metric label="NOWPayments / USDT" value={providerRevenueFormat("NOWPAYMENTS", (paidRevenueByProvider.NOWPAYMENTS || 0) + (paidRevenueByProvider.TRON_USDT || 0))} tone="crypto" />
-            </div>
-            <div className="grid">
-              <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} />
-              <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} />
-              <Metric label="AOV tháng" value={ordersAverageMoney(orders.filter((item) => isWithinPeriod(item.created_at, "month")))} />
-              <Metric label="Coupon giảm tháng" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} />
-            </div>
-            <section className="panel">
-              <PanelHead title="Theo dõi tăng trưởng" subtitle="Doanh thu, tỉ lệ thanh toán, khách trả tiền và giảm giá coupon theo từng ngày trong tháng." />
-              <SummaryTable groups={groupOrders(orders.filter((item) => isWithinPeriod(item.created_at, "month")), "day")} />
-            </section>
-            <section className="panel">
-              <PanelHead title="Tổng hợp theo tháng" subtitle="Dữ liệu năm hiện tại, không xoá đơn cũ." />
-              <SummaryTable groups={groupOrders(orders.filter((item) => isWithinPeriod(item.created_at, "year")), "month")} />
-            </section>
-          </div>
+          <AnalyticsSection
+            orders={orders}
+            yearStats={yearStats}
+            monthStats={monthStats}
+            paidRevenueByCurrency={paidRevenueByCurrency}
+            paidRevenueByProvider={paidRevenueByProvider}
+            formatRevenueCurrency={formatRevenueCurrency}
+            providerRevenueFormat={providerRevenueFormat}
+            isWithinPeriod={isWithinPeriod}
+            groupOrders={groupOrders}
+            SummaryTable={SummaryTable}
+            ordersMoney={ordersMoney}
+            ordersAverageMoney={ordersAverageMoney}
+          />
         ) : null}
 
         {tab === "setup" ? (
@@ -4193,134 +3877,58 @@ export default function Home() {
         ) : null}
 
         {tab === "orders" ? (
-          <div className="stack">
-            <div className="grid">
-              <Metric label="Doanh thu bộ lọc" value={ordersMoney(filteredOrders.filter((item) => item.status === "PAID"))} />
-              <Metric label="Đơn PAID" value={String(filteredOrderStats.paid)} />
-              <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} />
-              <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} />
-            </div>
-            <section className="panel">
-              <PanelHead
-                title="Thêm đơn thủ công"
-                subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link."
-                action={
-                  <div className="panel-actions">
-                  <button className="btn secondary" onClick={() => setOrderSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
-                    <button className="btn" onClick={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}><Plus size={18} /> Mở form tạo đơn</button>
-                  </div>
-                }
-              />
-              <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Đơn hàng"
-                subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn."
-                action={
-                  <div className="panel-actions">
-                    <button className="btn secondary" onClick={exportOrdersCsv} disabled={!filteredOrders.length}>
-                      <Download size={16} /> CSV
-                    </button>
-                  </div>
-                }
-              />
-              <div className="toolbar orders-toolbar">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." />
-                <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="PENDING">Đang chờ</option>
-                  <option value="PAID">Đã thanh toán</option>
-                  <option value="CANCELLED">Đã hủy</option>
-                  <option value="EXPIRED">Hết hạn</option>
-                </select>
-                <select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value as OrderPeriod)}>
-                  <option value="today">Hôm nay</option>
-                  <option value="7d">7 ngày gần đây</option>
-                  <option value="month">Tháng này</option>
-                  <option value="year">Năm nay</option>
-                  <option value="all">Tất cả</option>
-                </select>
-                <select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value as GroupMode)}>
-                  <option value="day">Nhóm theo ngày</option>
-                  <option value="month">Nhóm theo tháng</option>
-                  <option value="none">Không nhóm</option>
-                </select>
-              </div>
-              {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
-              <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
-              <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
-            </section>
-          </div>
+          <OrdersSection
+            filteredOrders={filteredOrders}
+            filteredOrderStats={filteredOrderStats}
+            exportOrdersCsv={exportOrdersCsv}
+            query={query}
+            setQuery={setQuery}
+            orderStatus={orderStatus}
+            setOrderStatus={setOrderStatus}
+            orderPeriod={orderPeriod}
+            setOrderPeriod={setOrderPeriod}
+            orderGroupMode={orderGroupMode}
+            setOrderGroupMode={setOrderGroupMode}
+            groupedFilteredOrders={groupedFilteredOrders}
+            pagedOrders={pagedOrders}
+            changeOrderStatus={changeOrderStatus}
+            removeOrder={removeOrder}
+            saving={saving}
+            orderPage={orderPage}
+            totalOrderPages={totalOrderPages}
+            setOrderPage={setOrderPage}
+            SummaryTable={SummaryTable}
+            ordersMoney={ordersMoney}
+            openOrderSettings={() => setOrderSettingsOpen(true)}
+            openManualOrder={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}
+          />
         ) : null}
 
         {tab === "customers" ? (
-          <div className="stack">
-            <div className="grid">
-              <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} />
-              <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item) => item.activeOrders.length).length)} />
-              <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item) => item.coupons.length).length)} />
-              <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item) => item.paidOrders))} />
-            </div>
-            <section className="panel">
-              <PanelHead
-                title="Khách hàng"
-                subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái."
-                action={
-                  <div className="panel-actions">
-                    <button className="btn secondary" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>
-                      <Download size={16} /> CSV
-                    </button>
-                  </div>
-                }
-              />
-              <div className="toolbar orders-toolbar">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
-                <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as CustomerStatusFilter)}>
-                  <option value="all">Tất cả khách</option>
-                  <option value="active">Đang còn hạn</option>
-                  <option value="expiring">Sắp hết hạn</option>
-                  <option value="lifetime">Có gói trọn đời</option>
-                  <option value="expired">Không còn gói active</option>
-                  <option value="paid">Đã mua/kích hoạt thành công</option>
-                  <option value="coupon">Có dùng coupon</option>
-                </select>
-                <select value={customerGroup} onChange={(event) => setCustomerGroup(event.target.value)}>
-                  <option value="ALL">Tất cả group</option>
-                  {customerGroupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-                <select value={customerPlanKind} onChange={(event) => setCustomerPlanKind(event.target.value)}>
-                  <option value="ALL">Tất cả gói</option>
-                  <option value="1 ngày">1 ngày</option>
-                  <option value="30 ngày">30 ngày</option>
-                  <option value="Trọn đời">Trọn đời</option>
-                  <option value="Khác">Khác</option>
-                </select>
-              </div>
-              <SimpleTable
-                headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
-                rows={pagedCustomers.map((customer) => [
-                  <><strong>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</strong><div className="muted">{customer.id}</div></>,
-                  <span key="status" className={customer.activeOrders.length ? "status paid" : customer.expiringWithinWindow ? "status warning" : customer.hasLifetimeOrder ? "status badge-lifetime" : customer.paidOrders.length ? "status expired" : "status pending"}>{customer.activeOrders.length ? "Đang còn hạn" : customer.expiringWithinWindow ? "Sắp hết hạn" : customer.hasLifetimeOrder ? "Trọn đời" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}</span>,
-                  String(customer.paidOrders.length),
-                  <><strong>{customer.plans[0] || "-"}</strong><div className="muted">{customer.groups.slice(0, 2).join(", ") || "Chưa rõ group"}</div></>,
-                  dateText(customer.latestExpire),
-                  ordersMoney(customer.paidOrders),
-                ])}
-                actions={(idx) => (
-                  <button className="btn secondary" onClick={() => {
-                    const customer = pagedCustomers[idx];
-                    setSelectedCustomerId(customer.id);
-                    setCustomerOrderTab("all");
-                    setCustomerDetailTab("orders");
-                    setCustomerTimelineSubTab("all");
-                    setCustomerModalOpen(true);
-                  }}>Chi tiết</button>
-                )}
-              />
-              <Pagination page={customerPage} totalPages={totalCustomerPages} totalItems={filteredCustomers.length} onPage={setCustomerPage} label="khách" />
-            </section>
-          </div>
+          <CustomersSection
+            filteredCustomers={filteredCustomers}
+            customerSummaries={customerSummaries}
+            ordersMoney={ordersMoney}
+            exportCustomersCsv={exportCustomersCsv}
+            query={query}
+            setQuery={setQuery}
+            customerStatus={customerStatus}
+            setCustomerStatus={setCustomerStatus}
+            customerGroup={customerGroup}
+            setCustomerGroup={setCustomerGroup}
+            customerGroupOptions={customerGroupOptions}
+            customerPlanKind={customerPlanKind}
+            setCustomerPlanKind={setCustomerPlanKind}
+            pagedCustomers={pagedCustomers}
+            setSelectedCustomerId={setSelectedCustomerId}
+            setCustomerOrderTab={setCustomerOrderTab}
+            setCustomerDetailTab={setCustomerDetailTab}
+            setCustomerTimelineSubTab={setCustomerTimelineSubTab}
+            setCustomerModalOpen={setCustomerModalOpen}
+            customerPage={customerPage}
+            totalCustomerPages={totalCustomerPages}
+            setCustomerPage={setCustomerPage}
+          />
         ) : null}
 
         {tab === "activityLog" ? (
@@ -4366,135 +3974,41 @@ export default function Home() {
         ) : null}
 
         {tab === "campaigns" ? (
-          <div className="stack">
-            <div className="grid">
-              <Metric label="Campaign" value={String(campaigns.length)} />
-              <Metric label="Đang chạy" value={String(campaigns.filter((item) => item.status === "RUNNING").length)} />
-              <Metric label="Đã gửi" value={String(campaigns.reduce((sum, item) => sum + (item.sent_count || 0), 0))} />
-              <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} />
-            </div>
-            <section className="panel">
-              <PanelHead
-                title="Tạo campaign"
-                subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam."
-                action={<button className="btn" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }}><Plus size={16} /> Tạo campaign</button>}
-              />
-              <div className="campaign-preview">
-                <strong>Preview: {campaignPreview?.total || 0} người</strong>
-                <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
-                <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
-                <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
-              </div>
-            </section>
-
-            <section className="panel">
-              <PanelHead title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người." />
-              <SimpleTable
-                headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
-                rows={campaigns.map((item) => [
-                  <button key={`select-${item.id}`} className="link-button" onClick={() => { setSelectedCampaignId(item.id); setCampaignRecipientPage(1); }}><strong>{item.title}</strong><div className="muted">{dateText(item.created_at)}</div></button>,
-                  <><strong>{item.target_segment}</strong><div className="muted">{String(item.raw_data?.plan_filter || "ALL")} • {String(item.raw_data?.plan_match_scope || "ANY_PAID")}</div></>,
-                  <span key={`status-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
-                  <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,
-                  `${item.delay_seconds}s`,
-                  <div key={`actions-${item.id}`} className="coupon-row-actions">
-                    {item.status !== "RUNNING" && item.status !== "DONE" && item.status !== "CANCELLED" ? <button className="btn small" onClick={() => changeCampaignStatus(item.id, "start")}><PlayCircle size={15} /> Gửi</button> : null}
-                    {item.status === "RUNNING" ? <button className="btn secondary small" onClick={() => changeCampaignStatus(item.id, "pause")}><PauseCircle size={15} /> Tạm dừng</button> : null}
-                    {item.status !== "DONE" && item.status !== "CANCELLED" ? <button className="btn danger small" onClick={() => changeCampaignStatus(item.id, "cancel")}>Huỷ</button> : null}
-                  </div>,
-                ])}
-              />
-            </section>
-
-            <section className="panel">
-              <PanelHead title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart." />
-              <div className="campaign-preview">
-                <span>Pending: {campaignRecipientCounts.PENDING || 0}</span>
-                <span>Sent: {campaignRecipientCounts.SENT || 0}</span>
-                <span>Failed: {campaignRecipientCounts.FAILED || 0}</span>
-                <span>Skipped: {campaignRecipientCounts.SKIPPED || 0}</span>
-              </div>
-              <SimpleTable
-                headers={["Khách", "Telegram ID", "Nhóm", "Gói liên quan", "Trạng thái", "Gửi lúc", "Lỗi"]}
-                rows={pagedCampaignRecipients.map((item) => [
-                  <><strong>{item.full_name || item.username || "-"}</strong><div className="muted">{item.username ? `@${item.username}` : ""}</div></>,
-                  item.telegram_user_id,
-                  item.segment,
-                  <><strong>{String(item.raw_data?.latest_plan_name || "-")}</strong><div className="muted">{Array.isArray(item.raw_data?.paid_plan_names) ? item.raw_data.paid_plan_names.join(", ") : ""}</div></>,
-                  <span key={`r-${item.id}`} className={statusClass(item.status)}>{item.status}</span>,
-                  dateText(item.sent_at || item.last_attempt_at),
-                  item.error || "-",
-                ])}
-              />
-              <Pagination page={campaignRecipientPage} totalPages={totalCampaignRecipientPages} totalItems={campaignRecipients.length} onPage={setCampaignRecipientPage} label="người nhận" />
-            </section>
-          </div>
+          <CampaignsSection
+            campaigns={campaigns}
+            campaignPreview={campaignPreview}
+            selectedCampaign={selectedCampaign}
+            campaignRecipientCounts={campaignRecipientCounts}
+            pagedCampaignRecipients={pagedCampaignRecipients}
+            campaignRecipients={campaignRecipients}
+            totalCampaignRecipientPages={totalCampaignRecipientPages}
+            campaignRecipientPage={campaignRecipientPage}
+            setCampaignRecipientPage={setCampaignRecipientPage}
+            changeCampaignStatus={changeCampaignStatus}
+            setSelectedCampaignId={setSelectedCampaignId}
+            setCampaignModalOpen={setCampaignModalOpen}
+            setCampaignForm={setCampaignForm}
+            EMPTY_CAMPAIGN_FORM={EMPTY_CAMPAIGN_FORM}
+          />
         ) : null}
 
         {tab === "channelPosts" ? (
-          <div className="stack">
-            <div className="grid">
-              <Metric label="Tổng bài" value={String(channelPosts.length)} />
-              <Metric label="Chờ gửi" value={String(channelPostCounts.queue + channelPostCounts.scheduled)} />
-              <Metric label="Đã đăng" value={String(channelPostCounts.sent)} />
-              <Metric label="Có lỗi" value={String(channelPostCounts.failed)} />
-            </div>
-            <section className="panel">
-              <PanelHead
-                title="Đăng channel"
-                subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài."
-                action={<button className="btn" onClick={openNewChannelPostModal}><Plus size={16} /> Soạn bài mới</button>}
-              />
-              <div className="subtabs">
-                <button className={channelPostTab === "draft" ? "active" : ""} onClick={() => setChannelPostTab("draft")}>Nháp ({channelPostCounts.draft})</button>
-                <button className={channelPostTab === "queue" ? "active" : ""} onClick={() => setChannelPostTab("queue")}>Chờ gửi ({channelPostCounts.queue})</button>
-                <button className={channelPostTab === "scheduled" ? "active" : ""} onClick={() => setChannelPostTab("scheduled")}>Đã lên lịch ({channelPostCounts.scheduled})</button>
-                <button className={channelPostTab === "sent" ? "active" : ""} onClick={() => setChannelPostTab("sent")}>Đã đăng ({channelPostCounts.sent})</button>
-                <button className={channelPostTab === "failed" ? "active" : ""} onClick={() => setChannelPostTab("failed")}>Lỗi ({channelPostCounts.failed})</button>
-                <button className={channelPostTab === "deleted" ? "active" : ""} onClick={() => setChannelPostTab("deleted")}>Đã xóa ({channelPostCounts.deleted})</button>
-              </div>
-              <SimpleTable
-                headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
-                rows={pagedChannelPosts.map((item) => [
-                  (() => {
-                    const repeatDaily = Boolean(item.repeat_daily);
-                    return (
-                      <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}>
-                        <strong>{item.title || `Bài #${item.id}`}</strong>
-                        <div className="muted">{String(item.content || "").slice(0, 90)}</div>
-                        <div className="row-chips" style={{ marginTop: 8 }}>
-                          {repeatDaily ? <span className="badge green">Lặp ngày</span> : <span className="badge muted">Không lặp</span>}
-                          {item.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
-                        </div>
-                      </button>
-                    );
-                  })(),
-                  item.target_chat_id,
-                  <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
-                  <>
-                    <strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong>
-                    <div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div>
-                  </>,
-                  <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0} • {dateText(item.updated_at)}{item.repeat_daily ? " • Lặp ngày" : ""}</div></>,
-                  item.error ? <><strong>{item.error_code || "telegram_error"}</strong><div className="muted">{item.error}</div></> : "-",
-                ])}
-                onRow={(idx) => editChannelPost(pagedChannelPosts[idx])}
-                actions={(idx) => {
-                  const item = pagedChannelPosts[idx];
-                  const status = String(item.status || "").toLowerCase();
-                  return (
-                    <div className="coupon-row-actions">
-                      {["draft", "failed", "delete_failed"].includes(status) ? <button className="btn small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "send_now"); }}><Send size={15} /> Gửi</button> : null}
-                      {status === "scheduled" ? <button className="btn secondary small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "cancel_schedule"); }}>Hủy lịch</button> : null}
-                      {["sent", "delete_scheduled"].includes(status) ? <button className="btn danger small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "delete_now"); }}><Trash2 size={15} /> Xóa</button> : null}
-                      {status === "delete_scheduled" ? <button className="btn secondary small" onClick={(event) => { event.stopPropagation(); runChannelPostAction(item, "cancel_delete"); }}>Hủy xóa</button> : null}
-                    </div>
-                  );
-                }}
-              />
-              <Pagination page={channelPostPage} totalPages={totalChannelPostPages} totalItems={visibleChannelPosts.length} onPage={setChannelPostPage} label="bài đăng" />
-            </section>
-          </div>
+          <ChannelPostsSection
+            channelPosts={channelPosts}
+            channelPostCounts={channelPostCounts}
+            channelPostTab={channelPostTab}
+            setChannelPostTab={setChannelPostTab}
+            openNewChannelPostModal={openNewChannelPostModal}
+            pagedChannelPosts={pagedChannelPosts}
+            channelPostPage={channelPostPage}
+            totalChannelPostPages={totalChannelPostPages}
+            visibleChannelPosts={visibleChannelPosts}
+            setChannelPostPage={setChannelPostPage}
+            editChannelPost={editChannelPost}
+            runChannelPostAction={runChannelPostAction}
+            channelPostStatusClass={channelPostStatusClass}
+            channelPostStatusLabel={channelPostStatusLabel}
+          />
         ) : null}
 
         {tab === "renewals" ? (
@@ -5186,8 +4700,7 @@ export default function Home() {
         ) : null}
 
         {campaignModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
+          <MuiDialogShell open title="Tạo campaign" subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách." onClose={() => setCampaignModalOpen(false)} maxWidth="lg">
               <PanelHead
                 title="Tạo campaign"
                 subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách."
@@ -5230,8 +4743,7 @@ export default function Home() {
                   {saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Tạo campaign
                 </button>
               </div>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {menuModalOpen ? (
@@ -5258,8 +4770,7 @@ export default function Home() {
         ) : null}
 
         {saleModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
+          <MuiDialogShell open title="Thêm sale" subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói." onClose={() => setSaleModalOpen(false)} maxWidth="lg">
               <PanelHead
                 title={saleForm.sale_id ? `Sale: ${saleForm.sale_id}` : "Thêm sale"}
                 subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói."
@@ -5278,13 +4789,11 @@ export default function Home() {
                 <button className="btn danger" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id}><Trash2 size={16} /> Xoá sale</button>
                 <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
               </div>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {blacklistModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel">
+          <MuiDialogShell open title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"} subtitle="Chặn seller hoặc user spam theo Telegram ID." onClose={() => setBlacklistModalOpen(false)} maxWidth="sm">
               <PanelHead
                 title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"}
                 subtitle="Chặn seller hoặc user spam theo Telegram ID."
@@ -5301,13 +4810,11 @@ export default function Home() {
                 <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
                 <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
               </div>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {couponModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
+          <MuiDialogShell open title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"} subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này." onClose={() => setCouponModalOpen(false)} maxWidth="lg">
               <PanelHead
                 title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"}
                 subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này."
@@ -5368,13 +4875,11 @@ export default function Home() {
                 <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
                 <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
               </div>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {channelPostModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
+          <MuiDialogShell open title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"} subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend." onClose={() => setChannelPostModalOpen(false)} maxWidth="lg">
               <PanelHead
                 title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"}
                 subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend."
@@ -5464,8 +4969,7 @@ export default function Home() {
                 <button className="btn secondary" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at}><CalendarClock size={16} /> Lên lịch</button>
                 <button className="btn" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")}>{saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Đăng ngay</button>
               </div>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {renewalSettingsOpen ? (
@@ -5493,8 +4997,7 @@ export default function Home() {
         ) : null}
 
         {manualOrderModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
+          <MuiDialogShell open title="Tạo đơn thủ công" subtitle="Nhập thông tin khách, tạo order PAID và gen link join group." onClose={() => setManualOrderModalOpen(false)} maxWidth="lg">
               <PanelHead
                 title="Tạo đơn thủ công"
                 subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
@@ -5577,13 +5080,11 @@ export default function Home() {
                   </div>
                 </div>
               ) : null}
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
 
         {customerModalOpen && selectedCustomer ? (
-          <div className="modal-backdrop customer-sidebar-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel customer-sidebar-panel">
+          <MuiDialogShell open title={selectedCustomer.name} subtitle={`Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerModalOpen(false)} maxWidth="xl">
               <button className="icon-danger customer-close-btn" onClick={() => setCustomerModalOpen(false)} title="Đóng" aria-label="Đóng">
                 <XCircle size={18} />
               </button>
@@ -5701,11 +5202,10 @@ export default function Home() {
                   </>
                 ) : null}
               </section>
-            </section>
-          </div>
+          </MuiDialogShell>
         ) : null}
-      </section>
-    </main>
+      </Box>
+    </Box>
   );
 }
 
@@ -5907,53 +5407,6 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   );
 }
 
-function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr><th>Mã đơn</th><th>Khách</th><th>Gói</th><th>Tiền</th><th>Coupon</th><th>Trạng thái</th><th>Tạo lúc</th><th>Đổi trạng thái</th><th>Xóa</th></tr></thead>
-        <tbody>
-          {orders.map((order) => (
-            <tr key={order.order_id}>
-              <td>{order.order_id}</td>
-              <td><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></td>
-              <td>
-                <strong>{order.plan_name}</strong>
-                <div className="tag-row">
-                  <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
-                  <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
-                </div>
-              </td>
-              <td>{orderMoney(order)}</td>
-              <td>{orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : `-${order.coupon_discount_percent || 0}% / ${orderMoney(order, order.coupon_discount_amount || 0)}`}</div></> : "-"}</td>
-              <td><span className={statusClass(order.status)}>{order.status}</span></td>
-              <td>{dateText(order.created_at)}</td>
-              <td>
-                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
-                  <option value="PENDING">Đang chờ</option>
-                  <option value="PAID">Đã thanh toán</option>
-                  <option value="CANCELLED">Đã hủy</option>
-                  <option value="EXPIRED">Hết hạn</option>
-                </select>
-              </td>
-              <td>
-                <button
-                  className="btn danger"
-                  disabled={saving === `order-delete-${order.order_id}`}
-                  onClick={() => onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id)}
-                  title="Xóa đơn"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function SummaryTable({ groups }: { groups: { label: string; items: Order[]; stats: ReturnType<typeof orderStats> }[] }) {
   return (
     <div className="table-wrap summary-wrap">
@@ -5981,37 +5434,5 @@ function SummaryTable({ groups }: { groups: { label: string; items: Order[]; sta
   );
 }
 
-function Pagination({ page, totalPages, totalItems, onPage, label = "đơn" }: { page: number; totalPages: number; totalItems: number; onPage: (page: number) => void; label?: string }) {
-  const safePage = Math.min(page, totalPages);
-  return (
-    <div className="pagination">
-      <span>{totalItems} {label} • Trang {safePage}/{totalPages}</span>
-      <div>
-        <button className="btn secondary" disabled={safePage <= 1} onClick={() => onPage(safePage - 1)}>Trước</button>
-        <button className="btn secondary" disabled={safePage >= totalPages} onClick={() => onPage(safePage + 1)}>Sau</button>
-      </div>
-    </div>
-  );
-}
-
-function SimpleTable({ headers, rows, onRow, actions }: { headers: string[]; rows: ReactNode[][]; onRow?: (index: number) => void; actions?: (index: number) => ReactNode }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr>{headers.map((item) => <th key={item}>{item}</th>)}{actions ? <th>Thao tác</th> : null}</tr></thead>
-        <tbody>
-          {rows.length ? rows.map((row, idx) => (
-            <tr key={idx} onClick={() => onRow?.(idx)} className={onRow ? "clickable-row" : ""}>
-              {row.map((cell, cellIdx) => <td key={cellIdx}>{cell}</td>)}
-              {actions ? <td className="table-action">{actions(idx)}</td> : null}
-            </tr>
-          )) : (
-            <tr>
-              <td colSpan={headers.length + (actions ? 1 : 0)} className="empty-state">Chưa có dữ liệu. Bấm nút thêm mới để tạo.</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+const Pagination = MuiPagination;
+const SimpleTable = MuiSimpleTable;
