@@ -37,6 +37,15 @@ const statusPalette = {
   purple: { main: "#6d28d9", bg: "#efe7ff", border: "#d9c7ff" },
 } as const;
 
+export const tonePalette = {
+  vnd: { main: "#16a34a", bg: "#f0fdf4", glow: "rgba(34, 197, 94, 0.22)" },
+  usd: { main: "#2563eb", bg: "#eff6ff", glow: "rgba(59, 130, 246, 0.22)" },
+  crypto: { main: "#7c3aed", bg: "#f5f3ff", glow: "rgba(168, 85, 247, 0.22)" },
+  payos: { main: "#0f766e", bg: "#ecfeff", glow: "rgba(20, 184, 166, 0.22)" },
+  paypal: { main: "#475569", bg: "#f8fafc", glow: "rgba(71, 85, 105, 0.18)" },
+  neutral: { main: "#0d6b5d", bg: "#f8fafc", glow: "rgba(13, 107, 93, 0.22)" },
+} as const;
+
 export function statusChipSx(kind: keyof typeof statusPalette) {
   const token = statusPalette[kind];
   return {
@@ -49,9 +58,10 @@ export function statusChipSx(kind: keyof typeof statusPalette) {
 }
 
 export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
-  const accent = tone === "vnd" ? "#16a34a" : tone === "usd" ? "#2563eb" : tone === "crypto" ? "#7c3aed" : tone === "payos" ? "#0f766e" : tone === "paypal" ? "#475569" : "#0d6b5d";
-  const bg = tone === "vnd" ? "#f0fdf4" : tone === "usd" ? "#eff6ff" : tone === "crypto" ? "#f5f3ff" : tone === "payos" ? "#ecfeff" : tone === "paypal" ? "#f8fafc" : "#f8fafc";
-  const glow = tone === "vnd" ? "rgba(34, 197, 94, 0.22)" : tone === "usd" ? "rgba(59, 130, 246, 0.22)" : tone === "crypto" ? "rgba(168, 85, 247, 0.22)" : tone === "payos" ? "rgba(20, 184, 166, 0.22)" : tone === "paypal" ? "rgba(71, 85, 105, 0.18)" : "rgba(13, 107, 93, 0.22)";
+  const toneToken = tone ? tonePalette[tone] : tonePalette.neutral;
+  const accent = toneToken.main;
+  const bg = toneToken.bg;
+  const glow = toneToken.glow;
   const Icon = tone === "vnd" ? TrendingUp : tone === "usd" ? CreditCard : tone === "crypto" ? Coins : tone === "payos" ? ShieldCheck : tone === "paypal" ? BadgeDollarSign : null;
   const compactValue = (() => {
     const cleaned = value
