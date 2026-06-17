@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Box, Button, Chip, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { Metric, Pagination, PanelHead, SimpleTable } from "./dashboard-components";
+import { Metric, Pagination, PanelHead, SimpleTable, statusChipSx } from "./dashboard-components";
 import { dateTextShort } from "./dashboard-helpers";
 
 export function CustomersSection(props: any) {
@@ -62,8 +62,8 @@ export function CustomersSection(props: any) {
               key={`status-${customer.id}`}
               size="small"
               label={customer.statusLabel}
-              color={customer.statusColor}
-              sx={{ fontWeight: 700, width: "fit-content" }}
+              variant="outlined"
+              sx={{ ...statusChipSx(customer.statusColor === "default" ? "muted" : customer.statusColor), width: "fit-content" }}
             />,
             <Typography key={`paid-${customer.id}`} sx={{ fontWeight: 700 }}>{customer.paidOrders.length}</Typography>,
             <Box key={`plans-${customer.id}`} sx={{ display: "grid", gap: 0.25 }}>

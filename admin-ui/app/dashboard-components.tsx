@@ -29,6 +29,25 @@ import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
 import { dateText } from "./dashboard-helpers";
 
+const statusPalette = {
+  success: { main: "#067647", bg: "#ecfdf3", border: "#abefc6" },
+  warning: { main: "#b54708", bg: "#fffaeb", border: "#fedf89" },
+  error: { main: "#b42318", bg: "#fef3f2", border: "#fecdca" },
+  muted: { main: "#667085", bg: "#f2f4f7", border: "#d0d5dd" },
+  purple: { main: "#6d28d9", bg: "#efe7ff", border: "#d9c7ff" },
+} as const;
+
+export function statusChipSx(kind: keyof typeof statusPalette) {
+  const token = statusPalette[kind];
+  return {
+    fontWeight: 700,
+    bgcolor: token.bg,
+    color: token.main,
+    borderColor: token.border,
+    "& .MuiChip-label": { px: 1 },
+  };
+}
+
 export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
   const accent = tone === "vnd" ? "#16a34a" : tone === "usd" ? "#2563eb" : tone === "crypto" ? "#7c3aed" : tone === "payos" ? "#0f766e" : tone === "paypal" ? "#475569" : "#0d6b5d";
   const bg = tone === "vnd" ? "#f0fdf4" : tone === "usd" ? "#eff6ff" : tone === "crypto" ? "#f5f3ff" : tone === "payos" ? "#ecfeff" : tone === "paypal" ? "#f8fafc" : "#f8fafc";
@@ -105,7 +124,7 @@ export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; 
     <Card variant="outlined">
       <CardContent>
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
-          {ok ? <CheckCircle2 color="#067647" size={20} /> : <XCircle color="#b42318" size={20} />}
+          {ok ? <CheckCircle2 color={statusPalette.success.main} size={20} /> : <XCircle color={statusPalette.error.main} size={20} />}
           <Box>
             <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
             <Typography variant="body2" color="text.secondary">{detail}</Typography>
@@ -285,11 +304,11 @@ export function Pagination({ page, totalPages, totalItems, onPage, label = "đơ
 export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} color="success" variant="filled" sx={{ fontWeight: 700 }} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} color="warning" variant="filled" sx={{ fontWeight: 700 }} />;
-    if (normalized === "EXPIRED") return <Chip size="small" label={status} color="default" variant="filled" sx={{ fontWeight: 700 }} />;
-    if (normalized === "CANCELLED") return <Chip size="small" label={status} color="error" variant="filled" sx={{ fontWeight: 700 }} />;
-    return <Chip size="small" label={status || "-"} variant="outlined" sx={{ fontWeight: 700 }} />;
+    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("success")} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("warning")} />;
+    if (normalized === "EXPIRED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("muted")} />;
+    if (normalized === "CANCELLED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("error")} />;
+    return <Chip size="small" label={status || "-"} variant="outlined" sx={statusChipSx("muted")} />;
   };
   return (
     <Table size="small">

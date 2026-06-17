@@ -85,7 +85,7 @@ import {
   uniqueValues,
 } from "./dashboard-helpers";
 import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, type GroupMode } from "./dashboard-business";
-import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, SimpleTable as MuiSimpleTable } from "./dashboard-components";
+import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
 import type { OrderPeriod } from "./dashboard-types";
 import { AnalyticsSection, OrdersSection } from "./dashboard-sections";
 import { CustomersSection } from "./customers-section";
@@ -5113,12 +5113,17 @@ export default function Home() {
                   }}
                 >
                   <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                    {(() => {
+                      const customerStatusTone = selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple");
+                      return (
                     <Chip
                       size="small"
-                      label={selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
-                      color={selectedCustomer.activeOrders.length ? "success" : selectedCustomer.expiringWithinWindow ? "warning" : selectedCustomer.hasLifetimeOrder ? "secondary" : "error"}
-                      sx={{ fontWeight: 700, mb: 1 }}
+                      label={selectedCustomer.statusLabel}
+                      variant="outlined"
+                      sx={{ ...statusChipSx(customerStatusTone), mb: 1 }}
                     />
+                      );
+                    })()}
                     <Stack spacing={1.25}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">Đơn PAID</Typography>
@@ -5438,11 +5443,11 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} color="success" sx={{ fontWeight: 700 }} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} color="warning" sx={{ fontWeight: 700 }} />;
-    if (normalized === "EXPIRED") return <Chip size="small" label={status} color="default" sx={{ fontWeight: 700 }} />;
-    if (normalized === "CANCELLED") return <Chip size="small" label={status} color="error" sx={{ fontWeight: 700 }} />;
-    return <Chip size="small" label={status || "-"} variant="outlined" sx={{ fontWeight: 700 }} />;
+    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("success")} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("warning")} />;
+    if (normalized === "EXPIRED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("muted")} />;
+    if (normalized === "CANCELLED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("error")} />;
+    return <Chip size="small" label={status || "-"} variant="outlined" sx={statusChipSx("muted")} />;
   };
   return (
     <Stack spacing={1.5}>
@@ -5455,8 +5460,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <Typography variant="body2" color="text.secondary">{dateText(order.created_at)}</Typography>
               </Box>
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
-                <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />
-                <Chip size="small" label={providerLabel(inferOrderProvider(order))} color="warning" variant="outlined" sx={{ fontWeight: 700 }} />
+                <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={statusChipSx("purple")} />
+                <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={statusChipSx("warning")} />
                 <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none" }}>
                   {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
                 </Button>
@@ -5478,8 +5483,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                  {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" color="secondary" /> : null}
-                  {isOrderActive(order) ? <Chip size="small" label="Đang active" color="success" /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" color="warning" /> : <Chip size="small" label="Hết hạn" color="default" />}
+                  {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={statusChipSx("purple")} /> : null}
+                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={statusChipSx("muted")} />}
                 </Stack>
               </Box>
               <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
