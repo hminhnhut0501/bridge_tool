@@ -80,6 +80,10 @@ const baseTheme = createTheme({
         contained: {
           boxShadow: "none",
         },
+        outlined: {
+          borderColor: "#cfd8e3",
+          backgroundColor: "#ffffff",
+        },
       },
     },
     MuiChip: {
