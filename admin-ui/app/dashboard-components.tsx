@@ -255,3 +255,101 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
     </Table>
   );
 }
+
+export function TrendTable({ rows, title, subtitle }: { rows: { label: string; revenue: string; paid: number; pending: number; customers: number; aov: string; coupon: string; conversion: string; conversionColor: "good" | "warn" | "bad"; barWidth: number; trend: number; sparkline: number[] }[]; title: string; subtitle?: string }) {
+  return (
+    <Card variant="outlined">
+      <PanelHead title={title} subtitle={subtitle} />
+      <Box sx={{ overflowX: "auto" }}>
+        <Table size="small" sx={{ minWidth: 1120 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Kỳ</TableCell>
+              <TableCell>Doanh thu</TableCell>
+              <TableCell>Bar</TableCell>
+              <TableCell>Sparkline</TableCell>
+              <TableCell>PAID</TableCell>
+              <TableCell>PENDING</TableCell>
+              <TableCell>Khách trả tiền</TableCell>
+              <TableCell>AOV</TableCell>
+              <TableCell>Coupon giảm</TableCell>
+              <TableCell>Tỉ lệ thanh toán</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.length ? rows.map((row) => (
+              <TableRow key={row.label}>
+                <TableCell sx={{ fontWeight: 700 }}>{row.label}</TableCell>
+                <TableCell>{row.revenue}</TableCell>
+                <TableCell>
+                  <Box sx={{ width: 220, height: 12, bgcolor: "grey.200", borderRadius: 999, overflow: "hidden" }}>
+                    <Box sx={{
+                      width: `${Math.max(6, row.barWidth)}%`,
+                      height: "100%",
+                      bgcolor: row.trend > 0 ? "success.main" : row.trend < 0 ? "error.main" : "primary.main",
+                    }} />
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ width: 120, height: 28, display: "flex", alignItems: "center" }}>
+                    <svg width="120" height="28" viewBox="0 0 120 28" aria-hidden="true">
+                      <defs>
+                        <linearGradient id={`sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={row.trend > 0 ? "#067647" : row.trend < 0 ? "#b42318" : "#0d6b5d"} stopOpacity="0.22" />
+                          <stop offset="100%" stopColor={row.trend > 0 ? "#22c55e" : row.trend < 0 ? "#ef4444" : "#14b8a6"} stopOpacity="0.88" />
+                        </linearGradient>
+                      </defs>
+                      {(() => {
+                        const values = row.sparkline.length ? row.sparkline : [0];
+                        const max = Math.max(1, ...values);
+                        const step = values.length > 1 ? 110 / (values.length - 1) : 110;
+                        const points = values.map((value, index) => `${5 + index * step},${24 - (value / max) * 18}`).join(" ");
+                        return (
+                          <>
+                            <polyline fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} stroke="none" points={`5,24 ${points} 115,24`} />
+                            <polyline fill="none" stroke={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} strokeWidth="2.2" points={points} strokeLinecap="round" strokeLinejoin="round" />
+                            {values.map((value, index) => (
+                              <circle key={index} cx={5 + index * step} cy={24 - (value / max) * 18} r="1.8" fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} />
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </Box>
+                </TableCell>
+                <TableCell>{row.paid}</TableCell>
+                <TableCell>{row.pending}</TableCell>
+                <TableCell>{row.customers}</TableCell>
+                <TableCell>{row.aov}</TableCell>
+                <TableCell>{row.coupon}</TableCell>
+                <TableCell>
+                  <Box
+                      sx={{
+                        display: "inline-flex",
+                        minWidth: 72,
+                        justifyContent: "center",
+                        px: 1.25,
+                        py: 0.5,
+                        borderRadius: 999,
+                        fontWeight: 700,
+                        color: row.conversionColor === "good" ? "#067647" : row.conversionColor === "warn" ? "#b54708" : "#b42318",
+                        bgcolor: row.conversionColor === "good" ? "#ecfdf3" : row.conversionColor === "warn" ? "#fffaeb" : "#fef3f2",
+                        border: "1px solid",
+                        borderColor: row.conversionColor === "good" ? "#abefc6" : row.conversionColor === "warn" ? "#fedf89" : "#fecdca",
+                      }}
+                    >
+                    {row.conversion}
+                  </Box>
+                </TableCell>
+              </TableRow>
+            )) : (
+              <TableRow>
+                <TableCell colSpan={9} align="center">Chưa có dữ liệu trong kỳ này.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Box>
+    </Card>
+  );
+}

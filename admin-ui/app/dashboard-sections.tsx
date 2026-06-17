@@ -3,10 +3,47 @@
 
 import { Button, Stack } from "@mui/material";
 import { Download, Plus } from "lucide-react";
-import { Metric, PanelHead, Pagination, OrdersTable } from "./dashboard-components";
+import { Metric, PanelHead, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 
 export function AnalyticsSection(props: any) {
-  const { orders, yearStats, monthStats, paidRevenueByCurrency, paidRevenueByProvider, formatRevenueCurrency, providerRevenueFormat, isWithinPeriod, SummaryTable } = props;
+  const { orders, yearStats, monthStats, paidRevenueByCurrency, paidRevenueByProvider, formatRevenueCurrency, providerRevenueFormat, isWithinPeriod } = props;
+  const monthGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")), "day");
+  const yearGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "year")), "month");
+  const monthPeak = Math.max(1, ...monthGroups.map((item: any) => item.stats.revenue));
+  const yearPeak = Math.max(1, ...yearGroups.map((item: any) => item.stats.revenue));
+  const trendRows = (groups: any[], peak: number) => groups.map((item, idx) => {
+    const revenue = Number(item.stats.revenue || 0);
+    const prevRevenue = Number(groups[idx - 1]?.stats?.revenue || 0);
+    const trend = idx === 0 ? 0 : revenue === prevRevenue ? 0 : revenue > prevRevenue ? 1 : -1;
+    const conversionColor: "good" | "warn" | "bad" = item.stats.conversion >= 80 ? "good" : item.stats.conversion >= 50 ? "warn" : "bad";
+    return {
+      label: item.label,
+      revenue: props.ordersMoney(item.items.filter((row: any) => row.status === "PAID")),
+      paid: item.stats.paid,
+      pending: item.stats.pending,
+      customers: item.stats.customers,
+      aov: props.ordersAverageMoney(item.items),
+      coupon: props.ordersMoney(item.items.filter((row: any) => row.status === "PAID"), "coupon_discount_amount"),
+      conversion: `${item.stats.conversion}%`,
+      conversionColor,
+      barWidth: Math.round((revenue / peak) * 100),
+      trend,
+      sparkline: groups.slice(Math.max(0, idx - 6), idx + 1).map((entry: any) => Number(entry.stats.revenue || 0)),
+    };
+  }) as {
+    label: string;
+    revenue: string;
+    paid: number;
+    pending: number;
+    customers: number;
+    aov: string;
+    coupon: string;
+    conversion: string;
+    conversionColor: "good" | "warn" | "bad";
+    barWidth: number;
+    trend: number;
+    sparkline: number[];
+  }[];
   return (
     <Stack spacing={2}>
       <div className="grid">
@@ -28,14 +65,8 @@ export function AnalyticsSection(props: any) {
         <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} />
         <Metric label="Coupon giảm tháng" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} />
       </div>
-      <section className="panel">
-        <PanelHead title="Theo dõi tăng trưởng" subtitle="Doanh thu, tỉ lệ thanh toán, khách trả tiền và giảm giá coupon theo từng ngày trong tháng." />
-        <SummaryTable groups={props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")), "day")} />
-      </section>
-      <section className="panel">
-        <PanelHead title="Tổng hợp theo tháng" subtitle="Dữ liệu năm hiện tại, không xoá đơn cũ." />
-        <SummaryTable groups={props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "year")), "month")} />
-      </section>
+      <TrendTable title="Theo dõi tăng trưởng theo ngày" subtitle="Doanh thu, số đơn, khách trả tiền và tỉ lệ thanh toán trong tháng." rows={trendRows(monthGroups, monthPeak)} />
+      <TrendTable title="Theo dõi tăng trưởng theo tháng" subtitle="Biểu đồ phát triển doanh thu trong năm hiện tại." rows={trendRows(yearGroups, yearPeak)} />
     </Stack>
   );
 }

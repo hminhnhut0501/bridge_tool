@@ -3640,19 +3640,7 @@ export default function Home() {
         </aside>
       </Drawer>
 
-      <Box component="section" className="main" sx={{ flexGrow: 1, ml: "280px", pt: 10 }}>
-        <div className="topbar">
-          <div>
-            <h1 className="title">{ui("Quản lý bot Privé+", "Privé+ Bot Admin")}</h1>
-            <div className="muted">{ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}</div>
-          </div>
-          <div className="actions">
-            <button className="btn secondary" onClick={() => loadAll()} disabled={loading}>
-              {loading ? <Loader2 size={17} className="spin" /> : <RefreshCw size={17} />} {ui("Tải lại", "Reload")}
-            </button>
-            <button className="btn ghost" onClick={logout}>{ui("Đăng xuất", "Log out")}</button>
-          </div>
-        </div>
+      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 10 }}>
 
         {notice ? <div className={notice.type === "ok" ? "toast ok" : "toast error-toast"}>{notice.type === "ok" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{notice.text}</div> : null}
 
