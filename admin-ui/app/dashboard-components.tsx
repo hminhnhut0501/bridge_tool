@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -26,6 +27,7 @@ import { BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, Shield
 import { type ReactNode, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
+import { dateText } from "./dashboard-helpers";
 
 export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
   const accent = tone === "vnd" ? "#16a34a" : tone === "usd" ? "#2563eb" : tone === "crypto" ? "#7c3aed" : tone === "payos" ? "#0f766e" : tone === "paypal" ? "#475569" : "#0d6b5d";
@@ -268,6 +270,14 @@ export function Pagination({ page, totalPages, totalItems, onPage, label = "đơ
 }
 
 export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
+  const statusChip = (status: string) => {
+    const normalized = String(status || "").toUpperCase();
+    if (normalized === "PAID") return <Chip size="small" label={status} color="success" variant="filled" sx={{ fontWeight: 700 }} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} color="warning" variant="filled" sx={{ fontWeight: 700 }} />;
+    if (normalized === "EXPIRED") return <Chip size="small" label={status} color="default" variant="filled" sx={{ fontWeight: 700 }} />;
+    if (normalized === "CANCELLED") return <Chip size="small" label={status} color="error" variant="filled" sx={{ fontWeight: 700 }} />;
+    return <Chip size="small" label={status || "-"} variant="outlined" sx={{ fontWeight: 700 }} />;
+  };
   return (
     <Table size="small">
       <TableHead>
@@ -283,8 +293,8 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
             <TableCell>{order.plan_name}</TableCell>
             <TableCell>{order.amount}</TableCell>
             <TableCell>{order.coupon_code || "-"}</TableCell>
-            <TableCell>{order.status}</TableCell>
-            <TableCell>{order.created_at}</TableCell>
+            <TableCell>{statusChip(order.status)}</TableCell>
+            <TableCell>{dateText(order.created_at)}</TableCell>
             <TableCell>
               <Select size="small" value={order.status} onChange={(event) => onStatusChange(order.order_id, String(event.target.value))} fullWidth>
                 <MenuItem value="PENDING">PENDING</MenuItem><MenuItem value="PAID">PAID</MenuItem><MenuItem value="CANCELLED">CANCELLED</MenuItem><MenuItem value="EXPIRED">EXPIRED</MenuItem>

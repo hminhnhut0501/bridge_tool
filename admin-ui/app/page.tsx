@@ -31,6 +31,7 @@ import {
   AppBar,
   Box,
   Button,
+  Chip,
   Drawer,
   Toolbar,
   Typography,
@@ -5367,10 +5368,10 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               </div>
             </div>
 
-            <div className="customer-order-card__block">
-              <span className="muted">Trạng thái</span>
-              <span className={statusClass(order.status)}>{order.status}</span>
-            </div>
+              <div className="customer-order-card__block">
+                <span className="muted">Trạng thái</span>
+                <Chip size="small" label={order.status || "-"} color={order.status === "PAID" ? "success" : order.status === "PENDING" ? "warning" : order.status === "EXPIRED" ? "default" : "error"} sx={{ fontWeight: 700, width: "fit-content" }} />
+              </div>
 
             <div className={`customer-order-card__details ${expandedOrders[order.order_id] ? "show" : ""}`}>
               <div className="customer-order-card__block">
