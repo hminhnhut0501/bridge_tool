@@ -2943,6 +2943,15 @@ export default function Home() {
         const days = daysUntil(item.expire_at);
         return days >= 0 && days <= reminderNoticeDays;
       })());
+      const hasAnyPaidOrder = paidOrders.length > 0;
+      const hasAnyExpiredPaidOrder = paidOrders.some((item) => !isOrderActive(item) && !isLifetimeText(item.plan_name));
+      const status = activeOrders.length
+        ? "active"
+        : expiringWithinWindow
+          ? "expiring"
+          : hasAnyPaidOrder
+            ? "expired"
+            : "no_paid";
       return {
         ...customer,
         paidOrders,
@@ -2956,7 +2965,11 @@ export default function Home() {
         hasLifetimeSvip,
         hasLifetimeOrder,
         expiringWithinWindow,
-        status: activeOrders.length ? "active" : paidOrders.length ? "expired" : "no_paid",
+        hasAnyPaidOrder,
+        hasAnyExpiredPaidOrder,
+        status,
+        statusLabel: status === "active" ? "Đang còn hạn" : status === "expiring" ? "Sắp hết hạn" : status === "expired" ? "Hết hạn / chờ kick" : "Chưa PAID",
+        statusColor: status === "active" ? "success" : status === "expiring" ? "warning" : status === "expired" ? "error" : "default",
       };
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
   }, [orders, reminderNoticeDays]);

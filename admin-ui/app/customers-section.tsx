@@ -61,8 +61,8 @@ export function CustomersSection(props: any) {
             <Chip
               key={`status-${customer.id}`}
               size="small"
-              label={customer.activeOrders.length ? "Đang còn hạn" : customer.expiringWithinWindow ? "Sắp hết hạn" : customer.hasLifetimeOrder ? "Trọn đời" : customer.paidOrders.length ? "Hết hạn / chờ kick" : "Chưa PAID"}
-              color={customer.activeOrders.length ? "success" : customer.expiringWithinWindow ? "warning" : customer.hasLifetimeOrder ? "secondary" : customer.paidOrders.length ? "error" : "default"}
+              label={customer.statusLabel}
+              color={customer.statusColor}
               sx={{ fontWeight: 700, width: "fit-content" }}
             />,
             <Typography key={`paid-${customer.id}`} sx={{ fontWeight: 700 }}>{customer.paidOrders.length}</Typography>,
