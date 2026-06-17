@@ -2927,7 +2927,7 @@ export default function Home() {
     }
     return Array.from(grouped.values()).map((customer) => {
       const paidOrders = customer.orders.filter((item) => item.status === "PAID");
-      const activeOrders = customer.orders.filter((item) => isOrderActive(item));
+      const activeOrders = paidOrders.filter((item) => isOrderActive(item));
       const latestExpire = paidOrders
         .map((item) => item.expire_at)
         .filter(Boolean)
