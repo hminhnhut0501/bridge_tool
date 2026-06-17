@@ -32,8 +32,14 @@ import {
   Box,
   Button,
   Chip,
+  Card,
+  CardContent,
   Drawer,
+  MenuItem,
+  Select,
   Stack,
+  Tab,
+  Tabs,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -5123,55 +5129,83 @@ export default function Home() {
                     </Box>
                   </Box>
 
-                  <Stack spacing={1}>
-                    {[
-                      { key: "orders", label: "Đơn hàng" },
-                      { key: "groups", label: "Nhóm" },
-                      { key: "timeline", label: "Theo dõi" },
-                    ].map((item) => (
-                      <Button
-                        key={item.key}
-                        variant={customerDetailTab === item.key ? "contained" : "outlined"}
-                        color={customerDetailTab === item.key ? "success" : "inherit"}
-                        onClick={() => setCustomerDetailTab(item.key as typeof customerDetailTab)}
-                        sx={{
-                          justifyContent: "flex-start",
-                          py: 1.2,
-                          px: 1.5,
-                          borderRadius: 2.5,
-                          textTransform: "none",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {item.label}
-                      </Button>
-                    ))}
-                  </Stack>
+                  <Tabs
+                    orientation="vertical"
+                    value={customerDetailTab}
+                    onChange={(_, next) => setCustomerDetailTab(next)}
+                    textColor="inherit"
+                    indicatorColor="secondary"
+                    sx={{
+                      minHeight: 0,
+                      "& .MuiTabs-flexContainer": { gap: 1 },
+                      "& .MuiTab-root": {
+                        alignItems: "flex-start",
+                        justifyContent: "flex-start",
+                        minHeight: 44,
+                        px: 1.5,
+                        py: 1.1,
+                        borderRadius: 2.5,
+                        textTransform: "none",
+                        fontWeight: 700,
+                        fontSize: "0.95rem",
+                        border: 1,
+                        borderColor: "divider",
+                        bgcolor: "background.paper",
+                      },
+                      "& .Mui-selected": {
+                        bgcolor: "success.main",
+                        color: "common.white",
+                        borderColor: "success.main",
+                      },
+                      "& .MuiTabs-indicator": { display: "none" },
+                    }}
+                  >
+                    <Tab value="orders" label="Đơn hàng" />
+                    <Tab value="groups" label="Nhóm" />
+                    <Tab value="timeline" label="Theo dõi" />
+                  </Tabs>
                 </Box>
 
               <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.25 }}>
                 {customerDetailTab === "orders" ? (
                   <>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
-                      {[
-                        { key: "all", label: `Tất cả (${selectedCustomerOrders.length})` },
-                        { key: "active", label: `Active (${selectedCustomerOrders.filter((item) => isOrderActive(item)).length})` },
-                        { key: "expiring", label: `Sắp hết hạn (${selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})` },
-                        { key: "lifetime", label: `Trọn đời (${selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})` },
-                        { key: "paid", label: `PAID (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})` },
-                        { key: "expired", label: `Expired (${selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})` },
-                      ].map((item) => (
-                        <Button
-                          key={item.key}
-                          variant={customerOrderTab === item.key ? "contained" : "outlined"}
-                          color={customerOrderTab === item.key ? "success" : "inherit"}
-                          onClick={() => setCustomerOrderTab(item.key as typeof customerOrderTab)}
-                          sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700, px: 1.5 }}
-                        >
-                          {item.label}
-                        </Button>
-                      ))}
-                    </Box>
+                    <Tabs
+                      value={customerOrderTab}
+                      onChange={(_, next) => setCustomerOrderTab(next)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      textColor="inherit"
+                      indicatorColor="secondary"
+                      sx={{
+                        minHeight: 0,
+                        mb: 2,
+                        "& .MuiTabs-flexContainer": { gap: 1 },
+                        "& .MuiTab-root": {
+                          minHeight: 42,
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: 999,
+                          textTransform: "none",
+                          fontWeight: 700,
+                          border: 1,
+                          borderColor: "divider",
+                          bgcolor: "background.paper",
+                        },
+                        "& .Mui-selected": {
+                          bgcolor: "success.main",
+                          color: "common.white",
+                          borderColor: "success.main",
+                        },
+                        "& .MuiTabs-indicator": { display: "none" },
+                      }}
+                    >
+                      <Tab value="all" label={`Tất cả (${selectedCustomerOrders.length})`} />
+                      <Tab value="active" label={`Active (${selectedCustomerOrders.filter((item) => isOrderActive(item)).length})`} />
+                      <Tab value="expiring" label={`Sắp hết hạn (${selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})`} />
+                      <Tab value="lifetime" label={`Trọn đời (${selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})`} />
+                      <Tab value="paid" label={`PAID (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})`} />
+                      <Tab value="expired" label={`Expired (${selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})`} />
+                    </Tabs>
                     <CustomerOrdersTable
                       orders={selectedCustomerOrders.filter((item) => {
                         if (customerOrderTab === "active") return isOrderActive(item);
@@ -5388,87 +5422,95 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
 function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders];
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const statusChip = (status: string) => {
+    const normalized = String(status || "").toUpperCase();
+    if (normalized === "PAID") return <Chip size="small" label={status} color="success" sx={{ fontWeight: 700 }} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} color="warning" sx={{ fontWeight: 700 }} />;
+    if (normalized === "EXPIRED") return <Chip size="small" label={status} color="default" sx={{ fontWeight: 700 }} />;
+    if (normalized === "CANCELLED") return <Chip size="small" label={status} color="error" sx={{ fontWeight: 700 }} />;
+    return <Chip size="small" label={status || "-"} variant="outlined" sx={{ fontWeight: 700 }} />;
+  };
   return (
-    <div className="customer-orders-list">
+    <Stack spacing={1.5}>
       {sorted.map((order) => (
-        <article key={order.order_id} className={`customer-order-card ${expandedOrders[order.order_id] ? "is-expanded" : ""}`}>
-          <div className="customer-order-card__top">
-            <div>
-              <strong>{order.order_id}</strong>
-              <div className="muted">{dateText(order.created_at)}</div>
-            </div>
-            <div className="tag-row">
-              <span className="status badge-lifetime">{currencyLabel(inferOrderCurrency(order))}</span>
-              <span className="status pending">{providerLabel(inferOrderProvider(order))}</span>
-              <button className="btn secondary customer-order-toggle" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))}>
-                {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
-              </button>
-            </div>
-          </div>
+        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+          <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+              <Box>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{order.order_id}</Typography>
+                <Typography variant="body2" color="text.secondary">{dateText(order.created_at)}</Typography>
+              </Box>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
+                <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} color="secondary" variant="outlined" sx={{ fontWeight: 700 }} />
+                <Chip size="small" label={providerLabel(inferOrderProvider(order))} color="warning" variant="outlined" sx={{ fontWeight: 700 }} />
+                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none" }}>
+                  {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
+                </Button>
+              </Box>
+            </Box>
 
-          <div className="customer-order-card__grid">
-            <div className="customer-order-card__block">
-              <span className="muted">Gói / Group</span>
-              <strong>{order.plan_name}</strong>
-              <div className="muted">{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</div>
-            </div>
+            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+                <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
+                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
+              </Box>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+                <Typography variant="body2" color="text.secondary">Coupon</Typography>
+                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
+              </Box>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+                <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
+                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+                  {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" color="secondary" /> : null}
+                  {isOrderActive(order) ? <Chip size="small" label="Đang active" color="success" /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" color="warning" /> : <Chip size="small" label="Hết hạn" color="default" />}
+                </Stack>
+              </Box>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+                <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
+                <Box sx={{ mt: 0.75 }}>{statusChip(order.status)}</Box>
+              </Box>
+            </Box>
 
-            <div className="customer-order-card__block">
-              <span className="muted">Coupon</span>
-              {orderCouponCode(order) ? <><strong>{orderCouponCode(order)}</strong><div className="muted">{Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)}</div></> : <strong>-</strong>}
-            </div>
-
-            <div className="customer-order-card__block">
-              <span className="muted">Hạn dùng</span>
-              <strong>{dateText(order.expire_at)}</strong>
-              <div className="tag-row">
-                {isLifetimeText(order.plan_name) ? <span className="status badge-lifetime">Trọn đời</span> : null}
-                {isOrderActive(order) ? <span className="status paid">Đang active</span> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <span className="status warning">Sắp hết hạn</span> : <span className="status expired">Hết hạn</span>}
-              </div>
-            </div>
-
-              <div className="customer-order-card__block">
-                <span className="muted">Trạng thái</span>
-                <Chip size="small" label={order.status || "-"} color={order.status === "PAID" ? "success" : order.status === "PENDING" ? "warning" : order.status === "EXPIRED" ? "default" : "error"} sx={{ fontWeight: 700, width: "fit-content" }} />
-              </div>
-
-            <div className={`customer-order-card__details ${expandedOrders[order.order_id] ? "show" : ""}`}>
-              <div className="customer-order-card__block">
-                <span className="muted">Sửa tên gói</span>
-                <div className="plan-editor">
-                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} />
-                  <button className="btn secondary" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+            <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+                <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} className="mini-input" style={{ width: "100%" }} />
+                  <Button variant="outlined" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
-                  }}>Lưu</button>
-                </div>
-              </div>
+                  }}>Lưu</Button>
+                </Stack>
+              </Box>
 
-              <div className="customer-order-card__block">
-                <span className="muted">Đổi trạng thái</span>
-                <select value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value)}>
-                  <option value="PENDING">PENDING</option>
-                  <option value="PAID">PAID</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                  <option value="EXPIRED">EXPIRED</option>
-                </select>
-              </div>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+                <Typography variant="body2" color="text.secondary">Đổi trạng thái</Typography>
+                <Select size="small" value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value as string)} fullWidth sx={{ mt: 1 }}>
+                  <MenuItem value="PENDING">PENDING</MenuItem>
+                  <MenuItem value="PAID">PAID</MenuItem>
+                  <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                  <MenuItem value="EXPIRED">EXPIRED</MenuItem>
+                </Select>
+              </Box>
 
-              <div className="customer-order-card__block customer-order-card__block--wide">
-                <span className="muted">Cập nhật hạn</span>
-                <div className="expire-editor">
-                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} />
-                  <button className="btn secondary" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+                <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} className="mini-input" style={{ width: "100%" }} />
+                  <Button variant="outlined" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
-                  }}>Lưu hạn</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
+                  }}>Lưu hạn</Button>
+                </Stack>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
       ))}
-    </div>
+    </Stack>
   );
 }
 
