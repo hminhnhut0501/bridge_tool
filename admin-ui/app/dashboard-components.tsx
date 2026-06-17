@@ -214,19 +214,32 @@ export function SettingsConfigModal(props: { title: string; subtitle: string; fi
 
 export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth}>
-      <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800 }}>{title}</Typography>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth} sx={{ "& .MuiDialog-paper": { borderRadius: 3, overflow: "hidden" } }}>
+      <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{subtitle}</Typography> : null}
+        <IconButton
+          aria-label="Đóng"
+          onClick={onClose}
+          size="small"
+          sx={{
+            position: "absolute",
+            right: 12,
+            top: 12,
+            border: 1,
+            borderColor: "divider",
+            bgcolor: "background.paper",
+            "&:hover": { bgcolor: "action.hover" },
+          }}
+        >
+          <XCircle size={18} />
+        </IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ py: 2.5 }}>
+      <DialogContent dividers sx={{ py: 2.5, bgcolor: "background.default" }}>
         <Stack spacing={2.25}>
           {children}
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose}>Đóng</Button>
-      </DialogActions>
     </Dialog>
   );
 }

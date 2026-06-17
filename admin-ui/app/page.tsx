@@ -5085,15 +5085,14 @@ export default function Home() {
                     flexDirection: "column",
                     gap: 2,
                     p: 2,
-                    borderRight: { xs: 0, md: 1 },
-                    borderBottom: { xs: 1, md: 0 },
+                    border: 1,
                     borderColor: "divider",
                     bgcolor: "background.paper",
-                    borderRadius: 2,
-                    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
+                    borderRadius: 3,
+                    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
                   }}
                 >
-                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "linear-gradient(180deg, rgba(13,107,93,0.06), rgba(13,107,93,0.02))", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
                     <Chip
                       size="small"
                       label={selectedCustomer.activeOrders.length ? "Đang còn hạn" : selectedCustomer.expiringWithinWindow ? "Sắp hết hạn" : selectedCustomer.hasLifetimeOrder ? "Trọn đời" : "Hết hạn / chờ kick"}
@@ -5137,9 +5136,9 @@ export default function Home() {
                         onClick={() => setCustomerDetailTab(item.key as typeof customerDetailTab)}
                         sx={{
                           justifyContent: "flex-start",
-                          py: 1.15,
+                          py: 1.2,
                           px: 1.5,
-                          borderRadius: 2,
+                          borderRadius: 2.5,
                           textTransform: "none",
                           fontWeight: 700,
                         }}
@@ -5150,7 +5149,7 @@ export default function Home() {
                   </Stack>
                 </Box>
 
-              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.5 }}>
+              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.25 }}>
                 {customerDetailTab === "orders" ? (
                   <>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
