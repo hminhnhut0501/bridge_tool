@@ -122,7 +122,7 @@ const baseTheme = createTheme({
         root: {
           borderRadius: 16,
           borderColor: "#d9e0e8",
-          boxShadow: "0 1px 0 rgba(16, 24, 40, 0.03), 0 10px 24px rgba(16, 24, 40, 0.04)",
+          boxShadow: "0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04)",
         },
       },
     },
@@ -133,6 +133,9 @@ const baseTheme = createTheme({
         },
         rounded: {
           borderRadius: 16,
+        },
+        outlined: {
+          boxShadow: "0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04)",
         },
       },
     },

@@ -76,11 +76,11 @@ export function Metric({ label, value, tone, note }: { label: string; value: str
         bgcolor: bg,
         borderColor: `${accent}22`,
         backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.72) 0%, ${bg} 40%, rgba(255,255,255,0.18) 100%)`,
-        boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 12px 24px rgba(16, 24, 40, 0.05), inset 0 1px 0 rgba(255,255,255,0.62), 0 0 0 1px ${glow}`,
+        boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04), inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 1px ${glow}`,
       }}
     >
       <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: accent }} />
-      <Box sx={{ position: "absolute", top: -12, right: -12, width: 92, height: 92, borderRadius: "50%", bgcolor: glow, filter: "blur(18px)", opacity: 0.6 }} />
+      <Box sx={{ position: "absolute", top: -12, right: -12, width: 84, height: 84, borderRadius: "50%", bgcolor: glow, filter: "blur(16px)", opacity: 0.55 }} />
       <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3, fontWeight: 700 }}>{label}</Typography>
