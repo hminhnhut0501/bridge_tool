@@ -22,19 +22,54 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { CheckCircle2, Loader2, Save, Trash2, XCircle } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
 
 export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
+  const accent = tone === "vnd" ? "#16a34a" : tone === "usd" ? "#2563eb" : tone === "crypto" ? "#7c3aed" : tone === "payos" ? "#0f766e" : tone === "paypal" ? "#475569" : "#0d6b5d";
+  const bg = tone === "vnd" ? "#f0fdf4" : tone === "usd" ? "#eff6ff" : tone === "crypto" ? "#f5f3ff" : tone === "payos" ? "#ecfeff" : tone === "paypal" ? "#f8fafc" : "#f8fafc";
+  const glow = tone === "vnd" ? "rgba(34, 197, 94, 0.22)" : tone === "usd" ? "rgba(59, 130, 246, 0.22)" : tone === "crypto" ? "rgba(168, 85, 247, 0.22)" : tone === "payos" ? "rgba(20, 184, 166, 0.22)" : tone === "paypal" ? "rgba(71, 85, 105, 0.18)" : "rgba(13, 107, 93, 0.22)";
+  const Icon = tone === "vnd" ? TrendingUp : tone === "usd" ? CreditCard : tone === "crypto" ? Coins : tone === "payos" ? ShieldCheck : tone === "paypal" ? BadgeDollarSign : null;
   return (
-    <Card sx={{ position: "relative", overflow: "hidden" }}>
-      <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: tone === "vnd" ? "success.main" : tone === "usd" ? "info.main" : tone === "crypto" ? "secondary.main" : tone === "payos" ? "success.dark" : tone === "paypal" ? "slategray" : "primary.main" }} />
-      <CardContent>
-        <Typography variant="body2" color="text.secondary">{label}</Typography>
-        <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>{value}</Typography>
-        {note ? <Typography variant="caption" color="text.secondary">{note}</Typography> : null}
+    <Card
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        minHeight: 132,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        bgcolor: bg,
+        borderColor: `${accent}22`,
+        backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.72) 0%, ${bg} 40%, rgba(255,255,255,0.18) 100%)`,
+        boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 12px 24px rgba(16, 24, 40, 0.05), inset 0 1px 0 rgba(255,255,255,0.62), 0 0 0 1px ${glow}`,
+      }}
+    >
+      <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: accent }} />
+      <Box sx={{ position: "absolute", top: -12, right: -12, width: 92, height: 92, borderRadius: "50%", bgcolor: glow, filter: "blur(18px)", opacity: 0.6 }} />
+      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3, fontWeight: 700 }}>{label}</Typography>
+          {Icon ? <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "999px", bgcolor: `${accent}14`, color: accent }}><Icon size={16} /></Box> : null}
+        </Box>
+        <Typography
+          sx={{
+            mt: "auto",
+            fontWeight: 900,
+            lineHeight: 0.95,
+            letterSpacing: "-0.03em",
+            fontSize: { xs: "1.8rem", sm: "2rem", md: "2.15rem" },
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            maxWidth: "100%",
+            color: "text.primary",
+          }}
+        >
+          {value}
+        </Typography>
+        {note ? <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>{note}</Typography> : null}
       </CardContent>
     </Card>
   );
