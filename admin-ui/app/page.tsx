@@ -3725,7 +3725,7 @@ export default function Home() {
   }
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
         position="static"
         elevation={0}
@@ -3753,6 +3753,7 @@ export default function Home() {
         </Toolbar>
       </AppBar>
 
+      <Box sx={{ display: "flex", flexGrow: 1, minHeight: 0 }}>
       <Drawer
         variant="permanent"
         sx={{
@@ -5551,6 +5552,7 @@ export default function Home() {
               </Box>
           </MuiDialogShell>
         ) : null}
+      </Box>
       </Box>
     </Box>
   );
