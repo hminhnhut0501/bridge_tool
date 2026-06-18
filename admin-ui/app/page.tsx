@@ -4057,7 +4057,7 @@ export default function Home() {
           <div className="stack">
             <div className="grid metrics-band">
               <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} tone="vnd" icon={<TrendingUp size={16} />} />
-              <Metric label="Đơn đang chờ" value={String(metrics.pending)} tone="usd" icon={<BadgePercent size={16} />} />
+              <Metric label="Đơn đang chờ" value={String(metrics.pending)} tone="usd" icon={<CalendarClock size={16} />} />
               <Metric label="Khách gần đây" value={String(metrics.users)} tone="crypto" icon={<Users size={16} />} />
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} tone="payos" icon={<ShieldCheck size={16} />} />
             </div>
@@ -4067,14 +4067,14 @@ export default function Home() {
                 value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="vnd"
                 note="Nguồn chính: PayOS / manual nội địa"
-                icon={<TrendingUp size={16} />}
+                icon={<CreditCard size={16} />}
               />
               <Metric
                 label="Doanh thu USD"
                 value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="usd"
                 note="Chỉ cho khách quốc tế"
-                icon={<CreditCard size={16} />}
+                icon={<Send size={16} />}
               />
               <Metric
                 label="Doanh thu Crypto"
@@ -4088,14 +4088,14 @@ export default function Home() {
                 value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)}
                 tone="payos"
                 note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"}
-                icon={<ShieldCheck size={16} />}
+                icon={<Gift size={16} />}
               />
             </div>
             <div className="grid metrics-band">
-              <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
-              <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
-              <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
-              <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} />
+              <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} tone="paypal" icon={<CalendarClock size={16} />} />
+              <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} tone="vnd" icon={<CheckCircle2 size={16} />} />
+              <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} tone="usd" icon={<BarChart3 size={16} />} />
+              <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} tone="crypto" icon={<BadgePercent size={16} />} />
             </div>
             <section className="panel">
               <PanelHead

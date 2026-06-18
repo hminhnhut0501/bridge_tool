@@ -257,6 +257,12 @@ select:disabled {
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
+.metric-card.tone-vnd .metric-icon { color: #2563eb; }
+.metric-card.tone-usd .metric-icon { color: #0ea5e9; }
+.metric-card.tone-crypto .metric-icon { color: #c026d3; }
+.metric-card.tone-payos .metric-icon { color: #14b8a6; }
+.metric-card.tone-paypal .metric-icon { color: #6366f1; }
+
 .metric-icon-dot {
   width: 10px;
   height: 10px;
