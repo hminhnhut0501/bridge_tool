@@ -28,6 +28,7 @@ import { type ReactNode, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
 import { dateText } from "./dashboard-helpers";
+import { styleGuide } from "./style-guide";
 
 const statusPalette = {
   success: { main: "#067647", bg: "#ecfdf3", border: "#abefc6" },
@@ -45,6 +46,22 @@ export const tonePalette = {
   paypal: { main: "#475569", bg: "#f8fafc", glow: "rgba(71, 85, 105, 0.18)" },
   neutral: { main: "#0d6b5d", bg: "#f8fafc", glow: "rgba(13, 107, 93, 0.22)" },
 } as const;
+
+const screenAccentMap = {
+  blue: { main: styleGuide.palette.accent.blue, bg: "#eff6ff", glow: "rgba(37, 99, 235, 0.18)" },
+  cyan: { main: styleGuide.palette.accent.cyan, bg: "#ecfeff", glow: "rgba(6, 182, 212, 0.18)" },
+  emerald: { main: styleGuide.palette.accent.emerald, bg: "#ecfdf5", glow: "rgba(16, 185, 129, 0.18)" },
+  amber: { main: styleGuide.palette.accent.amber, bg: "#fffbeb", glow: "rgba(245, 158, 11, 0.18)" },
+  rose: { main: styleGuide.palette.accent.rose, bg: "#fff1f2", glow: "rgba(244, 63, 94, 0.18)" },
+  violet: { main: styleGuide.palette.accent.violet, bg: "#f5f3ff", glow: "rgba(139, 92, 246, 0.18)" },
+  indigo: { main: styleGuide.palette.accent.indigo, bg: "#eef2ff", glow: "rgba(79, 70, 229, 0.18)" },
+} as const;
+
+export type SectionTone = keyof typeof screenAccentMap;
+
+export function sectionAccentTone(tone: SectionTone = "blue") {
+  return screenAccentMap[tone];
+}
 
 export function statusChipSx(kind: keyof typeof statusPalette) {
   const token = statusPalette[kind];
@@ -71,8 +88,8 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
   };
 }
 
-export function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
-  const toneToken = tone ? tonePalette[tone] : tonePalette.neutral;
+export function Metric({ label, value, tone, note, accent: sectionAccent }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone }) {
+  const toneToken = sectionAccent ? sectionAccentTone(sectionAccent) : tone ? tonePalette[tone] : tonePalette.neutral;
   const accent = toneToken.main;
   const bg = toneToken.bg;
   const glow = toneToken.glow;
@@ -131,10 +148,12 @@ export function Metric({ label, value, tone, note }: { label: string; value: str
   );
 }
 
-export function PanelHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PanelHead({ title, subtitle, action, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
+  const tone = sectionAccentTone(accent);
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2, py: 1.5, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-      <Box>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2, py: 1.5, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.96) 32%, rgba(255,255,255,1) 100%)` }}>
+      <Box sx={{ position: "relative", pl: 1.5 }}>
+        <Box sx={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: 999, bgcolor: tone.main }} />
         <Typography variant="h6" sx={{ fontWeight: 700 }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
       </Box>
@@ -151,7 +170,8 @@ export function AppToolbar({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppSection({ title, subtitle, action, children, compact = false }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; compact?: boolean }) {
+export function AppSection({ title, subtitle, action, children, compact = false, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; compact?: boolean; accent?: SectionTone }) {
+  const tone = sectionAccentTone(accent);
   return (
     <Card
       variant="outlined"
@@ -163,11 +183,11 @@ export function AppSection({ title, subtitle, action, children, compact = false 
           position: "absolute",
           inset: 0,
           height: 4,
-          background: "linear-gradient(90deg, rgba(37,99,235,0.95), rgba(124,58,237,0.9), rgba(16,185,129,0.85))",
+          background: `linear-gradient(90deg, ${tone.main}, rgba(124,58,237,0.9), rgba(16,185,129,0.85))`,
         },
       }}
     >
-      <PanelHead title={title} subtitle={subtitle} action={action} />
+      <PanelHead title={title} subtitle={subtitle} action={action} accent={accent} />
       <Box sx={{ p: compact ? 1.5 : 2 }}>{children}</Box>
     </Card>
   );

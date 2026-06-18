@@ -34,10 +34,10 @@ export function CustomersSection(props: any) {
   return (
     <Stack spacing={2}>
       <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} />
-        <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item: any) => item.activeOrders.length).length)} />
-        <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item: any) => item.coupons.length).length)} />
-        <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item: any) => item.paidOrders))} />
+        <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} accent="violet" />
+        <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item: any) => item.activeOrders.length).length)} accent="emerald" />
+        <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item: any) => item.coupons.length).length)} accent="blue" />
+        <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item: any) => item.paidOrders))} accent="cyan" />
       </Box>
       <AppSection
         title="Khách hàng"

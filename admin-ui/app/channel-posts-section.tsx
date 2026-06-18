@@ -11,12 +11,12 @@ export function ChannelPostsSection(props: any) {
   return (
     <Stack spacing={2}>
       <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <Metric label="Tổng bài" value={String(channelPosts.length)} />
-        <Metric label="Chờ gửi" value={String(channelPostCounts.queue + channelPostCounts.scheduled)} />
-        <Metric label="Đã đăng" value={String(channelPostCounts.sent)} />
-        <Metric label="Có lỗi" value={String(channelPostCounts.failed)} />
+        <Metric label="Tổng bài" value={String(channelPosts.length)} accent="cyan" />
+        <Metric label="Chờ gửi" value={String(channelPostCounts.queue + channelPostCounts.scheduled)} accent="violet" />
+        <Metric label="Đã đăng" value={String(channelPostCounts.sent)} accent="amber" />
+        <Metric label="Có lỗi" value={String(channelPostCounts.failed)} accent="blue" />
       </Box>
-      <AppSection title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<AppToolbar><Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button></AppToolbar>}>
+      <AppSection title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<AppToolbar><Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button></AppToolbar>} accent="cyan">
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", p: 2 }}>
           {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => <Button key={tab} variant={channelPostTab === tab ? "contained" : "outlined"} sx={channelPostTab === tab ? statusButtonSx("success") : statusButtonSx("muted")} onClick={() => setChannelPostTab(tab)}>{tab}</Button>)}
         </Box>

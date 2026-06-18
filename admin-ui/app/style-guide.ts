@@ -21,6 +21,10 @@ export const styleGuide = {
       amber: "#f59e0b",
       rose: "#f43f5e",
       indigo: "#4f46e5",
+      sky: "#0ea5e9",
+      violet: "#8b5cf6",
+      blue: "#2563eb",
+      green: "#10b981",
     },
     background: {
       default: "#f6f8fc",
@@ -69,6 +73,13 @@ export const styleGuide = {
     "All dates/times should pass through shared format helpers, never raw ISO strings.",
     "When a section needs identity, assign one accent tone to that section instead of repeating the same blue everywhere.",
   ],
+  screenThemes: {
+    overview: ["blue", "cyan", "emerald"],
+    orders: ["blue", "amber", "rose"],
+    customers: ["violet", "emerald", "blue"],
+    campaigns: ["cyan", "violet", "amber"],
+    channelPosts: ["cyan", "violet", "amber"],
+  },
 } as const;
 
 export type StyleGuide = typeof styleGuide;

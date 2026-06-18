@@ -11,12 +11,12 @@ export function CampaignsSection(props: any) {
   return (
     <Stack spacing={2}>
       <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <Metric label="Campaign" value={String(campaigns.length)} />
-        <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} />
-        <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} />
-        <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} />
+        <Metric label="Campaign" value={String(campaigns.length)} accent="cyan" />
+        <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} accent="violet" />
+        <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} accent="amber" />
+        <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} accent="blue" />
       </Box>
-      <AppSection title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<AppToolbar><Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button></AppToolbar>}>
+      <AppSection title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<AppToolbar><Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button></AppToolbar>} accent="cyan">
         <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
           <strong>Preview: {campaignPreview?.total || 0} người</strong>
           <Chip size="small" label={`Active: ${campaignPreview?.counts?.VIP_ACTIVE || 0}`} variant="outlined" sx={statusChipSx("success")} />
@@ -24,7 +24,7 @@ export function CampaignsSection(props: any) {
           <Chip size="small" label={`Chưa mua: ${campaignPreview?.counts?.NO_PURCHASE || 0}`} variant="outlined" sx={statusChipSx("muted")} />
         </Box>
       </AppSection>
-      <AppSection title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người.">
+      <AppSection title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người." accent="violet">
         <SimpleTable
           headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
           rows={campaigns.map((item: any) => [
@@ -51,7 +51,7 @@ export function CampaignsSection(props: any) {
           ])}
         />
       </AppSection>
-      <AppSection title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart.">
+      <AppSection title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart." accent="amber">
         <div className="campaign-preview">
           <span>Pending: {campaignRecipientCounts.PENDING || 0}</span>
           <span>Sent: {campaignRecipientCounts.SENT || 0}</span>
