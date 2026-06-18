@@ -3887,12 +3887,17 @@ export default function Home() {
         }}
       >
         <Toolbar />
-        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "22px 16px" }}>
-        <div className="brand">Prive Admin</div>
-        <div className="side-status">
-          <span className={webhook?.url ? "dot ok" : "dot bad"} />
-          {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
-        </div>
+        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "18px 14px 16px" }}>
+        <Box sx={{ mb: 1.5, px: 0.5 }}>
+          <Typography sx={{ fontSize: "1.7rem", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.05 }}>Prive Admin</Typography>
+          <Box sx={{ mt: 1, p: 1.1, display: "flex", alignItems: "center", gap: 1, borderRadius: 2.5, border: "1px solid rgba(148, 163, 184, 0.22)", bgcolor: "rgba(255,255,255,0.05)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 6px rgba(34,197,94,0.12)" : "0 0 0 6px rgba(239,68,68,0.12)" }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700, color: "#e2e8f0", lineHeight: 1.2 }}>{webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}</Typography>
+              <Typography variant="caption" sx={{ color: "#94a3b8", lineHeight: 1.2 }}>{webhook?.url ? webhook.url : ui("Cần kiểm tra kết nối backend", "Check backend connection")}</Typography>
+            </Box>
+          </Box>
+        </Box>
         <Tabs
           orientation="vertical"
           value={tab}
@@ -3901,24 +3906,24 @@ export default function Home() {
           scrollButtons={false}
           textColor="inherit"
           sx={{
-            mt: 1.5,
+            mt: 1,
             minHeight: 0,
-            "& .MuiTabs-flexContainer": { gap: 0.75 },
+            "& .MuiTabs-flexContainer": { gap: 0.55 },
             "& .MuiTab-root": {
               justifyContent: "flex-start",
-              minHeight: 42,
-              px: 1.5,
-              py: 1,
+              minHeight: 36,
+              px: 1.35,
+              py: 0.7,
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.08)",
-              bgcolor: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              bgcolor: "rgba(255,255,255,0.035)",
               textTransform: "none",
               fontWeight: 600,
               color: "#cbd5e1",
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
               transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
               "& .MuiTab-iconWrapper": {
-                marginRight: 8,
+                marginRight: 7,
               },
             },
             "& .MuiTab-root:hover": {
@@ -3941,27 +3946,27 @@ export default function Home() {
             "& .MuiTabs-indicator": { display: "none" },
           }}
         >
-          <Tab value="overview" icon={<Activity size={18} />} iconPosition="start" label={ui("Tổng quan", "Overview")} />
-          <Tab value="analytics" icon={<BarChart3 size={18} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
-          <Tab value="setup" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
-          <Tab value="orders" icon={<ShoppingCart size={18} />} iconPosition="start" label={ui("Đơn hàng", "Orders")} />
-          <Tab value="customers" icon={<Users size={18} />} iconPosition="start" label={ui("Khách hàng", "Customers")} />
-          <Tab value="activityLog" icon={<ClipboardList size={18} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
-          <Tab value="campaigns" icon={<Megaphone size={18} />} iconPosition="start" label="Campaign" />
-          <Tab value="channelPosts" icon={<Send size={18} />} iconPosition="start" label="Đăng channel" />
-          <Tab value="renewals" icon={<RefreshCw size={18} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
-          <Tab value="supportGroup" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Group hỗ trợ", "Support group")} />
-          <Tab value="content" icon={<Settings size={18} />} iconPosition="start" label="Cấu hình bot" />
-          <Tab value="botVi" icon={<FileText size={18} />} iconPosition="start" label="UI Bot tiếng Việt" />
-          <Tab value="botEn" icon={<FileText size={18} />} iconPosition="start" label="UI Bot tiếng Anh" />
-          <Tab value="botTools" icon={<ClipboardList size={18} />} iconPosition="start" label="Lệnh & cảnh báo" />
-          <Tab value="hiddenMessages" icon={<Ticket size={18} />} iconPosition="start" label="Hidden text" />
-          <Tab value="menuBuilder" icon={<FileText size={18} />} iconPosition="start" label="Menu Builder" />
-          <Tab value="coupons" icon={<Ticket size={18} />} iconPosition="start" label="Coupon" />
-          <Tab value="activationCodes" icon={<Ticket size={18} />} iconPosition="start" label="Activation code" />
-          <Tab value="security" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
-          <Tab value="sales" icon={<BadgePercent size={18} />} iconPosition="start" label="Sale" />
-          <Tab value="system" icon={<Settings size={18} />} iconPosition="start" label={ui("Hệ thống", "System")} />
+          <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
+          <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
+          <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="activityLog" icon={<ClipboardList size={16} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
+          <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
+          <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group hỗ trợ", "Support group")} />
+          <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
+          <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
+          <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
+          <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
+          <Tab value="hiddenMessages" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Hidden text</span><Chip size="small" label={String(hiddenGroups.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
+          <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
+          <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
+          <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
+          <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
         </Tabs>
         </aside>
       </Drawer>
