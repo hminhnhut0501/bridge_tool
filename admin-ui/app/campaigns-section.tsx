@@ -30,7 +30,17 @@ export function CampaignsSection(props: any) {
         <SimpleTable
           headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
           rows={campaigns.map((item: any) => [
-            <button key={`select-${item.id}`} className="link-button" onClick={() => { setSelectedCampaignId(item.id); setCampaignRecipientPage(1); }}><strong>{item.title}</strong><div className="muted">{dateText(item.created_at)}</div></button>,
+            <Button
+              key={`select-${item.id}`}
+              variant="text"
+              onClick={() => { setSelectedCampaignId(item.id); setCampaignRecipientPage(1); }}
+              sx={{ alignItems: "flex-start", justifyContent: "flex-start", textAlign: "left", px: 0, py: 0.5, minWidth: 0, textTransform: "none" }}
+            >
+              <Box component="span" sx={{ display: "grid", gap: 0.25 }}>
+                <strong>{item.title}</strong>
+                <span className="muted">{dateText(item.created_at)}</span>
+              </Box>
+            </Button>,
             <><strong>{item.target_segment}</strong><div className="muted">{String(item.raw_data?.plan_filter || "ALL")} • {String(item.raw_data?.plan_match_scope || "ANY_PAID")}</div></>,
             <span key={`status-${item.id}`} className={item.status}>{item.status}</span>,
             <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,

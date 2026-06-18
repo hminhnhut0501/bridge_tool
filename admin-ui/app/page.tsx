@@ -31,12 +31,16 @@ import {
   AppBar,
   Box,
   Button,
+  ButtonBase,
+  Checkbox,
   Chip,
   Card,
   CardContent,
   Drawer,
   FormControl,
+  FormControlLabel,
   InputLabel,
+  IconButton,
   MenuItem,
   Select,
   Stack,
@@ -3427,9 +3431,9 @@ export default function Home() {
         kickAuditReason(item),
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
         item.needs_action && item.group_id ? (
-          <button className="btn secondary" onClick={() => manualKickAudit(item)} disabled={saving === `kick-audit-${item.audit_id}`}>
-            {saving === `kick-audit-${item.audit_id}` ? <Loader2 size={16} className="spin" /> : <XCircle size={16} />} Kick lại
-          </button>
+          <Button variant="outlined" size="small" color="error" onClick={() => manualKickAudit(item)} disabled={saving === `kick-audit-${item.audit_id}`} startIcon={saving === `kick-audit-${item.audit_id}` ? <Loader2 size={16} className="spin" /> : <XCircle size={16} />}>
+            Kick lại
+          </Button>
         ) : "-",
       ]),
       retained: kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").map((item) => [
@@ -4170,19 +4174,15 @@ export default function Home() {
                 subtitle="Theo dõi hạn dùng, lịch nhắc, báo hết hạn và lịch sử kick theo từng tab để danh sách không bị quá dài."
                 action={
                   <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => refreshVipGroupAudit(true)} disabled={saving === "vip-audit-live"}>
-                      {saving === "vip-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra VIP live
-                    </button>
-                    <button className="btn secondary" onClick={() => exportVipGroupAudit("csv")} disabled={!vipGroupAudit.length}>
-                      <Download size={16} /> CSV
-                    </button>
-                    <button className="btn secondary" onClick={() => exportVipGroupAudit("xlsx")} disabled={!vipGroupAudit.length}>
-                      <Download size={16} /> XLSX
-                    </button>
-                    <button className="btn secondary" onClick={() => refreshKickAudit(true)} disabled={saving === "kick-audit-live"}>
-                      {saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra live
-                    </button>
-                    <button className="btn" onClick={() => setRenewalSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
+                    <Button variant="outlined" size="small" onClick={() => refreshVipGroupAudit(true)} disabled={saving === "vip-audit-live"} startIcon={saving === "vip-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                      Kiểm tra VIP live
+                    </Button>
+                    <Button variant="outlined" size="small" onClick={() => exportVipGroupAudit("csv")} disabled={!vipGroupAudit.length} startIcon={<Download size={16} />}>CSV</Button>
+                    <Button variant="outlined" size="small" onClick={() => exportVipGroupAudit("xlsx")} disabled={!vipGroupAudit.length} startIcon={<Download size={16} />}>XLSX</Button>
+                    <Button variant="outlined" size="small" onClick={() => refreshKickAudit(true)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                      Kiểm tra live
+                    </Button>
+                    <Button variant="contained" size="small" onClick={() => setRenewalSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
                   </div>
                 }
               />
@@ -4218,7 +4218,7 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn dữ liệu VIP."
                 action={
                   <div className="panel-actions">
-                    <button className="btn" onClick={runSupportGroupCheck} disabled={saving === "support-check"}>{saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Kiểm tra</button>
+                    <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }
               />
@@ -4426,8 +4426,8 @@ export default function Home() {
                   title={menuLanguage === "en" ? "Menu Builder tiếng Anh" : "Menu Builder tiếng Việt"}
                   subtitle={menuLanguage === "en" ? "Tên trang bắt buộc kết thúc bằng _en, ví dụ main_menu_en." : "Trang gốc tiếng Việt không dùng hậu tố _en."}
                   action={
-                    <div className="panel-actions">
-                      <button className="btn" onClick={() => { resetMenuForm(); setMenuModalOpen(true); }}><Plus size={16} /> Thêm trang</button>
+                      <div className="panel-actions">
+                      <Button variant="contained" size="small" onClick={() => { resetMenuForm(); setMenuModalOpen(true); }} startIcon={<Plus size={16} />}>Thêm trang</Button>
                     </div>
                   }
                 />
@@ -4440,9 +4440,9 @@ export default function Home() {
                     setMenuModalOpen(true);
                   }}
                   actions={(idx) => (
-                    <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeMenuPage(visibleMenuPages[idx].page_id); }} title="Xoá trang">
+                    <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeMenuPage(visibleMenuPages[idx].page_id); }} title="Xoá trang">
                       <Trash2 size={16} />
-                    </button>
+                    </IconButton>
                   )}
                 />
               </section>
@@ -4455,8 +4455,8 @@ export default function Home() {
               title="Coupon"
               subtitle="Danh sách coupon được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong popup."
               action={
-                <div className="panel-actions">
-                  <button className="btn" onClick={openNewCouponModal}><Plus size={16} /> Thêm coupon</button>
+                  <div className="panel-actions">
+                  <Button variant="contained" size="small" onClick={openNewCouponModal} startIcon={<Plus size={16} />}>Thêm coupon</Button>
                 </div>
               }
             />
@@ -4475,18 +4475,19 @@ export default function Home() {
             <SimpleTable
               headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Người dùng gần nhất"]}
               rows={pagedCoupons.map((item) => [
-                <button
+                <Button
                   key="coupon-code"
-                  className="coupon-code-copy"
+                  variant="text"
                   disabled={saving === `coupon-copy-${item.code}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     copyCouponAndMarkSent(item);
                   }}
                   title="Copy mã và đánh dấu đã gửi"
+                  sx={{ justifyContent: "flex-start", px: 0, minWidth: 0, textTransform: "none" }}
                 >
                   {item.code}
-                </button>,
+                </Button>,
                 String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? "Giảm giá" : "Kích hoạt",
                 String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? appliesLabel(String(item.raw_data?.Applies_To || "")) : planOptionLabel(String(item.raw_data?.Plan_Name || item.plan_name || "-")),
                 String(item.raw_data?.Coupon_Type || "") === "DISCOUNT" ? `${String(item.raw_data?.Discount_Percent || 0)}%` : "-",
@@ -4500,22 +4501,25 @@ export default function Home() {
               }}
               actions={(idx) => (
                 <div className="coupon-row-actions">
-                  <label className="sent-toggle" title="Đánh dấu đã gửi coupon">
-                    <input
-                      type="checkbox"
-                      checked={isCouponSent(pagedCoupons[idx])}
-                      disabled={saving === `coupon-sent-${pagedCoupons[idx].code}`}
-                      onChange={(event) => {
-                        event.stopPropagation();
-                        toggleCouponSent(pagedCoupons[idx], event.target.checked);
-                      }}
-                      onClick={(event) => event.stopPropagation()}
-                    />
-                    <span>Gửi</span>
-                  </label>
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeCoupon(pagedCoupons[idx].code); }} title="Xoá coupon">
+                  <FormControlLabel
+                    title="Đánh dấu đã gửi coupon"
+                    sx={{ m: 0, mr: 0.5 }}
+                    control={
+                      <Checkbox
+                        checked={isCouponSent(pagedCoupons[idx])}
+                        disabled={saving === `coupon-sent-${pagedCoupons[idx].code}`}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          toggleCouponSent(pagedCoupons[idx], event.target.checked);
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    }
+                    label="Gửi"
+                  />
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeCoupon(pagedCoupons[idx].code); }} title="Xoá coupon">
                     <Trash2 size={16} />
-                  </button>
+                  </IconButton>
                 </div>
               )}
             />
@@ -4528,7 +4532,7 @@ export default function Home() {
             <PanelHead
               title="Activation codes"
               subtitle="Danh sách mã kích hoạt cho đơn thủ công. Reset để cho khách bấm lại link bot, disable để chặn mã ngay lập tức."
-              action={<div className="panel-actions"><button className="btn secondary" onClick={() => loadAll()}><RefreshCw size={16} /> Tải lại</button></div>}
+              action={<div className="panel-actions"><Button variant="outlined" size="small" onClick={() => loadAll()} startIcon={<RefreshCw size={16} />}>Tải lại</Button></div>}
             />
             <div className="grid">
               <Metric label="Tổng mã" value={String(activationCodesByStatus.ALL.length)} />
@@ -4560,23 +4564,15 @@ export default function Home() {
                 item.plan_name,
                 dateText(item.expire_at),
                 item.activation_status,
-                <button key={`copy-${item.code}`} className="btn secondary" onClick={(event) => { event.stopPropagation(); copyActivationLink(item); }}>Copy</button>,
+                <Button key={`copy-${item.code}`} variant="outlined" size="small" onClick={(event) => { event.stopPropagation(); copyActivationLink(item); }}>Copy</Button>,
                 <div key={`updated-${item.code}`}><div>{dateText(item.updated_at)}</div><div className="muted">{item.activated_at ? `Activated ${dateText(item.activated_at)}` : ""}</div></div>,
               ])}
               actions={(idx) => (
                 <div className="coupon-row-actions">
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); disableActivationCode(activationCodeRows[idx]); }} title="Vô hiệu hoá mã">
-                    <XCircle size={16} />
-                  </button>
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); refreshActivationCode(activationCodeRows[idx]); }} title="Reset mã">
-                    <RefreshCw size={16} />
-                  </button>
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); renewActivationCode(activationCodeRows[idx]); }} title="Tạo lại link mới">
-                    <Plus size={16} />
-                  </button>
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); deleteActivationCodeRow(activationCodeRows[idx]); }} title="Xoá mã">
-                    <Trash2 size={16} />
-                  </button>
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); disableActivationCode(activationCodeRows[idx]); }} title="Vô hiệu hoá mã"><XCircle size={16} /></IconButton>
+                  <IconButton color="primary" size="small" onClick={(event) => { event.stopPropagation(); refreshActivationCode(activationCodeRows[idx]); }} title="Reset mã"><RefreshCw size={16} /></IconButton>
+                  <IconButton color="primary" size="small" onClick={(event) => { event.stopPropagation(); renewActivationCode(activationCodeRows[idx]); }} title="Tạo lại link mới"><Plus size={16} /></IconButton>
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); deleteActivationCodeRow(activationCodeRows[idx]); }} title="Xoá mã"><Trash2 size={16} /></IconButton>
                 </div>
               )}
             />
@@ -4591,8 +4587,8 @@ export default function Home() {
                 subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
                 action={
                   <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => setSecuritySettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
-                    <button className="btn" onClick={() => { setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" }); setBlacklistModalOpen(true); }}><Plus size={16} /> Thêm blacklist</button>
+                    <Button variant="outlined" size="small" onClick={() => setSecuritySettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
+                    <Button variant="contained" size="small" onClick={() => { setBlacklistForm({ telegram_user_id: "", username: "", full_name: "", reason: "" }); setBlacklistModalOpen(true); }} startIcon={<Plus size={16} />}>Thêm blacklist</Button>
                   </div>
                 }
               />
@@ -4618,9 +4614,9 @@ export default function Home() {
                   setBlacklistModalOpen(true);
                 }}
                 actions={(idx) => (
-                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(blacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(blacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
                     <Trash2 size={16} />
-                  </button>
+                  </IconButton>
                 )}
               />
             </section>
@@ -4634,7 +4630,7 @@ export default function Home() {
               subtitle="Tạo giảm giá theo gói. Chọn dòng bên dưới để sửa, hoặc bấm Thêm sale để tạo chương trình mới."
               action={
                 <div className="panel-actions">
-                  <button className="btn" onClick={() => { resetSaleForm(); setSaleModalOpen(true); }}><Plus size={16} /> Thêm sale</button>
+                    <Button variant="contained" size="small" onClick={() => { resetSaleForm(); setSaleModalOpen(true); }} startIcon={<Plus size={16} />}>Thêm sale</Button>
                 </div>
               }
             />
@@ -4647,9 +4643,7 @@ export default function Home() {
                 setSaleModalOpen(true);
               }}
               actions={(idx) => (
-                <button className="icon-danger" onClick={(event) => { event.stopPropagation(); removeSaleRule(saleRules[idx].sale_id); }} title="Xoá sale">
-                  <Trash2 size={16} />
-                </button>
+                <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeSaleRule(saleRules[idx].sale_id); }} title="Xoá sale"><Trash2 size={16} /></IconButton>
               )}
             />
           </section>
@@ -4663,8 +4657,8 @@ export default function Home() {
                 subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render."
                 action={
                   <div className="panel-actions">
-                    <button className="btn secondary" onClick={() => setSystemSettingsOpen(true)}><Settings size={16} /> Cài đặt</button>
-                    <button className="btn" onClick={handleWebhookReset}><RefreshCw size={16} /> Reset webhook</button>
+                    <Button variant="outlined" size="small" onClick={() => setSystemSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
+                    <Button variant="contained" size="small" onClick={handleWebhookReset} startIcon={<RefreshCw size={16} />}>Reset webhook</Button>
                   </div>
                 }
               />
@@ -4691,7 +4685,7 @@ export default function Home() {
               <PanelHead
                 title={`Cấu hình nhóm G${groupNo}`}
                 subtitle="Tên nhóm, group ID và giá bán được lưu tập trung tại đây."
-                action={<button className="icon-danger" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
                 <label className="field">
@@ -4712,9 +4706,9 @@ export default function Home() {
                 <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setGroupModalOpen(false)}>Đóng</button>
-                <button className="btn danger" onClick={removeGroupConfig} disabled={saving === "group-delete"}><Trash2 size={16} /> Xoá nhóm</button>
-                <button className="btn" onClick={saveGroupConfig} disabled={saving === "group"}>{saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu nhóm</button>
+                <Button variant="outlined" onClick={() => setGroupModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={removeGroupConfig} disabled={saving === "group-delete"} startIcon={<Trash2 size={16} />}>Xoá nhóm</Button>
+                <Button variant="contained" onClick={saveGroupConfig} disabled={saving === "group"} startIcon={saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu nhóm</Button>
               </div>
             </section>
           </div>
@@ -4726,7 +4720,7 @@ export default function Home() {
               <PanelHead
                 title={hiddenGroupForm.id ? `Hidden Group: ${hiddenGroupForm.id}` : "Tạo Hidden Group"}
                 subtitle="Thiết lập group extra ẩn, giá, hạn và điều kiện mua. Không còn phải nhập JSON thủ công."
-                action={<button className="icon-danger" onClick={() => setHiddenGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setHiddenGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
                 <label className="field">
@@ -4798,9 +4792,9 @@ export default function Home() {
                 </label>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</button>
-                {hiddenGroupForm.id ? <button className="btn secondary" onClick={() => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(hiddenGroupForm.name) || hiddenGroupForm.id })}><RefreshCw size={16} /> Tạo lại ID từ tên</button> : null}
-                <button className="btn" onClick={saveHiddenGroup} disabled={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}`}>{saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu Hidden Group</button>
+                <Button variant="outlined" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</Button>
+                {hiddenGroupForm.id ? <Button variant="outlined" onClick={() => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(hiddenGroupForm.name) || hiddenGroupForm.id })} startIcon={<RefreshCw size={16} />}>Tạo lại ID từ tên</Button> : null}
+                <Button variant="contained" onClick={saveHiddenGroup} disabled={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}`} startIcon={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Hidden Group</Button>
               </div>
             </section>
           </div>
@@ -4812,7 +4806,7 @@ export default function Home() {
               <PanelHead
                 title={hiddenCodeForm.code ? `Hidden Code: ${hiddenCodeForm.code}` : "Tạo Hidden Code"}
                 subtitle="Mã reveal catalog hidden group. Có thể giới hạn group, điều kiện và khoảng thời gian sử dụng."
-                action={<button className="icon-danger" onClick={() => setHiddenCodeModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setHiddenCodeModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="modal-content">
                 <div className="form-grid">
@@ -4895,9 +4889,9 @@ export default function Home() {
                 </div>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</button>
-                <button className="btn secondary" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })}><RefreshCw size={16} /> Gợi ý mã từ tên</button>
-                <button className="btn" onClick={saveHiddenCode} disabled={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}`}>{saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu Hidden Code</button>
+                <Button variant="outlined" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })} startIcon={<RefreshCw size={16} />}>Gợi ý mã từ tên</Button>
+                <Button variant="contained" onClick={saveHiddenCode} disabled={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}`} startIcon={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Hidden Code</Button>
               </div>
             </section>
           </div>
@@ -4908,7 +4902,7 @@ export default function Home() {
               <PanelHead
                 title="Tạo campaign"
                 subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách."
-                action={<button className="icon-danger" onClick={() => setCampaignModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setCampaignModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="modal-content">
                 <div className="form-grid">
@@ -4942,10 +4936,8 @@ export default function Home() {
                 </div>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setCampaignModalOpen(false)}>Đóng</button>
-                <button className="btn" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()}>
-                  {saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Tạo campaign
-                </button>
+                <Button variant="outlined" onClick={() => setCampaignModalOpen(false)}>Đóng</Button>
+                <Button variant="contained" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()} startIcon={saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}>Tạo campaign</Button>
               </div>
           </MuiDialogShell>
         ) : null}
@@ -4956,7 +4948,7 @@ export default function Home() {
               <PanelHead
                 title={menuForm.page_id ? `Menu: ${menuForm.page_id}` : "Thêm trang menu"}
                 subtitle={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc kết thúc bằng _en." : "Trang tiếng Việt không dùng hậu tố _en."}
-                action={<button className="icon-danger" onClick={() => setMenuModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setMenuModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid two">
                 <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} /><small>{menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."}</small></label>
@@ -4965,9 +4957,9 @@ export default function Home() {
                 <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</small></label>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setMenuModalOpen(false)}>Đóng</button>
-                <button className="btn danger" onClick={() => removeMenuPage()} disabled={!menuForm.page_id}><Trash2 size={16} /> Xoá trang</button>
-                <button className="btn" onClick={saveMenuPage}><Save size={16} /> Lưu menu</button>
+                <Button variant="outlined" onClick={() => setMenuModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={() => removeMenuPage()} disabled={!menuForm.page_id} startIcon={<Trash2 size={16} />}>Xoá trang</Button>
+                <Button variant="contained" onClick={saveMenuPage} startIcon={<Save size={16} />}>Lưu menu</Button>
               </div>
             </section>
           </div>
@@ -4978,7 +4970,7 @@ export default function Home() {
               <PanelHead
                 title={saleForm.sale_id ? `Sale: ${saleForm.sale_id}` : "Thêm sale"}
                 subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói."
-                action={<button className="icon-danger" onClick={() => setSaleModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setSaleModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
                 <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
@@ -4989,9 +4981,9 @@ export default function Home() {
                 <label className="field"><span>Trạng thái</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setSaleModalOpen(false)}>Đóng</button>
-                <button className="btn danger" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id}><Trash2 size={16} /> Xoá sale</button>
-                <button className="btn" onClick={saveSaleRule}><Save size={16} /> Lưu sale</button>
+                <Button variant="outlined" onClick={() => setSaleModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id} startIcon={<Trash2 size={16} />}>Xoá sale</Button>
+                <Button variant="contained" onClick={saveSaleRule} startIcon={<Save size={16} />}>Lưu sale</Button>
               </div>
           </MuiDialogShell>
         ) : null}
@@ -5001,7 +4993,7 @@ export default function Home() {
               <PanelHead
                 title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"}
                 subtitle="Chặn seller hoặc user spam theo Telegram ID."
-                action={<button className="icon-danger" onClick={() => setBlacklistModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setBlacklistModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid two">
                 <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
@@ -5010,9 +5002,9 @@ export default function Home() {
                 <label className="field"><span>Lý do</span><input value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" /></label>
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setBlacklistModalOpen(false)}>Đóng</button>
-                <button className="btn danger" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id}><Trash2 size={16} /> Gỡ chặn</button>
-                <button className="btn" onClick={saveBlacklistEntry}><ShieldCheck size={16} /> Lưu blacklist</button>
+                <Button variant="outlined" onClick={() => setBlacklistModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id} startIcon={<Trash2 size={16} />}>Gỡ chặn</Button>
+                <Button variant="contained" onClick={saveBlacklistEntry} startIcon={<ShieldCheck size={16} />}>Lưu blacklist</Button>
               </div>
           </MuiDialogShell>
         ) : null}
@@ -5022,13 +5014,13 @@ export default function Home() {
               <PanelHead
                 title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"}
                 subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này."
-                action={<button className="icon-danger" onClick={() => setCouponModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setCouponModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="modal-content">
                 <div className="panel-actions modal-toolbar">
-                  <button className="btn secondary" onClick={generateCouponCode}><RefreshCw size={16} /> Gen mã HANGCU_</button>
-                  <input className="mini-input" value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" title="Số lượng mã cần gen cùng điều kiện" />
-                  <button className="btn secondary" onClick={generateManyCoupons}><RefreshCw size={16} /> Gen nhiều cùng điều kiện</button>
+                  <Button variant="outlined" onClick={generateCouponCode} startIcon={<RefreshCw size={16} />}>Gen mã HANGCU_</Button>
+                  <TextField value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" size="small" title="Số lượng mã cần gen cùng điều kiện" sx={{ width: 140 }} />
+                  <Button variant="outlined" onClick={generateManyCoupons} startIcon={<RefreshCw size={16} />}>Gen nhiều cùng điều kiện</Button>
                 </div>
                 <div className="form-grid">
                   <label className="field"><span>Mã coupon</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" /></label>
@@ -5058,16 +5050,18 @@ export default function Home() {
                   <div className="coupon-scope">
                     <div className="coupon-scope-head">
                       <strong>Gói được áp dụng</strong>
-                      <button className={couponForm.Applies_To === "ALL" ? "scope-pill active" : "scope-pill"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</button>
+                      <Button variant={couponForm.Applies_To === "ALL" ? "contained" : "outlined"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</Button>
                     </div>
                     <div className="check-grid">
                       {discountPlanKeyOptions.map((item) => {
                         const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
                         return (
-                          <label className={selected ? "check-card active" : "check-card"} key={item}>
-                            <input type="checkbox" checked={selected} onChange={() => toggleCouponPlan(item)} />
-                            <span>{planOptionLabel(item)}</span>
-                          </label>
+                          <FormControlLabel
+                            key={item}
+                            sx={{ m: 0, px: 1, py: 0.75, borderRadius: 2, border: 1, borderColor: selected ? "primary.main" : "divider", bgcolor: selected ? "action.selected" : "background.paper" }}
+                            control={<Checkbox checked={selected} onChange={() => toggleCouponPlan(item)} />}
+                            label={planOptionLabel(item)}
+                          />
                         );
                       })}
                     </div>
@@ -5075,9 +5069,9 @@ export default function Home() {
                 ) : null}
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setCouponModalOpen(false)}>Đóng</button>
-                <button className="btn danger" onClick={() => removeCoupon()} disabled={!couponForm.Code}><Trash2 size={16} /> Xoá coupon</button>
-                <button className="btn" onClick={saveCoupon}><Gift size={16} /> Lưu coupon</button>
+                <Button variant="outlined" onClick={() => setCouponModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={() => removeCoupon()} disabled={!couponForm.Code} startIcon={<Trash2 size={16} />}>Xoá coupon</Button>
+                <Button variant="contained" onClick={saveCoupon} startIcon={<Gift size={16} />}>Lưu coupon</Button>
               </div>
           </MuiDialogShell>
         ) : null}
@@ -5087,7 +5081,7 @@ export default function Home() {
               <PanelHead
                 title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"}
                 subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend."
-                action={<button className="icon-danger" onClick={() => setChannelPostModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setChannelPostModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="modal-content">
                 <div className="form-grid two">
@@ -5137,13 +5131,11 @@ export default function Home() {
                     <span>Hẹn giờ xóa</span>
                     <input type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} />
                   </label>
-                  <label className="check-card" style={{ gridColumn: "span 1" }}>
-                    <input type="checkbox" checked={Boolean(channelPostForm.repeat_daily)} onChange={(event) => setChannelPostForm({ ...channelPostForm, repeat_daily: event.target.checked })} />
-                    <div>
-                      <strong>Lặp lại mỗi ngày</strong>
-                      <div className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</div>
-                    </div>
-                  </label>
+                  <FormControlLabel
+                    sx={{ gridColumn: "span 1", alignItems: "flex-start", border: 1, borderColor: "divider", borderRadius: 2, px: 1.5, py: 1, m: 0 }}
+                    control={<Checkbox checked={Boolean(channelPostForm.repeat_daily)} onChange={(event) => setChannelPostForm({ ...channelPostForm, repeat_daily: event.target.checked })} />}
+                    label={<Box><strong>Lặp lại mỗi ngày</strong><Box className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</Box></Box>}
+                  />
                   <label className="field wide">
                     <span>Ghi chú</span>
                     <input value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" />
@@ -5153,10 +5145,10 @@ export default function Home() {
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
                   <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {dateTimePreviewText(channelPostForm.scheduled_at, "gửi ngay")} • Xóa: {dateTimePreviewText(channelPostForm.delete_at, "không tự xóa")} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
-                  <div className="row-chips" style={{ marginTop: 10 }}>
-                    {channelPostForm.repeat_daily ? <span className="badge green">Bật lặp ngày</span> : <span className="badge muted">Không lặp</span>}
-                    {channelPostForm.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
-                  </div>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1.25 }}>
+                    {channelPostForm.repeat_daily ? <Chip size="small" label="Bật lặp ngày" variant="outlined" sx={statusChipSx("success")} /> : <Chip size="small" label="Không lặp" variant="outlined" sx={statusChipSx("muted")} />}
+                    {channelPostForm.delete_at ? <Chip size="small" label="Có giờ xóa" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Không tự xóa" variant="outlined" sx={statusChipSx("muted")} />}
+                  </Box>
                 </div>
                 {channelEvents.length ? (
                   <div className="channel-events">
@@ -5168,10 +5160,10 @@ export default function Home() {
                 ) : null}
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setChannelPostModalOpen(false)}>Đóng</button>
-                <button className="btn secondary" onClick={() => saveChannelPost("draft")} disabled={saving.startsWith("channel-post")}><Save size={16} /> {channelPostForm.id ? "Lưu thay đổi" : "Lưu nháp"}</button>
-                <button className="btn secondary" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at}><CalendarClock size={16} /> Lên lịch</button>
-                <button className="btn" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")}>{saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />} Đăng ngay</button>
+                <Button variant="outlined" onClick={() => setChannelPostModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" onClick={() => saveChannelPost("draft")} disabled={saving.startsWith("channel-post")} startIcon={<Save size={16} />}>{channelPostForm.id ? "Lưu thay đổi" : "Lưu nháp"}</Button>
+                <Button variant="outlined" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at} startIcon={<CalendarClock size={16} />}>Lên lịch</Button>
+                <Button variant="contained" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")} startIcon={saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>Đăng ngay</Button>
               </div>
           </MuiDialogShell>
         ) : null}
@@ -5205,7 +5197,7 @@ export default function Home() {
               <PanelHead
                 title="Tạo đơn thủ công"
                 subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
-                action={<button className="icon-danger" onClick={() => setManualOrderModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
+                action={<IconButton color="error" size="small" onClick={() => setManualOrderModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
                 <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
@@ -5232,8 +5224,8 @@ export default function Home() {
                 <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
               </div>
               <div className="modal-actions">
-                <button className="btn secondary" onClick={() => setManualOrderModalOpen(false)}>Đóng</button>
-                <button className="btn" onClick={saveManualOrder} disabled={saving === "manual-order"}>{saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />} Tạo đơn & gen link</button>
+                <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
+                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen link</Button>
               </div>
                 {manualOrderResult ? (
                   <div className="form-grid two">
@@ -5249,8 +5241,8 @@ export default function Home() {
                     </label>
                     <div className="field wide">
                       <div className="modal-actions" style={{ justifyContent: "flex-start" }}>
-                        <button className="btn secondary" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</button>
-                        <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ nội dung</button>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>
+                        <Button variant="outlined" onClick={copyManualLinks}>Copy toàn bộ nội dung</Button>
                       </div>
                       {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
                     </div>
@@ -5559,18 +5551,35 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
       <PanelHead title={title} subtitle={`${subtitle} Bấm vào từng mục để chỉnh sửa và lưu riêng.`} />
       <div className="config-list">
         {fields.map((field) => (
-          <button className="config-row" key={field.key} onClick={() => openField(field)}>
-            <div className="config-row-copy">
+          <ButtonBase
+            key={field.key}
+            onClick={() => openField(field)}
+            sx={{
+              width: "100%",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto auto",
+              gap: 1.5,
+              alignItems: "center",
+              px: 2,
+              py: 1.5,
+              borderRadius: 2,
+              border: 1,
+              borderColor: "divider",
+              bgcolor: "background.paper",
+              textAlign: "left",
+            }}
+          >
+            <Box sx={{ display: "grid", gap: 0.25 }}>
               <strong>{field.label}</strong>
-              <span>{field.help}</span>
-            </div>
-            <div className={values[field.key] ? "config-value" : "config-value empty"}>
+              <span className="muted">{field.help}</span>
+            </Box>
+            <Box sx={{ fontWeight: 700, color: values[field.key] ? "text.primary" : "text.secondary" }}>
               {field.kind === "select"
                 ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder
                 : values[field.key] || "Chưa thiết lập"}
-            </div>
+            </Box>
             <Pencil size={17} />
-          </button>
+          </ButtonBase>
         ))}
       </div>
       {editingField ? (
@@ -5579,7 +5588,7 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
             <PanelHead
               title={editingField.label}
               subtitle={editingField.help}
-              action={<button className="icon-danger" onClick={() => setEditingField(null)} title="Đóng"><XCircle size={18} /></button>}
+              action={<IconButton color="error" size="small" onClick={() => setEditingField(null)} title="Đóng"><XCircle size={18} /></IconButton>}
             />
             <div className="modal-content">
               <label className="field">
@@ -5597,10 +5606,8 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
               </label>
             </div>
             <div className="modal-actions">
-              <button className="btn secondary" onClick={() => setEditingField(null)}>Huỷ</button>
-              <button className="btn" onClick={saveField} disabled={savingField}>
-                {savingField ? <Loader2 size={16} className="spin" /> : <Save size={16} />} Lưu thay đổi
-              </button>
+              <Button variant="outlined" onClick={() => setEditingField(null)}>Huỷ</Button>
+              <Button variant="contained" onClick={saveField} disabled={savingField} startIcon={savingField ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu thay đổi</Button>
             </div>
           </section>
         </div>
@@ -5615,7 +5622,7 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
       <section className="modal-panel wide-modal settings-config-modal">
         <ConfigEditor title={title} subtitle={subtitle} fields={fields} values={values} setValues={setValues} onSave={onSave} />
         <div className="modal-actions">
-          <button className="btn secondary" onClick={onClose}>Đóng</button>
+          <Button variant="outlined" onClick={onClose}>Đóng</Button>
         </div>
       </section>
     </div>
@@ -5681,7 +5688,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <input defaultValue={order.plan_name} id={`plan-${order.order_id}`} className="mini-input" style={{ width: "100%" }} />
+                  <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth />
                   <Button variant="outlined" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
@@ -5702,7 +5709,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <input type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} className="mini-input" style={{ width: "100%" }} />
+                  <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth slotProps={{ inputLabel: { shrink: true } }} />
                   <Button variant="outlined" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");

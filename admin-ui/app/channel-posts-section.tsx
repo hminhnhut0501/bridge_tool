@@ -24,7 +24,17 @@ export function ChannelPostsSection(props: any) {
         <SimpleTable
           headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}
           rows={pagedChannelPosts.map((item: any) => [
-            <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}><strong>{item.title || `Bài #${item.id}`}</strong><div className="muted">{String(item.content || "").slice(0, 90)}</div></button>,
+            <Button
+              key={`cp-title-${item.id}`}
+              variant="text"
+              onClick={() => editChannelPost(item)}
+              sx={{ alignItems: "flex-start", justifyContent: "flex-start", textAlign: "left", px: 0, py: 0.5, minWidth: 0, textTransform: "none" }}
+            >
+              <Box component="span" sx={{ display: "grid", gap: 0.25 }}>
+                <strong>{item.title || `Bài #${item.id}`}</strong>
+                <span className="muted">{String(item.content || "").slice(0, 90)}</span>
+              </Box>
+            </Button>,
             item.target_chat_id,
             <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
             <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
