@@ -94,6 +94,7 @@ import {
 } from "./dashboard-helpers";
 import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, type GroupMode } from "./dashboard-business";
 import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
+import { TrendChart as MuiTrendChart } from "./dashboard-components";
 import type { OrderPeriod } from "./dashboard-types";
 import { AnalyticsSection, OrdersSection } from "./dashboard-sections";
 import { CustomersSection } from "./customers-section";
@@ -1737,6 +1738,7 @@ export default function Home() {
   const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
   const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("commandsVi");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
+  const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [config, setConfig] = useState<ConfigRow[]>([]);
@@ -2966,6 +2968,20 @@ export default function Home() {
     }, {} as Record<string, number>);
   }, [paidOrders]);
   const hasPayosOrders = useMemo(() => paidOrders.some((item) => inferOrderProvider(item) === "PAYOS"), [paidOrders]);
+  const overviewTrendPoints = useMemo(() => {
+    const sourceOrders = orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange));
+    const groupMap = new Map<string, Order[]>();
+    for (const order of sourceOrders) {
+      const key = overviewTrendRange === "month" ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(new Date(order.created_at || "")) : new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "2-digit" }).format(new Date(order.created_at || ""));
+      groupMap.set(key, [...(groupMap.get(key) || []), order]);
+    }
+    return Array.from(groupMap.entries()).map(([label, items]) => ({
+      label,
+      value: items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      vip: new Set(items.map((item) => item.telegram_user_id)).size,
+    }));
+  }, [orders, overviewTrendRange]);
+  const overviewVipPoints = useMemo(() => overviewTrendPoints.map((item) => ({ label: item.label, value: item.vip })), [overviewTrendPoints]);
 
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
@@ -3708,8 +3724,19 @@ export default function Home() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <AppBar position="fixed" elevation={0} color="default" sx={{ borderBottom: "1px solid", borderColor: "divider", bgcolor: "rgba(255,255,255,0.92)", backdropFilter: "blur(14px)", zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar sx={{ gap: 2 }}>
+      <AppBar
+        position="fixed"
+        elevation={0}
+        color="default"
+        sx={{
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          bgcolor: "rgba(255,255,255,0.96)",
+          backdropFilter: "blur(14px)",
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+        }}
+      >
+        <Toolbar sx={{ gap: 2, minHeight: 76, px: 3 }}>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
@@ -3720,9 +3747,6 @@ export default function Home() {
           </Box>
           <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
             {ui("Tải lại", "Reload")}
-          </Button>
-          <Button variant="text" onClick={logout}>
-            {ui("Đăng xuất", "Log out")}
           </Button>
         </Toolbar>
       </AppBar>
@@ -3851,6 +3875,38 @@ export default function Home() {
               <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
               <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} />
             </div>
+            <section className="panel">
+              <PanelHead
+                title="Xu hướng vận hành"
+                subtitle="Doanh thu và user VIP theo ngày, có thể chuyển sang view theo tháng."
+                action={
+                  <div className="actions" style={{ gap: 8 }}>
+                    <Button variant={overviewTrendRange === "month" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("month")}>Theo ngày</Button>
+                    <Button variant={overviewTrendRange === "year" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("year")}>Theo tháng</Button>
+                  </div>
+                }
+              />
+              <div className="stack" style={{ padding: 16 }}>
+                <MuiTrendChart
+                  title="Doanh thu tăng giảm"
+                  subtitle="Chỉ tính đơn PAID trong kỳ đang xem."
+                  rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
+                  points={overviewTrendPoints}
+                  accent="blue"
+                  valueLabel={`Tổng: ${ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange)))}`}
+                  secondaryLabel={`Mốc: ${overviewTrendPoints.length}`}
+                />
+                <MuiTrendChart
+                  title="User VIP tăng giảm"
+                  subtitle="Đếm user Telegram đã có đơn PAID trong từng mốc."
+                  rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
+                  points={overviewVipPoints}
+                  accent="emerald"
+                  valueLabel={`Tổng VIP: ${overviewTrendPoints.reduce((sum, item) => sum + item.vip, 0)}`}
+                  secondaryLabel={`Mốc: ${overviewVipPoints.length}`}
+                />
+              </div>
+            </section>
             <section className="panel">
               <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
               <div className="status-grid">

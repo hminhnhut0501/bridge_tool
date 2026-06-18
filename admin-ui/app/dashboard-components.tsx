@@ -202,6 +202,94 @@ export function AppDialog(props: { open: boolean; title: string; subtitle?: stri
   return <MuiDialogShell {...props} />;
 }
 
+export function TrendChart({
+  title,
+  subtitle,
+  rangeLabel,
+  points,
+  accent = "blue",
+  valueLabel,
+  secondaryLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  rangeLabel?: string;
+  points: { label: string; value: number }[];
+  accent?: SectionTone;
+  valueLabel: string;
+  secondaryLabel: string;
+}) {
+  const tone = sectionAccentTone(accent);
+  const width = 720;
+  const height = 220;
+  const paddingX = 18;
+  const paddingY = 20;
+  const values = points.map((item) => item.value);
+  const maxValue = Math.max(1, ...values);
+  const minValue = Math.min(0, ...values);
+  const span = Math.max(1, maxValue - minValue);
+  const step = points.length > 1 ? (width - paddingX * 2) / (points.length - 1) : 0;
+  const linePoints = points
+    .map((item, index) => {
+      const x = paddingX + step * index;
+      const y = height - paddingY - ((item.value - minValue) / span) * (height - paddingY * 2);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const areaPoints = `${paddingX},${height - paddingY} ${linePoints} ${width - paddingX},${height - paddingY}`;
+  return (
+    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 26%, rgba(255,255,255,1) 100%)` }}>
+      <PanelHead
+        title={title}
+        subtitle={subtitle}
+        accent={accent}
+        action={rangeLabel ? <Chip size="small" label={rangeLabel} variant="outlined" sx={statusChipSx("muted")} /> : null}
+      />
+      <Box sx={{ px: 2, pt: 1.5, pb: 2 }}>
+        <Box sx={{ display: "flex", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+          <Chip size="small" label={valueLabel} variant="outlined" sx={statusChipSx("success")} />
+          <Chip size="small" label={secondaryLabel} variant="outlined" sx={statusChipSx("warning")} />
+        </Box>
+        <Box sx={{ width: "100%", overflowX: "auto" }}>
+          <Box component="svg" viewBox={`0 0 ${width} ${height}`} sx={{ width: "100%", minWidth: 640, height: 260, display: "block" }}>
+            <defs>
+              <linearGradient id={`chart-area-${accent}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={tone.main} stopOpacity="0.28" />
+                <stop offset="100%" stopColor={tone.main} stopOpacity="0.03" />
+              </linearGradient>
+              <linearGradient id={`chart-line-${accent}`} x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor={tone.main} />
+                <stop offset="50%" stopColor={styleGuide.palette.secondary.main} />
+                <stop offset="100%" stopColor={styleGuide.palette.accent.emerald} />
+              </linearGradient>
+            </defs>
+            {[0, 1, 2, 3].map((line) => {
+              const y = paddingY + ((height - paddingY * 2) / 3) * line;
+              return <line key={line} x1={paddingX} x2={width - paddingX} y1={y} y2={y} stroke="rgba(148,163,184,0.18)" strokeDasharray="4 6" />;
+            })}
+            <polygon points={areaPoints} fill={`url(#chart-area-${accent})`} />
+            <polyline points={linePoints} fill="none" stroke={`url(#chart-line-${accent})`} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+            {points.map((item, index) => {
+              const x = paddingX + step * index;
+              const y = height - paddingY - ((item.value - minValue) / span) * (height - paddingY * 2);
+              return (
+                <g key={`${item.label}-${index}`}>
+                  <circle cx={x} cy={y} r="5.5" fill="#ffffff" stroke={tone.main} strokeWidth="3" />
+                  <text x={x} y={height - 4} textAnchor="middle" fontSize="10" fill="#64748b">{item.label}</text>
+                </g>
+              );
+            })}
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 1 }}>
+          <Typography variant="caption" color="text.secondary">Kéo ngang để xem thêm mốc nếu cần.</Typography>
+          <Typography variant="caption" color="text.secondary">Dữ liệu hiển thị theo {rangeLabel?.toLowerCase() || "kỳ đã chọn"}.</Typography>
+        </Box>
+      </Box>
+    </Card>
+  );
+}
+
 export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
     <Card variant="outlined">
