@@ -3826,7 +3826,7 @@ export default function Home() {
         </aside>
       </Drawer>
 
-      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 2 }}>
+      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 0.5 }}>
 
         {notice ? <div className={notice.type === "ok" ? "toast ok" : "toast error-toast"}>{notice.type === "ok" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{notice.text}</div> : null}
 
