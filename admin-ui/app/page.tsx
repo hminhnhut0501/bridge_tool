@@ -3727,7 +3727,7 @@ export default function Home() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
-        position="fixed"
+        position="static"
         elevation={0}
         color="default"
         sx={{
@@ -3738,7 +3738,7 @@ export default function Home() {
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ gap: 2, minHeight: 76, px: 3 }}>
+        <Toolbar sx={{ gap: 2, minHeight: 68, px: 3 }}>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
               {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
@@ -3826,7 +3826,7 @@ export default function Home() {
         </aside>
       </Drawer>
 
-      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 10 }}>
+      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 2 }}>
 
         {notice ? <div className={notice.type === "ok" ? "toast ok" : "toast error-toast"}>{notice.type === "ok" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{notice.text}</div> : null}
 
