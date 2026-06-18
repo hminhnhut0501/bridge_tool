@@ -46,7 +46,7 @@ export function AnalyticsSection(props: any) {
   }[];
   return (
     <Stack spacing={2}>
-      <div className="grid">
+      <div className="grid metrics-band">
         <Metric label="Hôm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} accent="blue" />
         <Metric label="Tháng này" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} accent="cyan" />
         <Metric label="Năm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} accent="emerald" />
@@ -59,7 +59,7 @@ export function AnalyticsSection(props: any) {
         <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" accent="indigo" />
         <Metric label="NOWPayments / USDT" value={providerRevenueFormat("NOWPAYMENTS", (paidRevenueByProvider.NOWPAYMENTS || 0) + (paidRevenueByProvider.TRON_USDT || 0))} tone="crypto" accent="cyan" />
       </div>
-      <div className="grid">
+      <div className="grid metrics-band">
         <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} accent="blue" />
         <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} accent="amber" />
         <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} accent="cyan" />
@@ -75,17 +75,17 @@ export function OrdersSection(props: any) {
   const { filteredOrders, filteredOrderStats, exportOrdersCsv, query, setQuery, orderStatus, setOrderStatus, orderPeriod, setOrderPeriod, orderGroupMode, setOrderGroupMode, groupedFilteredOrders, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, SummaryTable } = props;
   return (
     <Stack spacing={2}>
-      <div className="grid">
+      <div className="grid metrics-band">
         <Metric label="Doanh thu bộ lọc" value={props.ordersMoney(filteredOrders.filter((item: any) => item.status === "PAID"))} accent="blue" />
         <Metric label="Đơn PAID" value={String(filteredOrderStats.paid)} accent="amber" />
         <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} accent="rose" />
         <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} accent="cyan" />
       </div>
-      <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact>
+      <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact accent="amber">
         <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
       </AppSection>
-      <AppSection title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>}>
-        <div className="toolbar orders-toolbar">
+      <AppSection title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>} accent="blue">
+        <div className="toolbar orders-toolbar orders-toolbar-accent">
           <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
           <TextField select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)} size="small" fullWidth>
             <MenuItem value="ALL">Tất cả trạng thái</MenuItem><MenuItem value="PENDING">Đang chờ</MenuItem><MenuItem value="PAID">Đã thanh toán</MenuItem><MenuItem value="CANCELLED">Đã hủy</MenuItem><MenuItem value="EXPIRED">Hết hạn</MenuItem>

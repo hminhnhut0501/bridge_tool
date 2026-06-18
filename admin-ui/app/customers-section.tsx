@@ -33,7 +33,7 @@ export function CustomersSection(props: any) {
 
   return (
     <Stack spacing={2}>
-      <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+      <Box className="metrics-band metrics-band-customer" sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} accent="violet" />
         <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item: any) => item.activeOrders.length).length)} accent="emerald" />
         <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item: any) => item.coupons.length).length)} accent="blue" />
@@ -43,6 +43,7 @@ export function CustomersSection(props: any) {
         title="Khách hàng"
         subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái."
         action={<AppToolbar><Button variant="outlined" size="small" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>CSV</Button></AppToolbar>}
+        accent="violet"
       >
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: "minmax(0, 1fr) repeat(3, 180px)", p: 1.75 }}>
           <TextField size="small" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />

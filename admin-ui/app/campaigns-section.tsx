@@ -10,7 +10,7 @@ export function CampaignsSection(props: any) {
   const { campaigns, campaignPreview, selectedCampaign, campaignRecipientCounts, pagedCampaignRecipients, campaignRecipients, totalCampaignRecipientPages, campaignRecipientPage, setCampaignRecipientPage, changeCampaignStatus, setSelectedCampaignId, setCampaignModalOpen, setCampaignForm, EMPTY_CAMPAIGN_FORM } = props;
   return (
     <Stack spacing={2}>
-      <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+      <Box className="metrics-band metrics-band-campaigns" sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <Metric label="Campaign" value={String(campaigns.length)} accent="cyan" />
         <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} accent="violet" />
         <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} accent="amber" />
@@ -40,7 +40,17 @@ export function CampaignsSection(props: any) {
               </Box>
             </Button>,
             <><strong>{item.target_segment}</strong><div className="muted">{String(item.raw_data?.plan_filter || "ALL")} • {String(item.raw_data?.plan_match_scope || "ANY_PAID")}</div></>,
-            <span key={`status-${item.id}`} className={item.status}>{item.status}</span>,
+            <Chip
+              key={`status-${item.id}`}
+              size="small"
+              label={item.status}
+              variant="outlined"
+              sx={{
+                ...statusChipSx(item.status === "RUNNING" ? "success" : item.status === "DONE" ? "muted" : item.status === "CANCELLED" ? "error" : "warning"),
+                minWidth: 90,
+                justifySelf: "flex-start",
+              }}
+            />,
             <><strong>{item.sent_count}/{item.total_recipients}</strong><div className="muted">Fail {item.failed_count} • Skip {item.skipped_count}</div></>,
             `${item.delay_seconds}s`,
             <Box key={`actions-${item.id}`} sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
@@ -65,7 +75,17 @@ export function CampaignsSection(props: any) {
             item.telegram_user_id,
             item.segment,
             <><strong>{String(item.raw_data?.latest_plan_name || "-")}</strong><div className="muted">{Array.isArray(item.raw_data?.paid_plan_names) ? item.raw_data.paid_plan_names.join(", ") : ""}</div></>,
-            <span key={`r-${item.id}`} className={item.status}>{item.status}</span>,
+            <Chip
+              key={`r-${item.id}`}
+              size="small"
+              label={item.status}
+              variant="outlined"
+              sx={{
+                ...statusChipSx(item.status === "SENT" ? "success" : item.status === "FAILED" ? "error" : item.status === "SKIPPED" ? "muted" : "warning"),
+                minWidth: 90,
+                justifySelf: "flex-start",
+              }}
+            />,
             dateText(item.sent_at || item.last_attempt_at),
             item.error || "-",
           ])}

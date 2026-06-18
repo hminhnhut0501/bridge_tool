@@ -67,9 +67,11 @@ export function statusChipSx(kind: keyof typeof statusPalette) {
   const token = statusPalette[kind];
   return {
     fontWeight: 700,
+    letterSpacing: "-0.01em",
     bgcolor: token.bg,
     color: token.main,
     borderColor: token.border,
+    boxShadow: `0 8px 18px ${token.main}12`,
     "& .MuiChip-label": { px: 1 },
   };
 }
@@ -78,9 +80,11 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
   const token = statusPalette[kind];
   return {
     fontWeight: 700,
+    letterSpacing: "-0.01em",
     borderColor: token.border,
     color: token.main,
     bgcolor: token.bg,
+    boxShadow: `0 8px 18px ${token.main}0d`,
     "&:hover": {
       bgcolor: token.bg,
       borderColor: token.main,
@@ -178,12 +182,13 @@ export function AppSection({ title, subtitle, action, children, compact = false,
       sx={{
         overflow: "hidden",
         position: "relative",
+        boxShadow: `0 12px 30px ${tone.main}10`,
         "&::before": {
           content: '""',
           position: "absolute",
           inset: 0,
           height: 4,
-          background: `linear-gradient(90deg, ${tone.main}, rgba(124,58,237,0.9), rgba(16,185,129,0.85))`,
+          background: `linear-gradient(90deg, ${tone.main}, rgba(124,58,237,0.92), rgba(16,185,129,0.9))`,
         },
       }}
     >
