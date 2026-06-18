@@ -184,6 +184,153 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
+const DEMO_NOW = new Date("2026-06-19T12:00:00+07:00").getTime();
+function demoDate(daysOffset: number, hour = 12, minute = 0) {
+  return new Date(DEMO_NOW + daysOffset * 86400000 + (hour - 12) * 3600000 + minute * 60000).toISOString();
+}
+
+const DEMO_ORDERS: Order[] = [
+  {
+    order_id: "178200012345",
+    telegram_user_id: "1713655938",
+    full_name: "Hoàng",
+    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    amount: 48500,
+    status: "PAID",
+    paid_at: demoDate(-12, 9, 30),
+    expire_at: demoDate(18, 9, 30),
+    sale_id: "SUMMER30",
+    coupon_code: "SUNNY15",
+    coupon_discount_percent: 15,
+    coupon_discount_amount: 8500,
+    payment_provider: "PAYOS",
+    payment_currency: "VND",
+    source_type: "manual",
+    created_at: demoDate(-12, 9, 10),
+    expired_notice_at: null,
+    last_reminder_date: null,
+  },
+  {
+    order_id: "178200045678",
+    telegram_user_id: "1713655938",
+    full_name: "Hoàng",
+    plan_name: "SVIP+ Trọn Đời (Full 4 Nhóm)",
+    amount: 299000,
+    status: "PAID",
+    paid_at: demoDate(-45, 15, 0),
+    expire_at: demoDate(3650, 15, 0),
+    sale_id: "LIFE01",
+    coupon_code: null,
+    payment_provider: "MANUAL",
+    payment_currency: "VND",
+    source_type: "manual",
+    created_at: demoDate(-45, 14, 25),
+    expired_notice_at: null,
+    last_reminder_date: null,
+  },
+  {
+    order_id: "178200078901",
+    telegram_user_id: "1713655938",
+    full_name: "Hoàng",
+    plan_name: "VIP 30 Ngày - Hạng Cửu Boy",
+    amount: 59000,
+    status: "EXPIRED",
+    paid_at: demoDate(-96, 11, 10),
+    expire_at: demoDate(-2, 11, 10),
+    sale_id: null,
+    coupon_code: null,
+    payment_provider: "PAYOS",
+    payment_currency: "VND",
+    source_type: "manual",
+    created_at: demoDate(-96, 11, 2),
+    expired_notice_at: demoDate(-1, 8, 0),
+    last_reminder_date: demoDate(-2, 8, 0),
+  },
+  {
+    order_id: "178200092222",
+    telegram_user_id: "6845057360",
+    full_name: "Jeon Jk",
+    plan_name: "SVIP+ 30 Ngày (Full 4 Nhóm)",
+    amount: 97000,
+    status: "PAID",
+    paid_at: demoDate(-6, 8, 45),
+    expire_at: demoDate(24, 8, 45),
+    sale_id: "WELCOME10",
+    coupon_code: "WELCOME10",
+    coupon_discount_percent: 10,
+    coupon_discount_amount: 9700,
+    payment_provider: "PAYPAL",
+    payment_currency: "USD",
+    source_type: "manual",
+    created_at: demoDate(-6, 8, 12),
+    expired_notice_at: null,
+    last_reminder_date: null,
+  },
+  {
+    order_id: "178200099999",
+    telegram_user_id: "6845057360",
+    full_name: "Jeon Jk",
+    plan_name: "VIP 30 Ngày - Hạng Cửu Prime",
+    amount: 59000,
+    status: "PENDING",
+    paid_at: null,
+    expire_at: null,
+    sale_id: "PENDING01",
+    coupon_code: null,
+    payment_provider: "NOWPAYMENTS",
+    payment_currency: "USDT",
+    source_type: "manual",
+    created_at: demoDate(-1, 20, 0),
+    expired_notice_at: null,
+    last_reminder_date: null,
+  },
+  {
+    order_id: "178200100001",
+    telegram_user_id: "2085787503",
+    full_name: "Taco",
+    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    amount: 49000,
+    status: "CANCELLED",
+    paid_at: null,
+    expire_at: null,
+    sale_id: null,
+    coupon_code: null,
+    payment_provider: "PAYOS",
+    payment_currency: "VND",
+    source_type: "manual",
+    created_at: demoDate(-3, 10, 15),
+    expired_notice_at: null,
+    last_reminder_date: null,
+  },
+];
+
+const DEMO_USERS: UserRow[] = [
+  {
+    telegram_user_id: "1713655938",
+    full_name: "Hoàng",
+    status: "ACTIVE",
+    plan_name: "SVIP+ Trọn Đời (Full 4 Nhóm)",
+    expire_at: demoDate(3650, 15, 0),
+    created_at: demoDate(-45, 14, 25),
+  },
+  {
+    telegram_user_id: "6845057360",
+    full_name: "Jeon Jk",
+    status: "ACTIVE",
+    plan_name: "SVIP+ 30 Ngày (Full 4 Nhóm)",
+    expire_at: demoDate(24, 8, 45),
+    created_at: demoDate(-6, 8, 12),
+  },
+  {
+    telegram_user_id: "2085787503",
+    full_name: "Taco",
+    status: "EXPIRED",
+    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    expire_at: demoDate(-2, 11, 10),
+    created_at: demoDate(-3, 10, 15),
+  },
+];
+
 const popupFieldSx = {
   "& .MuiOutlinedInput-root": {
     borderRadius: 2,
@@ -1961,6 +2108,7 @@ export default function Home() {
   const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
   const [blacklistModalOpen, setBlacklistModalOpen] = useState(false);
+  const [demoDataInjected, setDemoDataInjected] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
@@ -1993,6 +2141,17 @@ export default function Home() {
       loadAll(savedSecret, { scope: tab });
     }
   }, [savedSecret, tab]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    if (!savedSecret) return;
+    if (loading) return;
+    if (demoDataInjected) return;
+    if (orders.length || users.length) return;
+    setOrders(DEMO_ORDERS);
+    setUsers(DEMO_USERS);
+    setDemoDataInjected(true);
+  }, [savedSecret, loading, orders.length, users.length, demoDataInjected]);
 
   useEffect(() => {
     if (!savedSecret) return;
