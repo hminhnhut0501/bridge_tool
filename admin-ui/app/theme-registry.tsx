@@ -104,12 +104,12 @@ const baseTheme = createTheme({
           letterSpacing: styleGuide.typography.bodyTracking,
         },
         contained: {
-          boxShadow: "none",
-          backgroundColor: styleGuide.palette.primary.main,
+          boxShadow: "0 10px 22px rgba(37, 99, 235, 0.16)",
+          backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
           color: "#ffffff",
           "&:hover": {
-            backgroundColor: styleGuide.palette.primary.dark,
-            boxShadow: "none",
+            backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
+            boxShadow: "0 12px 26px rgba(37, 99, 235, 0.22)",
           },
         },
         outlined: {
@@ -220,7 +220,7 @@ const baseTheme = createTheme({
     MuiSelect: {
       styleOverrides: {
         select: {
-          borderRadius: 14,
+          borderRadius: styleGuide.shape.inputRadius,
         },
         icon: {
           color: "#667085",
@@ -325,6 +325,12 @@ const baseTheme = createTheme({
           background: "#ffffff",
           borderTop: "1px solid #e6ebf0",
         },
+      },
+    },
+    MuiTextField: {
+      defaultProps: {
+        variant: "outlined",
+        size: "small",
       },
     },
   },

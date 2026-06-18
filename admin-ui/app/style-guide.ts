@@ -73,6 +73,25 @@ export const styleGuide = {
     "All dates/times should pass through shared format helpers, never raw ISO strings.",
     "When a section needs identity, assign one accent tone to that section instead of repeating the same blue everywhere.",
   ],
+  tokens: {
+    field: {
+      radius: 14,
+      border: "#d9e0e8",
+      hoverBorder: "#c5d9ef",
+      focusBorder: "#2563eb",
+      background: "#ffffff",
+    },
+    button: {
+      radius: 999,
+      containedShadow: "0 10px 22px rgba(37, 99, 235, 0.16)",
+      outlinedShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+    },
+    panel: {
+      headerRadius: 18,
+      border: "#e2e8f0",
+      shadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+    },
+  },
   screenThemes: {
     overview: ["blue", "cyan", "emerald"],
     orders: ["blue", "amber", "rose"],
