@@ -184,6 +184,24 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
+const popupFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 2,
+    backgroundColor: "#ffffff",
+  },
+  "& .MuiInputBase-input": {
+    fontWeight: 500,
+  },
+  "& .MuiFormHelperText-root": {
+    mx: 0,
+  },
+} as const;
+
+const popupSelectSx = {
+  borderRadius: 2,
+  backgroundColor: "#ffffff",
+} as const;
+
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
@@ -4754,22 +4772,22 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
-                <label className="field">
-                  <span>Nhóm cần cấu hình</span>
-                  <select value={groupNo} onChange={(event) => fillGroupForm(event.target.value)}>
+                <FormControl className="field" fullWidth size="small">
+                  <InputLabel id="group-no-label">Nhóm cần cấu hình</InputLabel>
+                  <Select labelId="group-no-label" label="Nhóm cần cấu hình" value={groupNo} onChange={(event) => fillGroupForm(event.target.value)} sx={popupSelectSx}>
                     {groupSelectOptions.map((item) => (
-                      <option key={item} value={item}>G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}</option>
+                      <MenuItem key={item} value={item}>G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}</MenuItem>
                     ))}
-                  </select>
-                  <small>Coupon và sale sẽ hiện tên nhóm này trong dropdown.</small>
-                </label>
-                <label className="field"><span>Tên nhóm tiếng Việt</span><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} /></label>
-                <label className="field"><span>Tên nhóm tiếng Anh</span><input value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} /></label>
-                <label className="field"><span>Telegram group ID</span><input value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} /></label>
-                <label className="field"><span>Giá VNĐ 30 ngày</span><input value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} /></label>
-                <label className="field"><span>Giá VNĐ trọn đời</span><input value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} /></label>
-                <label className="field"><span>Giá USD 30 ngày</span><input value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" /></label>
-                <label className="field"><span>Giá USD trọn đời</span><input value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" /></label>
+                  </Select>
+                  <Typography variant="caption" color="text.secondary">Coupon và sale sẽ hiện tên nhóm này trong dropdown.</Typography>
+                </FormControl>
+                <TextField className="field" label="Tên nhóm tiếng Việt" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Tên nhóm tiếng Anh" value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} />
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setGroupModalOpen(false)}>Đóng</Button>
@@ -4789,73 +4807,33 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setHiddenGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
-                <label className="field">
-                  <span>ID kỹ thuật</span>
-                  <input value={hiddenGroupForm.id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(event.target.value) })} placeholder="VD: prime_alpha" />
-                  <small>Dùng trong plan token dạng <code>HG:prime_alpha:1M</code>. Để trống thì hệ thống tự tạo từ tên.</small>
-                </label>
-                <label className="field">
-                  <span>Tên hiển thị</span>
-                  <input value={hiddenGroupForm.name} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, name: event.target.value })} placeholder="VD: Prime Alpha" />
-                </label>
-                <label className="field">
-                  <span>Telegram group ID</span>
-                  <input value={hiddenGroupForm.chat_id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, chat_id: event.target.value })} placeholder="-1001234567890" />
-                </label>
-                <label className="field wide">
-                  <span>Mô tả ngắn</span>
-                  <textarea value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu hidden group." />
-                </label>
+                <TextField className="field" label="ID kỹ thuật" value={hiddenGroupForm.id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(event.target.value) })} placeholder="VD: prime_alpha" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng trong plan token dạng <code>HG:prime_alpha:1M</code>. Để trống thì hệ thống tự tạo từ tên.</span>} />
+                <TextField className="field" label="Tên hiển thị" value={hiddenGroupForm.name} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, name: event.target.value })} placeholder="VD: Prime Alpha" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Telegram group ID" value={hiddenGroupForm.chat_id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, chat_id: event.target.value })} placeholder="-1001234567890" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field wide" label="Mô tả ngắn" value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu hidden group." fullWidth multiline minRows={4} sx={popupFieldSx} />
                 <div className="hint compact wide">Giá duration nào để 0 thì bot sẽ không hiện nút mua duration đó. Nếu chỉ bán trọn đời, để giá 30 ngày VND/USD = 0 và chỉ nhập giá trọn đời.</div>
-                <label className="field">
-                  <span>Giá VNĐ 30 ngày</span>
-                  <input value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: event.target.value })} inputMode="numeric" placeholder="99000" />
-                </label>
-                <label className="field">
-                  <span>Giá VNĐ trọn đời</span>
-                  <input value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: event.target.value })} inputMode="numeric" placeholder="299000" />
-                </label>
-                <label className="field">
-                  <span>Giá USD 30 ngày</span>
-                  <input value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: event.target.value })} inputMode="decimal" placeholder="4.99" />
-                </label>
-                <label className="field">
-                  <span>Giá USD trọn đời</span>
-                  <input value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: event.target.value })} inputMode="decimal" placeholder="14.99" />
-                </label>
-                <label className="field">
-                  <span>Hạn 30 ngày (days)</span>
-                  <input value={hiddenGroupForm.duration_1m_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, duration_1m_days: event.target.value })} inputMode="numeric" placeholder="30" />
-                </label>
-                <label className="field">
-                  <span>Hạn trọn đời (days)</span>
-                  <input value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" />
-                </label>
-                <label className="field">
-                  <span>Sort order</span>
-                  <input value={hiddenGroupForm.sort_order} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, sort_order: event.target.value })} inputMode="numeric" placeholder="1" />
-                </label>
-                <label className="field">
-                  <span>Ảnh / File ID</span>
-                  <input value={hiddenGroupForm.image_url} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, image_url: event.target.value })} placeholder="URL hoặc Telegram file_id nếu có" />
-                </label>
-                <label className="field">
-                  <span>Điều kiện mặc định</span>
-                  <select value={hiddenGroupForm.requirement_type} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenGroupForm.requirement_value : "" })}>
-                    {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Requirement value</span>
-                  <input value={hiddenGroupForm.requirement_value} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenGroupForm.requirement_type)} />
-                </label>
-                <label className="field">
-                  <span>Trạng thái</span>
-                  <select value={hiddenGroupForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, is_active: event.target.value === "ON" })}>
-                    <option value="ON">Đang bật</option>
-                    <option value="OFF">Tạm tắt</option>
-                  </select>
-                </label>
+                <TextField className="field" label="Giá VNĐ 30 ngày" value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: event.target.value })} inputMode="numeric" placeholder="99000" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ trọn đời" value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: event.target.value })} inputMode="numeric" placeholder="299000" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD 30 ngày" value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: event.target.value })} inputMode="decimal" placeholder="4.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD trọn đời" value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: event.target.value })} inputMode="decimal" placeholder="14.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Hạn 30 ngày (days)" value={hiddenGroupForm.duration_1m_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, duration_1m_days: event.target.value })} inputMode="numeric" placeholder="30" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Hạn trọn đời (days)" value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Sort order" value={hiddenGroupForm.sort_order} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, sort_order: event.target.value })} inputMode="numeric" placeholder="1" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Ảnh / File ID" value={hiddenGroupForm.image_url} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, image_url: event.target.value })} placeholder="URL hoặc Telegram file_id nếu có" fullWidth size="small" sx={popupFieldSx} />
+                <FormControl className="field" fullWidth size="small">
+                  <InputLabel id="hidden-group-requirement-label">Điều kiện mặc định</InputLabel>
+                  <Select labelId="hidden-group-requirement-label" label="Điều kiện mặc định" value={hiddenGroupForm.requirement_type} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenGroupForm.requirement_value : "" })} sx={popupSelectSx}>
+                    {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField className="field" label="Requirement value" value={hiddenGroupForm.requirement_value} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenGroupForm.requirement_type)} fullWidth size="small" sx={popupFieldSx} />
+                <FormControl className="field" fullWidth size="small">
+                  <InputLabel id="hidden-group-active-label">Trạng thái</InputLabel>
+                  <Select labelId="hidden-group-active-label" label="Trạng thái" value={hiddenGroupForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, is_active: event.target.value === "ON" })} sx={popupSelectSx}>
+                    <MenuItem value="ON">Đang bật</MenuItem>
+                    <MenuItem value="OFF">Tạm tắt</MenuItem>
+                  </Select>
+                </FormControl>
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</Button>
@@ -4876,59 +4854,34 @@ export default function Home() {
               />
               <div className="modal-content">
                 <div className="form-grid">
-                  <label className="field">
-                    <span>Mã hidden</span>
-                    <input value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" />
-                    <small>Bot chỉ hiện hidden catalog cho người nhập đúng mã này.</small>
-                  </label>
-                  <label className="field">
-                    <span>Tên nội bộ</span>
-                    <input value={hiddenCodeForm.name} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, name: event.target.value })} placeholder="VD: Code bán cho cộng tác viên A" />
-                  </label>
-                  <label className="field">
-                    <span>Trạng thái</span>
-                    <select value={hiddenCodeForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, is_active: event.target.value === "ON" })}>
-                      <option value="ON">Đang bật</option>
-                      <option value="OFF">Tạm tắt</option>
-                    </select>
-                  </label>
-                  <label className="field wide">
-                    <span>Mô tả ghi chú</span>
-                    <textarea value={hiddenCodeForm.description} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, description: event.target.value })} placeholder="Ghi chú nội bộ: mã này dùng cho ai, campaign nào, mục đích gì..." />
-                  </label>
-                  <label className="field">
-                    <span>Phạm vi reveal</span>
-                    <select value={hiddenCodeForm.scope_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, scope_type: event.target.value })}>
-                      {HIDDEN_SCOPE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Điều kiện override</span>
-                    <select value={hiddenCodeForm.requirement_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenCodeForm.requirement_value : "" })}>
-                      <option value="">Dùng rule của hidden group</option>
-                      {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Requirement value</span>
-                    <input value={hiddenCodeForm.requirement_value} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenCodeForm.requirement_type)} />
-                  </label>
-                  <label className="field">
-                    <span>Max uses</span>
-                    <input value={hiddenCodeForm.max_uses} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, max_uses: event.target.value })} inputMode="numeric" placeholder="0 = không giới hạn" />
-                  </label>
-                  <label className="field">
-                    <span>Used count</span>
-                    <input value={hiddenCodeForm.used_count} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, used_count: event.target.value })} inputMode="numeric" placeholder="0" />
-                  </label>
-                  <label className="field">
-                    <span>Hiệu lực từ</span>
-                    <input type="datetime-local" value={hiddenCodeForm.valid_from} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_from: event.target.value })} />
-                  </label>
-                  <label className="field">
-                    <span>Hiệu lực đến</span>
-                    <input type="datetime-local" value={hiddenCodeForm.valid_until} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_until: event.target.value })} />
-                  </label>
+                  <TextField className="field" label="Mã hidden" value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" fullWidth size="small" sx={popupFieldSx} helperText="Bot chỉ hiện hidden catalog cho người nhập đúng mã này." />
+                  <TextField className="field" label="Tên nội bộ" value={hiddenCodeForm.name} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, name: event.target.value })} placeholder="VD: Code bán cho cộng tác viên A" fullWidth size="small" sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="hidden-code-active-label">Trạng thái</InputLabel>
+                    <Select labelId="hidden-code-active-label" label="Trạng thái" value={hiddenCodeForm.is_active ? "ON" : "OFF"} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, is_active: event.target.value === "ON" })} sx={popupSelectSx}>
+                      <MenuItem value="ON">Đang bật</MenuItem>
+                      <MenuItem value="OFF">Tạm tắt</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField className="field wide" label="Mô tả ghi chú" value={hiddenCodeForm.description} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, description: event.target.value })} placeholder="Ghi chú nội bộ: mã này dùng cho ai, campaign nào, mục đích gì..." fullWidth multiline minRows={4} sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="hidden-code-scope-label">Phạm vi reveal</InputLabel>
+                    <Select labelId="hidden-code-scope-label" label="Phạm vi reveal" value={hiddenCodeForm.scope_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, scope_type: event.target.value })} sx={popupSelectSx}>
+                      {HIDDEN_SCOPE_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="hidden-code-requirement-label">Điều kiện override</InputLabel>
+                    <Select labelId="hidden-code-requirement-label" label="Điều kiện override" value={hiddenCodeForm.requirement_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenCodeForm.requirement_value : "" })} sx={popupSelectSx}>
+                      <MenuItem value="">Dùng rule của hidden group</MenuItem>
+                      {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <TextField className="field" label="Requirement value" value={hiddenCodeForm.requirement_value} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_value: event.target.value })} placeholder="VD: FULL_LIFE hoặc HG:prime_alpha:LIFE" disabled={!hiddenRequirementNeedsValue(hiddenCodeForm.requirement_type)} fullWidth size="small" sx={popupFieldSx} />
+                  <TextField className="field" label="Max uses" value={hiddenCodeForm.max_uses} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, max_uses: event.target.value })} inputMode="numeric" placeholder="0 = không giới hạn" fullWidth size="small" sx={popupFieldSx} />
+                  <TextField className="field" label="Used count" value={hiddenCodeForm.used_count} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, used_count: event.target.value })} inputMode="numeric" placeholder="0" fullWidth size="small" sx={popupFieldSx} />
+                  <TextField className="field" label="Hiệu lực từ" type="datetime-local" value={hiddenCodeForm.valid_from} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_from: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
+                  <TextField className="field" label="Hiệu lực đến" type="datetime-local" value={hiddenCodeForm.valid_until} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_until: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
                 </div>
                 <div className="coupon-scope">
                   <div className="coupon-scope-head">
@@ -4940,7 +4893,7 @@ export default function Home() {
                       <div className="check-grid">
                         {hiddenGroups.map((group) => (
                           <label key={group.id} className={hiddenCodeForm.group_ids.includes(group.id) ? "check-card active" : "check-card"}>
-                            <input type="checkbox" checked={hiddenCodeForm.group_ids.includes(group.id)} onChange={() => toggleHiddenCodeGroup(group.id)} />
+                            <Checkbox checked={hiddenCodeForm.group_ids.includes(group.id)} onChange={() => toggleHiddenCodeGroup(group.id)} size="small" />
                             <div>
                               <strong>{group.name || group.id}</strong>
                               <div className="muted">{group.id} • {group.chat_id || "chưa có chat ID"}{group.is_active ? "" : " • đang tắt"}</div>
@@ -4972,27 +4925,45 @@ export default function Home() {
               />
               <div className="modal-content">
                 <div className="form-grid">
-                  <label className="field"><span>Tên campaign</span><input value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" /></label>
-                  <label className="field"><span>Tệp người nhận</span><select value={campaignForm.target_segment} onChange={(event) => setCampaignForm({ ...campaignForm, target_segment: event.target.value })}>
-                    <option value="ALL">Tất cả user từng tương tác</option>
-                    <option value="VIP_PAID">Đã từng mua VIP</option>
-                    <option value="VIP_ACTIVE">Đang còn VIP active</option>
-                    <option value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</option>
-                    <option value="NO_PURCHASE">Chưa mua gói</option>
-                  </select><small>Blacklist active sẽ tự bị loại khỏi danh sách gửi.</small></label>
-                  <label className="field"><span>Lọc theo gói đã mua</span><select value={campaignForm.plan_filter} onChange={(event) => setCampaignForm({ ...campaignForm, plan_filter: event.target.value })}>
-                    <option value="ALL">Tất cả gói</option>
-                    {campaignPlanOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select><small>Lấy từ tên gói trong các đơn PAID hiện có.</small></label>
-                  <label className="field"><span>Cách so khớp gói</span><select value={campaignForm.plan_match_scope} onChange={(event) => setCampaignForm({ ...campaignForm, plan_match_scope: event.target.value })}>
-                    <option value="ANY_PAID">Từng mua gói này</option>
-                    <option value="ACTIVE_ONLY">Đang active gói này</option>
-                    <option value="LATEST">Gói PAID mới nhất là gói này</option>
-                  </select><small>Chỉ áp dụng khi bạn chọn một gói cụ thể.</small></label>
-                  <label className="field"><span>Delay mỗi user</span><input value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" /><small>Tối thiểu 2 giây.</small></label>
-                  <label className="field"><span>Số gửi mỗi vòng</span><input value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" /></label>
-                  <label className="field"><span>Định dạng</span><select value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })}><option value="HTML">HTML</option><option value="NONE">Text thường</option></select></label>
-                  <label className="field wide"><span>Nội dung tin nhắn</span><textarea value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} /><small>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</small></label>
+                  <TextField className="field" label="Tên campaign" value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" fullWidth size="small" sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="campaign-target-label">Tệp người nhận</InputLabel>
+                    <Select labelId="campaign-target-label" label="Tệp người nhận" value={campaignForm.target_segment} onChange={(event) => setCampaignForm({ ...campaignForm, target_segment: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="ALL">Tất cả user từng tương tác</MenuItem>
+                      <MenuItem value="VIP_PAID">Đã từng mua VIP</MenuItem>
+                      <MenuItem value="VIP_ACTIVE">Đang còn VIP active</MenuItem>
+                      <MenuItem value="VIP_EXPIRED">Đã từng mua nhưng hết hạn</MenuItem>
+                      <MenuItem value="NO_PURCHASE">Chưa mua gói</MenuItem>
+                    </Select>
+                    <Typography variant="caption" color="text.secondary">Blacklist active sẽ tự bị loại khỏi danh sách gửi.</Typography>
+                  </FormControl>
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="campaign-plan-filter-label">Lọc theo gói đã mua</InputLabel>
+                    <Select labelId="campaign-plan-filter-label" label="Lọc theo gói đã mua" value={campaignForm.plan_filter} onChange={(event) => setCampaignForm({ ...campaignForm, plan_filter: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="ALL">Tất cả gói</MenuItem>
+                      {campaignPlanOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary">Lấy từ tên gói trong các đơn PAID hiện có.</Typography>
+                  </FormControl>
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="campaign-match-label">Cách so khớp gói</InputLabel>
+                    <Select labelId="campaign-match-label" label="Cách so khớp gói" value={campaignForm.plan_match_scope} onChange={(event) => setCampaignForm({ ...campaignForm, plan_match_scope: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="ANY_PAID">Từng mua gói này</MenuItem>
+                      <MenuItem value="ACTIVE_ONLY">Đang active gói này</MenuItem>
+                      <MenuItem value="LATEST">Gói PAID mới nhất là gói này</MenuItem>
+                    </Select>
+                    <Typography variant="caption" color="text.secondary">Chỉ áp dụng khi bạn chọn một gói cụ thể.</Typography>
+                  </FormControl>
+                  <TextField className="field" label="Delay mỗi user" value={campaignForm.delay_seconds} onChange={(event) => setCampaignForm({ ...campaignForm, delay_seconds: event.target.value })} inputMode="numeric" placeholder="5" fullWidth size="small" sx={popupFieldSx} helperText="Tối thiểu 2 giây." />
+                  <TextField className="field" label="Số gửi mỗi vòng" value={campaignForm.batch_size} onChange={(event) => setCampaignForm({ ...campaignForm, batch_size: event.target.value })} inputMode="numeric" placeholder="20" fullWidth size="small" sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="campaign-parse-label">Định dạng</InputLabel>
+                    <Select labelId="campaign-parse-label" label="Định dạng" value={campaignForm.parse_mode} onChange={(event) => setCampaignForm({ ...campaignForm, parse_mode: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="HTML">HTML</MenuItem>
+                      <MenuItem value="NONE">Text thường</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField className="field wide" label="Nội dung tin nhắn" value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} fullWidth multiline minRows={6} sx={popupFieldSx} helperText={<span>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</span>} />
                 </div>
                 <div className="campaign-preview">
                   <strong>Preview: {campaignPreview?.total || 0} người</strong>
@@ -5017,10 +4988,10 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setMenuModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid two">
-                <label className="field"><span>Tên trang</span><input value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} /><small>{menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."}</small></label>
-                <label className="field"><span>Ảnh cover</span><input value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" /></label>
-                <label className="field wide"><span>Nội dung trang</span><textarea value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." /></label>
-                <label className="field wide"><span>Nút bấm</span><textarea value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} /><small>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</small></label>
+                <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
+                <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
+                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</span>} />
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setMenuModalOpen(false)}>Đóng</Button>
@@ -5039,12 +5010,24 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setSaleModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
-                <label className="field"><span>Tên chương trình sale</span><input value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" /></label>
-                <label className="field"><span>Gói áp dụng</span><select value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })}>{priceKeyOptions.map((item) => <option key={item} value={item}>{priceOptionLabel(item)}</option>)}</select><small>Chỉ hiện nhóm đã setup, cộng với SVIP chung.</small></label>
-                <label className="field"><span>Giảm theo phần trăm</span><input value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" /></label>
-                <label className="field"><span>Hoặc giá sale cố định</span><input value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" /></label>
-                <label className="field"><span>Giới hạn slot</span><input value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" /></label>
-                <label className="field"><span>Trạng thái</span><select value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
+                <TextField className="field" label="Tên chương trình sale" value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" fullWidth size="small" sx={popupFieldSx} />
+                <FormControl className="field" fullWidth size="small">
+                  <InputLabel id="sale-price-key-label">Gói áp dụng</InputLabel>
+                  <Select labelId="sale-price-key-label" label="Gói áp dụng" value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })} sx={popupSelectSx}>
+                    {priceKeyOptions.map((item) => <MenuItem key={item} value={item}>{priceOptionLabel(item)}</MenuItem>)}
+                  </Select>
+                  <Typography variant="caption" color="text.secondary">Chỉ hiện nhóm đã setup, cộng với SVIP chung.</Typography>
+                </FormControl>
+                <TextField className="field" label="Giảm theo phần trăm" value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Hoặc giá sale cố định" value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giới hạn slot" value={saleForm.slot_limit} onChange={(event) => setSaleForm({ ...saleForm, slot_limit: event.target.value })} placeholder="Để trống hoặc 0 nếu không giới hạn" fullWidth size="small" sx={popupFieldSx} />
+                <FormControl className="field" fullWidth size="small">
+                  <InputLabel id="sale-enabled-label">Trạng thái</InputLabel>
+                  <Select labelId="sale-enabled-label" label="Trạng thái" value={saleForm.enabled} onChange={(event) => setSaleForm({ ...saleForm, enabled: event.target.value })} sx={popupSelectSx}>
+                    <MenuItem value="ON">Bật</MenuItem>
+                    <MenuItem value="OFF">Tắt</MenuItem>
+                  </Select>
+                </FormControl>
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setSaleModalOpen(false)}>Đóng</Button>
@@ -5062,10 +5045,10 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setBlacklistModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid two">
-                <label className="field"><span>Telegram ID</span><input value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" /></label>
-                <label className="field"><span>Username</span><input value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" /></label>
-                <label className="field"><span>Tên hiển thị</span><input value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" /></label>
-                <label className="field"><span>Lý do</span><input value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" /></label>
+                <TextField className="field" label="Telegram ID" value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Username" value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Tên hiển thị" value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Lý do" value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" fullWidth size="small" sx={popupFieldSx} />
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setBlacklistModalOpen(false)}>Đóng</Button>
@@ -5089,28 +5072,45 @@ export default function Home() {
                   <Button variant="outlined" onClick={generateManyCoupons} startIcon={<RefreshCw size={16} />}>Gen nhiều cùng điều kiện</Button>
                 </div>
                 <div className="form-grid">
-                  <label className="field"><span>Mã coupon</span><input value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" /></label>
-                  <label className="field"><span>Loại coupon</span><select value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })}><option value="DISCOUNT">Giảm giá khi mua QR</option><option value="ACTIVATION">Kích hoạt miễn phí</option></select><small>Giảm giá: khách nhập mã rồi chọn gói để tạo QR đã trừ tiền. Kích hoạt: nhập mã là cấp link ngay.</small></label>
+                  <TextField className="field" label="Mã coupon" value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" fullWidth size="small" sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="coupon-type-label">Loại coupon</InputLabel>
+                    <Select labelId="coupon-type-label" label="Loại coupon" value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="DISCOUNT">Giảm giá khi mua QR</MenuItem>
+                      <MenuItem value="ACTIVATION">Kích hoạt miễn phí</MenuItem>
+                    </Select>
+                    <Typography variant="caption" color="text.secondary">Giảm giá: khách nhập mã rồi chọn gói để tạo QR đã trừ tiền. Kích hoạt: nhập mã là cấp link ngay.</Typography>
+                  </FormControl>
                   {couponForm.Coupon_Type === "DISCOUNT" ? (
-                    <label className="field"><span>Phần trăm giảm</span><input value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" /><small>Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí.</small></label>
+                    <TextField className="field" label="Phần trăm giảm" value={couponForm.Discount_Percent} onChange={(event) => setCouponForm({ ...couponForm, Discount_Percent: event.target.value })} placeholder="VD: 15" fullWidth size="small" sx={popupFieldSx} helperText="Nhập 1-99. Nếu muốn miễn phí 100%, dùng loại Kích hoạt miễn phí." />
                   ) : (
                     <>
-                      <label className="field"><span>Gói cấp cho khách</span><select value={couponForm.Plan_Name} onChange={(event) => {
+                      <FormControl className="field" fullWidth size="small">
+                        <InputLabel id="coupon-plan-label">Gói cấp cho khách</InputLabel>
+                        <Select labelId="coupon-plan-label" label="Gói cấp cho khách" value={couponForm.Plan_Name} onChange={(event) => {
                         const nextPlan = event.target.value;
                         setCouponForm({
                           ...couponForm,
                           Plan_Name: nextPlan,
                           Duration_Days: isLifetimeCouponPlan(nextPlan) ? lifetimeCouponDays : couponForm.Duration_Days,
                         });
-                      }}>{planKeyOptions.map((item) => <option key={item} value={item}>{planOptionLabel(item)}</option>)}</select><small>Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</small></label>
-                      <label className="field"><span>Số ngày sử dụng</span><input value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} /><small>{lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."}</small></label>
-                      <label className="field"><span>Nhãn thời hạn</span><input value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" /><small>{lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."}</small></label>
-                      <label className="field"><span>Mẫu tên gói</span><input value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" /><small>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</small></label>
-                      <label className="field"><span>Mẫu nút chọn group</span><input value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" /><small>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</small></label>
+                      }}>{planKeyOptions.map((item) => <MenuItem key={item} value={item}>{planOptionLabel(item)}</MenuItem>)}</Select>
+                        <Typography variant="caption" color="text.secondary">Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</Typography>
+                      </FormControl>
+                      <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."} />
+                      <TextField className="field" label="Nhãn thời hạn" value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."} />
+                      <TextField className="field" label="Mẫu tên gói" value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</span>} />
+                      <TextField className="field" label="Mẫu nút chọn group" value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</span>} />
                     </>
                   )}
-                  <label className="field"><span>Số lượt dùng tối đa</span><input value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" /></label>
-                  <label className="field"><span>Trạng thái</span><select value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })}><option value="ON">Bật</option><option value="OFF">Tắt</option></select></label>
+                  <TextField className="field" label="Số lượt dùng tối đa" value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" fullWidth size="small" sx={popupFieldSx} />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="coupon-enabled-label">Trạng thái</InputLabel>
+                    <Select labelId="coupon-enabled-label" label="Trạng thái" value={couponForm.Enabled} onChange={(event) => setCouponForm({ ...couponForm, Enabled: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="ON">Bật</MenuItem>
+                      <MenuItem value="OFF">Tắt</MenuItem>
+                    </Select>
+                  </FormControl>
                 </div>
                 {couponForm.Coupon_Type === "DISCOUNT" ? (
                   <div className="coupon-scope">
@@ -5151,61 +5151,33 @@ export default function Home() {
               />
               <div className="modal-content">
                 <div className="form-grid two">
-                  <label className="field">
-                    <span>Channel / group nhận bài</span>
-                    <input value={channelPostForm.target_chat_id} onChange={(event) => setChannelPostForm({ ...channelPostForm, target_chat_id: event.target.value })} placeholder="@channel_username hoặc -100..." />
-                    <small>Bot phải là admin và có quyền gửi/xóa bài ở nơi này.</small>
-                  </label>
-                  <label className="field">
-                    <span>Tiêu đề quản lý</span>
-                    <input value={channelPostForm.title} onChange={(event) => setChannelPostForm({ ...channelPostForm, title: event.target.value })} placeholder="VD: Sale cuối tuần" />
-                    <small>Chỉ để admin dễ tìm, không bắt buộc hiển thị cho khách.</small>
-                  </label>
-                  <label className="field wide">
-                    <span>Ảnh / file_id Telegram</span>
-                    <input value={channelPostForm.image_ref} onChange={(event) => setChannelPostForm({ ...channelPostForm, image_ref: event.target.value })} placeholder="https://... hoặc file_id ảnh" />
-                    <small>Dán link ảnh công khai hoặc file_id ảnh từ Telegram. Để trống nếu chỉ muốn đăng text.</small>
-                  </label>
-                  <label className="field wide">
-                    <span>Nội dung gửi Telegram</span>
-                    <textarea value={channelPostForm.content} onChange={(event) => setChannelPostForm({ ...channelPostForm, content: event.target.value })} placeholder="Soạn nội dung bài đăng..." rows={9} />
-                  </label>
-                  <label className="field wide">
-                    <span>Nút inline</span>
-                    <textarea value={channelPostForm.buttons_text} onChange={(event) => setChannelPostForm({ ...channelPostForm, buttons_text: event.target.value })} placeholder={"Tên nút | https://link.com\\nNút 1 | https://a.com || Nút 2 | https://b.com"} rows={4} />
-                    <small>Mỗi dòng là một hàng nút. Dùng dấu || để đặt nhiều nút cùng hàng.</small>
-                  </label>
-                  <label className="field">
-                    <span>Định dạng</span>
-                    <select value={channelPostForm.parse_mode} onChange={(event) => setChannelPostForm({ ...channelPostForm, parse_mode: event.target.value })}>
-                      <option value="HTML">HTML</option>
-                      <option value="NONE">Text thường</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Ẩn preview link</span>
-                    <select value={channelPostForm.disable_web_page_preview ? "ON" : "OFF"} onChange={(event) => setChannelPostForm({ ...channelPostForm, disable_web_page_preview: event.target.value === "ON" })}>
-                      <option value="OFF">Không</option>
-                      <option value="ON">Có</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Hẹn giờ đăng</span>
-                    <input type="datetime-local" value={channelPostForm.scheduled_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, scheduled_at: event.target.value })} />
-                  </label>
-                  <label className="field">
-                    <span>Hẹn giờ xóa</span>
-                    <input type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} />
-                  </label>
+                  <TextField className="field" label="Channel / group nhận bài" value={channelPostForm.target_chat_id} onChange={(event) => setChannelPostForm({ ...channelPostForm, target_chat_id: event.target.value })} placeholder="@channel_username hoặc -100..." fullWidth size="small" sx={popupFieldSx} helperText="Bot phải là admin và có quyền gửi/xóa bài ở nơi này." />
+                  <TextField className="field" label="Tiêu đề quản lý" value={channelPostForm.title} onChange={(event) => setChannelPostForm({ ...channelPostForm, title: event.target.value })} placeholder="VD: Sale cuối tuần" fullWidth size="small" sx={popupFieldSx} helperText="Chỉ để admin dễ tìm, không bắt buộc hiển thị cho khách." />
+                  <TextField className="field wide" label="Ảnh / file_id Telegram" value={channelPostForm.image_ref} onChange={(event) => setChannelPostForm({ ...channelPostForm, image_ref: event.target.value })} placeholder="https://... hoặc file_id ảnh" fullWidth size="small" sx={popupFieldSx} helperText="Dán link ảnh công khai hoặc file_id ảnh từ Telegram. Để trống nếu chỉ muốn đăng text." />
+                  <TextField className="field wide" label="Nội dung gửi Telegram" value={channelPostForm.content} onChange={(event) => setChannelPostForm({ ...channelPostForm, content: event.target.value })} placeholder="Soạn nội dung bài đăng..." fullWidth multiline minRows={9} sx={popupFieldSx} />
+                  <TextField className="field wide" label="Nút inline" value={channelPostForm.buttons_text} onChange={(event) => setChannelPostForm({ ...channelPostForm, buttons_text: event.target.value })} placeholder={"Tên nút | https://link.com\\nNút 1 | https://a.com || Nút 2 | https://b.com"} fullWidth multiline minRows={4} sx={popupFieldSx} helperText="Mỗi dòng là một hàng nút. Dùng dấu || để đặt nhiều nút cùng hàng." />
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="channel-post-parse-label">Định dạng</InputLabel>
+                    <Select labelId="channel-post-parse-label" label="Định dạng" value={channelPostForm.parse_mode} onChange={(event) => setChannelPostForm({ ...channelPostForm, parse_mode: event.target.value })} sx={popupSelectSx}>
+                      <MenuItem value="HTML">HTML</MenuItem>
+                      <MenuItem value="NONE">Text thường</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl className="field" fullWidth size="small">
+                    <InputLabel id="channel-post-preview-label">Ẩn preview link</InputLabel>
+                    <Select labelId="channel-post-preview-label" label="Ẩn preview link" value={channelPostForm.disable_web_page_preview ? "ON" : "OFF"} onChange={(event) => setChannelPostForm({ ...channelPostForm, disable_web_page_preview: event.target.value === "ON" })} sx={popupSelectSx}>
+                      <MenuItem value="OFF">Không</MenuItem>
+                      <MenuItem value="ON">Có</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField className="field" label="Hẹn giờ đăng" type="datetime-local" value={channelPostForm.scheduled_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, scheduled_at: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
+                  <TextField className="field" label="Hẹn giờ xóa" type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
                   <FormControlLabel
                     sx={{ gridColumn: "span 1", alignItems: "flex-start", border: 1, borderColor: "divider", borderRadius: 2, px: 1.5, py: 1, m: 0 }}
                     control={<Checkbox checked={Boolean(channelPostForm.repeat_daily)} onChange={(event) => setChannelPostForm({ ...channelPostForm, repeat_daily: event.target.checked })} />}
                     label={<Box><strong>Lặp lại mỗi ngày</strong><Box className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</Box></Box>}
                   />
-                  <label className="field wide">
-                    <span>Ghi chú</span>
-                    <input value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" />
-                  </label>
+                  <TextField className="field wide" label="Ghi chú" value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" fullWidth size="small" sx={popupFieldSx} />
                 </div>
                 <div className="channel-preview">
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
@@ -5295,16 +5267,22 @@ export default function Home() {
               </div>
                 {manualOrderResult ? (
                   <div className="form-grid two">
-                    <label className="field wide">
-                      <span>{manualOrderResult.bot_link_title || "Link kích hoạt qua bot"}</span>
-                      <textarea readOnly value={[
+                    <TextField
+                      className="field wide"
+                      label={manualOrderResult.bot_link_title || "Link kích hoạt qua bot"}
+                      value={[
                         manualOrderResult.activation_url,
                         "",
                         manualOrderResult.bot_link_subtitle || "",
                         "",
                         stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""),
-                      ].join("\n")} />
-                    </label>
+                      ].join("\n")}
+                      slotProps={{ input: { readOnly: true } }}
+                      fullWidth
+                      multiline
+                      minRows={6}
+                      sx={popupFieldSx}
+                    />
                     <div className="field wide">
                       <div className="modal-actions" style={{ justifyContent: "flex-start" }}>
                         <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>

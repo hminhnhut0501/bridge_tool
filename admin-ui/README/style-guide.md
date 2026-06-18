@@ -1,70 +1,127 @@
 # Prive Admin UI Style Guide
 
-This app follows a single shared MUI-style visual system.
+Tài liệu này là nguồn chuẩn cho mọi màn hình mới trong `admin-ui`.
 
-## Visual Direction
+## Mục Tiêu
 
-- Bright, clean, MUI-homepage-inspired UI
-- Blue as the primary color
-- Purple as the secondary accent
-- White cards, subtle borders, soft shadows
-- Rounded pills for tabs and chips
-- Strong typography hierarchy with compact spacing
+- Giao diện sáng, sạch, hiện đại, theo tinh thần `mui.com`
+- Có nhiều màu nhấn để dễ scan, nhưng không rời rạc
+- Toàn app phải dùng chung một hệ token về màu, border, radius, shadow, font và trạng thái
+- Hạn chế tối đa custom CSS khi MUI đã có component tương ứng
 
-## Core Rules
+## Nguyên Tắc Tổng Quát
 
-- Prefer MUI components first: `Button`, `IconButton`, `TextField`, `Select`, `Tabs`, `Tab`, `Card`, `Chip`, `Dialog`, `Table`, `Stack`, `Box`
-- Prefer theme overrides and `sx` for styling
-- Use global CSS only for shell-level layout or truly cross-cutting resets
-- Do not introduce new custom button/input CSS if a MUI component exists
-- Keep primary actions contained, secondary actions outlined, destructive actions outlined with error color
-- Keep dialog close buttons top-right, consistent size, and visually secondary
-- Keep tables compact and readable with calm borders and controlled row spacing
+1. Ưu tiên MUI trước: `Button`, `IconButton`, `TextField`, `FormControl`, `Select`, `MenuItem`, `Tabs`, `Tab`, `Card`, `Chip`, `Dialog`, `Table`, `Stack`, `Box`
+2. Dùng `sx` hoặc theme override cho style nhỏ, tránh tạo CSS mới nếu không cần
+3. Mỗi screen nên có một accent tone riêng, nhưng vẫn nằm trong cùng hệ palette
+4. Không trộn nhiều hệ màu khác nhau trong cùng một view
+5. Không render raw date / raw ISO string trực tiếp lên UI
+6. Hạn chế nút, chip, badge custom nếu đã có helper chung
 
-## Shared Building Blocks
+## Token Chuẩn
 
-- `style-guide.ts` for tokens and rules
-- `theme-registry.tsx` for global MUI theme overrides
-- `dashboard-components.tsx` for reusable app wrappers:
-  - `AppDialog`
-  - `AppSection`
-  - `AppToolbar`
-  - `PanelHead`
-  - `Metric`
-  - `SimpleTable`
-  - `Pagination`
+### Màu
 
-## Spacing / Typography
+- `primary`: xanh dương cho action chính và tab active
+- `secondary`: tím cho accent phụ
+- `success`: emerald cho trạng thái tốt / active / paid
+- `warning`: amber cho trạng thái cần chú ý
+- `error`: rose / red cho trạng thái lỗi / hủy / hết hạn
+- `background`: nền sáng, card trắng, shadow mềm
 
-- Headings should use bold weight and slightly negative letter spacing
-- Dialog content should breathe with consistent vertical rhythm
-- Use compact but not cramped spacing
-- Prefer `body2` for descriptive helper text
+### Radius
 
-## Color Usage
+- Card: bo vừa phải, không quá tròn
+- Dialog: bo rõ hơn card nhưng vẫn gọn
+- Input: bo ổn định, đồng nhất với Select
+- Button/Chip/Tab: bo pill
 
-- `primary` for main navigation and primary actions
-- `secondary` for supportive accent states
-- `success`, `warning`, `error`, `muted` for statuses
-- Avoid one-off hex colors unless they are added to the shared palette
+### Shadow
 
-## Date / Time
+- Card: shadow nhẹ, có thể thêm line top gradient
+- Dialog: shadow rõ hơn card để nổi layer
+- Button contained: có glow rất nhẹ để tạo nhịp
 
-- Always format through shared helpers
-- Never render raw ISO strings in tables or dialogs
+### Font
 
-## Recommended Pattern For New Screens
+- Font chính: `Inter`
+- Heading: đậm, letter-spacing âm nhẹ
+- Body: vừa phải, line-height thoáng nhưng không lỏng
+- Tab, chip, button: chữ đậm để dễ đọc nhanh
 
-1. Build layout from `AppSection` and `AppToolbar`
-2. Use `PanelHead` for section headers
-3. Use `AppDialog` for modal work
-4. Use shared status chips and shared table helpers
-5. Keep page-level CSS minimal
+## Component Mapping
 
-## Anti-Patterns
+- Form nhập liệu: `TextField` cho text/numeric/date
+- Select box: `FormControl` + `InputLabel` + `Select` + `MenuItem`
+- Checkbox: `Checkbox` + `FormControlLabel`
+- Tabs: `Tabs` + `Tab`
+- Dialog: `AppDialog` hoặc `MuiDialogShell`
+- Section card: `AppSection`
+- Header section: `PanelHead`
+- Toolbar action row: `AppToolbar`
 
-- New custom button classes
-- New ad-hoc input styling
-- Raw `<button>` / `<input>` / `<select>` when MUI equivalents are available
-- Mixing multiple color systems in the same view
-- Raw date strings in UI
+## Quy Ước Theo Khu Vực
+
+### Tabs
+
+- Dùng `Tab` dạng pill
+- Active state phải rõ, nhưng không quá chói
+- Tabs trong popup và trong page phải cùng token
+- Không tự set nhiều border/radius riêng lẻ nếu theme đã xử lý
+
+### FormControl / Select
+
+- Dùng `size="small"`
+- Dùng `variant="outlined"`
+- Select phải cùng radius và border với input
+- MenuItem nên có hover/selected rõ nhưng nhẹ
+
+### TextField
+
+- Luôn đồng bộ bo góc, border, focus ring
+- `helperText` dùng cho giải thích ngắn, không nhồi nhiều nội dung
+- `datetime-local` phải đi qua helper format chung trước khi hiển thị
+
+### Dialog
+
+- Nút đóng đặt góc phải trên
+- Header dialog rõ ràng, action phụ đặt ở footer hoặc toolbar riêng
+- Card trong dialog không bo quá mạnh để tránh cảm giác “bị lỗi”
+
+## Màu Theo Màn
+
+- Overview: xanh dương + cyan + emerald
+- Orders: xanh dương + amber + rose
+- Customers: tím + emerald + blue
+- Campaigns / Channel posts: cyan + purple + amber
+
+## Trạng Thái
+
+- `PAID` và trạng thái active: dùng màu sống động, dễ nổi
+- `PENDING`: dùng amber
+- `EXPIRED`, `CANCELLED`, `DISABLED`: dùng style đơn sắc, thiên về disabled
+- Badge trong popup phải nhất quán giữa mọi tab
+
+## Cách Làm Màn Mới
+
+1. Dựng khung bằng `AppSection`
+2. Đặt header bằng `PanelHead`
+3. Dùng `Metric` cho KPI
+4. Dùng `Tabs` và `Tab` theo token chung
+5. Dùng `TextField`/`FormControl`/`Select` thay vì HTML form control
+6. Chỉ thêm CSS mới khi thật sự không thể biểu diễn bằng MUI
+
+## Không Nên Làm
+
+- Dùng lại style cũ của `input`, `select`, `textarea`, `button` HTML
+- Tạo thêm màu riêng cho từng màn nếu đã có token phù hợp
+- Dùng raw ISO string trong popup, table, timeline
+- Làm card quá bo tròn hoặc border quá dày khiến nhìn lệch hệ
+
+## File Hỗ Trợ
+
+- `app/style-guide.ts`: token, palette, screen tone
+- `app/theme-registry.tsx`: theme override MUI toàn app
+- `app/dashboard-components.tsx`: `AppDialog`, `AppSection`, `AppToolbar`, `PanelHead`, `Metric`
+- `app/dashboard-helpers.ts`: helper format ngày giờ, trạng thái, tiền tệ
+

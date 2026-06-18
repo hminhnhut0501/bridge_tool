@@ -133,6 +133,7 @@ const baseTheme = createTheme({
       styleOverrides: {
         root: {
           minHeight: 46,
+          gap: 8,
         },
         indicator: {
           display: "none",
@@ -157,6 +158,7 @@ const baseTheme = createTheme({
           alignItems: "center",
           border: `1px solid ${styleGuide.palette.divider}`,
           borderRadius: 999,
+          backgroundColor: "#ffffff",
           color: styleGuide.palette.text.primary,
           minHeight: 42,
           padding: "10px 14px",
@@ -169,13 +171,13 @@ const baseTheme = createTheme({
             borderColor: styleGuide.palette.primary.light,
           },
           "&.Mui-selected": {
-            backgroundColor: styleGuide.palette.primary.main,
+            backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
             borderColor: styleGuide.palette.primary.main,
             color: "#ffffff",
             boxShadow: "0 8px 20px rgba(25, 118, 210, 0.16)",
           },
           "&.Mui-selected:hover": {
-            backgroundColor: styleGuide.palette.primary.dark,
+            backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
             borderColor: styleGuide.palette.primary.dark,
           },
         },
@@ -219,6 +221,9 @@ const baseTheme = createTheme({
     },
     MuiSelect: {
       styleOverrides: {
+        root: {
+          backgroundColor: styleGuide.tokens.field.background,
+        },
         select: {
           borderRadius: styleGuide.shape.inputRadius,
         },
@@ -239,11 +244,11 @@ const baseTheme = createTheme({
     },
     MuiMenuItem: {
       styleOverrides: {
-          root: {
-            minHeight: 42,
-            borderRadius: 10,
-            margin: "4px 8px",
-            fontWeight: 600,
+        root: {
+          minHeight: 42,
+          borderRadius: 10,
+          margin: "4px 8px",
+          fontWeight: 600,
           letterSpacing: styleGuide.typography.bodyTracking,
           "&.Mui-selected": {
             backgroundColor: "rgba(25, 118, 210, 0.12)",
@@ -251,6 +256,30 @@ const baseTheme = createTheme({
           "&.Mui-selected:hover": {
             backgroundColor: "rgba(25, 118, 210, 0.18)",
           },
+        },
+      },
+    },
+    MuiFormControl: {
+      styleOverrides: {
+        root: {
+          width: "100%",
+        },
+      },
+    },
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: {
+          marginLeft: 0,
+          marginRight: 0,
+          fontWeight: 500,
+          letterSpacing: "-0.002em",
+        },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          padding: 8,
         },
       },
     },
