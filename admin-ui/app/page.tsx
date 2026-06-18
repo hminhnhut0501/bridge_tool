@@ -5716,8 +5716,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("success"), boxShadow: "0 10px 22px rgba(16, 185, 129, 0.14)" }} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("warning"), boxShadow: "0 10px 22px rgba(245, 158, 11, 0.10)" }} />;
+    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("success"), boxShadow: "0 12px 24px rgba(16, 185, 129, 0.16)" }} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("warning"), boxShadow: "0 12px 24px rgba(245, 158, 11, 0.12)" }} />;
     if (normalized === "EXPIRED" || normalized === "CANCELLED") {
       return (
         <Chip
@@ -5821,9 +5821,9 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     variant="outlined"
                     sx={
                       String(order.status || "").toUpperCase() === "PAID"
-                        ? { ...statusChipSx("success"), fontSize: "0.95rem", px: 0.5 }
+                        ? { ...statusChipSx("success"), fontSize: "0.95rem", px: 0.5, boxShadow: "0 12px 24px rgba(16, 185, 129, 0.16)" }
                         : String(order.status || "").toUpperCase() === "PENDING"
-                          ? { ...statusChipSx("warning"), fontSize: "0.95rem", px: 0.5 }
+                          ? { ...statusChipSx("warning"), fontSize: "0.95rem", px: 0.5, boxShadow: "0 12px 24px rgba(245, 158, 11, 0.12)" }
                           : { bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider", fontWeight: 700, letterSpacing: "-0.01em", "& .MuiChip-label": { px: 1 } }
                     }
                   />

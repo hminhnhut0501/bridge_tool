@@ -158,11 +158,11 @@ export function Metric({ label, value, tone, note, accent: sectionAccent, icon }
 export function PanelHead({ title, subtitle, action, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
   const tone = sectionAccentTone(accent);
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2, py: 1.5, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.96) 32%, rgba(255,255,255,1) 100%)` }}>
-      <Box sx={{ position: "relative", pl: 1.5 }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper", backgroundImage: `radial-gradient(circle at top left, ${tone.bg} 0%, rgba(255,255,255,0.96) 46%), linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,1) 100%)` }}>
+      <Box sx={{ position: "relative", pl: 1.75 }}>
         <Box sx={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: 999, bgcolor: tone.main }} />
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>{title}</Typography>
-        {subtitle ? <Typography variant="body2" color="text.secondary">{subtitle}</Typography> : null}
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>{title}</Typography>
+        {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, lineHeight: 1.45 }}>{subtitle}</Typography> : null}
       </Box>
       {action}
     </Box>
@@ -185,7 +185,7 @@ export function AppSection({ title, subtitle, action, children, compact = false,
       sx={{
         overflow: "hidden",
         position: "relative",
-        boxShadow: `0 12px 30px ${tone.main}10`,
+        boxShadow: `0 16px 36px ${tone.main}12`,
         "&::before": {
           content: '""',
           position: "absolute",
