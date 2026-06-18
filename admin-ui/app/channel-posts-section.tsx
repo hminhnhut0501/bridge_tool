@@ -3,7 +3,7 @@
 
 import { Box, Button, Stack } from "@mui/material";
 import { Plus, Send, Trash2 } from "lucide-react";
-import { Metric, PanelHead, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
 import { dateText } from "./dashboard-helpers";
 
 export function ChannelPostsSection(props: any) {
@@ -16,8 +16,7 @@ export function ChannelPostsSection(props: any) {
         <Metric label="Đã đăng" value={String(channelPostCounts.sent)} />
         <Metric label="Có lỗi" value={String(channelPostCounts.failed)} />
       </Box>
-      <section className="panel">
-        <PanelHead title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button>} />
+      <AppSection title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<AppToolbar><Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button></AppToolbar>}>
         <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", p: 2 }}>
           {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => <Button key={tab} variant={channelPostTab === tab ? "contained" : "outlined"} sx={channelPostTab === tab ? statusButtonSx("success") : statusButtonSx("muted")} onClick={() => setChannelPostTab(tab)}>{tab}</Button>)}
         </Box>
@@ -54,7 +53,7 @@ export function ChannelPostsSection(props: any) {
           }}
         />
         <Pagination page={channelPostPage} totalPages={totalChannelPostPages} totalItems={visibleChannelPosts.length} onPage={setChannelPostPage} label="bài đăng" />
-      </section>
+      </AppSection>
     </Stack>
   );
 }

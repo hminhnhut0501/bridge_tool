@@ -143,6 +143,27 @@ export function PanelHead({ title, subtitle, action }: { title: string; subtitle
   );
 }
 
+export function AppToolbar({ children }: { children: ReactNode }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5 }}>
+      {children}
+    </Box>
+  );
+}
+
+export function AppSection({ title, subtitle, action, children, compact = false }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; compact?: boolean }) {
+  return (
+    <Card variant="outlined">
+      <PanelHead title={title} subtitle={subtitle} action={action} />
+      <Box sx={{ p: compact ? 1.5 : 2 }}>{children}</Box>
+    </Card>
+  );
+}
+
+export function AppDialog(props: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
+  return <MuiDialogShell {...props} />;
+}
+
 export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
     <Card variant="outlined">
@@ -252,9 +273,9 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
 
 export function SettingsConfigModal(props: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean>; onClose: () => void }) {
   return (
-    <MuiDialogShell open title={props.title} subtitle={props.subtitle} onClose={props.onClose} maxWidth="md">
+    <AppDialog open title={props.title} subtitle={props.subtitle} onClose={props.onClose} maxWidth="md">
         <ConfigEditor title={props.title} subtitle={props.subtitle} fields={props.fields} values={props.values} setValues={props.setValues} onSave={props.onSave} />
-    </MuiDialogShell>
+    </AppDialog>
   );
 }
 

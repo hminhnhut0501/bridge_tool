@@ -3,7 +3,7 @@
 
 import { Box, Button, Chip, Stack } from "@mui/material";
 import { PauseCircle, PlayCircle, Plus } from "lucide-react";
-import { Metric, PanelHead, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
 import { dateText } from "./dashboard-helpers";
 
 export function CampaignsSection(props: any) {
@@ -16,17 +16,15 @@ export function CampaignsSection(props: any) {
         <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} />
         <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} />
       </Box>
-      <section className="panel">
-        <PanelHead title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button>} />
+      <AppSection title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<AppToolbar><Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button></AppToolbar>}>
         <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
           <strong>Preview: {campaignPreview?.total || 0} người</strong>
           <Chip size="small" label={`Active: ${campaignPreview?.counts?.VIP_ACTIVE || 0}`} variant="outlined" sx={statusChipSx("success")} />
           <Chip size="small" label={`Hết hạn: ${campaignPreview?.counts?.VIP_EXPIRED || 0}`} variant="outlined" sx={statusChipSx("warning")} />
           <Chip size="small" label={`Chưa mua: ${campaignPreview?.counts?.NO_PURCHASE || 0}`} variant="outlined" sx={statusChipSx("muted")} />
         </Box>
-      </section>
-      <section className="panel">
-        <PanelHead title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người." />
+      </AppSection>
+      <AppSection title="Danh sách campaign" subtitle="Bấm tên campaign để xem danh sách người nhận và trạng thái từng người.">
         <SimpleTable
           headers={["Campaign", "Tệp", "Trạng thái", "Tiến trình", "Delay", "Thao tác"]}
           rows={campaigns.map((item: any) => [
@@ -52,9 +50,8 @@ export function CampaignsSection(props: any) {
             </Box>,
           ])}
         />
-      </section>
-      <section className="panel">
-        <PanelHead title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart." />
+      </AppSection>
+      <AppSection title={selectedCampaign ? `Người nhận: ${selectedCampaign.title}` : "Người nhận"} subtitle="Danh sách được snapshot lúc tạo campaign. Người đã SENT sẽ không bị gửi lại khi worker restart.">
         <div className="campaign-preview">
           <span>Pending: {campaignRecipientCounts.PENDING || 0}</span>
           <span>Sent: {campaignRecipientCounts.SENT || 0}</span>
@@ -74,7 +71,7 @@ export function CampaignsSection(props: any) {
           ])}
         />
         <Pagination page={campaignRecipientPage} totalPages={totalCampaignRecipientPages} totalItems={campaignRecipients.length} onPage={setCampaignRecipientPage} label="người nhận" />
-      </section>
+      </AppSection>
     </Stack>
   );
 }

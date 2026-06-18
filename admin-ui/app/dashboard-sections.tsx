@@ -3,7 +3,7 @@
 
 import { Button, MenuItem, Stack, TextField } from "@mui/material";
 import { Download, Plus } from "lucide-react";
-import { Metric, PanelHead, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
+import { AppSection, AppToolbar, Metric, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 
 export function AnalyticsSection(props: any) {
   const { orders, yearStats, monthStats, paidRevenueByCurrency, paidRevenueByProvider, formatRevenueCurrency, providerRevenueFormat, isWithinPeriod } = props;
@@ -81,12 +81,10 @@ export function OrdersSection(props: any) {
         <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} />
         <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} />
       </div>
-      <section className="panel">
-        <PanelHead title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<div className="panel-actions"><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></div>} />
+      <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact>
         <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
-      </section>
-      <section className="panel">
-        <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button>} />
+      </AppSection>
+      <AppSection title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>}>
         <div className="toolbar orders-toolbar">
           <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
           <TextField select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)} size="small" fullWidth>
@@ -102,7 +100,7 @@ export function OrdersSection(props: any) {
         {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
         <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
         <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
-      </section>
+      </AppSection>
     </Stack>
   );
 }

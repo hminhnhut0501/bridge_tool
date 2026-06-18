@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Box, Button, Chip, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { Metric, Pagination, PanelHead, SimpleTable, statusChipSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusChipSx } from "./dashboard-components";
 import { dateTextShort } from "./dashboard-helpers";
 
 export function CustomersSection(props: any) {
@@ -39,12 +39,11 @@ export function CustomersSection(props: any) {
         <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item: any) => item.coupons.length).length)} />
         <Metric label="Doanh thu khách lọc" value={ordersMoney(filteredCustomers.flatMap((item: any) => item.paidOrders))} />
       </Box>
-      <section className="panel">
-        <PanelHead
-          title="Khách hàng"
-          subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái."
-          action={<Box sx={{ display: "flex", gap: 1 }}><Button variant="outlined" size="small" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>CSV</Button></Box>}
-        />
+      <AppSection
+        title="Khách hàng"
+        subtitle="Danh sách ưu tiên khách mới nhất. Bấm Xem chi tiết để mở popup quản lý đơn, hạn dùng và trạng thái."
+        action={<AppToolbar><Button variant="outlined" size="small" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>CSV</Button></AppToolbar>}
+      >
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: "minmax(0, 1fr) repeat(3, 180px)", p: 1.75 }}>
           <TextField size="small" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
           <Select size="small" value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value)}>{["all","active","expiring","lifetime","expired","paid","coupon"].map((item) => <MenuItem key={item} value={item}>{item === "all" ? "Tất cả khách" : item}</MenuItem>)}</Select>
@@ -85,7 +84,7 @@ export function CustomersSection(props: any) {
           )}
         />
         <Pagination page={customerPage} totalPages={totalCustomerPages} totalItems={filteredCustomers.length} onPage={setCustomerPage} label="khách" />
-      </section>
+      </AppSection>
     </Stack>
   );
 }
