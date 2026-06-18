@@ -692,10 +692,14 @@ td select {
 .customer-order-card {
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 rgba(16, 24, 40, 0.03),
+    0 12px 28px rgba(15, 23, 42, 0.05);
   display: grid;
   gap: 12px;
   padding: 14px;
+  overflow: hidden;
 }
 
 .customer-order-card__top {
@@ -730,12 +734,16 @@ td select {
 }
 
 .customer-order-card .expire-editor {
-  align-items: stretch;
+  align-items: center;
+  gap: 8px;
 }
 
 .customer-order-card .expire-editor button,
 .customer-order-card .plan-editor button {
   white-space: nowrap;
+  min-height: 38px;
+  border-radius: 999px;
+  padding-inline: 16px;
 }
 
 .modal-backdrop {

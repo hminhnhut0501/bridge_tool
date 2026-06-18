@@ -5704,8 +5704,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("success")} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("warning")} />;
+    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("success"), boxShadow: "0 10px 22px rgba(16, 185, 129, 0.14)" }} />;
+    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("warning"), boxShadow: "0 10px 22px rgba(245, 158, 11, 0.10)" }} />;
     if (normalized === "EXPIRED" || normalized === "CANCELLED") {
       return (
         <Chip
@@ -5729,7 +5729,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   return (
     <Stack spacing={1.5}>
       {sorted.map((order) => (
-        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 2.25, overflow: "hidden" }}>
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
             <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box>
@@ -5746,17 +5746,17 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             </Box>
 
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Coupon</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
@@ -5771,7 +5771,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             </Box>
 
             <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth />
@@ -5782,7 +5782,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </Stack>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Đổi trạng thái</Typography>
                 <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
                   <Chip
@@ -5801,7 +5801,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </Box>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth slotProps={{ inputLabel: { shrink: true } }} />
