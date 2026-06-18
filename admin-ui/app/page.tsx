@@ -1896,6 +1896,7 @@ export default function Home() {
   const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
   const [customerTimelineSubTab, setCustomerTimelineSubTab] = useState<CustomerTimelineSubTab>("all");
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
+  const [selectedCustomerRenewDays, setSelectedCustomerRenewDays] = useState("30");
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -3037,6 +3038,31 @@ export default function Home() {
     });
   }
 
+  async function renewOrderByDays(orderId: string, daysInput: string) {
+    const days = Number(daysInput);
+    if (!Number.isFinite(days) || days <= 0) {
+      showNotice("error", "Vui lòng nhập số ngày gia hạn hợp lệ.");
+      return;
+    }
+    const order = orders.find((item) => item.order_id === orderId);
+    if (!order) {
+      showNotice("error", "Không tìm thấy đơn hàng cần gia hạn.");
+      return;
+    }
+    if (isLifetimeText(order.plan_name)) {
+      showNotice("error", "Gói trọn đời không cần gia hạn.");
+      return;
+    }
+    await runAction(`order-renew-${orderId}`, async () => {
+      const base = order.expire_at ? new Date(order.expire_at) : new Date();
+      const now = new Date();
+      const start = Number.isNaN(base.getTime()) || base < now ? now : base;
+      const next = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+      await updateOrder(savedSecret, orderId, { expire_at: dateTimeInputValue(next.toISOString()), status: "PAID", expired_notice_at: null });
+      await loadAll();
+    });
+  }
+
   async function changeOrderPlan(orderId: string, planName: string) {
     const nextPlanName = planName.trim();
     if (!nextPlanName) {
@@ -3266,6 +3292,16 @@ export default function Home() {
       if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
       return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
     });
+  }, [selectedCustomer]);
+  const selectedCustomerRenewTargetOrder = useMemo(() => {
+    if (!selectedCustomer) return null;
+    const candidates = selectedCustomer.activeOrders.length ? selectedCustomer.activeOrders : selectedCustomer.paidOrders;
+    return [...candidates].sort((a, b) => {
+      const aExpire = new Date(a.expire_at || 0).getTime();
+      const bExpire = new Date(b.expire_at || 0).getTime();
+      if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
+      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+    })[0] || null;
   }, [selectedCustomer]);
   const selectedCustomerActiveGroups = useMemo(() => {
     if (!selectedCustomer) return [];
@@ -3734,6 +3770,10 @@ export default function Home() {
       setCustomerModalOpen(false);
     }
   }, [customerSummaries, selectedCustomerId]);
+
+  useEffect(() => {
+    setSelectedCustomerRenewDays("30");
+  }, [selectedCustomerId]);
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 30 ngày";
@@ -5467,6 +5507,33 @@ export default function Home() {
                         <Typography sx={{ fontWeight: 800 }}>{money(selectedCustomer.revenue)}</Typography>
                       </Box>
                     </Stack>
+                    <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
+                      <Typography variant="body2" color="text.secondary">Gia hạn nhanh</Typography>
+                      <Typography sx={{ fontWeight: 800, mt: 0.25 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={selectedCustomerRenewDays}
+                          onChange={(event) => setSelectedCustomerRenewDays(event.target.value)}
+                          inputProps={{ min: 1, step: 1 }}
+                          placeholder="30"
+                          sx={{ ...customerPopupInputSx, minWidth: 110 }}
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          disabled={!selectedCustomerRenewTargetOrder || saving === `order-renew-${selectedCustomerRenewTargetOrder?.order_id}` || isLifetimeText(selectedCustomerRenewTargetOrder?.plan_name || "")}
+                          onClick={() => {
+                            if (!selectedCustomerRenewTargetOrder) return;
+                            renewOrderByDays(selectedCustomerRenewTargetOrder.order_id, selectedCustomerRenewDays || "30");
+                          }}
+                          sx={{ borderRadius: 999, minWidth: 96 }}
+                        >
+                          Gia hạn
+                        </Button>
+                      </Stack>
+                    </Box>
                     <Box sx={{ mt: 1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                       {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
                       {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
@@ -5873,6 +5940,32 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
                   }} sx={{ borderRadius: 999, minWidth: 84 }}>Lưu hạn</Button>
+                </Stack>
+              </Box>
+
+              <Box sx={customerInnerCardSx}>
+                <Typography variant="body2" color="text.secondary">Gia hạn cộng dồn</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
+                  <TextField
+                    type="number"
+                    size="small"
+                    defaultValue="30"
+                    inputProps={{ min: 1, step: 1 }}
+                    sx={{ ...customerPopupInputSx, minWidth: 120 }}
+                    id={`renew-days-${order.order_id}`}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={saving === `order-renew-${order.order_id}` || isLifetimeText(order.plan_name)}
+                    onClick={() => {
+                      const input = document.getElementById(`renew-days-${order.order_id}`) as HTMLInputElement | null;
+                      renewOrderByDays(order.order_id, input?.value || "30");
+                    }}
+                    sx={{ borderRadius: 999, minWidth: 96 }}
+                  >
+                    {isLifetimeText(order.plan_name) ? "Trọn đời" : "Gia hạn"}
+                  </Button>
                 </Stack>
               </Box>
             </Box>
