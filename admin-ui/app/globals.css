@@ -151,17 +151,19 @@ select:disabled {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 18px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.62);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 22px;
   box-shadow:
-    0 14px 30px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 18px 34px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.88), transparent 30%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.76));
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.84), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--metric-tint-a) 18%, white), color-mix(in srgb, var(--metric-tint-b) 12%, white));
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
 .metric-card::before {
@@ -169,24 +171,32 @@ select:disabled {
   inset: 0;
   position: absolute;
   opacity: 1;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--metric-tint-a) 26%, white), color-mix(in srgb, var(--metric-tint-b) 20%, white));
+  background:
+    radial-gradient(circle at 78% 18%, color-mix(in srgb, var(--metric-tint-b) 32%, transparent), transparent 30%),
+    radial-gradient(circle at 14% 86%, color-mix(in srgb, var(--metric-tint-a) 18%, transparent), transparent 28%);
   z-index: 0;
-  clip-path: polygon(0 0, 100% 0, 100% 10px, 0 28px);
 }
 
-.metric-card.tone-vnd { --metric-tint-a: #3b82f6; --metric-tint-b: #22c55e; }
-.metric-card.tone-usd { --metric-tint-a: #06b6d4; --metric-tint-b: #60a5fa; }
-.metric-card.tone-crypto { --metric-tint-a: #a855f7; --metric-tint-b: #f472b6; }
-.metric-card.tone-payos { --metric-tint-a: #2dd4bf; --metric-tint-b: #38bdf8; }
-.metric-card.tone-paypal { --metric-tint-a: #818cf8; --metric-tint-b: #c084fc; }
+.metric-card.tone-vnd { --metric-tint-a: #60a5fa; --metric-tint-b: #34d399; }
+.metric-card.tone-usd { --metric-tint-a: #67e8f9; --metric-tint-b: #60a5fa; }
+.metric-card.tone-crypto { --metric-tint-a: #c084fc; --metric-tint-b: #f9a8d4; }
+.metric-card.tone-payos { --metric-tint-a: #5eead4; --metric-tint-b: #7dd3fc; }
+.metric-card.tone-paypal { --metric-tint-a: #a78bfa; --metric-tint-b: #93c5fd; }
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 22px 42px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
 
 .metric {
   color: var(--ink);
-  font-size: 29px;
+  font-size: 30px;
   font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.05em;
-  margin-top: 2px;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+  margin-top: 4px;
   position: relative;
   z-index: 1;
 }
@@ -219,32 +229,32 @@ select:disabled {
 .metric-badge {
   align-items: center;
   border-radius: 999px;
-  color: rgba(15, 23, 42, 0.64);
+  color: rgba(15, 23, 42, 0.58);
   display: inline-flex;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.05em;
   line-height: 1;
   padding: 6px 10px;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 
 .metric-icon {
   align-items: center;
-  background: rgba(255, 255, 255, 0.64);
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 18px;
   color: inherit;
   display: inline-flex;
-  height: 32px;
+  height: 38px;
   justify-content: center;
-  width: 32px;
+  width: 38px;
   box-shadow:
-    0 8px 18px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    0 10px 24px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .metric-icon-dot {
