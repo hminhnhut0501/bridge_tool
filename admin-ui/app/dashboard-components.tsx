@@ -217,11 +217,14 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
         ))}
       </Box>
       <Dialog open={Boolean(editingField)} onClose={() => setEditingField(null)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ pr: 6 }}>{editingField?.label}</DialogTitle>
-        <IconButton onClick={() => setEditingField(null)} sx={{ position: "absolute", right: 8, top: 8 }}>
-          <XCircle size={18} />
-        </IconButton>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{editingField?.label}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{editingField?.help}</Typography>
+          <IconButton onClick={() => setEditingField(null)} size="small" sx={{ position: "absolute", right: 12, top: 12, border: 1, borderColor: "divider", bgcolor: "background.paper", "&:hover": { bgcolor: "action.hover" } }}>
+            <XCircle size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ py: 2.5, bgcolor: "background.default" }}>
           <Box sx={{ display: "grid", gap: 2 }}>
             <Typography variant="body2" color="text.secondary">{editingField?.help}</Typography>
             {editingField?.kind === "textarea" ? (
@@ -238,8 +241,8 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
             <Typography variant="caption" color="text.secondary">Key kỹ thuật: {editingField?.key}</Typography>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditingField(null)}>Huỷ</Button>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button variant="outlined" onClick={() => setEditingField(null)} sx={statusButtonSx("muted")}>Huỷ</Button>
           <Button variant="contained" onClick={saveField} disabled={savingField} startIcon={savingField ? <Loader2 size={16} /> : <Save size={16} />}>Lưu thay đổi</Button>
         </DialogActions>
       </Dialog>
