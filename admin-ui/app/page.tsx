@@ -1896,7 +1896,15 @@ export default function Home() {
   const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
   const [customerTimelineSubTab, setCustomerTimelineSubTab] = useState<CustomerTimelineSubTab>("all");
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
-  const [selectedCustomerRenewDays, setSelectedCustomerRenewDays] = useState("30");
+  const [customerRenewModalOpen, setCustomerRenewModalOpen] = useState(false);
+  const [customerRenewForm, setCustomerRenewForm] = useState({
+    order_id: "",
+    plan_name: "",
+    amount: "",
+    duration_days: "30",
+    payment_currency: "VND",
+    payment_provider: "MANUAL",
+  });
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -3038,31 +3046,6 @@ export default function Home() {
     });
   }
 
-  async function renewOrderByDays(orderId: string, daysInput: string) {
-    const days = Number(daysInput);
-    if (!Number.isFinite(days) || days <= 0) {
-      showNotice("error", "Vui lòng nhập số ngày gia hạn hợp lệ.");
-      return;
-    }
-    const order = orders.find((item) => item.order_id === orderId);
-    if (!order) {
-      showNotice("error", "Không tìm thấy đơn hàng cần gia hạn.");
-      return;
-    }
-    if (isLifetimeText(order.plan_name)) {
-      showNotice("error", "Gói trọn đời không cần gia hạn.");
-      return;
-    }
-    await runAction(`order-renew-${orderId}`, async () => {
-      const base = order.expire_at ? new Date(order.expire_at) : new Date();
-      const now = new Date();
-      const start = Number.isNaN(base.getTime()) || base < now ? now : base;
-      const next = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
-      await updateOrder(savedSecret, orderId, { expire_at: dateTimeInputValue(next.toISOString()), status: "PAID", expired_notice_at: null });
-      await loadAll();
-    });
-  }
-
   async function changeOrderPlan(orderId: string, planName: string) {
     const nextPlanName = planName.trim();
     if (!nextPlanName) {
@@ -3071,6 +3054,54 @@ export default function Home() {
     }
     await runAction(`order-plan-${orderId}`, async () => {
       await updateOrder(savedSecret, orderId, { plan_name: nextPlanName });
+      await loadAll();
+    });
+  }
+
+  function openCustomerRenewModal() {
+    if (!selectedCustomer) return;
+    const defaultOrder = selectedCustomerRenewTargetOrder || selectedCustomer.paidOrders[0] || null;
+    const defaultPlanName = defaultOrder?.plan_name || selectedCustomerRenewPlanOptions[0] || "";
+    setCustomerRenewForm({
+      order_id: defaultOrder?.order_id || "",
+      plan_name: defaultPlanName,
+      amount: defaultOrder ? String(defaultOrder.amount || "") : "",
+      duration_days: isLifetimeText(defaultPlanName) ? "0" : "30",
+      payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
+      payment_provider: String(defaultOrder?.payment_provider || "MANUAL").toUpperCase(),
+    });
+    setCustomerRenewModalOpen(true);
+  }
+
+  async function saveCustomerRenewal() {
+    if (!selectedCustomer) return;
+    const planName = customerRenewForm.plan_name.trim();
+    const amount = Number(customerRenewForm.amount);
+    const days = Number(customerRenewForm.duration_days);
+    if (!planName) {
+      showNotice("error", "Vui lòng chọn đúng gói.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      showNotice("error", "Vui lòng nhập số tiền hợp lệ.");
+      return;
+    }
+    if (!isLifetimeText(planName) && (!Number.isFinite(days) || days <= 0)) {
+      showNotice("error", "Vui lòng nhập số ngày gia hạn hợp lệ.");
+      return;
+    }
+    await runAction(`customer-renew-${selectedCustomer.id}`, async () => {
+      await createManualOrder(savedSecret, {
+        telegram_user_id: selectedCustomer.id,
+        full_name: selectedCustomer.name || selectedCustomer.id,
+        plan_name: planName,
+        amount: String(amount),
+        duration_days: isLifetimeText(planName) ? "0" : String(days),
+        sale_id: `RENEWAL_${customerRenewForm.order_id || "MANUAL"}`,
+        payment_currency: String(customerRenewForm.payment_currency || "VND").toUpperCase(),
+        payment_provider: String(customerRenewForm.payment_provider || "MANUAL").toUpperCase(),
+      });
+      setCustomerRenewModalOpen(false);
       await loadAll();
     });
   }
@@ -3302,6 +3333,10 @@ export default function Home() {
       if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
       return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
     })[0] || null;
+  }, [selectedCustomer]);
+  const selectedCustomerRenewPlanOptions = useMemo(() => {
+    if (!selectedCustomer) return [];
+    return uniqueValues(selectedCustomer.paidOrders.map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
   }, [selectedCustomer]);
   const selectedCustomerActiveGroups = useMemo(() => {
     if (!selectedCustomer) return [];
@@ -3770,10 +3805,6 @@ export default function Home() {
       setCustomerModalOpen(false);
     }
   }, [customerSummaries, selectedCustomerId]);
-
-  useEffect(() => {
-    setSelectedCustomerRenewDays("30");
-  }, [selectedCustomerId]);
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "SVIP chung - 30 ngày";
@@ -5511,26 +5542,13 @@ export default function Home() {
                       <Typography variant="body2" color="text.secondary">Gia hạn nhanh</Typography>
                       <Typography sx={{ fontWeight: 800, mt: 0.25 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
                       <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={selectedCustomerRenewDays}
-                          onChange={(event) => setSelectedCustomerRenewDays(event.target.value)}
-                          slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                          placeholder="30"
-                          sx={{ ...customerPopupInputSx, minWidth: 110 }}
-                        />
                         <Button
                           variant="contained"
                           size="small"
-                          disabled={!selectedCustomerRenewTargetOrder || saving === `order-renew-${selectedCustomerRenewTargetOrder?.order_id}` || isLifetimeText(selectedCustomerRenewTargetOrder?.plan_name || "")}
-                          onClick={() => {
-                            if (!selectedCustomerRenewTargetOrder) return;
-                            renewOrderByDays(selectedCustomerRenewTargetOrder.order_id, selectedCustomerRenewDays || "30");
-                          }}
+                          onClick={openCustomerRenewModal}
                           sx={{ borderRadius: 999, minWidth: 96 }}
                         >
-                          Gia hạn
+                          Tạo gia hạn
                         </Button>
                       </Stack>
                     </Box>
@@ -5584,7 +5602,6 @@ export default function Home() {
                       })}
                       saving={saving}
                       onExpireChange={changeOrderExpire}
-                      onRenewChange={renewOrderByDays}
                       onPlanChange={changeOrderPlan}
                       onStatusChange={changeOrderStatus}
                     />
@@ -5660,6 +5677,87 @@ export default function Home() {
                   ) : null}
               </Box>
               </Box>
+          </MuiDialogShell>
+        ) : null}
+
+        {customerRenewModalOpen && selectedCustomer ? (
+          <MuiDialogShell open title="Tạo gia hạn" subtitle={`Khách: ${selectedCustomer.name} • Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerRenewModalOpen(false)} maxWidth="sm">
+            <Box sx={{ display: "grid", gap: 1.5 }}>
+              <TextField
+                select
+                label="Đơn / Gói cần gia hạn"
+                value={customerRenewForm.plan_name}
+                onChange={(event) => {
+                  const nextPlan = event.target.value;
+                  const matchedOrder = selectedCustomer.paidOrders.find((item) => item.plan_name === nextPlan) || null;
+                  setCustomerRenewForm((current) => ({
+                    ...current,
+                    order_id: matchedOrder?.order_id || "",
+                    plan_name: nextPlan,
+                    amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
+                    duration_days: isLifetimeText(nextPlan) ? "0" : current.duration_days || "30",
+                    payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
+                    payment_provider: String(matchedOrder?.payment_provider || current.payment_provider || "MANUAL").toUpperCase(),
+                  }));
+                }}
+                fullWidth
+                size="small"
+              >
+                {selectedCustomerRenewPlanOptions.map((plan) => <MenuItem key={plan} value={plan}>{plan}</MenuItem>)}
+              </TextField>
+              <TextField
+                label="Số tiền thanh toán"
+                value={customerRenewForm.amount}
+                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, amount: event.target.value }))}
+                placeholder="99000"
+                fullWidth
+                size="small"
+              />
+              <TextField
+                label="Số ngày gia hạn"
+                type="number"
+                value={customerRenewForm.duration_days}
+                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, duration_days: event.target.value }))}
+                slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                disabled={isLifetimeText(customerRenewForm.plan_name)}
+                helperText={isLifetimeText(customerRenewForm.plan_name) ? "Gói trọn đời không cần nhập số ngày." : "Sẽ tạo đơn mới và cộng hạn từ đơn này."}
+                fullWidth
+                size="small"
+              />
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  select
+                  label="Tiền tệ"
+                  value={customerRenewForm.payment_currency}
+                  onChange={(event) => setCustomerRenewForm((current) => ({ ...current, payment_currency: event.target.value }))}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="VND">VND</MenuItem>
+                  <MenuItem value="USD">USD</MenuItem>
+                  <MenuItem value="USDT">USDT</MenuItem>
+                </TextField>
+                <TextField
+                  select
+                  label="Phương thức"
+                  value={customerRenewForm.payment_provider}
+                  onChange={(event) => setCustomerRenewForm((current) => ({ ...current, payment_provider: event.target.value }))}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="MANUAL">MANUAL</MenuItem>
+                  <MenuItem value="PAYOS">PAYOS</MenuItem>
+                  <MenuItem value="PAYPAL">PAYPAL</MenuItem>
+                  <MenuItem value="NOWPAYMENTS">NOWPAYMENTS</MenuItem>
+                  <MenuItem value="BINANCE_PAY">BINANCE_PAY</MenuItem>
+                  <MenuItem value="TRON_USDT">TRON_USDT</MenuItem>
+                </TextField>
+              </Stack>
+              <div className="modal-actions">
+                <Button variant="outlined" onClick={() => setCustomerRenewModalOpen(false)}>Huỷ</Button>
+                <Button variant="contained" onClick={saveCustomerRenewal}>Tạo đơn gia hạn</Button>
+              </div>
+            </Box>
           </MuiDialogShell>
         ) : null}
       </Box>
@@ -5817,7 +5915,7 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
   );
 }
 
-function CustomerOrdersTable({ orders, saving, onExpireChange, onRenewChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onRenewChange: (orderId: string, days: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
+function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders].sort((a, b) => {
     const rank = (order: Order) => {
       const status = String(order.status || "").toUpperCase();
@@ -5944,30 +6042,6 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onRenewChange, on
                 </Stack>
               </Box>
 
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Gia hạn cộng dồn</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                  <TextField
-                    type="number"
-                    size="small"
-                    defaultValue="30"
-                    sx={{ ...customerPopupInputSx, minWidth: 120 }}
-                    id={`renew-days-${order.order_id}`}
-                  />
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={saving === `order-renew-${order.order_id}` || isLifetimeText(order.plan_name)}
-                    onClick={() => {
-                      const input = document.getElementById(`renew-days-${order.order_id}`) as HTMLInputElement | null;
-                      onRenewChange(order.order_id, input?.value || "30");
-                    }}
-                    sx={{ borderRadius: 999, minWidth: 96 }}
-                  >
-                    {isLifetimeText(order.plan_name) ? "Trọn đời" : "Gia hạn"}
-                  </Button>
-                </Stack>
-              </Box>
             </Box>
           </CardContent>
         </Card>
