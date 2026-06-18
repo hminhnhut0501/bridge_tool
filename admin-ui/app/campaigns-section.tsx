@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Box, Button, Chip, Stack } from "@mui/material";
-import { PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Megaphone, PauseCircle, PlayCircle, Plus, Send, Users } from "lucide-react";
 import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
 import { dateText } from "./dashboard-helpers";
 
@@ -11,10 +11,10 @@ export function CampaignsSection(props: any) {
   return (
     <Stack spacing={2}>
       <Box className="metrics-band metrics-band-campaigns" sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <Metric label="Campaign" value={String(campaigns.length)} accent="cyan" />
-        <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} accent="violet" />
-        <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} accent="amber" />
-        <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} accent="blue" />
+        <Metric label="Campaign" value={String(campaigns.length)} accent="cyan" icon={<Megaphone size={16} />} />
+        <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} accent="violet" icon={<PlayCircle size={16} />} />
+        <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} accent="amber" icon={<Send size={16} />} />
+        <Metric label="Preview nhận" value={String(campaignPreview?.total || 0)} accent="blue" icon={<Users size={16} />} />
       </Box>
       <AppSection title="Tạo campaign" subtitle="Tạo campaign trong popup để tránh trang chính quá nhiều trường. Worker sẽ gửi từng user theo delay để tránh spam." action={<AppToolbar><Button variant="contained" size="small" onClick={() => { setCampaignForm({ ...EMPTY_CAMPAIGN_FORM }); setCampaignModalOpen(true); }} startIcon={<Plus size={16} />}>Tạo campaign</Button></AppToolbar>} accent="cyan">
         <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>

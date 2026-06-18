@@ -5741,7 +5741,25 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   return (
     <Stack spacing={1.5}>
       {sorted.map((order) => (
-        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 2.25, overflow: "hidden" }}>
+        <Card
+          key={order.order_id}
+          variant="outlined"
+          sx={{
+            borderRadius: 3,
+            overflow: "hidden",
+            position: "relative",
+            backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)",
+            boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              inset: "0 auto auto 0",
+              width: "100%",
+              height: 4,
+              background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981)",
+            },
+          }}
+        >
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
             <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box>
@@ -5758,17 +5776,17 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             </Box>
 
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
                 <Typography variant="body2" color="text.secondary">Coupon</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
@@ -5776,14 +5794,14 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
                 <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
                 <Box sx={{ mt: 0.75 }}>{statusChip(order.status)}</Box>
               </Box>
             </Box>
 
             <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth />
@@ -5794,7 +5812,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </Stack>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
                 <Typography variant="body2" color="text.secondary">Đổi trạng thái</Typography>
                 <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
                   <Chip
@@ -5813,7 +5831,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </Box>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth slotProps={{ inputLabel: { shrink: true } }} />

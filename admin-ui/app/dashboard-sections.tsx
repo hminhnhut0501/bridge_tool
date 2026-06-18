@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Button, MenuItem, Stack, TextField } from "@mui/material";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Coins, Megaphone } from "lucide-react";
 import { AppSection, AppToolbar, BreakdownChart, DonutChart, Metric, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 
 export function AnalyticsSection(props: any) {
@@ -65,28 +65,28 @@ export function AnalyticsSection(props: any) {
   return (
     <Stack spacing={2}>
       <div className="grid metrics-band">
-        <Metric label="Hôm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} accent="blue" />
-        <Metric label="Tháng này" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} accent="cyan" />
-        <Metric label="Năm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} accent="emerald" />
-        <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} accent="indigo" />
+        <Metric label="Hôm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} accent="blue" icon={<TrendingUp size={16} />} />
+        <Metric label="Tháng này" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} accent="cyan" icon={<CalendarClock size={16} />} />
+        <Metric label="Năm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} accent="emerald" icon={<ShieldCheck size={16} />} />
+        <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} accent="indigo" icon={<Users size={16} />} />
       </div>
       <div className="grid metrics-band">
-        <Metric label="PAID" value={String(monthStats.paid)} accent="emerald" />
-        <Metric label="PENDING" value={String(monthStats.pending)} accent="amber" />
-        <Metric label="CANCELLED" value={String(monthStats.cancelled)} accent="rose" />
-        <Metric label="EXPIRED" value={String(monthStats.expired)} accent="blue" />
+        <Metric label="PAID" value={String(monthStats.paid)} accent="emerald" icon={<CreditCard size={16} />} />
+        <Metric label="PENDING" value={String(monthStats.pending)} accent="amber" icon={<BadgeDollarSign size={16} />} />
+        <Metric label="CANCELLED" value={String(monthStats.cancelled)} accent="rose" icon={<ShieldCheck size={16} />} />
+        <Metric label="EXPIRED" value={String(monthStats.expired)} accent="blue" icon={<CalendarClock size={16} />} />
       </div>
       <div className="grid metrics-band">
-        <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="vnd" accent="blue" />
-        <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="usd" accent="cyan" />
-        <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="crypto" accent="emerald" />
-        <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" accent="indigo" />
+        <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="vnd" accent="blue" icon={<TrendingUp size={16} />} />
+        <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="usd" accent="cyan" icon={<CreditCard size={16} />} />
+        <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="crypto" accent="emerald" icon={<Coins size={16} />} />
+        <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" accent="indigo" icon={<BadgeDollarSign size={16} />} />
       </div>
       <div className="grid metrics-band">
-        <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} accent="blue" />
-        <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} accent="amber" />
-        <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} accent="cyan" />
-        <Metric label="Coupon giảm tháng" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} accent="rose" />
+        <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} accent="blue" icon={<CreditCard size={16} />} />
+        <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} accent="amber" icon={<BadgeDollarSign size={16} />} />
+        <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} accent="cyan" icon={<TrendingUp size={16} />} />
+        <Metric label="Coupon giảm tháng" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} accent="rose" icon={<Megaphone size={16} />} />
       </div>
       <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
         <BreakdownChart
