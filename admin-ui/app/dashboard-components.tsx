@@ -92,12 +92,12 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
   };
 }
 
-export function Metric({ label, value, tone, note, accent: sectionAccent }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone }) {
+export function Metric({ label, value, tone, note, accent: sectionAccent, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone; icon?: ReactNode }) {
   const toneToken = sectionAccent ? sectionAccentTone(sectionAccent) : tone ? tonePalette[tone] : tonePalette.neutral;
   const accent = toneToken.main;
   const bg = toneToken.bg;
   const glow = toneToken.glow;
-  const Icon = tone === "vnd" ? TrendingUp : tone === "usd" ? CreditCard : tone === "crypto" ? Coins : tone === "payos" ? ShieldCheck : tone === "paypal" ? BadgeDollarSign : null;
+  const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSign size={16} /> : null);
   const compactValue = (() => {
     const cleaned = value
       .replace(/^PAYOS:\s*/i, "")
@@ -129,7 +129,7 @@ export function Metric({ label, value, tone, note, accent: sectionAccent }: { la
       <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3, fontWeight: 700 }}>{label}</Typography>
-          {Icon ? <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "999px", bgcolor: `${accent}14`, color: accent }}><Icon size={16} /></Box> : null}
+          {IconNode ? <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "999px", bgcolor: `${accent}14`, color: accent }}>{IconNode}</Box> : null}
         </Box>
         <Typography
           sx={{

@@ -11,6 +11,8 @@ import {
   Eye,
   FileText,
   Gift,
+  CreditCard,
+  Coins,
   Loader2,
   Megaphone,
   Pencil,
@@ -25,6 +27,7 @@ import {
   Ticket,
   Trash2,
   Users,
+  TrendingUp,
   XCircle,
 } from "lucide-react";
 import {
@@ -3841,10 +3844,10 @@ export default function Home() {
         {tab === "overview" ? (
           <div className="stack">
             <div className="grid metrics-band">
-              <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} />
-              <Metric label="Đơn đang chờ" value={String(metrics.pending)} />
-              <Metric label="Khách gần đây" value={String(metrics.users)} />
-              <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} />
+              <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} tone="vnd" icon={<TrendingUp size={16} />} />
+              <Metric label="Đơn đang chờ" value={String(metrics.pending)} tone="usd" icon={<BadgePercent size={16} />} />
+              <Metric label="Khách gần đây" value={String(metrics.users)} tone="crypto" icon={<Users size={16} />} />
+              <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} tone="payos" icon={<ShieldCheck size={16} />} />
             </div>
             <div className="grid metrics-band">
               <Metric
@@ -3852,31 +3855,29 @@ export default function Home() {
                 value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="vnd"
                 note="Nguồn chính: PayOS / manual nội địa"
+                icon={<TrendingUp size={16} />}
               />
               <Metric
                 label="Doanh thu USD"
                 value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="usd"
                 note="Chỉ cho khách quốc tế"
+                icon={<CreditCard size={16} />}
               />
               <Metric
                 label="Doanh thu Crypto"
                 value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="crypto"
                 note="USDT / NOWPayments"
+                icon={<Coins size={16} />}
               />
               <Metric
                 label="Doanh thu PayOS"
                 value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)}
                 tone="payos"
                 note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"}
+                icon={<ShieldCheck size={16} />}
               />
-            </div>
-            <div className="grid metrics-band">
-              <Metric label="Đã thanh toán" value={String(metrics.paid)} tone="payos" note="Đơn đã chốt doanh thu" />
-              <Metric label="Đang chờ" value={String(metrics.pending)} tone="usd" note="Cần theo dõi thanh toán" />
-              <Metric label="Đã huỷ" value={String(monthStats.cancelled)} tone="paypal" note="Không tính vào doanh thu" />
-              <Metric label="Hết hạn" value={String(monthStats.expired)} tone="crypto" note="Đã quá hạn xử lý" />
             </div>
             <div className="grid metrics-band">
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
@@ -5564,7 +5565,7 @@ export default function Home() {
   );
 }
 
-function Metric({ label, value, tone, note }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string }) {
+function Metric({ label, value, tone, note, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; icon?: ReactNode }) {
   const compactValue = (() => {
     const cleaned = value
       .replace(/^PAYOS:\s*/i, "")
@@ -5578,7 +5579,10 @@ function Metric({ label, value, tone, note }: { label: string; value: string; to
   })();
   return (
     <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}>
-      <div className="muted">{label}</div>
+      <div className="metric-head">
+        <div className="muted">{label}</div>
+        {icon ? <div className="metric-icon">{icon}</div> : null}
+      </div>
       <div className="metric">{compactValue}</div>
       {note ? <div className="metric-note">{note}</div> : null}
     </div>

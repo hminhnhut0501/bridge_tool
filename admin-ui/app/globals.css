@@ -149,6 +149,9 @@ select:disabled {
 .metric-card {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .metric-card::before {
@@ -183,7 +186,27 @@ select:disabled {
   color: var(--ink);
   font-size: 30px;
   font-weight: 800;
-  margin-top: 8px;
+  margin-top: 2px;
+}
+
+.metric-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metric-icon {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 999px;
+  color: inherit;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.06);
 }
 
 .panel-head strong,
@@ -1460,7 +1483,7 @@ td select {
 
 /* Grid variants */
 .grid.metrics-band {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 2px;
   border-radius: 22px;
   background:
