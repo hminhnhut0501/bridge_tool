@@ -99,7 +99,7 @@ export function Metric({ label, value, tone, note }: { label: string; value: str
         justifyContent: "space-between",
         bgcolor: bg,
         borderColor: `${accent}22`,
-        backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.72) 0%, ${bg} 40%, rgba(255,255,255,0.18) 100%)`,
+        backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.68) 0%, ${bg} 38%, rgba(255,255,255,0.16) 100%)`,
         boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04), inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 1px ${glow}`,
       }}
     >
@@ -153,7 +153,20 @@ export function AppToolbar({ children }: { children: ReactNode }) {
 
 export function AppSection({ title, subtitle, action, children, compact = false }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; compact?: boolean }) {
   return (
-    <Card variant="outlined">
+    <Card
+      variant="outlined"
+      sx={{
+        overflow: "hidden",
+        position: "relative",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          height: 4,
+          background: "linear-gradient(90deg, rgba(37,99,235,0.95), rgba(124,58,237,0.9), rgba(16,185,129,0.85))",
+        },
+      }}
+    >
       <PanelHead title={title} subtitle={subtitle} action={action} />
       <Box sx={{ p: compact ? 1.5 : 2 }}>{children}</Box>
     </Card>

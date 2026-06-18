@@ -19,6 +19,30 @@ const baseTheme = createTheme({
       dark: styleGuide.palette.secondary.dark,
       contrastText: "#ffffff",
     },
+    info: {
+      main: styleGuide.palette.accent.cyan,
+      light: "#67e8f9",
+      dark: "#0891b2",
+      contrastText: "#ffffff",
+    },
+    success: {
+      main: styleGuide.palette.accent.emerald,
+      light: "#34d399",
+      dark: "#059669",
+      contrastText: "#ffffff",
+    },
+    warning: {
+      main: styleGuide.palette.accent.amber,
+      light: "#fbbf24",
+      dark: "#d97706",
+      contrastText: "#ffffff",
+    },
+    error: {
+      main: styleGuide.palette.accent.rose,
+      light: "#fb7185",
+      dark: "#e11d48",
+      contrastText: "#ffffff",
+    },
     background: {
       default: styleGuide.palette.background.default,
       paper: styleGuide.palette.background.paper,
@@ -95,6 +119,12 @@ const baseTheme = createTheme({
           "&:hover": {
             borderColor: styleGuide.palette.primary.dark,
             backgroundColor: "rgba(25, 118, 210, 0.04)",
+          },
+        },
+        text: {
+          color: styleGuide.palette.primary.main,
+          "&:hover": {
+            backgroundColor: "rgba(37, 99, 235, 0.06)",
           },
         },
       },
@@ -241,6 +271,7 @@ const baseTheme = createTheme({
           borderRadius: styleGuide.shape.cardRadius,
           borderColor: styleGuide.palette.divider,
           boxShadow: styleGuide.shadows.card,
+          backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)",
         },
       },
     },

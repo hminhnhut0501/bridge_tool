@@ -4,26 +4,33 @@ export const styleGuide = {
     "Visual language for the admin UI: bright MUI-style surfaces, blue primary, purple secondary, soft shadows, and rounded cards/dialogs.",
   palette: {
     primary: {
-      main: "#1976d2",
-      light: "#42a5f5",
-      dark: "#1565c0",
+      main: "#2563eb",
+      light: "#60a5fa",
+      dark: "#1d4ed8",
       contrastText: "#ffffff",
     },
     secondary: {
       main: "#7c3aed",
-      light: "#a855f7",
-      dark: "#5b21b6",
+      light: "#c084fc",
+      dark: "#6d28d9",
       contrastText: "#ffffff",
     },
+    accent: {
+      cyan: "#06b6d4",
+      emerald: "#10b981",
+      amber: "#f59e0b",
+      rose: "#f43f5e",
+      indigo: "#4f46e5",
+    },
     background: {
-      default: "#f7f9fc",
+      default: "#f6f8fc",
       paper: "#ffffff",
     },
     text: {
       primary: "#1f2937",
       secondary: "#6b7280",
     },
-    divider: "#e5e7eb",
+    divider: "#e2e8f0",
   },
   shape: {
     cardRadius: 18,
@@ -32,9 +39,9 @@ export const styleGuide = {
     buttonRadius: 999,
   },
   shadows: {
-    card: "0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04)",
-    dialog: "0 20px 60px rgba(15, 23, 42, 0.16)",
-    focus: "0 0 0 4px rgba(25, 118, 210, 0.12)",
+    card: "0 1px 0 rgba(16, 24, 40, 0.03), 0 10px 24px rgba(16, 24, 40, 0.05)",
+    dialog: "0 20px 60px rgba(15, 23, 42, 0.14)",
+    focus: "0 0 0 4px rgba(37, 99, 235, 0.12)",
   },
   typography: {
     fontFamily: [
@@ -54,11 +61,13 @@ export const styleGuide = {
     "Use MUI components by default: Button, TextField, Select, Tabs, Card, Dialog, Chip, Table, IconButton, Box, Stack.",
     "Prefer theme overrides and sx over ad-hoc CSS. Add global CSS only for shell-level layout or true reset needs.",
     "Primary action uses contained Button, secondary action uses outlined Button, destructive action uses outlined color=error.",
+    "Prefer colorful accents only where they help scanning: metrics, badges, status chips, progress, and card headers.",
     "Dialog titles should be bold, compact, and include a close IconButton on the top-right.",
     "Keep cards white, borders subtle, and shadows soft. Reserve saturated color for selected states and badges only.",
-    "Use rounded pills for tabs and chips. Use a single blue primary and one purple accent, not multiple greens/blues.",
+    "Use rounded pills for tabs and chips. Use one blue primary, one purple accent, and a small set of secondary accent colors.",
     "Prefer semantic status colors from the theme and shared helpers rather than inline custom hex values.",
     "All dates/times should pass through shared format helpers, never raw ISO strings.",
+    "When a section needs identity, assign one accent tone to that section instead of repeating the same blue everywhere.",
   ],
 } as const;
 
