@@ -5516,7 +5516,7 @@ export default function Home() {
                           size="small"
                           value={selectedCustomerRenewDays}
                           onChange={(event) => setSelectedCustomerRenewDays(event.target.value)}
-                          inputProps={{ min: 1, step: 1 }}
+                          slotProps={{ htmlInput: { min: 1, step: 1 } }}
                           placeholder="30"
                           sx={{ ...customerPopupInputSx, minWidth: 110 }}
                         />
