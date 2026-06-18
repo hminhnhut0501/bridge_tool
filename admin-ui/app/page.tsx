@@ -3839,7 +3839,7 @@ export default function Home() {
 
         {tab === "overview" ? (
           <div className="stack">
-            <div className="grid">
+            <div className="grid metrics-band">
               <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} />
               <Metric label="Đơn đang chờ" value={String(metrics.pending)} />
               <Metric label="Khách gần đây" value={String(metrics.users)} />
@@ -3871,7 +3871,7 @@ export default function Home() {
                 note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"}
               />
             </div>
-            <div className="grid">
+            <div className="grid metrics-band">
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
               <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
               <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
