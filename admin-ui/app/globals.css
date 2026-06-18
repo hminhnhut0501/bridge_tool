@@ -136,10 +136,18 @@ select:disabled {
 .card,
 .login-panel,
 .panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 22px;
+  box-shadow:
+    0 16px 32px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.88), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 252, 0.94));
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
 }
 
 .card {
@@ -285,24 +293,24 @@ select:disabled {
 }
 
 .panel {
-  overflow: hidden;
-  position: relative;
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  background-image:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 252, 0.96) 100%);
 }
 
 .panel::before {
   content: "";
   inset: 0 auto auto 0;
-  height: 4px;
+  height: 5px;
   position: absolute;
   width: 100%;
-  background: linear-gradient(90deg, #2563eb, #06b6d4, #10b981);
+  background: linear-gradient(90deg, #2563eb, #06b6d4, #10b981, #a855f7);
 }
 
 .panel-head {
   align-items: center;
-  background: #fbfcfd;
-  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -320,6 +328,7 @@ select:disabled {
 .panel-head strong {
   display: block;
   font-size: 16px;
+  letter-spacing: -0.02em;
 }
 
 .stack {
