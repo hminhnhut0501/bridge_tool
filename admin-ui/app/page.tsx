@@ -202,6 +202,58 @@ const popupSelectSx = {
   backgroundColor: "#ffffff",
 } as const;
 
+const customerPopupTabSx = {
+  minHeight: 0,
+  "& .MuiTabs-flexContainer": { gap: 1 },
+  "& .MuiTab-root": {
+    alignItems: "center",
+    justifyContent: "flex-start",
+    minHeight: 42,
+    px: 1.5,
+    py: 1,
+    borderRadius: 999,
+    textTransform: "none",
+    fontWeight: 700,
+    letterSpacing: "-0.01em",
+    border: "1px solid",
+    borderColor: "divider",
+    bgcolor: "background.paper",
+    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+  },
+  "& .MuiTab-root:hover": {
+    bgcolor: "rgba(37, 99, 235, 0.05)",
+    borderColor: "rgba(37, 99, 235, 0.18)",
+  },
+  "& .Mui-selected": {
+    bgcolor: "primary.main",
+    color: "common.white",
+    borderColor: "primary.main",
+    boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
+  },
+  "& .MuiTabs-indicator": { display: "none" },
+} as const;
+
+const customerPopupInputSx = {
+  ...popupFieldSx,
+  "& .MuiOutlinedInput-root": {
+    ...popupFieldSx["& .MuiOutlinedInput-root"],
+    bgcolor: "#ffffff",
+    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)",
+  },
+  "& .MuiInputLabel-root": {
+    fontWeight: 700,
+  },
+} as const;
+
+const customerInnerCardSx = {
+  p: 1.5,
+  border: 1,
+  borderColor: "divider",
+  borderRadius: 2.5,
+  bgcolor: "background.paper",
+  boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)",
+} as const;
+
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
@@ -5356,36 +5408,7 @@ export default function Home() {
                     onChange={(_, next) => setCustomerDetailTab(next)}
                     textColor="inherit"
                     indicatorColor="primary"
-                    sx={{
-                      minHeight: 0,
-                      "& .MuiTabs-flexContainer": { gap: 1 },
-                      "& .MuiTab-root": {
-                        alignItems: "center",
-                        justifyContent: "flex-start",
-                        minHeight: 44,
-                        px: 1.5,
-                        py: 1.1,
-                        borderRadius: 999,
-                        textTransform: "none",
-                        fontWeight: 700,
-                        fontSize: "0.95rem",
-                        border: "1px solid",
-                        borderColor: "divider",
-                        bgcolor: "background.paper",
-                        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
-                      },
-                      "& .MuiTab-root:hover": {
-                        bgcolor: "rgba(37, 99, 235, 0.05)",
-                        borderColor: "rgba(37, 99, 235, 0.18)",
-                      },
-                      "& .Mui-selected": {
-                        bgcolor: "primary.main",
-                        color: "common.white",
-                        borderColor: "primary.main",
-                        boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
-                      },
-                      "& .MuiTabs-indicator": { display: "none" },
-                    }}
+                    sx={customerPopupTabSx}
                   >
                     <Tab value="orders" label="Đơn hàng" />
                     <Tab value="groups" label="Nhóm" />
@@ -5403,34 +5426,7 @@ export default function Home() {
                       scrollButtons="auto"
                       textColor="inherit"
                       indicatorColor="primary"
-                      sx={{
-                        minHeight: 0,
-                        mb: 2,
-                        "& .MuiTabs-flexContainer": { gap: 1 },
-                        "& .MuiTab-root": {
-                          minHeight: 42,
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: 999,
-                          textTransform: "none",
-                          fontWeight: 700,
-                          border: "1px solid",
-                          borderColor: "divider",
-                          bgcolor: "background.paper",
-                          boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
-                        },
-                        "& .MuiTab-root:hover": {
-                          bgcolor: "rgba(37, 99, 235, 0.05)",
-                          borderColor: "rgba(37, 99, 235, 0.18)",
-                        },
-                        "& .Mui-selected": {
-                          bgcolor: "primary.main",
-                          color: "common.white",
-                          borderColor: "primary.main",
-                          boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
-                        },
-                        "& .MuiTabs-indicator": { display: "none" },
-                      }}
+                      sx={{ ...customerPopupTabSx, mb: 2 }}
                     >
                       <Tab value="all" label={`Tất cả (${selectedCustomerOrders.length})`} />
                       <Tab value="active" label={`Active (${selectedCustomerOrders.filter((item) => isOrderActive(item)).length})`} />
@@ -5499,17 +5495,7 @@ export default function Home() {
                       scrollButtons="auto"
                       textColor="inherit"
                       indicatorColor="primary"
-                      sx={{
-                        mb: 2,
-                        "& .MuiTab-root": {
-                          minHeight: 42,
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: 999,
-                          textTransform: "none",
-                          fontWeight: 700,
-                        },
-                      }}
+                      sx={{ ...customerPopupTabSx, mb: 2 }}
                     >
                       <Tab value="all" label="Tất cả" />
                       <Tab value="joinLeft" label="Join/Left" />
@@ -5782,7 +5768,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                  <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth />
+                  <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} />
                   <Button variant="contained" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
@@ -5809,10 +5795,10 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 </Box>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                  <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth slotProps={{ inputLabel: { shrink: true } }} />
+                  <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} slotProps={{ inputLabel: { shrink: true } }} />
                   <Button variant="contained" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
