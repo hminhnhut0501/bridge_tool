@@ -102,6 +102,16 @@ const baseTheme = createTheme({
         },
       },
     },
+    MuiTabs: {
+      styleOverrides: {
+        root: {
+          minHeight: 46,
+        },
+        indicator: {
+          display: "none",
+        },
+      },
+    },
     MuiChip: {
       styleOverrides: {
         root: {
@@ -117,8 +127,103 @@ const baseTheme = createTheme({
     MuiTab: {
       styleOverrides: {
         root: {
+          alignItems: "center",
+          border: "1px solid #d9e0e8",
+          borderRadius: 999,
+          color: "#172033",
+          minHeight: 42,
+          padding: "10px 14px",
           fontWeight: 700,
           letterSpacing: "-0.01em",
+          textTransform: "none",
+          transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease",
+          "&:hover": {
+            backgroundColor: "rgba(13, 107, 93, 0.06)",
+            borderColor: "#a9e4d8",
+          },
+          "&.Mui-selected": {
+            backgroundColor: "#0d6b5d",
+            borderColor: "#0d6b5d",
+            color: "#ffffff",
+            boxShadow: "0 8px 20px rgba(13, 107, 93, 0.16)",
+          },
+          "&.Mui-selected:hover": {
+            backgroundColor: "#084f45",
+            borderColor: "#084f45",
+          },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 14,
+          backgroundColor: "#ffffff",
+          transition: "box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease",
+          "& .MuiOutlinedInput-notchedOutline": {
+            borderColor: "#d9e0e8",
+          },
+          "&:hover .MuiOutlinedInput-notchedOutline": {
+            borderColor: "#aac6c0",
+          },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            borderColor: "#0d6b5d",
+            borderWidth: 1.5,
+          },
+          "&.Mui-focused": {
+            boxShadow: "0 0 0 4px rgba(13, 107, 93, 0.12)",
+          },
+        },
+        input: {
+          paddingTop: 13,
+          paddingBottom: 13,
+          fontWeight: 500,
+          letterSpacing: "-0.01em",
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: {
+          borderRadius: 14,
+        },
+        icon: {
+          color: "#667085",
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 16,
+          border: "1px solid #d9e0e8",
+          boxShadow: "0 18px 50px rgba(15, 23, 42, 0.14)",
+          marginTop: 8,
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          minHeight: 42,
+          borderRadius: 10,
+          margin: "4px 8px",
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
+          "&.Mui-selected": {
+            backgroundColor: "rgba(13, 107, 93, 0.12)",
+          },
+          "&.Mui-selected:hover": {
+            backgroundColor: "rgba(13, 107, 93, 0.18)",
+          },
         },
       },
     },

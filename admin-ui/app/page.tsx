@@ -5328,7 +5328,7 @@ export default function Home() {
                     value={customerDetailTab}
                     onChange={(_, next) => setCustomerDetailTab(next)}
                     textColor="inherit"
-                    indicatorColor="secondary"
+                    indicatorColor="primary"
                     sx={{
                       minHeight: 0,
                       "& .MuiTabs-flexContainer": { gap: 1 },
@@ -5347,9 +5347,9 @@ export default function Home() {
                         bgcolor: "background.paper",
                       },
                       "& .Mui-selected": {
-                        bgcolor: "success.main",
+                        bgcolor: "primary.main",
                         color: "common.white",
-                        borderColor: "success.main",
+                        borderColor: "primary.main",
                       },
                       "& .MuiTabs-indicator": { display: "none" },
                     }}
@@ -5369,7 +5369,7 @@ export default function Home() {
                       variant="scrollable"
                       scrollButtons="auto"
                       textColor="inherit"
-                      indicatorColor="secondary"
+                      indicatorColor="primary"
                       sx={{
                         minHeight: 0,
                         mb: 2,
@@ -5386,9 +5386,9 @@ export default function Home() {
                           bgcolor: "background.paper",
                         },
                         "& .Mui-selected": {
-                          bgcolor: "success.main",
+                          bgcolor: "primary.main",
                           color: "common.white",
-                          borderColor: "success.main",
+                          borderColor: "primary.main",
                         },
                         "& .MuiTabs-indicator": { display: "none" },
                       }}

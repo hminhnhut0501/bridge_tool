@@ -295,14 +295,15 @@ select:disabled {
 .field textarea,
 .toolbar input,
 .toolbar select {
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 7px;
+  background: #fbfcfd;
+  border: 1px solid #d9e0e8;
+  border-radius: 14px;
   color: var(--text);
-  min-height: 40px;
+  min-height: 44px;
   outline: none;
-  padding: 9px 11px;
+  padding: 11px 13px;
   width: 100%;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
 .field textarea {
@@ -316,7 +317,8 @@ select:disabled {
 .toolbar input:focus,
 .toolbar select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(13, 107, 93, 0.12);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(13, 107, 93, 0.12);
 }
 
 .btn {
@@ -384,19 +386,20 @@ select:disabled {
 
 .subtabs {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   padding: 14px 16px;
 }
 
 .subtabs button {
-  background: #eef2f6;
-  border: 1px solid var(--line);
-  border-radius: 7px;
+  background: #f8fafc;
+  border: 1px solid #d9e0e8;
+  border-radius: 999px;
   color: var(--text);
   font-weight: 800;
-  min-height: 40px;
-  padding: 9px 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .subtabs button.active,
@@ -404,6 +407,7 @@ select:disabled {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+  box-shadow: 0 8px 20px rgba(13, 107, 93, 0.16);
 }
 
 .toolbar {
@@ -1027,14 +1031,14 @@ td select {
 
 .customer-sidebar-tabs button {
   align-items: center;
-  background: #eef2f6;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #d9e0e8;
+  border-radius: 999px;
   color: var(--ink);
   display: flex;
   justify-content: flex-start;
-  min-height: 42px;
-  padding: 10px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
 }
 
 .customer-sidebar-tabs button.active {
@@ -1084,7 +1088,7 @@ td select {
 }
 
 .customer-order-tabs button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 10px 14px;
 }
 
@@ -1711,7 +1715,7 @@ td select {
 }
 
 .subtabs.customer-order-tabs button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 10px 14px;
 }
 
