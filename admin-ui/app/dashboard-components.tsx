@@ -290,6 +290,115 @@ export function TrendChart({
   );
 }
 
+export function BreakdownChart({
+  title,
+  subtitle,
+  accent = "blue",
+  items,
+}: {
+  title: string;
+  subtitle?: string;
+  accent?: SectionTone;
+  items: { label: string; value: number; note?: string }[];
+}) {
+  const tone = sectionAccentTone(accent);
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+  return (
+    <Card variant="outlined" sx={{ overflow: "hidden", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+      <PanelHead title={title} subtitle={subtitle} accent={accent} />
+      <Box sx={{ p: 2, display: "grid", gap: 1.25 }}>
+        {items.map((item, index) => {
+          const percent = Math.max(4, Math.round((item.value / maxValue) * 100));
+          const palettes = [tone.main, styleGuide.palette.secondary.main, styleGuide.palette.accent.emerald, styleGuide.palette.accent.amber];
+          const barColor = palettes[index % palettes.length];
+          return (
+            <Box key={item.label} sx={{ display: "grid", gap: 0.75 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 1 }}>
+                <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{item.label}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{item.value}</Typography>
+              </Box>
+              <Box sx={{ height: 12, borderRadius: 999, bgcolor: "rgba(148,163,184,0.16)", overflow: "hidden" }}>
+                <Box sx={{ width: `${percent}%`, height: "100%", borderRadius: 999, bgcolor: barColor, backgroundImage: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.22))`, boxShadow: `0 8px 20px ${barColor}28` }} />
+              </Box>
+              {item.note ? <Typography variant="caption" color="text.secondary">{item.note}</Typography> : null}
+            </Box>
+          );
+        })}
+      </Box>
+    </Card>
+  );
+}
+
+export function DonutChart({
+  title,
+  subtitle,
+  accent = "blue",
+  segments,
+  centerLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  accent?: SectionTone;
+  segments: { label: string; value: number; color?: string }[];
+  centerLabel: string;
+}) {
+  const tone = sectionAccentTone(accent);
+  const colors = [tone.main, styleGuide.palette.secondary.main, styleGuide.palette.accent.emerald, styleGuide.palette.accent.amber, styleGuide.palette.accent.rose, styleGuide.palette.accent.cyan];
+  const total = Math.max(1, segments.reduce((sum, item) => sum + item.value, 0));
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  return (
+    <Card variant="outlined" sx={{ overflow: "hidden", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+      <PanelHead title={title} subtitle={subtitle} accent={accent} />
+      <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: 2, alignItems: "center" }}>
+          <Box sx={{ position: "relative", width: 180, height: 180, display: "grid", placeItems: "center" }}>
+            <Box component="svg" viewBox="0 0 120 120" sx={{ width: 180, height: 180, transform: "rotate(-90deg)" }}>
+              <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="16" />
+              {segments.map((segment, index) => {
+                const fraction = segment.value / total;
+                const dash = fraction * circumference;
+                const stroke = segment.color || colors[index % colors.length];
+                const circle = (
+                  <circle
+                    key={segment.label}
+                    cx="60"
+                    cy="60"
+                    r={radius}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth="16"
+                    strokeDasharray={`${dash} ${circumference - dash}`}
+                    strokeDashoffset={-offset}
+                    strokeLinecap="round"
+                  />
+                );
+                offset += dash;
+                return circle;
+              })}
+            </Box>
+            <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center", px: 2 }}>
+              <Typography sx={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.03em" }}>{centerLabel}</Typography>
+            </Box>
+          </Box>
+          <Stack spacing={1}>
+            {segments.map((segment, index) => (
+              <Box key={segment.label} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: segment.color || colors[index % colors.length] }} />
+                  <Typography sx={{ fontWeight: 700 }}>{segment.label}</Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{segment.value}</Typography>
+              </Box>
+            ))}
+          </Stack>
+        </Box>
+      </Box>
+    </Card>
+  );
+}
+
 export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
     <Card variant="outlined">

@@ -3,7 +3,7 @@
 
 import { Button, MenuItem, Stack, TextField } from "@mui/material";
 import { Download, Plus } from "lucide-react";
-import { AppSection, AppToolbar, Metric, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
+import { AppSection, AppToolbar, BreakdownChart, DonutChart, Metric, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 
 export function AnalyticsSection(props: any) {
   const { orders, yearStats, monthStats, paidRevenueByCurrency, paidRevenueByProvider, formatRevenueCurrency, providerRevenueFormat, isWithinPeriod } = props;
@@ -11,6 +11,24 @@ export function AnalyticsSection(props: any) {
   const yearGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "year")), "month");
   const monthPeak = Math.max(1, ...monthGroups.map((item: any) => item.stats.revenue));
   const yearPeak = Math.max(1, ...yearGroups.map((item: any) => item.stats.revenue));
+  const monthRevenue = monthGroups.map((item: any) => ({ label: item.label, value: Number(item.stats.revenue || 0) }));
+  const paymentStatusBreakdown = [
+    { label: "PAID", value: monthStats.paid },
+    { label: "PENDING", value: monthStats.pending },
+    { label: "CANCELLED", value: monthStats.cancelled },
+    { label: "EXPIRED", value: monthStats.expired },
+  ];
+  const currencyBreakdown = [
+    { label: "VND", value: (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
+    { label: "USD", value: (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
+    { label: "CRYPTO", value: (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
+  ].filter((item) => item.value > 0);
+  const providerBreakdown = [
+    { label: "PayOS", value: paidRevenueByProvider.PAYOS || 0 },
+    { label: "PayPal", value: paidRevenueByProvider.PAYPAL || 0 },
+    { label: "NOWPayments", value: paidRevenueByProvider.NOWPAYMENTS || 0 },
+    { label: "USDT TRC20", value: paidRevenueByProvider.TRON_USDT || 0 },
+  ].filter((item) => item.value > 0);
   const trendRows = (groups: any[], peak: number) => groups.map((item, idx) => {
     const revenue = Number(item.stats.revenue || 0);
     const prevRevenue = Number(groups[idx - 1]?.stats?.revenue || 0);
@@ -53,6 +71,12 @@ export function AnalyticsSection(props: any) {
         <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} accent="indigo" />
       </div>
       <div className="grid metrics-band">
+        <Metric label="PAID" value={String(monthStats.paid)} accent="emerald" />
+        <Metric label="PENDING" value={String(monthStats.pending)} accent="amber" />
+        <Metric label="CANCELLED" value={String(monthStats.cancelled)} accent="rose" />
+        <Metric label="EXPIRED" value={String(monthStats.expired)} accent="blue" />
+      </div>
+      <div className="grid metrics-band">
         <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="vnd" accent="blue" />
         <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="usd" accent="cyan" />
         <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="crypto" accent="emerald" />
@@ -65,6 +89,35 @@ export function AnalyticsSection(props: any) {
         <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} accent="cyan" />
         <Metric label="Coupon giảm tháng" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} accent="rose" />
       </div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <BreakdownChart
+          title="Doanh thu theo ngày"
+          subtitle="Xem mốc ngày nào đang tăng giảm để bám đà bán."
+          accent="blue"
+          items={monthRevenue.slice().reverse()}
+        />
+        <DonutChart
+          title="Cơ cấu trạng thái tháng"
+          subtitle="Tỉ trọng đơn để đọc nhanh trạng thái vận hành."
+          accent="emerald"
+          segments={paymentStatusBreakdown}
+          centerLabel={`${monthStats.conversion}%`}
+        />
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <BreakdownChart
+          title="Doanh thu theo currency"
+          subtitle="Biết ngay dòng tiền chính tháng này nằm ở đâu."
+          accent="cyan"
+          items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]}
+        />
+        <BreakdownChart
+          title="Doanh thu theo phương thức"
+          subtitle="PayOS, PayPal, NOWPayments và USDT TRC20."
+          accent="violet"
+          items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]}
+        />
+      </div>
       <TrendTable title="Theo dõi tăng trưởng theo ngày" subtitle="Doanh thu, số đơn, khách trả tiền và tỉ lệ thanh toán trong tháng." rows={trendRows(monthGroups, monthPeak)} />
       <TrendTable title="Theo dõi tăng trưởng theo tháng" subtitle="Biểu đồ phát triển doanh thu trong năm hiện tại." rows={trendRows(yearGroups, yearPeak)} />
     </Stack>
@@ -72,15 +125,9 @@ export function AnalyticsSection(props: any) {
 }
 
 export function OrdersSection(props: any) {
-  const { filteredOrders, filteredOrderStats, exportOrdersCsv, query, setQuery, orderStatus, setOrderStatus, orderPeriod, setOrderPeriod, orderGroupMode, setOrderGroupMode, groupedFilteredOrders, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, SummaryTable } = props;
+  const { filteredOrders, exportOrdersCsv, query, setQuery, orderStatus, setOrderStatus, orderPeriod, setOrderPeriod, orderGroupMode, setOrderGroupMode, groupedFilteredOrders, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, SummaryTable } = props;
   return (
     <Stack spacing={2}>
-      <div className="grid metrics-band">
-        <Metric label="Doanh thu bộ lọc" value={props.ordersMoney(filteredOrders.filter((item: any) => item.status === "PAID"))} accent="blue" />
-        <Metric label="Đơn PAID" value={String(filteredOrderStats.paid)} accent="amber" />
-        <Metric label="Đang chờ" value={String(filteredOrderStats.pending)} accent="rose" />
-        <Metric label="Tỉ lệ thanh toán" value={`${filteredOrderStats.conversion}%`} accent="cyan" />
-      </div>
       <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact accent="amber">
         <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
       </AppSection>
