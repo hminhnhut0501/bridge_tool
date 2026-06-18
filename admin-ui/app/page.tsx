@@ -51,6 +51,7 @@ import {
   dateMinusDaysText,
   dateText,
   dateTextShort,
+  dateTimePreviewText,
   dateTimeInputValue,
   daysUntil,
   isoDayKey,
@@ -5124,7 +5125,7 @@ export default function Home() {
                 <div className="channel-preview">
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
-                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {channelPostForm.scheduled_at || "gửi ngay"} • Xóa: {channelPostForm.delete_at || "không tự xóa"} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
+                  <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {dateTimePreviewText(channelPostForm.scheduled_at, "gửi ngay")} • Xóa: {dateTimePreviewText(channelPostForm.delete_at, "không tự xóa")} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
                   <div className="row-chips" style={{ marginTop: 10 }}>
                     {channelPostForm.repeat_daily ? <span className="badge green">Bật lặp ngày</span> : <span className="badge muted">Không lặp</span>}
                     {channelPostForm.delete_at ? <span className="badge blue">Có giờ xóa</span> : <span className="badge muted">Không tự xóa</span>}
@@ -5232,6 +5233,7 @@ export default function Home() {
                 <label className="field">
                   <span>Ngày hết hạn cụ thể</span>
                   <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
+                  <small>Xem trước: {dateTimePreviewText(manualOrderForm.expire_at, "Dùng thời lượng ở trên nếu để trống")}</small>
                 </label>
                 <label className="field wide">
                   <span>Coupon / ghi chú mã</span>

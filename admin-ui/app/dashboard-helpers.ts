@@ -112,6 +112,11 @@ export function dateTextShort(value: string | null | undefined) {
   return dateText(value);
 }
 
+export function dateTimePreviewText(value: string | null | undefined, fallback = "-") {
+  if (!value) return fallback;
+  return dateText(value.includes("T") ? `${value}:00` : value);
+}
+
 export function dateTimeInputValue(value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
