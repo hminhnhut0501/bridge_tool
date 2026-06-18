@@ -5616,10 +5616,10 @@ function Metric({ label, value, tone, note, icon }: { label: string; value: stri
     <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}>
       <div className="metric-head">
         <div className="metric-title-wrap">
-          {icon ? <div className="metric-icon">{icon}</div> : null}
+          <div className="metric-icon">{icon ?? <span className="metric-icon-dot" />}</div>
           <div className="metric-title">{label}</div>
         </div>
-        <div className="metric-accent" />
+        <div className="metric-badge">{tone ? tone.toUpperCase() : "LIVE"}</div>
       </div>
       <div className="metric">{compactValue}</div>
       {note ? <div className="metric-note">{note}</div> : null}
