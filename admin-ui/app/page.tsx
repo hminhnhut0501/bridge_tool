@@ -3746,29 +3746,54 @@ export default function Home() {
           <span className={webhook?.url ? "dot ok" : "dot bad"} />
           {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
         </div>
-        <nav className="nav">
-          <button className={tab === "overview" ? "active" : ""} onClick={() => selectTab("overview")}><Activity size={18} /> {ui("Tổng quan", "Overview")}</button>
-          <button className={tab === "analytics" ? "active" : ""} onClick={() => selectTab("analytics")}><BarChart3 size={18} /> {ui("Thống kê", "Analytics")}</button>
-          <button className={tab === "setup" ? "active" : ""} onClick={() => selectTab("setup")}><ShieldCheck size={18} /> {ui("Nhóm & giá", "Groups & pricing")}</button>
-          <button className={tab === "orders" ? "active" : ""} onClick={() => selectTab("orders")}><ShoppingCart size={18} /> {ui("Đơn hàng", "Orders")}</button>
-          <button className={tab === "customers" ? "active" : ""} onClick={() => selectTab("customers")}><Users size={18} /> {ui("Khách hàng", "Customers")}</button>
-          <button className={tab === "activityLog" ? "active" : ""} onClick={() => selectTab("activityLog")}><ClipboardList size={18} /> {ui("Nhật ký", "Activity log")}</button>
-          <button className={tab === "campaigns" ? "active" : ""} onClick={() => selectTab("campaigns")}><Megaphone size={18} /> Campaign</button>
-          <button className={tab === "channelPosts" ? "active" : ""} onClick={() => selectTab("channelPosts")}><Send size={18} /> Đăng channel</button>
-          <button className={tab === "renewals" ? "active" : ""} onClick={() => selectTab("renewals")}><RefreshCw size={18} /> {ui("Gia hạn", "Renewals")}</button>
-          <button className={tab === "supportGroup" ? "active" : ""} onClick={() => selectTab("supportGroup")}><ShieldCheck size={18} /> {ui("Group hỗ trợ", "Support group")}</button>
-          <button className={tab === "content" ? "active" : ""} onClick={() => selectTab("content")}><Settings size={18} /> Cấu hình bot</button>
-          <button className={tab === "botVi" ? "active" : ""} onClick={() => selectTab("botVi")}><FileText size={18} /> UI Bot tiếng Việt</button>
-          <button className={tab === "botEn" ? "active" : ""} onClick={() => selectTab("botEn")}><FileText size={18} /> UI Bot tiếng Anh</button>
-          <button className={tab === "botTools" ? "active" : ""} onClick={() => selectTab("botTools")}><ClipboardList size={18} /> Lệnh & cảnh báo</button>
-          <button className={tab === "hiddenMessages" ? "active" : ""} onClick={() => selectTab("hiddenMessages")}><Ticket size={18} /> Hidden text</button>
-          <button className={tab === "menuBuilder" ? "active" : ""} onClick={() => selectTab("menuBuilder")}><FileText size={18} /> Menu Builder</button>
-          <button className={tab === "coupons" ? "active" : ""} onClick={() => selectTab("coupons")}><Ticket size={18} /> Coupon</button>
-          <button className={tab === "activationCodes" ? "active" : ""} onClick={() => selectTab("activationCodes")}><Ticket size={18} /> Activation code</button>
-          <button className={tab === "security" ? "active" : ""} onClick={() => selectTab("security")}><ShieldCheck size={18} /> {ui("Bảo mật", "Security")}</button>
-          <button className={tab === "sales" ? "active" : ""} onClick={() => selectTab("sales")}><BadgePercent size={18} /> Sale</button>
-          <button className={tab === "system" ? "active" : ""} onClick={() => selectTab("system")}><Settings size={18} /> {ui("Hệ thống", "System")}</button>
-        </nav>
+        <Tabs
+          orientation="vertical"
+          value={tab}
+          onChange={(_, next) => selectTab(next)}
+          variant="scrollable"
+          scrollButtons={false}
+          textColor="inherit"
+          sx={{
+            mt: 1.5,
+            minHeight: 0,
+            "& .MuiTabs-flexContainer": { gap: 0.75 },
+            "& .MuiTab-root": {
+              justifyContent: "flex-start",
+              minHeight: 42,
+              px: 1.5,
+              py: 1,
+              borderRadius: 2,
+              border: 0,
+              textTransform: "none",
+              fontWeight: 600,
+              color: "#d0d5dd",
+            },
+            "& .Mui-selected": { bgcolor: "#263244", color: "#fff" },
+            "& .MuiTabs-indicator": { display: "none" },
+          }}
+        >
+          <Tab value="overview" icon={<Activity size={18} />} iconPosition="start" label={ui("Tổng quan", "Overview")} />
+          <Tab value="analytics" icon={<BarChart3 size={18} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
+          <Tab value="setup" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
+          <Tab value="orders" icon={<ShoppingCart size={18} />} iconPosition="start" label={ui("Đơn hàng", "Orders")} />
+          <Tab value="customers" icon={<Users size={18} />} iconPosition="start" label={ui("Khách hàng", "Customers")} />
+          <Tab value="activityLog" icon={<ClipboardList size={18} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
+          <Tab value="campaigns" icon={<Megaphone size={18} />} iconPosition="start" label="Campaign" />
+          <Tab value="channelPosts" icon={<Send size={18} />} iconPosition="start" label="Đăng channel" />
+          <Tab value="renewals" icon={<RefreshCw size={18} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
+          <Tab value="supportGroup" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Group hỗ trợ", "Support group")} />
+          <Tab value="content" icon={<Settings size={18} />} iconPosition="start" label="Cấu hình bot" />
+          <Tab value="botVi" icon={<FileText size={18} />} iconPosition="start" label="UI Bot tiếng Việt" />
+          <Tab value="botEn" icon={<FileText size={18} />} iconPosition="start" label="UI Bot tiếng Anh" />
+          <Tab value="botTools" icon={<ClipboardList size={18} />} iconPosition="start" label="Lệnh & cảnh báo" />
+          <Tab value="hiddenMessages" icon={<Ticket size={18} />} iconPosition="start" label="Hidden text" />
+          <Tab value="menuBuilder" icon={<FileText size={18} />} iconPosition="start" label="Menu Builder" />
+          <Tab value="coupons" icon={<Ticket size={18} />} iconPosition="start" label="Coupon" />
+          <Tab value="activationCodes" icon={<Ticket size={18} />} iconPosition="start" label="Activation code" />
+          <Tab value="security" icon={<ShieldCheck size={18} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
+          <Tab value="sales" icon={<BadgePercent size={18} />} iconPosition="start" label="Sale" />
+          <Tab value="system" icon={<Settings size={18} />} iconPosition="start" label={ui("Hệ thống", "System")} />
+        </Tabs>
         </aside>
       </Drawer>
 
@@ -3911,11 +3936,11 @@ export default function Home() {
                 <Metric label="Hidden code" value={String(hiddenCodes.length)} />
                 <Metric label="Lượt mở catalog" value={String(hiddenRedemptions.length)} />
               </div>
-              <div className="subtabs hidden-subtabs">
-                <button className={hiddenSetupView === "groups" ? "active" : ""} onClick={() => setHiddenSetupView("groups")}>Nhóm ẩn</button>
-                <button className={hiddenSetupView === "codes" ? "active" : ""} onClick={() => setHiddenSetupView("codes")}>Mã reveal</button>
-                <button className={hiddenSetupView === "activity" ? "active" : ""} onClick={() => setHiddenSetupView("activity")}>Lịch sử mở mã</button>
-              </div>
+              <Tabs value={hiddenSetupView} onChange={(_, next) => setHiddenSetupView(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="groups" label="Nhóm ẩn" />
+                <Tab value="codes" label="Mã reveal" />
+                <Tab value="activity" label="Lịch sử mở mã" />
+              </Tabs>
               {hiddenSetupView === "groups" ? (
                 <>
                   <div className="hint compact">
@@ -4162,16 +4187,16 @@ export default function Home() {
                   </div>
                 }
               />
-              <div className="subtabs">
-                <button className={renewalTab === "soon" ? "active" : ""} onClick={() => { setRenewalTab("soon"); setRenewalPage(1); }}>Sắp hết hạn ({expiringSoon.length})</button>
-                <button className={renewalTab === "today" ? "active" : ""} onClick={() => { setRenewalTab("today"); setRenewalPage(1); }}>Hết hạn hôm nay ({expiringToday.length})</button>
-                <button className={renewalTab === "reminded" ? "active" : ""} onClick={() => { setRenewalTab("reminded"); setRenewalPage(1); }}>Đã nhắc ({renewalReminderEvents.length})</button>
-                <button className={renewalTab === "expiredNotice" ? "active" : ""} onClick={() => { setRenewalTab("expiredNotice"); setRenewalPage(1); }}>Báo hết hạn ({expiredNoticeEvents.length})</button>
-                <button className={renewalTab === "kicked" ? "active" : ""} onClick={() => { setRenewalTab("kicked"); setRenewalPage(1); }}>Đã kick ({uniqueKickedEvents.length})</button>
-                <button className={renewalTab === "audit" ? "active" : ""} onClick={() => { setRenewalTab("audit"); setRenewalPage(1); }}>Cần kiểm tra kick ({kickAudit.filter((item) => item.needs_action).length}/{kickAudit.length})</button>
-                <button className={renewalTab === "retained" ? "active" : ""} onClick={() => { setRenewalTab("retained"); setRenewalPage(1); }}>Còn active khác không kick ({kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").length})</button>
-                <button className={renewalTab === "vipOut" ? "active" : ""} onClick={() => { setRenewalTab("vipOut"); setRenewalPage(1); }}>VIP out ({vipGroupAudit.filter((item) => item.status !== "ACTIVE_RETAINED").length})</button>
-              </div>
+              <Tabs value={renewalTab} onChange={(_, next) => { setRenewalTab(next); setRenewalPage(1); }} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
+                <Tab value="today" label={`Hết hạn hôm nay (${expiringToday.length})`} />
+                <Tab value="reminded" label={`Đã nhắc (${renewalReminderEvents.length})`} />
+                <Tab value="expiredNotice" label={`Báo hết hạn (${expiredNoticeEvents.length})`} />
+                <Tab value="kicked" label={`Đã kick (${uniqueKickedEvents.length})`} />
+                <Tab value="audit" label={`Cần kiểm tra kick (${kickAudit.filter((item) => item.needs_action).length}/${kickAudit.length})`} />
+                <Tab value="retained" label={`Còn active khác không kick (${kickAudit.filter((item) => item.status === "ACTIVE_RETAINED").length})`} />
+                <Tab value="vipOut" label={`VIP out (${vipGroupAudit.filter((item) => item.status !== "ACTIVE_RETAINED").length})`} />
+              </Tabs>
               <SimpleTable headers={renewalHeaders[renewalTab]} rows={pagedRenewalRows} />
               <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalRows.length} onPage={setRenewalPage} label="dòng" />
             </section>
@@ -4217,13 +4242,13 @@ export default function Home() {
                 title="Sự kiện support"
                 subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu support group và không lẫn thông tin VIP."
               />
-              <div className="subtabs">
-                <button className={supportTab === "all" ? "active" : ""} onClick={() => setSupportTab("all")}>Tất cả ({supportGroupEvents.length})</button>
-                <button className={supportTab === "joined" ? "active" : ""} onClick={() => setSupportTab("joined")}>Join ({supportGroupEvents.filter((item) => item.event_type === "support_joined").length})</button>
-                <button className={supportTab === "left" ? "active" : ""} onClick={() => setSupportTab("left")}>Left ({supportGroupEvents.filter((item) => item.event_type === "support_left").length})</button>
-                <button className={supportTab === "muted" ? "active" : ""} onClick={() => setSupportTab("muted")}>Đã mute ({supportGroupEvents.filter((item) => item.event_type === "member_muted").length})</button>
-                <button className={supportTab === "kicked" ? "active" : ""} onClick={() => setSupportTab("kicked")}>Đã kick ({supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})</button>
-              </div>
+              <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
+                <Tab value="joined" label={`Join (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
+                <Tab value="left" label={`Left (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
+                <Tab value="muted" label={`Đã mute (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
+                <Tab value="kicked" label={`Đã kick (${supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})`} />
+              </Tabs>
               <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
               <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
             </section>
@@ -4234,12 +4259,12 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="Cấu hình vận hành Bot" subtitle="Chỉ chứa thiết lập hệ thống. Nội dung khách nhìn thấy, lệnh, cảnh báo và Menu Builder đã được tách thành menu riêng." />
-              <div className="subtabs">
-                <button className={contentTab === "bot" ? "active" : ""} onClick={() => setContentTab("bot")}>Cài đặt bot</button>
-                <button className={contentTab === "payment" ? "active" : ""} onClick={() => setContentTab("payment")}>Thanh toán</button>
-                <button className={contentTab === "currency" ? "active" : ""} onClick={() => setContentTab("currency")}>Tiền tệ</button>
-                <button className={contentTab === "admin" ? "active" : ""} onClick={() => setContentTab("admin")}>Admin ID</button>
-              </div>
+              <Tabs value={contentTab} onChange={(_, next) => setContentTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="bot" label="Cài đặt bot" />
+                <Tab value="payment" label="Thanh toán" />
+                <Tab value="currency" label="Tiền tệ" />
+                <Tab value="admin" label="Admin ID" />
+              </Tabs>
             </section>
             {contentTab === "bot" ? (
               <>
@@ -4315,13 +4340,13 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="UI Bot tiếng Việt" subtitle="Chỉ quản lý tên gói và nội dung khách Việt nhìn thấy. Giá được quản lý tập trung tại Nhóm & giá." />
-              <div className="subtabs">
-                <button className={botViTab === "plans" ? "active" : ""} onClick={() => setBotViTab("plans")}>Tên gói & nút mua</button>
-                <button className={botViTab === "groups" ? "active" : ""} onClick={() => setBotViTab("groups")}>Mô tả group</button>
-                <button className={botViTab === "buttons" ? "active" : ""} onClick={() => setBotViTab("buttons")}>Nút bấm</button>
-                <button className={botViTab === "messages" ? "active" : ""} onClick={() => setBotViTab("messages")}>Tin nhắn</button>
-                <button className={botViTab === "saleContent" ? "active" : ""} onClick={() => setBotViTab("saleContent")}>Flash sale</button>
-              </div>
+              <Tabs value={botViTab} onChange={(_, next) => setBotViTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="plans" label="Tên gói & nút mua" />
+                <Tab value="groups" label="Mô tả group" />
+                <Tab value="buttons" label="Nút bấm" />
+                <Tab value="messages" label="Tin nhắn" />
+                <Tab value="saleContent" label="Flash sale" />
+              </Tabs>
             </section>
             {botViTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Việt" subtitle="Không chứa giá. Giá bán được quản lý tập trung tại Nhóm & giá." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Việt" subtitle="Chỉ chỉnh nội dung mô tả. Tên group và giá nằm tại Nhóm & giá." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -4335,9 +4360,9 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="Hidden text" subtitle="Toàn bộ text hiển thị khi nhập hidden code hoặc gặp lỗi hidden được gom ở đây." />
-              <div className="subtabs">
-                <button className="active">Messages</button>
-              </div>
+              <Tabs value="messages" onChange={() => undefined} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="messages" label="Messages" />
+              </Tabs>
             </section>
             <ConfigEditor
               title="Hidden messages"
@@ -4354,13 +4379,13 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="UI Bot tiếng Anh" subtitle="Chỉ quản lý tên gói và nội dung tiếng Anh. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." />
-              <div className="subtabs">
-                <button className={botEnTab === "plans" ? "active" : ""} onClick={() => setBotEnTab("plans")}>Tên gói & nút mua</button>
-                <button className={botEnTab === "groups" ? "active" : ""} onClick={() => setBotEnTab("groups")}>Mô tả group</button>
-                <button className={botEnTab === "buttons" ? "active" : ""} onClick={() => setBotEnTab("buttons")}>Nút bấm</button>
-                <button className={botEnTab === "messages" ? "active" : ""} onClick={() => setBotEnTab("messages")}>Tin nhắn</button>
-                <button className={botEnTab === "saleContent" ? "active" : ""} onClick={() => setBotEnTab("saleContent")}>Flash sale</button>
-              </div>
+              <Tabs value={botEnTab} onChange={(_, next) => setBotEnTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="plans" label="Tên gói & nút mua" />
+                <Tab value="groups" label="Mô tả group" />
+                <Tab value="buttons" label="Nút bấm" />
+                <Tab value="messages" label="Tin nhắn" />
+                <Tab value="saleContent" label="Flash sale" />
+              </Tabs>
             </section>
             {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -4374,12 +4399,12 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="Lệnh & cảnh báo Bot" subtitle="Tách riêng khỏi nội dung UI để dễ kiểm soát các lệnh Telegram và alert ngắn." />
-              <div className="subtabs">
-                <button className={botToolsTab === "commandsVi" ? "active" : ""} onClick={() => setBotToolsTab("commandsVi")}>Lệnh tiếng Việt</button>
-                <button className={botToolsTab === "commandsEn" ? "active" : ""} onClick={() => setBotToolsTab("commandsEn")}>Lệnh tiếng Anh</button>
-                <button className={botToolsTab === "alertsVi" ? "active" : ""} onClick={() => setBotToolsTab("alertsVi")}>Cảnh báo tiếng Việt</button>
-                <button className={botToolsTab === "alertsEn" ? "active" : ""} onClick={() => setBotToolsTab("alertsEn")}>Cảnh báo tiếng Anh</button>
-              </div>
+              <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="commandsVi" label="Lệnh tiếng Việt" />
+                <Tab value="commandsEn" label="Lệnh tiếng Anh" />
+                <Tab value="alertsVi" label="Cảnh báo tiếng Việt" />
+                <Tab value="alertsEn" label="Cảnh báo tiếng Anh" />
+              </Tabs>
             </section>
             {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -4392,10 +4417,10 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead title="Menu Builder" subtitle="Trang tiếng Việt và tiếng Anh được tách riêng. Trang tiếng Anh dùng hậu tố _en." />
-              <div className="subtabs">
-                <button className={menuLanguage === "vi" ? "active" : ""} onClick={() => { setMenuLanguage("vi"); resetMenuForm(); }}>Trang tiếng Việt</button>
-                <button className={menuLanguage === "en" ? "active" : ""} onClick={() => { setMenuLanguage("en"); resetMenuForm(); }}>Trang tiếng Anh</button>
-              </div>
+              <Tabs value={menuLanguage} onChange={(_, next) => { setMenuLanguage(next); resetMenuForm(); }} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="vi" label="Trang tiếng Việt" />
+                <Tab value="en" label="Trang tiếng Anh" />
+              </Tabs>
             </section>
               <section className="panel">
                 <PanelHead
@@ -4442,12 +4467,12 @@ export default function Home() {
               <Metric label="Đã sử dụng" value={String(couponTabCounts.used)} />
               <Metric label="Đã hết hạn" value={String(couponTabCounts.expired)} />
             </div>
-            <div className="subtabs">
-              <button className={couponTab === "unsent" ? "active" : ""} onClick={() => setCouponTab("unsent")}>Chưa gửi ({couponTabCounts.unsent})</button>
-              <button className={couponTab === "sent" ? "active" : ""} onClick={() => setCouponTab("sent")}>Đã gửi ({couponTabCounts.sent})</button>
-              <button className={couponTab === "used" ? "active" : ""} onClick={() => setCouponTab("used")}>Đã sử dụng ({couponTabCounts.used})</button>
-              <button className={couponTab === "expired" ? "active" : ""} onClick={() => setCouponTab("expired")}>Đã hết hạn ({couponTabCounts.expired})</button>
-            </div>
+            <Tabs value={couponTab} onChange={(_, next) => setCouponTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+              <Tab value="unsent" label={`Chưa gửi (${couponTabCounts.unsent})`} />
+              <Tab value="sent" label={`Đã gửi (${couponTabCounts.sent})`} />
+              <Tab value="used" label={`Đã sử dụng (${couponTabCounts.used})`} />
+              <Tab value="expired" label={`Đã hết hạn (${couponTabCounts.expired})`} />
+            </Tabs>
             <SimpleTable
               headers={["Mã", "Loại", "Áp dụng / Gói", "Giảm", "Trạng thái", "Đã gửi", "Đã dùng", "Người dùng gần nhất"]}
               rows={pagedCoupons.map((item) => [
@@ -4512,21 +4537,21 @@ export default function Home() {
               <Metric label="Đã dùng" value={String(activationCodesByStatus.USED.length)} />
               <Metric label="Đã vô hiệu" value={String(activationCodesByStatus.DISABLED.length)} />
             </div>
-            <div className="subtabs">
-              <button className={activationCodeTab === "ALL" ? "active" : ""} onClick={() => setActivationCodeTab("ALL")}>Tất cả ({activationCodesByStatus.ALL.length})</button>
-              <button className={activationCodeTab === "PENDING" ? "active" : ""} onClick={() => setActivationCodeTab("PENDING")}>PENDING ({activationCodesByStatus.PENDING.length})</button>
-              <button className={activationCodeTab === "USED" ? "active" : ""} onClick={() => setActivationCodeTab("USED")}>USED ({activationCodesByStatus.USED.length})</button>
-              <button className={activationCodeTab === "DISABLED" ? "active" : ""} onClick={() => setActivationCodeTab("DISABLED")}>DISABLED ({activationCodesByStatus.DISABLED.length})</button>
-              <button className={activationCodeTab === "EXPIRED" ? "active" : ""} onClick={() => setActivationCodeTab("EXPIRED")}>EXPIRED ({activationCodesByStatus.EXPIRED.length})</button>
-            </div>
+            <Tabs value={activationCodeTab} onChange={(_, next) => setActivationCodeTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+              <Tab value="ALL" label={`Tất cả (${activationCodesByStatus.ALL.length})`} />
+              <Tab value="PENDING" label={`PENDING (${activationCodesByStatus.PENDING.length})`} />
+              <Tab value="USED" label={`USED (${activationCodesByStatus.USED.length})`} />
+              <Tab value="DISABLED" label={`DISABLED (${activationCodesByStatus.DISABLED.length})`} />
+              <Tab value="EXPIRED" label={`EXPIRED (${activationCodesByStatus.EXPIRED.length})`} />
+            </Tabs>
             <div className="hint compact" style={{ marginBottom: 12 }}>
-              <input value={activationCodeQuery} onChange={(event) => setActivationCodeQuery(event.target.value)} placeholder="Tìm theo code, order_id, telegram_user_id..." />
+              <TextField value={activationCodeQuery} onChange={(event) => setActivationCodeQuery(event.target.value)} placeholder="Tìm theo code, order_id, telegram_user_id..." size="small" fullWidth />
             </div>
-            <div className="subtabs" style={{ marginBottom: 12 }}>
-              <button className={activationCodeSort === "newest" ? "active" : ""} onClick={() => setActivationCodeSort("newest")}>Mới nhất</button>
-              <button className={activationCodeSort === "expiring" ? "active" : ""} onClick={() => setActivationCodeSort("expiring")}>Sắp hết hạn</button>
-              <button className={activationCodeSort === "recently_used" ? "active" : ""} onClick={() => setActivationCodeSort("recently_used")}>Vừa dùng gần đây</button>
-            </div>
+            <Tabs value={activationCodeSort} onChange={(_, next) => setActivationCodeSort(next)} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5, mb: 1.5 }}>
+              <Tab value="newest" label="Mới nhất" />
+              <Tab value="expiring" label="Sắp hết hạn" />
+              <Tab value="recently_used" label="Vừa dùng gần đây" />
+            </Tabs>
             <SimpleTable
               headers={["Code", "Đơn", "Khách", "Gói", "Hạn", "Trạng thái", "Link bot", "Cập nhật"]}
               rows={activationCodeRows.map((item) => [
