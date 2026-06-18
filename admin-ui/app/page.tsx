@@ -121,6 +121,7 @@ import {
   deleteOrder,
   deleteConfig,
   deleteBlacklist,
+  deleteActivationCode,
   deleteCoupon,
   deleteHiddenCode,
   deleteHiddenGroup,
@@ -134,6 +135,7 @@ import {
   getCampaigns,
   getChannelPostEvents,
   getChannelPosts,
+  getActivationCodes,
   getCoupons,
   getHiddenCodes,
   getHiddenGroups,
@@ -149,6 +151,7 @@ import {
   kickAuditMember,
   pauseCampaign,
   previewCampaign,
+  regenerateActivationCode,
   resetWebhook,
   startCampaign,
   updateChannelPost,
@@ -156,10 +159,12 @@ import {
   updateMenuPage,
   updateOrder,
   updateOrderStatus,
+  updateActivationCode,
   upsertBlacklist,
   upsertHiddenCode,
   upsertHiddenGroup,
   type HiddenRedemption,
+  type ActivationCode,
   upsertSaleRule,
   type HiddenCode,
   type HiddenGroup,
@@ -167,7 +172,7 @@ import {
   type SupportGroupCheck,
 } from "@/lib/api";
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -188,6 +193,8 @@ type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "today" | "reminded" | "expiredNotice" | "kicked" | "audit" | "retained" | "vipOut";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
+type ActivationCodeTab = "ALL" | "PENDING" | "USED" | "DISABLED" | "EXPIRED";
+type ActivationCodeSort = "newest" | "expiring" | "recently_used";
 type ChannelPostTab = "draft" | "queue" | "scheduled" | "sent" | "failed" | "deleted";
 type HiddenSetupView = "groups" | "codes" | "activity";
 type HiddenGroupFormState = {
@@ -235,7 +242,7 @@ type LoadOptions = {
   mode?: "full" | "light";
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "hiddenMessages", "menuBuilder", "coupons", "security", "sales", "system"];
+const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "hiddenMessages", "menuBuilder", "coupons", "activationCodes", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 60;
 
@@ -874,11 +881,26 @@ const SUPPORT_FIELDS: ConfigField[] = [
 const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
-    label: "Template nội dung gen link đơn thủ công",
-    placeholder: "{links_text}\\n\\n{support_text}",
-    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {links_text}, {support_text}, {support_group_name}, {support_link}, {support_error}.",
+    label: "Template nội dung đơn thủ công",
+    placeholder: "{activation_url}\\n\\n{support_text}",
+    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {activation_code}, {activation_url}, {support_text}.",
     kind: "textarea",
   },
+  { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề link bot", placeholder: "🔗 Link kích hoạt qua bot", help: "Tiêu đề hiển thị trong kết quả tạo đơn." },
+  { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", help: "Mô tả ngắn về link bot.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Mẫu deep link bot", placeholder: "t.me/hangcuprivebot?start={code}", help: "Dùng biến {code}. Có thể đổi username bot mà không cần sửa code." },
+  { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút mở bot", placeholder: "Mở bot nhận link", help: "Text nút admin copy hoặc gửi khách." },
+  { key: "MANUAL_ORDER_LINK_JOIN_LABEL", label: "Nút nhận link nhóm", placeholder: "Nhận link join group", help: "Text nút mà bot dùng sau khi xác minh." },
+  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin xác nhận hợp lệ", placeholder: "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", help: "Tin bot trả khi mã hợp lệ.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn hàng và tạo link join group...", help: "Tin bot trả ngay khi khách bấm deep link.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Tin bot trả khi code không tồn tại." },
+  { key: "MANUAL_ORDER_LINK_USED_TEXT", label: "Tin mã đã dùng", placeholder: "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới.", help: "Tin bot trả khi code đã được kích hoạt." },
+  { key: "MANUAL_ORDER_LINK_WRONG_USER_TEXT", label: "Tin sai Telegram ID", placeholder: "❌ Mã này không dành cho tài khoản Telegram hiện tại.", help: "Tin bot trả khi user không đúng." },
+  { key: "MANUAL_ORDER_LINK_EXPIRED_TEXT", label: "Tin mã hết hạn", placeholder: "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.", help: "Tin bot trả khi link quá hạn." },
+  { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.", help: "Tin bot trả khi không sinh được link group." },
+  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Mẫu tin trả link bot", placeholder: "{success_text}\\n\\n{links_text}\\n{support_text}", help: "Dùng biến {success_text}, {links_text}, {support_text}.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Mẫu hỗ trợ đơn thủ công", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Dùng khi cần chèn link hỗ trợ.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Mẫu lỗi link hỗ trợ", placeholder: "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})", help: "Dùng khi bot không tạo được link hỗ trợ.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -1713,6 +1735,7 @@ export default function Home() {
   const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [activationCodes, setActivationCodes] = useState<ActivationCode[]>([]);
   const [hiddenGroups, setHiddenGroups] = useState<HiddenGroup[]>([]);
   const [hiddenCodes, setHiddenCodes] = useState<HiddenCode[]>([]);
   const [hiddenRedemptions, setHiddenRedemptions] = useState<HiddenRedemption[]>([]);
@@ -1786,6 +1809,9 @@ export default function Home() {
   const [couponBatchCount, setCouponBatchCount] = useState("10");
   const [couponTab, setCouponTab] = useState<CouponTab>("unsent");
   const [couponPage, setCouponPage] = useState(1);
+  const [activationCodeTab, setActivationCodeTab] = useState<ActivationCodeTab>("ALL");
+  const [activationCodeQuery, setActivationCodeQuery] = useState("");
+  const [activationCodeSort, setActivationCodeSort] = useState<ActivationCodeSort>("newest");
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [hiddenSetupView, setHiddenSetupView] = useState<HiddenSetupView>("groups");
   const [hiddenGroupModalOpen, setHiddenGroupModalOpen] = useState(false);
@@ -2055,6 +2081,7 @@ export default function Home() {
       const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBuilder");
       const needsSales = !light && shouldLoad("sales");
       const needsCoupons = !light && shouldLoad("overview", "coupons");
+      const needsActivationCodes = !light && shouldLoad("activationCodes");
       const needsHidden = !light && shouldLoad("setup", "coupons");
       const needsBlacklist = !light && shouldLoad("security");
       const needsSupportEvents = !light && shouldLoad("activityLog", "renewals", "supportGroup");
@@ -2072,6 +2099,7 @@ export default function Home() {
       addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
       addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
       addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
+      addTask(needsActivationCodes, () => getActivationCodes(activeSecret), setActivationCodes);
       addTask(needsHidden, () => getHiddenGroups(activeSecret), setHiddenGroups);
       addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
       addTask(needsHidden, () => getHiddenRedemptions(activeSecret, 200), setHiddenRedemptions);
@@ -2757,6 +2785,83 @@ export default function Home() {
     } finally {
       setSaving("");
     }
+  }
+
+  const activationCodesByStatus = useMemo(() => {
+    const buckets: Record<string, ActivationCode[]> = { ALL: [], PENDING: [], USED: [], DISABLED: [], EXPIRED: [] };
+    const now = Date.now();
+    for (const item of activationCodes) {
+      const status = String(item.activation_status || "PENDING").toUpperCase();
+      const expired = item.expire_at ? new Date(item.expire_at).getTime() < now : false;
+      buckets.ALL.push(item);
+      if (expired && status !== "USED") buckets.EXPIRED.push(item);
+      if (status === "USED") buckets.USED.push(item);
+      else if (status === "DISABLED") buckets.DISABLED.push(item);
+      else buckets.PENDING.push(item);
+    }
+    return buckets;
+  }, [activationCodes]);
+
+  const activationCodeRows = useMemo(() => {
+    const rows = [...(activationCodesByStatus[activationCodeTab] || activationCodesByStatus.ALL)];
+    const keyword = activationCodeQuery.trim().toLowerCase();
+    const filtered = keyword ? rows.filter((item) =>
+      [item.code, item.order_id, item.telegram_user_id]
+        .some((value) => String(value || "").toLowerCase().includes(keyword))
+    ) : rows;
+    return filtered.sort((a, b) => {
+      if (activationCodeSort === "expiring") {
+        const aTime = a.expire_at ? new Date(a.expire_at).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.expire_at ? new Date(b.expire_at).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      }
+      if (activationCodeSort === "recently_used") {
+        const aTime = new Date(a.used_at || a.activated_at || 0).getTime();
+        const bTime = new Date(b.used_at || b.activated_at || 0).getTime();
+        return bTime - aTime;
+      }
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+  }, [activationCodeQuery, activationCodeSort, activationCodeTab, activationCodesByStatus]);
+
+  async function refreshActivationCode(code: ActivationCode) {
+    await runAction(`activation-reset-${code.code}`, async () => {
+      await updateActivationCode(savedSecret, code.code, {
+        activation_status: "PENDING",
+        activated_at: null,
+        activated_by_user_id: null,
+        used_at: null,
+        used_by_user_id: null,
+      });
+      await loadAll();
+    });
+  }
+
+  async function disableActivationCode(code: ActivationCode) {
+    await runAction(`activation-disable-${code.code}`, async () => {
+      await updateActivationCode(savedSecret, code.code, { activation_status: "DISABLED" });
+      await loadAll();
+    });
+  }
+
+  async function copyActivationLink(code: ActivationCode) {
+    await navigator.clipboard.writeText(code.activation_url || "");
+    showNotice("ok", `Đã copy link kích hoạt ${code.code}.`);
+  }
+
+  async function deleteActivationCodeRow(code: ActivationCode) {
+    if (!window.confirm(`Xoá mã kích hoạt ${code.code}?`)) return;
+    await runAction(`activation-delete-${code.code}`, async () => {
+      await deleteActivationCode(savedSecret, code.code);
+      await loadAll();
+    });
+  }
+
+  async function renewActivationCode(code: ActivationCode) {
+    await runAction(`activation-regenerate-${code.code}`, async () => {
+      await regenerateActivationCode(savedSecret, code.code);
+      await loadAll();
+    });
   }
 
   async function saveBlacklistEntry() {
@@ -3565,7 +3670,7 @@ export default function Home() {
 
   async function copyManualLinks() {
     if (!manualOrderResult) return;
-    await navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""));
+    await navigator.clipboard.writeText([manualOrderResult.activation_url, stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || "")].filter(Boolean).join("\n\n"));
     showNotice("ok", "Đã copy link đơn thủ công.");
   }
 
@@ -3655,6 +3760,7 @@ export default function Home() {
           <button className={tab === "hiddenMessages" ? "active" : ""} onClick={() => selectTab("hiddenMessages")}><Ticket size={18} /> Hidden text</button>
           <button className={tab === "menuBuilder" ? "active" : ""} onClick={() => selectTab("menuBuilder")}><FileText size={18} /> Menu Builder</button>
           <button className={tab === "coupons" ? "active" : ""} onClick={() => selectTab("coupons")}><Ticket size={18} /> Coupon</button>
+          <button className={tab === "activationCodes" ? "active" : ""} onClick={() => selectTab("activationCodes")}><Ticket size={18} /> Activation code</button>
           <button className={tab === "security" ? "active" : ""} onClick={() => selectTab("security")}><ShieldCheck size={18} /> {ui("Bảo mật", "Security")}</button>
           <button className={tab === "sales" ? "active" : ""} onClick={() => selectTab("sales")}><BadgePercent size={18} /> Sale</button>
           <button className={tab === "system" ? "active" : ""} onClick={() => selectTab("system")}><Settings size={18} /> {ui("Hệ thống", "System")}</button>
@@ -4389,6 +4495,66 @@ export default function Home() {
           </section>
         ) : null}
 
+        {tab === "activationCodes" ? (
+          <section className="panel">
+            <PanelHead
+              title="Activation codes"
+              subtitle="Danh sách mã kích hoạt cho đơn thủ công. Reset để cho khách bấm lại link bot, disable để chặn mã ngay lập tức."
+              action={<div className="panel-actions"><button className="btn secondary" onClick={() => loadAll()}><RefreshCw size={16} /> Tải lại</button></div>}
+            />
+            <div className="grid">
+              <Metric label="Tổng mã" value={String(activationCodesByStatus.ALL.length)} />
+              <Metric label="Chờ kích hoạt" value={String(activationCodesByStatus.PENDING.length)} />
+              <Metric label="Đã dùng" value={String(activationCodesByStatus.USED.length)} />
+              <Metric label="Đã vô hiệu" value={String(activationCodesByStatus.DISABLED.length)} />
+            </div>
+            <div className="subtabs">
+              <button className={activationCodeTab === "ALL" ? "active" : ""} onClick={() => setActivationCodeTab("ALL")}>Tất cả ({activationCodesByStatus.ALL.length})</button>
+              <button className={activationCodeTab === "PENDING" ? "active" : ""} onClick={() => setActivationCodeTab("PENDING")}>PENDING ({activationCodesByStatus.PENDING.length})</button>
+              <button className={activationCodeTab === "USED" ? "active" : ""} onClick={() => setActivationCodeTab("USED")}>USED ({activationCodesByStatus.USED.length})</button>
+              <button className={activationCodeTab === "DISABLED" ? "active" : ""} onClick={() => setActivationCodeTab("DISABLED")}>DISABLED ({activationCodesByStatus.DISABLED.length})</button>
+              <button className={activationCodeTab === "EXPIRED" ? "active" : ""} onClick={() => setActivationCodeTab("EXPIRED")}>EXPIRED ({activationCodesByStatus.EXPIRED.length})</button>
+            </div>
+            <div className="hint compact" style={{ marginBottom: 12 }}>
+              <input value={activationCodeQuery} onChange={(event) => setActivationCodeQuery(event.target.value)} placeholder="Tìm theo code, order_id, telegram_user_id..." />
+            </div>
+            <div className="subtabs" style={{ marginBottom: 12 }}>
+              <button className={activationCodeSort === "newest" ? "active" : ""} onClick={() => setActivationCodeSort("newest")}>Mới nhất</button>
+              <button className={activationCodeSort === "expiring" ? "active" : ""} onClick={() => setActivationCodeSort("expiring")}>Sắp hết hạn</button>
+              <button className={activationCodeSort === "recently_used" ? "active" : ""} onClick={() => setActivationCodeSort("recently_used")}>Vừa dùng gần đây</button>
+            </div>
+            <SimpleTable
+              headers={["Code", "Đơn", "Khách", "Gói", "Hạn", "Trạng thái", "Link bot", "Cập nhật"]}
+              rows={activationCodeRows.map((item) => [
+                <strong key={`c-${item.code}`}>{item.code}</strong>,
+                item.order_id,
+                <><strong>{item.full_name || "-"}</strong><div className="muted">{item.telegram_user_id}</div></>,
+                item.plan_name,
+                dateText(item.expire_at),
+                item.activation_status,
+                <button key={`copy-${item.code}`} className="btn secondary" onClick={(event) => { event.stopPropagation(); copyActivationLink(item); }}>Copy</button>,
+                <div key={`updated-${item.code}`}><div>{dateText(item.updated_at)}</div><div className="muted">{item.activated_at ? `Activated ${dateText(item.activated_at)}` : ""}</div></div>,
+              ])}
+              actions={(idx) => (
+                <div className="coupon-row-actions">
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); disableActivationCode(activationCodeRows[idx]); }} title="Vô hiệu hoá mã">
+                    <XCircle size={16} />
+                  </button>
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); refreshActivationCode(activationCodeRows[idx]); }} title="Reset mã">
+                    <RefreshCw size={16} />
+                  </button>
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); renewActivationCode(activationCodeRows[idx]); }} title="Tạo lại link mới">
+                    <Plus size={16} />
+                  </button>
+                  <button className="icon-danger" onClick={(event) => { event.stopPropagation(); deleteActivationCodeRow(activationCodeRows[idx]); }} title="Xoá mã">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
+            />
+          </section>
+        ) : null}
+
         {tab === "security" ? (
           <div className="stack">
             <section className="panel">
@@ -5079,17 +5245,24 @@ export default function Home() {
                 {manualOrderResult ? (
                   <div className="form-grid two">
                     <label className="field wide">
-                      <span>Link đã tạo</span>
+                      <span>{manualOrderResult.bot_link_title || "Link kích hoạt qua bot"}</span>
                       <textarea readOnly value={[
+                        manualOrderResult.activation_url,
+                        "",
+                        manualOrderResult.bot_link_subtitle || "",
+                        "",
                         stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""),
                       ].join("\n")} />
-                  </label>
-                  <div className="field wide">
-                    <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ link</button>
-                    {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID và link chỉ dùng được 1 người.</small>}
+                    </label>
+                    <div className="field wide">
+                      <div className="modal-actions" style={{ justifyContent: "flex-start" }}>
+                        <button className="btn secondary" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</button>
+                        <button className="btn secondary" onClick={copyManualLinks}>Copy toàn bộ nội dung</button>
+                      </div>
+                      {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
           </MuiDialogShell>
         ) : null}
 

@@ -300,11 +300,19 @@ export type ManualOrderResult = {
   payment_provider?: string;
   paid_at: string;
   expire_at: string;
+  activation_code: string;
+  activation_url: string;
   group_names: string;
   links_text: string;
   support_link: string | null;
   support_error: string;
   support_text: string;
+  bot_link_title?: string;
+  bot_link_subtitle?: string;
+  bot_link_button_label?: string;
+  bot_link_join_label?: string;
+  bot_link_success_text?: string;
+  bot_link_processing_text?: string;
   manual_order_text: string;
 };
 
@@ -353,6 +361,25 @@ export type HiddenRedemption = {
   username: string;
   revealed_group_ids: string[];
   created_at: string;
+};
+
+export type ActivationCode = {
+  id: string;
+  code: string;
+  order_id: string;
+  telegram_user_id: string;
+  full_name: string | null;
+  plan_name: string;
+  expire_at: string | null;
+  activation_status: string;
+  activated_at: string | null;
+  activated_by_user_id: string | null;
+  used_at: string | null;
+  used_by_user_id: string | null;
+  activation_url: string | null;
+  raw_data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 };
 
 const baseUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8000";
@@ -529,6 +556,29 @@ export async function deleteHiddenCode(secret: string, code: string) {
 
 export async function getHiddenRedemptions(secret: string, limit = 500) {
   return request<{ data: HiddenRedemption[] }>(`/admin-api/hidden-redemptions?limit=${limit}`, secret);
+}
+
+export async function getActivationCodes(secret: string, limit = 500) {
+  return request<{ data: ActivationCode[] }>(`/admin-api/activation-codes?limit=${limit}`, secret);
+}
+
+export async function updateActivationCode(secret: string, code: string, payload: Partial<ActivationCode & { activation_status: string }>) {
+  return request<{ data: ActivationCode[] }>(`/admin-api/activation-codes/${encodeURIComponent(code)}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteActivationCode(secret: string, code: string) {
+  return request<{ data: ActivationCode[] }>(`/admin-api/activation-codes/${encodeURIComponent(code)}`, secret, {
+    method: "DELETE",
+  });
+}
+
+export async function regenerateActivationCode(secret: string, code: string) {
+  return request<{ data: ActivationCode[] }>(`/admin-api/activation-codes/${encodeURIComponent(code)}/regenerate`, secret, {
+    method: "POST",
+  });
 }
 
 export async function getBlacklist(secret: string) {

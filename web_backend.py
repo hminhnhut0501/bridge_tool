@@ -166,6 +166,27 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
     return text.strip()
 
 
+def render_activation_text(template_key: str, default_text: str, context: dict[str, object]):
+    template = str(db.get_config(template_key, default_text) or default_text).strip()
+    for key, value in context.items():
+        template = template.replace(f"{{{key}}}", str(value or ""))
+    return template.strip()
+
+
+def build_manual_activation_url(code: str):
+    template = str(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start={code}") or "").strip()
+    if not template:
+        template = "t.me/hangcuprivebot?start={code}"
+    return template.replace("{code}", str(code or "").strip())
+
+
+def generate_activation_code(length: int = 6):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    import secrets
+
+    return "".join(secrets.choice(alphabet) for _ in range(max(4, length)))
+
+
 def normalize_chat_id(value):
     raw = str(value or "").strip()
     if raw.endswith(".0"):
@@ -717,6 +738,8 @@ async def admin_create_manual_order(request: Request):
     full_name = str(body.get("full_name", "")).strip()
     plan_name = str(body.get("plan_name", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
+    activation_code = str(body.get("activation_code", "")).strip().upper() or generate_activation_code()
+    activation_url = build_manual_activation_url(activation_code)
 
     if not telegram_user_id:
         raise HTTPException(status_code=400, detail="Cần nhập Telegram ID.")
@@ -726,8 +749,6 @@ async def admin_create_manual_order(request: Request):
         user_id = int(telegram_user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Telegram ID phải là số.")
-
-    from modules.mod_coupon import build_invite_links
 
     db.reload_config(force=True)
     groups = resolve_plan_groups(plan_name)
@@ -782,7 +803,6 @@ async def admin_create_manual_order(request: Request):
         expire_at=expire_at.isoformat(timespec="seconds"),
     )
 
-    links_text, group_names, failed_groups = await build_invite_links(user_id, plan_name)
     support_link, support_error = await create_support_invite_link(user_id)
     if support_link:
         support_text = render_manual_order_support_text("", {
@@ -796,9 +816,38 @@ async def admin_create_manual_order(request: Request):
             "support_error": "",
         })
     elif support_error:
-        support_text = f"💬 {support_group_name()}: Không tạo được link hỗ trợ ({support_error})"
+        support_text = render_activation_text(
+            "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+            {
+                "support_group_name": support_group_name(),
+                "support_error": support_error,
+            },
+        )
     else:
         support_text = ""
+
+    try:
+        supabase_store.create_order_activation_code(
+            code=activation_code,
+            order_id=order_id,
+            telegram_user_id=telegram_user_id,
+            full_name=full_name or telegram_user_id,
+            plan_name=plan_name,
+            expire_at=expire_at.isoformat(timespec="seconds"),
+            activation_url=activation_url,
+            raw_data={
+                "manual_order": True,
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "plan_name": plan_name,
+                "expire_at": expire_at.isoformat(timespec="seconds"),
+            },
+        )
+    except Exception as exc:
+        if not is_missing_supabase_table_error(exc, "order_activation_codes"):
+            raise
+        print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
 
     try:
         supabase_store.record_support_event(
@@ -810,8 +859,8 @@ async def admin_create_manual_order(request: Request):
             raw_data={
                 "amount": amount,
                 "coupon_code": coupon_code,
-                "group_names": group_names,
-                "failed_groups": failed_groups,
+                "activation_code": activation_code,
+                "activation_url": activation_url,
                 "support_link_created": bool(support_link),
                 "support_error": support_error,
             },
@@ -832,24 +881,34 @@ async def admin_create_manual_order(request: Request):
             "payment_provider": payment_provider,
             "paid_at": paid_at.isoformat(timespec="seconds"),
             "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
-            "group_names": group_names,
-            "links_text": links_text,
+            "group_names": "",
+            "links_text": "",
+            "activation_code": activation_code,
+            "activation_url": activation_url,
             "support_link": support_link,
             "support_error": support_error,
             "support_text": support_text,
+            "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt qua bot", {}),
+            "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", {}),
+            "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Mở bot nhận link", {}),
+            "bot_link_join_label": render_activation_text("MANUAL_ORDER_LINK_JOIN_LABEL", "Nhận link join group", {}),
+            "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", {}),
+            "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
-                "links_text": links_text,
+                "links_text": "",
                 "support_text": support_text,
                 "support_group_name": support_group_name(),
                 "support_link": support_link,
                 "support_error": support_error,
+                "activation_url": activation_url,
+                "activation_code": activation_code,
             }),
-            "failed_groups": failed_groups,
+            "failed_groups": [],
         }
     }
 
@@ -1009,6 +1068,55 @@ async def admin_delete_hidden_code(code: str):
 @app.get("/admin-api/hidden-redemptions", dependencies=[Depends(require_admin)])
 async def admin_hidden_redemptions(limit: int = 500):
     return {"data": list_hidden_redemptions(limit=limit)}
+
+
+@app.get("/admin-api/activation-codes", dependencies=[Depends(require_admin)])
+async def admin_activation_codes(limit: int = 500):
+    try:
+        return {"data": supabase_store.list_order_activation_codes(limit=limit)}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "order_activation_codes"):
+            warn_missing_table_once("order_activation_codes", exc)
+        else:
+            print(f"⚠️ Không đọc được order_activation_codes: {exc}")
+        return {"data": []}
+
+
+@app.patch("/admin-api/activation-codes/{code}", dependencies=[Depends(require_admin)])
+async def admin_update_activation_code(code: str, request: Request):
+    body = await request.json()
+    try:
+        return {"data": supabase_store.update_order_activation_code(code, body)}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "order_activation_codes"):
+            warn_missing_table_once("order_activation_codes", exc)
+            raise HTTPException(status_code=503, detail="order_activation_codes table is missing")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/admin-api/activation-codes/{code}", dependencies=[Depends(require_admin)])
+async def admin_delete_activation_code(code: str):
+    return {"data": supabase_store.delete_order_activation_code(code)}
+
+
+@app.post("/admin-api/activation-codes/{code}/regenerate", dependencies=[Depends(require_admin)])
+async def admin_regenerate_activation_code(code: str):
+    current = supabase_store.get_order_activation_code(code)
+    if not current:
+        raise HTTPException(status_code=404, detail="Activation code not found")
+
+    next_code = generate_activation_code()
+    while supabase_store.get_order_activation_code(next_code):
+        next_code = generate_activation_code()
+    next_url = build_manual_activation_url(next_code)
+    try:
+        data = supabase_store.regenerate_order_activation_code(code, new_code=next_code, activation_url=next_url)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "order_activation_codes"):
+            warn_missing_table_once("order_activation_codes", exc)
+            raise HTTPException(status_code=503, detail="order_activation_codes table is missing")
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"data": data}
 
 
 @app.get("/admin-api/blacklist", dependencies=[Depends(require_admin)])

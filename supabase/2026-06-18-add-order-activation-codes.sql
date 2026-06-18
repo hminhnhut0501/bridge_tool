@@ -1,0 +1,44 @@
+create table if not exists public.order_activation_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  order_id text not null unique,
+  telegram_user_id text not null,
+  full_name text,
+  plan_name text not null,
+  expire_at timestamptz,
+  activation_status text not null default 'PENDING',
+  activated_at timestamptz,
+  activated_by_user_id text,
+  used_at timestamptz,
+  used_by_user_id text,
+  activation_url text,
+  raw_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_order_activation_codes_code on public.order_activation_codes (code);
+create index if not exists idx_order_activation_codes_order_id on public.order_activation_codes (order_id);
+create index if not exists idx_order_activation_codes_telegram_user_id on public.order_activation_codes (telegram_user_id);
+
+insert into public.bot_config (key, value) values
+  ('MANUAL_ORDER_LINK_TITLE', '🔗 Link kích hoạt qua bot'),
+  ('MANUAL_ORDER_LINK_SUBTITLE', 'Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.'),
+  ('MANUAL_ORDER_LINK_BUTTON_LABEL', 'Mở bot nhận link'),
+  ('MANUAL_ORDER_LINK_COPY_LABEL', 'Copy link bot'),
+  ('MANUAL_ORDER_LINK_OPEN_LABEL', 'Mở Telegram'),
+  ('MANUAL_ORDER_LINK_SUCCESS_TITLE', '✅ Đã tạo link kích hoạt'),
+  ('MANUAL_ORDER_LINK_SUCCESS_BODY', 'Gửi link này cho khách để họ bấm vào bot và nhận quyền truy cập.'),
+  ('MANUAL_ORDER_LINK_INVALID_TEXT', '❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.'),
+  ('MANUAL_ORDER_LINK_USED_TEXT', 'ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới.'),
+  ('MANUAL_ORDER_LINK_WRONG_USER_TEXT', '❌ Mã này không dành cho tài khoản Telegram hiện tại.'),
+  ('MANUAL_ORDER_LINK_EXPIRED_TEXT', '⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.'),
+  ('MANUAL_ORDER_LINK_PROCESSING_TEXT', '⏳ Bot đang xác minh đơn hàng và tạo link join group...'),
+  ('MANUAL_ORDER_LINK_FAIL_TEXT', '❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.'),
+  ('MANUAL_ORDER_LINK_SUCCESS_TEXT', '✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.'),
+  ('MANUAL_ORDER_LINK_JOIN_LABEL', 'Nhận link join group'),
+  ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/hangcuprivebot?start={code}'),
+  ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{links_text}\n{support_text}'),
+  ('MANUAL_ORDER_START_TEMPLATE', '{processing_text}'),
+  ('MANUAL_ORDER_DELIVERY_TEMPLATE', '{success_text}\n\n{links_text}\n{support_text}')
+on conflict (key) do update set value = excluded.value, updated_at = now();

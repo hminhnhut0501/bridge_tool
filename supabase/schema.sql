@@ -32,6 +32,29 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.order_activation_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  order_id text not null unique,
+  telegram_user_id text not null,
+  full_name text,
+  plan_name text not null,
+  expire_at timestamptz,
+  activation_status text not null default 'PENDING',
+  activated_at timestamptz,
+  activated_by_user_id text,
+  used_at timestamptz,
+  used_by_user_id text,
+  activation_url text,
+  raw_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_order_activation_codes_code on public.order_activation_codes (code);
+create index if not exists idx_order_activation_codes_order_id on public.order_activation_codes (order_id);
+create index if not exists idx_order_activation_codes_telegram_user_id on public.order_activation_codes (telegram_user_id);
+
 create index if not exists idx_orders_telegram_user_id on public.orders (telegram_user_id);
 create index if not exists idx_orders_status on public.orders (status);
 create index if not exists idx_orders_expire_at on public.orders (expire_at);

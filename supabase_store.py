@@ -564,6 +564,139 @@ class SupabaseStore:
                 prefer="resolution=merge-duplicates,return=representation",
             )
 
+    def create_order_activation_code(
+        self,
+        *,
+        code,
+        order_id,
+        telegram_user_id,
+        full_name,
+        plan_name,
+        expire_at=None,
+        activation_status="PENDING",
+        activation_url="",
+        raw_data=None,
+    ):
+        payload = {
+            "code": _clean_text(code).upper(),
+            "order_id": _clean_text(order_id),
+            "telegram_user_id": _clean_text(telegram_user_id),
+            "full_name": _clean_text(full_name),
+            "plan_name": _clean_text(plan_name),
+            "activation_status": _clean_text(activation_status).upper() or "PENDING",
+            "activation_url": _clean_text(activation_url),
+            "raw_data": raw_data or {},
+        }
+        if expire_at is not None:
+            payload["expire_at"] = _parse_datetime(expire_at) or expire_at
+        return self._request(
+            "POST",
+            "order_activation_codes",
+            params={"on_conflict": "order_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def get_order_activation_code(self, code):
+        rows = self._request(
+            "GET",
+            "order_activation_codes",
+            params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def get_order_activation_code_by_order(self, order_id):
+        rows = self._request(
+            "GET",
+            "order_activation_codes",
+            params={"select": "*", "order_id": f"eq.{_clean_text(order_id)}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def mark_order_activation_used(self, code, used_by_user_id, activated_at=None):
+        payload = {
+            "activation_status": "USED",
+            "used_by_user_id": _clean_text(used_by_user_id),
+            "used_at": _parse_datetime(activated_at) or activated_at,
+            "activated_by_user_id": _clean_text(used_by_user_id),
+            "activated_at": _parse_datetime(activated_at) or activated_at,
+        }
+        return self._request(
+            "PATCH",
+            "order_activation_codes",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def list_order_activation_codes(self, limit=500):
+        rows = self._request(
+            "GET",
+            "order_activation_codes",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        return rows
+
+    def update_order_activation_code(self, code, raw):
+        payload = {}
+        if "activation_status" in raw:
+            payload["activation_status"] = _clean_text(raw.get("activation_status")).upper() or "PENDING"
+        if "activated_at" in raw:
+            payload["activated_at"] = _parse_datetime(raw.get("activated_at")) or raw.get("activated_at")
+        if "activated_by_user_id" in raw:
+            payload["activated_by_user_id"] = _clean_text(raw.get("activated_by_user_id"))
+        if "used_at" in raw:
+            payload["used_at"] = _parse_datetime(raw.get("used_at")) or raw.get("used_at")
+        if "used_by_user_id" in raw:
+            payload["used_by_user_id"] = _clean_text(raw.get("used_by_user_id"))
+        if "expire_at" in raw:
+            payload["expire_at"] = _parse_datetime(raw.get("expire_at")) or raw.get("expire_at")
+        if "activation_url" in raw:
+            payload["activation_url"] = _clean_text(raw.get("activation_url"))
+        if "plan_name" in raw:
+            payload["plan_name"] = _clean_text(raw.get("plan_name"))
+        if "telegram_user_id" in raw:
+            payload["telegram_user_id"] = _clean_text(raw.get("telegram_user_id"))
+        if "full_name" in raw:
+            payload["full_name"] = _clean_text(raw.get("full_name"))
+        if "raw_data" in raw:
+            payload["raw_data"] = raw.get("raw_data")
+        if not payload:
+            return []
+        return self._request(
+            "PATCH",
+            "order_activation_codes",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def delete_order_activation_code(self, code):
+        return self._request(
+            "DELETE",
+            "order_activation_codes",
+            params={"code": f"eq.{_clean_text(code).upper()}"},
+            prefer="return=representation",
+        )
+
+    def regenerate_order_activation_code(self, old_code, *, new_code, activation_url):
+        payload = {
+            "code": _clean_text(new_code).upper(),
+            "activation_url": _clean_text(activation_url),
+            "activation_status": "PENDING",
+            "activated_at": None,
+            "activated_by_user_id": "",
+            "used_at": None,
+            "used_by_user_id": "",
+        }
+        return self._request(
+            "PATCH",
+            "order_activation_codes",
+            params={"code": f"eq.{_clean_text(old_code).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
     def update_order_status(self, order_id, status, paid_at=None, expire_at=None):
         payload = {"status": _clean_text(status).upper()}
         if paid_at is not None:

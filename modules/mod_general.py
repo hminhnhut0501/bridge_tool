@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from aiogram import Router, F
@@ -18,6 +19,17 @@ from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 
 router = Router()
+
+
+def cfg(key, default=""):
+    return str(db.get_config(key, default) or default).strip()
+
+
+def render_cfg(key, default, values=None):
+    text = cfg(key, default)
+    for item_key, item_value in (values or {}).items():
+        text = text.replace(f"{{{item_key}}}", str(item_value or ""))
+    return text
 
 
 def language_switch_keyboard(current_language):
@@ -140,12 +152,82 @@ async def send_sale_announcement(message: Message):
         print(f"❌ Lỗi gửi thông báo sale: {e}")
         return False
 
+
+async def deliver_activation_order(message: Message, code: str):
+    from modules.mod_coupon import build_invite_links
+
+    activation = supabase_store.get_order_activation_code(code) if supabase_store.enabled else None
+    if not activation:
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_INVALID_TEXT", "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá."))
+        return
+
+    status = str(activation.get("activation_status") or "PENDING").upper()
+    telegram_user_id = str(activation.get("telegram_user_id") or "").strip()
+    expire_at = str(activation.get("expire_at") or "").strip()
+    now_user_id = str(message.from_user.id)
+
+    if telegram_user_id and telegram_user_id != now_user_id:
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
+        return
+    if status == "USED":
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_USED_TEXT", "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới."))
+        return
+
+    if expire_at:
+        try:
+            parsed_expire = datetime.fromisoformat(expire_at.replace("Z", "+00:00"))
+            if parsed_expire.tzinfo:
+                parsed_expire = parsed_expire.astimezone(ZoneInfo(str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"))).replace(tzinfo=None)
+            if parsed_expire < datetime.now():
+                await message.answer(render_cfg("MANUAL_ORDER_LINK_EXPIRED_TEXT", "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin."))
+                return
+        except Exception:
+            pass
+
+    await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group..."))
+
+    plan_name = str(activation.get("plan_name") or "").strip()
+    links_text, group_names, failed_groups = await build_invite_links(message.from_user.id, plan_name)
+    if failed_groups or not group_names:
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau."))
+        return
+
+    try:
+        supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=datetime.now().isoformat(timespec="seconds"))
+    except Exception as exc:
+        print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
+
+    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "")
+    delivery_text = render_cfg(
+        "MANUAL_ORDER_DELIVERY_TEMPLATE",
+        "{success_text}\n\n{links_text}\n{support_text}",
+        {
+            "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group."),
+            "links_text": links_text,
+            "support_text": support_text,
+        },
+    )
+    kb = InlineKeyboardBuilder()
+    join_label = render_cfg("MANUAL_ORDER_LINK_JOIN_LABEL", "Nhận link join group")
+    has_button = False
+    if links_text:
+        first_link = next((line.strip() for line in links_text.splitlines() if line.strip().startswith("http")), "")
+        if first_link:
+            kb.row(InlineKeyboardButton(text=join_label, url=first_link))
+            has_button = True
+    await message.answer(delivery_text, reply_markup=kb.as_markup() if has_button else None, parse_mode="HTML")
+
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     if not await check_protection(message): return
     db.reload_config(force=True)
     await cleanup_welcome(message.from_user.id, message.chat.id)
+    parts = (message.text or "").split(maxsplit=1)
+    payload = parts[1].strip() if len(parts) > 1 else ""
+    if payload:
+        await deliver_activation_order(message, payload)
+        return
     if await send_sale_announcement(message):
         return
     await render_page(message, "main_menu")
