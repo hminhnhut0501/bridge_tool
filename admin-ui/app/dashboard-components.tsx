@@ -24,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import { BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
 import { dateText } from "./dashboard-helpers";
@@ -220,6 +220,7 @@ export function TrendChart({
   secondaryLabel: string;
 }) {
   const tone = sectionAccentTone(accent);
+  const chartId = useId().replace(/:/g, "");
   const width = 720;
   const height = 220;
   const paddingX = 18;
@@ -253,11 +254,11 @@ export function TrendChart({
         <Box sx={{ width: "100%", overflowX: "auto" }}>
           <Box component="svg" viewBox={`0 0 ${width} ${height}`} sx={{ width: "100%", minWidth: 640, height: 260, display: "block" }}>
             <defs>
-              <linearGradient id={`chart-area-${accent}`} x1="0" x2="0" y1="0" y2="1">
+              <linearGradient id={`${chartId}-chart-area`} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor={tone.main} stopOpacity="0.28" />
                 <stop offset="100%" stopColor={tone.main} stopOpacity="0.03" />
               </linearGradient>
-              <linearGradient id={`chart-line-${accent}`} x1="0" x2="1" y1="0" y2="0">
+              <linearGradient id={`${chartId}-chart-line`} x1="0" x2="1" y1="0" y2="0">
                 <stop offset="0%" stopColor={tone.main} />
                 <stop offset="50%" stopColor={styleGuide.palette.secondary.main} />
                 <stop offset="100%" stopColor={styleGuide.palette.accent.emerald} />
@@ -267,8 +268,8 @@ export function TrendChart({
               const y = paddingY + ((height - paddingY * 2) / 3) * line;
               return <line key={line} x1={paddingX} x2={width - paddingX} y1={y} y2={y} stroke="rgba(148,163,184,0.18)" strokeDasharray="4 6" />;
             })}
-            <polygon points={areaPoints} fill={`url(#chart-area-${accent})`} />
-            <polyline points={linePoints} fill="none" stroke={`url(#chart-line-${accent})`} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+            {points.length ? <polygon points={areaPoints} fill={`url(#${chartId}-chart-area)`} /> : null}
+            {points.length ? <polyline points={linePoints} fill="none" stroke={`url(#${chartId}-chart-line)`} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
             {points.map((item, index) => {
               const x = paddingX + step * index;
               const y = height - paddingY - ((item.value - minValue) / span) * (height - paddingY * 2);
@@ -343,6 +344,7 @@ export function DonutChart({
   centerLabel: string;
 }) {
   const tone = sectionAccentTone(accent);
+  const chartId = useId().replace(/:/g, "");
   const colors = [tone.main, styleGuide.palette.secondary.main, styleGuide.palette.accent.emerald, styleGuide.palette.accent.amber, styleGuide.palette.accent.rose, styleGuide.palette.accent.cyan];
   const total = Math.max(1, segments.reduce((sum, item) => sum + item.value, 0));
   const radius = 42;
@@ -362,7 +364,7 @@ export function DonutChart({
                 const stroke = segment.color || colors[index % colors.length];
                 const circle = (
                   <circle
-                    key={segment.label}
+                    key={`${chartId}-${segment.label}`}
                     cx="60"
                     cy="60"
                     r={radius}
