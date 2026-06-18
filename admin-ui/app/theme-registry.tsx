@@ -1,13 +1,18 @@
 "use client";
 
 import { CssBaseline, ThemeProvider, createTheme, responsiveFontSizes } from "@mui/material";
-import { deepPurple, teal } from "@mui/material/colors";
+import { deepPurple } from "@mui/material/colors";
 import type { ReactNode } from "react";
 
 const baseTheme = createTheme({
   palette: {
     mode: "light",
-    primary: teal,
+    primary: {
+      main: "#0d6b5d",
+      dark: "#084f45",
+      light: "#14b8a6",
+      contrastText: "#ffffff",
+    },
     secondary: deepPurple,
     background: {
       default: "#f4f6f8",
@@ -79,10 +84,21 @@ const baseTheme = createTheme({
         },
         contained: {
           boxShadow: "none",
+          backgroundColor: "#0d6b5d",
+          color: "#ffffff",
+          "&:hover": {
+            backgroundColor: "#084f45",
+            boxShadow: "none",
+          },
         },
         outlined: {
-          borderColor: "#cfd8e3",
+          borderColor: "#0d6b5d",
           backgroundColor: "#ffffff",
+          color: "#0d6b5d",
+          "&:hover": {
+            borderColor: "#084f45",
+            backgroundColor: "rgba(13, 107, 93, 0.04)",
+          },
         },
       },
     },

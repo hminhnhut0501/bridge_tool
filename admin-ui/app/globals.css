@@ -322,7 +322,8 @@ select:disabled {
 .btn {
   align-items: center;
   background: var(--accent);
-  border-radius: 7px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
   color: #ffffff;
   display: inline-flex;
   font-weight: 800;
@@ -337,19 +338,20 @@ select:disabled {
 }
 
 .btn.secondary {
-  background: #eef2f6;
-  color: var(--text);
+  background: #f4fbf9;
+  border: 1px solid rgba(13, 107, 93, 0.24);
+  color: var(--accent);
 }
 
 .btn.secondary:hover,
 .btn.ghost:hover {
-  background: #dfe6ee;
+  background: rgba(13, 107, 93, 0.08);
 }
 
 .btn.ghost {
   background: transparent;
-  border: 1px solid var(--line);
-  color: var(--text);
+  border: 1px solid rgba(13, 107, 93, 0.24);
+  color: var(--accent);
 }
 
 .btn.danger {
@@ -1573,21 +1575,22 @@ td select {
 
 .btn.ghost {
   background: transparent;
-  border: 1px solid var(--line);
-  color: var(--text);
+  border: 1px solid rgba(13, 107, 93, 0.24);
+  color: var(--accent);
 }
 
 .btn.ghost:hover {
-  background: #dfe6ee;
+  background: rgba(13, 107, 93, 0.08);
 }
 
 .btn.secondary {
-  background: #eef2f6;
-  color: var(--text);
+  background: #f4fbf9;
+  border: 1px solid rgba(13, 107, 93, 0.24);
+  color: var(--accent);
 }
 
 .btn.secondary:hover {
-  background: #dfe6ee;
+  background: rgba(13, 107, 93, 0.08);
 }
 
 .btn.secondary.small {
