@@ -3873,6 +3873,12 @@ export default function Home() {
               />
             </div>
             <div className="grid metrics-band">
+              <Metric label="Đã thanh toán" value={String(metrics.paid)} tone="payos" note="Đơn đã chốt doanh thu" />
+              <Metric label="Đang chờ" value={String(metrics.pending)} tone="usd" note="Cần theo dõi thanh toán" />
+              <Metric label="Đã huỷ" value={String(monthStats.cancelled)} tone="paypal" note="Không tính vào doanh thu" />
+              <Metric label="Hết hạn" value={String(monthStats.expired)} tone="crypto" note="Đã quá hạn xử lý" />
+            </div>
+            <div className="grid metrics-band">
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} />
               <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} />
               <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} />
