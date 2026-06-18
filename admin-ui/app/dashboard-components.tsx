@@ -110,11 +110,11 @@ export function Metric({ label, value, tone, note, accent: sectionAccent, icon }
     return cleaned || value;
   })();
   return (
-    <Card
-      sx={{
-        position: "relative",
-        overflow: "hidden",
-        minHeight: 132,
+      <Card
+        sx={{
+          position: "relative",
+          overflow: "hidden",
+          minHeight: 132,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
@@ -122,10 +122,12 @@ export function Metric({ label, value, tone, note, accent: sectionAccent, icon }
         borderColor: `${accent}22`,
         backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.68) 0%, ${bg} 38%, rgba(255,255,255,0.16) 100%)`,
         boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 8px 20px rgba(16, 24, 40, 0.04), inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 1px ${glow}`,
-      }}
-    >
-      <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: accent }} />
+        }}
+      >
+        <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: accent }} />
       <Box sx={{ position: "absolute", top: -12, right: -12, width: 84, height: 84, borderRadius: "50%", bgcolor: glow, filter: "blur(16px)", opacity: 0.55 }} />
+      <Box sx={{ position: "absolute", inset: "auto 0 0 0", height: 34, opacity: 0.9, background: `linear-gradient(90deg, transparent, ${accent}18 25%, ${accent}28 50%, ${accent}12 75%, transparent)` }} />
+      <Box sx={{ position: "absolute", right: 16, bottom: 12, width: 56, height: 56, borderRadius: "50%", border: `1px solid ${accent}18`, background: `radial-gradient(circle at 30% 30%, ${accent}20, transparent 68%)`, opacity: 0.8 }} />
       <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3, fontWeight: 700 }}>{label}</Typography>

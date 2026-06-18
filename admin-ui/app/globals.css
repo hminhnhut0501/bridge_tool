@@ -1494,8 +1494,9 @@ td select {
 
 .grid.metrics-band > * {
   box-shadow:
-    0 10px 24px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    0 12px 28px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  transform: translateZ(0);
 }
 
 .grid.metrics-band-customer {

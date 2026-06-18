@@ -3868,7 +3868,7 @@ export default function Home() {
                 label="Doanh thu Crypto"
                 value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
                 tone="crypto"
-                note="USDT / NOWPayments"
+                note="USDT / thanh toán crypto"
                 icon={<Coins size={16} />}
               />
               <Metric
