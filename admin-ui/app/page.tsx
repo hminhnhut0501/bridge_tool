@@ -3133,11 +3133,13 @@ export default function Home() {
   const selectedCustomerOrders = useMemo(() => {
     if (!selectedCustomer) return [];
     const score = (order: Order) => {
-      if (isOrderActive(order)) return 0;
-      if (order.status === "PAID") return 1;
-      if (order.status === "PENDING") return 2;
-      if (order.status === "EXPIRED") return 3;
-      return 4;
+      const status = String(order.status || "").toUpperCase();
+      if (status === "PAID") return 0;
+      if (isOrderActive(order)) return 1;
+      if (status === "PENDING") return 2;
+      if (status === "EXPIRED") return 3;
+      if (status === "CANCELLED") return 4;
+      return 5;
     };
     return [...selectedCustomer.orders].sort((a, b) => {
       const statusDiff = score(a) - score(b);
@@ -5372,23 +5374,29 @@ export default function Home() {
                       minHeight: 0,
                       "& .MuiTabs-flexContainer": { gap: 1 },
                       "& .MuiTab-root": {
-                        alignItems: "flex-start",
+                        alignItems: "center",
                         justifyContent: "flex-start",
                         minHeight: 44,
                         px: 1.5,
                         py: 1.1,
-                          borderRadius: 2,
+                        borderRadius: 999,
                         textTransform: "none",
                         fontWeight: 700,
                         fontSize: "0.95rem",
-                        border: 1,
+                        border: "1px solid",
                         borderColor: "divider",
                         bgcolor: "background.paper",
+                        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+                      },
+                      "& .MuiTab-root:hover": {
+                        bgcolor: "rgba(37, 99, 235, 0.05)",
+                        borderColor: "rgba(37, 99, 235, 0.18)",
                       },
                       "& .Mui-selected": {
                         bgcolor: "primary.main",
                         color: "common.white",
                         borderColor: "primary.main",
+                        boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
                       },
                       "& .MuiTabs-indicator": { display: "none" },
                     }}
@@ -5420,14 +5428,20 @@ export default function Home() {
                           borderRadius: 999,
                           textTransform: "none",
                           fontWeight: 700,
-                          border: 1,
+                          border: "1px solid",
                           borderColor: "divider",
                           bgcolor: "background.paper",
+                          boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+                        },
+                        "& .MuiTab-root:hover": {
+                          bgcolor: "rgba(37, 99, 235, 0.05)",
+                          borderColor: "rgba(37, 99, 235, 0.18)",
                         },
                         "& .Mui-selected": {
                           bgcolor: "primary.main",
                           color: "common.white",
                           borderColor: "primary.main",
+                          boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
                         },
                         "& .MuiTabs-indicator": { display: "none" },
                       }}
@@ -5692,14 +5706,30 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
     const normalized = String(status || "").toUpperCase();
     if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("success")} />;
     if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("warning")} />;
-    if (normalized === "EXPIRED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("muted")} />;
-    if (normalized === "CANCELLED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("error")} />;
+    if (normalized === "EXPIRED" || normalized === "CANCELLED") {
+      return (
+        <Chip
+          size="small"
+          label={status}
+          variant="outlined"
+          sx={{
+            fontWeight: 700,
+            letterSpacing: "-0.01em",
+            bgcolor: "action.disabledBackground",
+            color: "text.disabled",
+            borderColor: "divider",
+            opacity: 0.92,
+            "& .MuiChip-label": { px: 1 },
+          }}
+        />
+      );
+    }
     return <Chip size="small" label={status || "-"} variant="outlined" sx={statusChipSx("muted")} />;
   };
   return (
     <Stack spacing={1.5}>
       {sorted.map((order) => (
-        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+        <Card key={order.order_id} variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
             <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box>
@@ -5716,57 +5746,66 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             </Box>
 
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Coupon</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
                   {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={statusChipSx("purple")} /> : null}
-                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={statusChipSx("muted")} />}
+                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default" }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)" }}>
                 <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
                 <Box sx={{ mt: 0.75 }}>{statusChip(order.status)}</Box>
               </Box>
             </Box>
 
             <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth />
-                  <Button variant="outlined" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+                  <Button variant="contained" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
                   }}>Lưu</Button>
                 </Stack>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Đổi trạng thái</Typography>
-                <Select size="small" value={order.status} disabled={saving === `order-${order.order_id}`} onChange={(event) => onStatusChange(order.order_id, event.target.value as string)} fullWidth sx={{ mt: 1 }}>
-                  <MenuItem value="PENDING">PENDING</MenuItem>
-                  <MenuItem value="PAID">PAID</MenuItem>
-                  <MenuItem value="CANCELLED">CANCELLED</MenuItem>
-                  <MenuItem value="EXPIRED">EXPIRED</MenuItem>
-                </Select>
+                <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
+                  <Chip
+                    size="small"
+                    label={String(order.status || "-")}
+                    variant="outlined"
+                    sx={
+                      String(order.status || "").toUpperCase() === "PAID"
+                        ? { ...statusChipSx("success"), fontSize: "0.95rem", px: 0.5 }
+                        : String(order.status || "").toUpperCase() === "PENDING"
+                          ? { ...statusChipSx("warning"), fontSize: "0.95rem", px: 0.5 }
+                          : { bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider", fontWeight: 700, letterSpacing: "-0.01em", "& .MuiChip-label": { px: 1 } }
+                    }
+                  />
+                  <Typography variant="caption" color="text.secondary">Chỉ xem nhanh, không chỉnh ở đây.</Typography>
+                </Box>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 3, bgcolor: "background.paper" }}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth slotProps={{ inputLabel: { shrink: true } }} />
-                  <Button variant="outlined" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+                  <Button variant="contained" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
                   }}>Lưu hạn</Button>
