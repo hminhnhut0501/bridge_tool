@@ -5584,6 +5584,7 @@ export default function Home() {
                       })}
                       saving={saving}
                       onExpireChange={changeOrderExpire}
+                      onRenewChange={renewOrderByDays}
                       onPlanChange={changeOrderPlan}
                       onStatusChange={changeOrderStatus}
                     />
@@ -5816,7 +5817,7 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
   );
 }
 
-function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
+function CustomerOrdersTable({ orders, saving, onExpireChange, onRenewChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onRenewChange: (orderId: string, days: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders].sort((a, b) => {
     const rank = (order: Order) => {
       const status = String(order.status || "").toUpperCase();
@@ -5960,7 +5961,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     disabled={saving === `order-renew-${order.order_id}` || isLifetimeText(order.plan_name)}
                     onClick={() => {
                       const input = document.getElementById(`renew-days-${order.order_id}`) as HTMLInputElement | null;
-                      renewOrderByDays(order.order_id, input?.value || "30");
+                      onRenewChange(order.order_id, input?.value || "30");
                     }}
                     sx={{ borderRadius: 999, minWidth: 96 }}
                   >
