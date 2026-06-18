@@ -96,19 +96,20 @@ export function providerRevenueFormat(provider: string, value: number) {
 
 export function dateText(value: string | null | undefined) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("vi-VN");
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date(value));
 }
 
 export function dateTextShort(value: string | null | undefined) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }) + " " + new Date(value).toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return dateText(value);
 }
 
 export function dateTimeInputValue(value: string | null | undefined) {

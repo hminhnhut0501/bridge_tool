@@ -4,6 +4,7 @@
 import { Box, Button, Stack } from "@mui/material";
 import { Plus, Send, Trash2 } from "lucide-react";
 import { Metric, PanelHead, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
+import { dateText } from "./dashboard-helpers";
 
 export function ChannelPostsSection(props: any) {
   const { channelPosts, channelPostCounts, channelPostTab, setChannelPostTab, openNewChannelPostModal, pagedChannelPosts, channelPostPage, totalChannelPostPages, visibleChannelPosts, setChannelPostPage, editChannelPost, runChannelPostAction, channelPostStatusClass, channelPostStatusLabel } = props;
@@ -26,7 +27,7 @@ export function ChannelPostsSection(props: any) {
             <button key={`cp-title-${item.id}`} className="link-button" onClick={() => editChannelPost(item)}><strong>{item.title || `Bài #${item.id}`}</strong><div className="muted">{String(item.content || "").slice(0, 90)}</div></button>,
             item.target_chat_id,
             <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
-            <><strong>Đăng: {item.scheduled_at || item.sent_at}</strong><div className="muted">Xóa: {item.delete_at || item.deleted_at}</div></>,
+            <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
             <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0}</div></>,
             item.error || "-",
           ])}
