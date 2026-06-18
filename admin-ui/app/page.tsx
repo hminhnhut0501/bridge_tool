@@ -5950,7 +5950,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     type="number"
                     size="small"
                     defaultValue="30"
-                    inputProps={{ min: 1, step: 1 }}
+                    slotProps={{ htmlInput: { min: 1, step: 1 } }}
                     sx={{ ...customerPopupInputSx, minWidth: 120 }}
                     id={`renew-days-${order.order_id}`}
                   />
