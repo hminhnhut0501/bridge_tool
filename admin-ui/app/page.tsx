@@ -3687,19 +3687,18 @@ export default function Home() {
 
   if (!savedSecret) {
     return (
-      <main className="login-page">
-        <section className="login-panel stack">
-          <div>
-            <h1>Prive Admin</h1>
-            <p className="muted">Nhập mật khẩu admin đã đặt trong Render.</p>
-          </div>
-          <label className="field">
-            <span>Mật khẩu admin</span>
-            <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Dán ADMIN_SECRET tại đây" />
-          </label>
-          <button className="btn" onClick={login}>Đăng nhập</button>
-        </section>
-      </main>
+      <Box component="main" sx={{ minHeight: "100vh", display: "grid", placeItems: "center", px: 2, bgcolor: "background.default" }}>
+        <Card variant="outlined" sx={{ width: "100%", maxWidth: 520 }}>
+          <CardContent sx={{ display: "grid", gap: 2.5, p: 3 }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>Prive Admin</Typography>
+              <Typography variant="body2" color="text.secondary">Nhập mật khẩu admin đã đặt trong Render.</Typography>
+            </Box>
+            <TextField type="password" label="Mật khẩu admin" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Dán ADMIN_SECRET tại đây" fullWidth />
+            <Button variant="contained" onClick={login} size="large">Đăng nhập</Button>
+          </CardContent>
+        </Card>
+      </Box>
     );
   }
 
@@ -3887,7 +3886,7 @@ export default function Home() {
               <PanelHead
                 title="Bảng giá SVIP chung"
                 subtitle="Giá SVIP được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
-                action={<button className="btn secondary" onClick={() => setSvipPriceSettingsOpen(true)}><Settings size={16} /> Cài đặt giá SVIP</button>}
+                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá SVIP</Button>}
               />
               <div className="system-list">
                 <Info label="SVIP 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_30D", "0") || 0))} />
@@ -3900,7 +3899,7 @@ export default function Home() {
               <PanelHead
                 title="Nhóm lẻ & bảng giá"
                 subtitle="Bấm một nhóm để sửa trong popup. Không còn form dài nằm sẵn trên trang."
-                action={<button className="btn" onClick={openNewGroupModal}><Plus size={16} /> Thêm nhóm mới</button>}
+                action={<Button variant="contained" size="small" onClick={openNewGroupModal} startIcon={<Plus size={16} />}>Thêm nhóm mới</Button>}
               />
               <div className="hint">
                 Giá chỉ chỉnh tại màn hình này. UI Bot chỉ quản lý nội dung hiển thị, không còn trường giá trùng lặp.
@@ -3925,8 +3924,8 @@ export default function Home() {
                 subtitle="Quản lý nhóm extra ẩn, mã reveal và lịch sử người đã mở catalog."
                 action={(
                   <div className="panel-actions">
-                    {hiddenSetupView === "groups" ? <button className="btn" onClick={openNewHiddenGroupModal}><Plus size={16} /> Thêm Hidden Group</button> : null}
-                    {hiddenSetupView === "codes" ? <button className="btn" onClick={openNewHiddenCodeModal}><Plus size={16} /> Thêm Hidden Code</button> : null}
+                    {hiddenSetupView === "groups" ? <Button variant="contained" size="small" onClick={openNewHiddenGroupModal} startIcon={<Plus size={16} />}>Thêm Hidden Group</Button> : null}
+                    {hiddenSetupView === "codes" ? <Button variant="contained" size="small" onClick={openNewHiddenCodeModal} startIcon={<Plus size={16} />}>Thêm Hidden Code</Button> : null}
                   </div>
                 )}
               />
@@ -3947,7 +3946,7 @@ export default function Home() {
                     Mỗi hidden group là một entitlement riêng. ID nên ngắn gọn, ổn định như <code>prime_alpha</code> vì nó đi vào plan token và scheduler.
                   </div>
                   <div className="toolbar hidden-toolbar">
-                    <input value={hiddenGroupQuery} onChange={(event) => setHiddenGroupQuery(event.target.value)} placeholder="Tìm theo ID, tên nhóm, chat ID..." />
+                    <TextField value={hiddenGroupQuery} onChange={(event) => setHiddenGroupQuery(event.target.value)} placeholder="Tìm theo ID, tên nhóm, chat ID..." size="small" fullWidth />
                   </div>
                   <div className="group-list">
                     {filteredHiddenGroups.length ? filteredHiddenGroups.map((item) => (
@@ -3965,8 +3964,8 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="coupon-row-actions">
-                          <button className="btn secondary" onClick={() => openEditHiddenGroupModal(item)} disabled={saving === `hidden-group-${item.id}`}><Pencil size={16} /> Sửa</button>
-                          <button className="btn danger" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}><Trash2 size={16} /> Xóa</button>
+                          <Button variant="outlined" size="small" onClick={() => openEditHiddenGroupModal(item)} disabled={saving === `hidden-group-${item.id}`}>Sửa</Button>
+                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}>Xóa</Button>
                         </div>
                       </div>
                     )) : <div className="empty-card">Chưa có Hidden Group khớp bộ lọc.</div>}
@@ -3979,7 +3978,7 @@ export default function Home() {
                     Hidden code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>SVIP_LIFETIME</code>.
                   </div>
                   <div className="toolbar hidden-toolbar">
-                    <input value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." />
+                    <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
                   </div>
                   <div className="group-list">
                     {filteredHiddenCodes.length ? filteredHiddenCodes.map((item) => (
@@ -3997,9 +3996,9 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="coupon-row-actions">
-                          <button className="btn secondary" onClick={() => copyHiddenCode(item.code)} disabled={saving === `hidden-code-copy-${item.code}`}><Ticket size={16} /> Copy mã</button>
-                          <button className="btn secondary" onClick={() => openEditHiddenCodeModal(item)} disabled={saving === `hidden-code-${item.code}`}><Pencil size={16} /> Sửa</button>
-                          <button className="btn danger" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}><Trash2 size={16} /> Xóa</button>
+                          <Button variant="outlined" size="small" onClick={() => copyHiddenCode(item.code)} disabled={saving === `hidden-code-copy-${item.code}`}>Copy mã</Button>
+                          <Button variant="outlined" size="small" onClick={() => openEditHiddenCodeModal(item)} disabled={saving === `hidden-code-${item.code}`}>Sửa</Button>
+                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}>Xóa</Button>
                         </div>
                       </div>
                     )) : <div className="empty-card">Chưa có Hidden Code khớp bộ lọc.</div>}
@@ -4086,22 +4085,22 @@ export default function Home() {
             </div>
             <section className="panel">
               <PanelHead title="Nhật ký tương tác" subtitle="Tổng hợp user đã nhắn/bấm gì với bot và các hành động bot đã gửi hoặc xử lý cho user." />
-              <div className="toolbar orders-toolbar">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, Telegram ID, event, callback, gói, đơn..." />
-                <select value={logDirection} onChange={(event) => setLogDirection(event.target.value as LogDirectionFilter)}>
-                  <option value="all">Tất cả hướng</option>
-                  <option value="user">User → Bot</option>
-                  <option value="bot">Bot → User</option>
-                </select>
-                <select value={logType} onChange={(event) => setLogType(event.target.value)}>
-                  <option value="ALL">Tất cả loại event</option>
-                  {logTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-                <select value={logDate} onChange={(event) => setLogDate(event.target.value)}>
-                  <option value="ALL">Tất cả ngày</option>
-                  {logDateOptions.map((item) => <option key={item} value={item}>{item === "UNKNOWN" ? "Không rõ ngày" : dayKey(item)}</option>)}
-                </select>
-              </div>
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) repeat(3, 220px)" }, p: 2 }}>
+                <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, Telegram ID, event, callback, gói, đơn..." size="small" fullWidth />
+                <TextField select value={logDirection} onChange={(event) => setLogDirection(event.target.value as LogDirectionFilter)} size="small" fullWidth>
+                  <MenuItem value="all">Tất cả hướng</MenuItem>
+                  <MenuItem value="user">User → Bot</MenuItem>
+                  <MenuItem value="bot">Bot → User</MenuItem>
+                </TextField>
+                <TextField select value={logType} onChange={(event) => setLogType(event.target.value)} size="small" fullWidth>
+                  <MenuItem value="ALL">Tất cả loại event</MenuItem>
+                  {logTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                </TextField>
+                <TextField select value={logDate} onChange={(event) => setLogDate(event.target.value)} size="small" fullWidth>
+                  <MenuItem value="ALL">Tất cả ngày</MenuItem>
+                  {logDateOptions.map((item) => <MenuItem key={item} value={item}>{item === "UNKNOWN" ? "Không rõ ngày" : dayKey(item)}</MenuItem>)}
+                </TextField>
+              </Box>
               <SimpleTable
                 headers={["Thời điểm", "Hướng", "Khách", "Loại", "Nội dung", "Chi tiết"]}
                 rows={pagedLogEntries.map((item) => [
