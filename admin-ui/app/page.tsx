@@ -5615,8 +5615,11 @@ function Metric({ label, value, tone, note, icon }: { label: string; value: stri
   return (
     <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}>
       <div className="metric-head">
-        <div className="muted">{label}</div>
-        {icon ? <div className="metric-icon">{icon}</div> : null}
+        <div className="metric-title-wrap">
+          {icon ? <div className="metric-icon">{icon}</div> : null}
+          <div className="metric-title">{label}</div>
+        </div>
+        <div className="metric-accent" />
       </div>
       <div className="metric">{compactValue}</div>
       {note ? <div className="metric-note">{note}</div> : null}

@@ -151,22 +151,20 @@ select:disabled {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 18px;
+  gap: 12px;
+  padding: 18px 18px 16px;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
-  background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.45), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 252, 0.98));
 }
 
 .metric-card::before {
   content: "";
-  inset: 0 auto auto 0;
-  height: 5px;
+  inset: auto auto 0 0;
+  height: 7px;
   position: absolute;
   width: 100%;
-  opacity: 0.95;
+  opacity: 0.88;
 }
 
 .metric-card.tone-vnd::before {
@@ -191,10 +189,10 @@ select:disabled {
 
 .metric {
   color: var(--ink);
-  font-size: 28px;
-  font-weight: 850;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
   margin-top: 2px;
 }
 
@@ -205,17 +203,46 @@ select:disabled {
   gap: 12px;
 }
 
+.metric-title-wrap {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metric-title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.metric-accent {
+  border-radius: 999px;
+  flex: 0 0 26px;
+  height: 4px;
+  opacity: 0.95;
+  width: 26px;
+}
+
+.metric-card.tone-vnd .metric-accent { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.metric-card.tone-usd .metric-accent { background: linear-gradient(90deg, #2563eb, #38bdf8); }
+.metric-card.tone-crypto .metric-accent { background: linear-gradient(90deg, #7c3aed, #c084fc); }
+.metric-card.tone-payos .metric-accent { background: linear-gradient(90deg, #0f766e, #14b8a6); }
+.metric-card.tone-paypal .metric-accent { background: linear-gradient(90deg, #0f172a, #334155); }
+
 .metric-icon {
   align-items: center;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
   color: inherit;
   display: inline-flex;
-  height: 30px;
+  height: 28px;
   justify-content: center;
-  width: 30px;
-  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.05);
+  width: 28px;
+  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.05);
 }
 
 .panel-head strong,
@@ -227,7 +254,7 @@ select:disabled {
 .metric-note {
   color: var(--muted);
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .panel {
