@@ -35,6 +35,8 @@ import {
   Card,
   CardContent,
   Drawer,
+  FormControl,
+  InputLabel,
   MenuItem,
   Select,
   Stack,
@@ -42,6 +44,7 @@ import {
   Tabs,
   Toolbar,
   Typography,
+  TextField,
 } from "@mui/material";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
@@ -5181,64 +5184,28 @@ export default function Home() {
                 action={<button className="icon-danger" onClick={() => setManualOrderModalOpen(false)} title="Đóng"><XCircle size={18} /></button>}
               />
               <div className="form-grid">
-                <label className="field">
-                  <span>Telegram ID</span>
-                  <input value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" />
-                  <small>ID số của khách. Không dùng username @.</small>
-                </label>
-                <label className="field">
-                  <span>Tên khách</span>
-                  <input value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" />
-                </label>
-                <label className="field">
-                  <span>Gói cấp cho khách</span>
-                  <select value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)}>
-                    {manualPlanKeyOptions.map((item) => <option key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</option>)}
-                  </select>
-                </label>
-                <label className="field wide">
-                  <span>Tên gói lưu vào đơn</span>
-                  <input value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" />
-                  <small>Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Nhóm & giá.</small>
-                </label>
-                <label className="field">
-                  <span>Số tiền</span>
-                  <input value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" />
-                  <small>Nhập số thực. VNĐ thường không có thập phân, USD / crypto có thể có.</small>
-                </label>
-                <label className="field">
-                  <span>Tiền tệ</span>
-                  <select value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })}>
-                    <option value="VND">VNĐ</option>
-                    <option value="USD">USD</option>
-                    <option value="USDT">USDT / Crypto</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Phương thức thanh toán</span>
-                  <select value={manualOrderForm.payment_provider} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_provider: event.target.value })}>
-                    <option value="MANUAL">Thủ công</option>
-                    <option value="PAYOS">PayOS / VietQR</option>
-                    <option value="PAYPAL">PayPal</option>
-                    <option value="NOWPAYMENTS">NOWPayments</option>
-                    <option value="TRON_USDT">USDT TRC20</option>
-                  </select>
-                  <small>Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.</small>
-                </label>
-                <label className="field">
-                  <span>Số ngày sử dụng</span>
-                  <input value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" />
-                  <small>Chỉ dùng khi ngày hết hạn trống.</small>
-                </label>
-                <label className="field">
-                  <span>Ngày hết hạn cụ thể</span>
-                  <input type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} />
-                  <small>Xem trước: {dateTimePreviewText(manualOrderForm.expire_at, "Dùng thời lượng ở trên nếu để trống")}</small>
-                </label>
-                <label className="field wide">
-                  <span>Coupon / ghi chú mã</span>
-                  <input value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" />
-                </label>
+                <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
+                <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
+                <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
+                  {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
+                </TextField>
+                <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" size="small" sx={{ gridColumn: "1 / -1" }} helperText="Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Nhóm & giá." />
+                <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân, USD / crypto có thể có." />
+                <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })} size="small">
+                  <MenuItem value="VND">VNĐ</MenuItem>
+                  <MenuItem value="USD">USD</MenuItem>
+                  <MenuItem value="USDT">USDT / Crypto</MenuItem>
+                </TextField>
+                <TextField select label="Phương thức thanh toán" value={manualOrderForm.payment_provider} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_provider: event.target.value })} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+                  <MenuItem value="MANUAL">Thủ công</MenuItem>
+                  <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
+                  <MenuItem value="PAYPAL">PayPal</MenuItem>
+                  <MenuItem value="NOWPAYMENTS">NOWPayments</MenuItem>
+                  <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+                </TextField>
+                <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText="Chỉ dùng khi ngày hết hạn trống." />
+                <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={`Xem trước: ${dateTimePreviewText(manualOrderForm.expire_at, "Dùng thời lượng ở trên nếu để trống")}`} />
+                <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
               </div>
               <div className="modal-actions">
                 <button className="btn secondary" onClick={() => setManualOrderModalOpen(false)}>Đóng</button>
@@ -5453,14 +5420,32 @@ export default function Home() {
                 ) : null}
                 {customerDetailTab === "timeline" ? (
                   <>
-                    <div className="subtabs customer-order-tabs">
-                      <button className={customerTimelineSubTab === "all" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("all")}>Tất cả</button>
-                      <button className={customerTimelineSubTab === "joinLeft" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("joinLeft")}>Join/Left</button>
-                      <button className={customerTimelineSubTab === "role" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("role")}>Role</button>
-                      <button className={customerTimelineSubTab === "restricted" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("restricted")}>Restricted</button>
-                      <button className={customerTimelineSubTab === "kickMute" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("kickMute")}>Kick/Mute</button>
-                      <button className={customerTimelineSubTab === "orders" ? "active" : ""} onClick={() => setCustomerTimelineSubTab("orders")}>Order timeline</button>
-                    </div>
+                    <Tabs
+                      value={customerTimelineSubTab}
+                      onChange={(_, next) => setCustomerTimelineSubTab(next)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      textColor="inherit"
+                      indicatorColor="primary"
+                      sx={{
+                        mb: 2,
+                        "& .MuiTab-root": {
+                          minHeight: 42,
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: 999,
+                          textTransform: "none",
+                          fontWeight: 700,
+                        },
+                      }}
+                    >
+                      <Tab value="all" label="Tất cả" />
+                      <Tab value="joinLeft" label="Join/Left" />
+                      <Tab value="role" label="Role" />
+                      <Tab value="restricted" label="Restricted" />
+                      <Tab value="kickMute" label="Kick/Mute" />
+                      <Tab value="orders" label="Order timeline" />
+                    </Tabs>
                     <div className="grid">
                       <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
                       <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} />
@@ -5576,13 +5561,13 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
               <label className="field">
                 <span>Giá trị</span>
                 {editingField.kind === "textarea" ? (
-                  <textarea autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} />
+                  <TextField autoFocus multiline minRows={4} value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
                 ) : editingField.kind === "select" ? (
-                  <select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(event.target.value)}>
-                    {(editingField.options || []).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
+                  <TextField select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(event.target.value)} fullWidth>
+                    {(editingField.options || []).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                  </TextField>
                 ) : (
-                  <input autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} />
+                  <TextField autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
                 )}
                 <small>Key kỹ thuật: {editingField.key}</small>
               </label>

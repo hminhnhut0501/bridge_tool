@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Button, Stack } from "@mui/material";
+import { Button, MenuItem, Stack, TextField } from "@mui/material";
 import { Download, Plus } from "lucide-react";
 import { Metric, PanelHead, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 
@@ -88,16 +88,16 @@ export function OrdersSection(props: any) {
       <section className="panel">
         <PanelHead title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button>} />
         <div className="toolbar orders-toolbar">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." />
-          <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)}>
-            <option value="ALL">Tất cả trạng thái</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="CANCELLED">Đã hủy</option><option value="EXPIRED">Hết hạn</option>
-          </select>
-          <select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value)}>
-            <option value="today">Hôm nay</option><option value="7d">7 ngày gần đây</option><option value="month">Tháng này</option><option value="year">Năm nay</option><option value="all">Tất cả</option>
-          </select>
-          <select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value)}>
-            <option value="day">Nhóm theo ngày</option><option value="month">Nhóm theo tháng</option><option value="none">Không nhóm</option>
-          </select>
+          <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
+          <TextField select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)} size="small" fullWidth>
+            <MenuItem value="ALL">Tất cả trạng thái</MenuItem><MenuItem value="PENDING">Đang chờ</MenuItem><MenuItem value="PAID">Đã thanh toán</MenuItem><MenuItem value="CANCELLED">Đã hủy</MenuItem><MenuItem value="EXPIRED">Hết hạn</MenuItem>
+          </TextField>
+          <TextField select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value)} size="small" fullWidth>
+            <MenuItem value="today">Hôm nay</MenuItem><MenuItem value="7d">7 ngày gần đây</MenuItem><MenuItem value="month">Tháng này</MenuItem><MenuItem value="year">Năm nay</MenuItem><MenuItem value="all">Tất cả</MenuItem>
+          </TextField>
+          <TextField select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value)} size="small" fullWidth>
+            <MenuItem value="day">Nhóm theo ngày</MenuItem><MenuItem value="month">Nhóm theo tháng</MenuItem><MenuItem value="none">Không nhóm</MenuItem>
+          </TextField>
         </div>
         {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
         <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
