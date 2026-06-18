@@ -252,7 +252,51 @@ const customerInnerCardSx = {
   borderRadius: 2.5,
   bgcolor: "background.paper",
   boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)",
+  position: "relative",
+  overflow: "hidden",
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    inset: "0 auto auto 0",
+    height: 3,
+    width: "100%",
+    background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981)",
+  },
 } as const;
+
+const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon: boolean) => {
+  const normalized = String(status || "").toUpperCase();
+  if (normalized === "PAID") {
+    return {
+      ...statusChipSx("success"),
+      bgcolor: "#ecfdf3",
+      color: "#047857",
+      borderColor: "#86efac",
+      boxShadow: "0 12px 24px rgba(16, 185, 129, 0.16)",
+    };
+  }
+  if (normalized === "PENDING") {
+    return {
+      ...statusChipSx("warning"),
+      bgcolor: "#fffbeb",
+      color: "#b45309",
+      borderColor: "#fcd34d",
+      boxShadow: "0 12px 24px rgba(245, 158, 11, 0.12)",
+    };
+  }
+  if (!active || !expiringSoon || normalized === "EXPIRED" || normalized === "CANCELLED" || normalized === "DISABLED") {
+    return {
+      bgcolor: "action.disabledBackground",
+      color: "text.disabled",
+      borderColor: "divider",
+      fontWeight: 700,
+      letterSpacing: "-0.01em",
+      opacity: 0.9,
+      "& .MuiChip-label": { px: 1 },
+    };
+  }
+  return { ...statusChipSx("muted") };
+};
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
@@ -5676,31 +5720,27 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
 }
 
 function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
-  const sorted = [...orders];
+  const sorted = [...orders].sort((a, b) => {
+    const rank = (order: Order) => {
+      const status = String(order.status || "").toUpperCase();
+      if (status === "PAID") return 0;
+      if (status === "PENDING") return 1;
+      if (status === "CANCELLED") return 3;
+      if (status === "EXPIRED") return 4;
+      return 2;
+    };
+    const statusDiff = rank(a) - rank(b);
+    if (statusDiff !== 0) return statusDiff;
+    const activeDiff = Number(isOrderActive(b)) - Number(isOrderActive(a));
+    if (activeDiff !== 0) return activeDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-  const statusChip = (status: string) => {
-    const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("success"), boxShadow: "0 12px 24px rgba(16, 185, 129, 0.16)" }} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={{ ...statusChipSx("warning"), boxShadow: "0 12px 24px rgba(245, 158, 11, 0.12)" }} />;
-    if (normalized === "EXPIRED" || normalized === "CANCELLED") {
-      return (
-        <Chip
-          size="small"
-          label={status}
-          variant="outlined"
-          sx={{
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-            bgcolor: "action.disabledBackground",
-            color: "text.disabled",
-            borderColor: "divider",
-            opacity: 0.92,
-            "& .MuiChip-label": { px: 1 },
-          }}
-        />
-      );
-    }
-    return <Chip size="small" label={status || "-"} variant="outlined" sx={statusChipSx("muted")} />;
+  const statusChip = (order: Order) => {
+    const normalized = String(order.status || "").toUpperCase();
+    const active = isOrderActive(order);
+    const expiringSoon = daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3;
+    return <Chip size="small" label={String(order.status || "-")} variant="outlined" sx={customerOrderStateChipSx(normalized, active, expiringSoon)} />;
   };
   return (
     <Stack spacing={1.5}>
@@ -5712,6 +5752,12 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             borderRadius: 3,
             overflow: "hidden",
             position: "relative",
+            transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
+            "&:hover": {
+              transform: "translateY(-2px)",
+              boxShadow: "0 18px 36px rgba(15, 23, 42, 0.10)",
+              borderColor: "rgba(37, 99, 235, 0.24)",
+            },
             backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)",
             boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
             "&::before": {
@@ -5733,24 +5779,24 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
                 <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={statusChipSx("purple")} />
                 <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={statusChipSx("warning")} />
-                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none" }}>
+                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 999, minWidth: 100 }}>
                   {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
                 </Button>
               </Box>
             </Box>
 
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Coupon</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
@@ -5758,38 +5804,32 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.default", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.78), 0 8px 18px rgba(15, 23, 42, 0.03)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
-                <Box sx={{ mt: 0.75 }}>{statusChip(order.status)}</Box>
+                <Box sx={{ mt: 0.75 }}>{statusChip(order)}</Box>
               </Box>
             </Box>
 
             <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                   <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} />
                   <Button variant="contained" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
-                  }}>Lưu</Button>
+                  }} sx={{ borderRadius: 999, minWidth: 72 }}>Lưu</Button>
                 </Stack>
               </Box>
 
-              <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 2.5, bgcolor: "background.paper", boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)" }}>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Đổi trạng thái</Typography>
                 <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
                   <Chip
                     size="small"
                     label={String(order.status || "-")}
                     variant="outlined"
-                    sx={
-                      String(order.status || "").toUpperCase() === "PAID"
-                        ? { ...statusChipSx("success"), fontSize: "0.95rem", px: 0.5, boxShadow: "0 12px 24px rgba(16, 185, 129, 0.16)" }
-                        : String(order.status || "").toUpperCase() === "PENDING"
-                          ? { ...statusChipSx("warning"), fontSize: "0.95rem", px: 0.5, boxShadow: "0 12px 24px rgba(245, 158, 11, 0.12)" }
-                          : { bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider", fontWeight: 700, letterSpacing: "-0.01em", "& .MuiChip-label": { px: 1 } }
-                    }
+                    sx={customerOrderStateChipSx(order.status, isOrderActive(order), daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3)}
                   />
                   <Typography variant="caption" color="text.secondary">Chỉ xem nhanh, không chỉnh ở đây.</Typography>
                 </Box>
@@ -5802,7 +5842,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   <Button variant="contained" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
-                  }}>Lưu hạn</Button>
+                  }} sx={{ borderRadius: 999, minWidth: 84 }}>Lưu hạn</Button>
                 </Stack>
               </Box>
             </Box>
