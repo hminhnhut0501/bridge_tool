@@ -262,10 +262,40 @@ const baseTheme = createTheme({
     },
     MuiDialog: {
       styleOverrides: {
+        root: {
+          backdropFilter: "blur(6px)",
+        },
         paper: {
           borderRadius: 24,
           border: "1px solid #d9e0e8",
-          boxShadow: "0 20px 60px rgba(15, 23, 42, 0.18)",
+          boxShadow: "0 20px 60px rgba(15, 23, 42, 0.16)",
+          overflow: "hidden",
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          padding: "22px 24px 18px",
+          background: "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(255,255,255,0.9) 100%)",
+          borderBottom: "1px solid #e6ebf0",
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          padding: 24,
+          backgroundColor: "#f4f6f8",
+        },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: {
+          padding: "16px 24px 22px",
+          background: "#ffffff",
+          borderTop: "1px solid #e6ebf0",
         },
       },
     },

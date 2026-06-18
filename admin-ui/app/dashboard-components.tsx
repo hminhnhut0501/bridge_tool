@@ -260,29 +260,33 @@ export function SettingsConfigModal(props: { title: string; subtitle: string; fi
 
 export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth}>
-      <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</Typography>
-        {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{subtitle}</Typography> : null}
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth} scroll="paper">
+      <DialogTitle sx={{ position: "relative", pr: 6 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.15 }}>{title}</Typography>
+        {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.9, maxWidth: 760, lineHeight: 1.5 }}>{subtitle}</Typography> : null}
         <IconButton
           aria-label="Đóng"
           onClick={onClose}
           size="small"
           sx={{
             position: "absolute",
-            right: 12,
-            top: 12,
+            right: 16,
+            top: 16,
+            width: 36,
+            height: 36,
             border: 1,
             borderColor: "divider",
             bgcolor: "background.paper",
-            "&:hover": { bgcolor: "action.hover" },
+            color: "text.secondary",
+            boxShadow: "0 1px 0 rgba(16, 24, 40, 0.03)",
+            "&:hover": { bgcolor: "action.hover", color: "text.primary" },
           }}
         >
           <XCircle size={18} />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ py: 2.5, bgcolor: "background.default" }}>
-        <Stack spacing={2.25}>
+      <DialogContent dividers sx={{ py: 3, bgcolor: "background.default" }}>
+        <Stack spacing={2.5}>
           {children}
         </Stack>
       </DialogContent>
