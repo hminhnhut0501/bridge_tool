@@ -23,7 +23,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
+import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
@@ -92,12 +92,12 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
   };
 }
 
-export function Metric({ label, value, tone, note, accent: sectionAccent, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone; icon?: ReactNode }) {
+export function MetricCard({ label, value, tone, note, accent: sectionAccent, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone; icon?: ReactNode }) {
   const toneToken = sectionAccent ? sectionAccentTone(sectionAccent) : tone ? tonePalette[tone] : tonePalette.neutral;
   const accent = toneToken.main;
   const bg = toneToken.bg;
   const glow = toneToken.glow;
-  const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSign size={16} /> : null);
+  const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSign size={16} /> : <Activity size={16} />);
   const compactValue = (() => {
     const cleaned = value
       .replace(/^PAYOS:\s*/i, "")
@@ -110,46 +110,36 @@ export function Metric({ label, value, tone, note, accent: sectionAccent, icon }
     return cleaned || value;
   })();
   return (
-      <Card
-        sx={{
-          position: "relative",
-          overflow: "hidden",
-          minHeight: 138,
+    <Card
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: "28px",
+        minHeight: 136,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         bgcolor: bg,
-        borderColor: `${accent}28`,
-        backgroundImage: `radial-gradient(circle at 18% 16%, rgba(255,255,255,0.92) 0%, transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.76) 0%, ${bg} 36%, rgba(255,255,255,0.14) 100%)`,
-        boxShadow: `0 1px 0 rgba(16, 24, 40, 0.03), 0 14px 28px rgba(16, 24, 40, 0.07), inset 0 1px 0 rgba(255,255,255,0.72), 0 0 0 1px ${glow}`,
-        }}
-      >
-        <Box sx={{ position: "absolute", inset: "0 auto auto 0", height: 4, width: "100%", bgcolor: accent }} />
-      <Box sx={{ position: "absolute", top: -10, right: -8, width: 92, height: 92, borderRadius: "50%", bgcolor: glow, filter: "blur(18px)", opacity: 0.58 }} />
-        <Box sx={{ position: "absolute", inset: "auto 0 0 0", height: 38, opacity: 0.98, background: `linear-gradient(90deg, transparent, ${accent}18 14%, ${accent}30 46%, ${accent}12 72%, transparent)` }} />
-      <Box sx={{ position: "absolute", right: 14, bottom: 14, width: 58, height: 58, borderRadius: "50%", border: `1px solid ${accent}22`, background: `radial-gradient(circle at 30% 30%, ${accent}26, transparent 72%)`, opacity: 0.92 }} />
-      <Box sx={{ position: "absolute", left: 18, bottom: 14, width: 48, height: 48, borderRadius: "50%", border: `1px solid ${accent}18`, background: `linear-gradient(180deg, rgba(255,255,255,0.52), ${accent}0f)`, opacity: 0.85 }} />
-      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
+        borderColor: `${accent}18`,
+        backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.88) 0%, ${bg} 38%, rgba(255,255,255,0.96) 100%)`,
+        boxShadow: `0 10px 26px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255,255,255,0.92), 0 0 0 1px ${glow}`,
+      }}
+    >
+      <Box sx={{ position: "absolute", inset: 10, borderRadius: "22px", pointerEvents: "none", background: `radial-gradient(circle at 16% 18%, rgba(255,255,255,0.84) 0%, transparent 18%), radial-gradient(circle at 84% 18%, ${glow} 0%, transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 54%)`, opacity: 0.92 }} />
+      <CardContent sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3, fontWeight: 800, letterSpacing: "-0.01em" }}>{label}</Typography>
-          {IconNode ? <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "999px", bgcolor: `${accent}16`, color: accent, border: `1px solid ${accent}14`, boxShadow: `0 8px 18px ${accent}12` }}>{IconNode}</Box> : null}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+            <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "999px", bgcolor: "#ffffff", color: accent, border: `1px solid ${accent}12`, boxShadow: `0 8px 18px ${accent}10` }}>{IconNode}</Box>
+            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25, fontWeight: 800, letterSpacing: "-0.01em" }}>{label}</Typography>
+          </Box>
+          <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, height: 30, px: 1.1, borderRadius: "999px", bgcolor: "rgba(255,255,255,0.88)", color: "#7c8798", border: "1px solid rgba(226,232,240,0.95)", fontSize: "0.78rem", fontWeight: 800, letterSpacing: "0.04em" }}>
+            {tone === "vnd" ? "VND" : tone === "usd" ? "USD" : tone === "crypto" ? "CRYPTO" : tone === "payos" ? "PAYOS" : tone === "paypal" ? "PAYPAL" : ""}
+          </Box>
         </Box>
-        <Typography
-          sx={{
-            mt: "auto",
-            fontWeight: 900,
-            lineHeight: 0.95,
-            letterSpacing: "-0.03em",
-            fontSize: { xs: "1.65rem", sm: "1.9rem", md: "2.05rem" },
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            maxWidth: "100%",
-            color: "text.primary",
-          }}
-        >
+        <Typography sx={{ mt: "auto", fontWeight: 900, lineHeight: 0.94, letterSpacing: "-0.04em", fontSize: { xs: "1.75rem", sm: "2rem", md: "2.2rem" }, wordBreak: "break-word", overflowWrap: "anywhere", maxWidth: "100%", color: "text.primary" }}>
           {compactValue}
         </Typography>
-        {note ? <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>{note}</Typography> : null}
+        {note ? <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, fontSize: "0.93rem" }}>{note}</Typography> : null}
       </CardContent>
     </Card>
   );
@@ -185,6 +175,7 @@ export function AppSection({ title, subtitle, action, children, compact = false,
       sx={{
         overflow: "hidden",
         position: "relative",
+        borderRadius: styleGuide.shape.cardRadius,
         boxShadow: `0 16px 36px ${tone.main}12`,
         "&::before": {
           content: '""',
@@ -308,7 +299,7 @@ export function BreakdownChart({
   const tone = sectionAccentTone(accent);
   const maxValue = Math.max(1, ...items.map((item) => item.value));
   return (
-    <Card variant="outlined" sx={{ overflow: "hidden", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+    <Card variant="outlined" sx={{ overflow: "hidden", borderRadius: styleGuide.shape.cardRadius, backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
       <Box sx={{ p: 2, display: "grid", gap: 1.25 }}>
         {items.map((item, index) => {
@@ -354,7 +345,7 @@ export function DonutChart({
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
   return (
-    <Card variant="outlined" sx={{ overflow: "hidden", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+    <Card variant="outlined" sx={{ overflow: "hidden", borderRadius: styleGuide.shape.cardRadius, backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
       <Box sx={{ p: 2, display: "grid", gap: 2 }}>
         <Box sx={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: 2, alignItems: "center" }}>
@@ -406,7 +397,7 @@ export function DonutChart({
 
 export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
       <CardContent>
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
           {ok ? <CheckCircle2 color={statusPalette.success.main} size={20} /> : <XCircle color={statusPalette.error.main} size={20} />}
@@ -420,12 +411,15 @@ export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; 
   );
 }
 
-export function Info({ label, value }: { label: string; value: string }) {
+export function Info({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
-    <Card variant="outlined">
-      <CardContent sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-        <Typography variant="body2" color="text.secondary">{label}</Typography>
-        <Typography sx={{ fontWeight: 700 }}>{value}</Typography>
+    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
+      <CardContent sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+          {icon ? <Box sx={{ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37,99,235,0.08)", color: "primary.main" }}>{icon}</Box> : null}
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{label}</Typography>
+        </Box>
+        <Typography sx={{ fontWeight: 700, letterSpacing: "-0.02em" }}>{value}</Typography>
       </CardContent>
     </Card>
   );
@@ -451,7 +445,7 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
   }
 
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
       <PanelHead title={title} subtitle={`${subtitle} Bấm vào từng mục để chỉnh sửa và lưu riêng.`} />
       <Box sx={{ display: "grid", gap: 1.25, p: 2 }}>
         {fields.map((field) => (
@@ -638,7 +632,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
 
 export function TrendTable({ rows, title, subtitle }: { rows: { label: string; revenue: string; paid: number; pending: number; customers: number; aov: string; coupon: string; conversion: string; conversionColor: "good" | "warn" | "bad"; barWidth: number; trend: number; sparkline: number[] }[]; title: string; subtitle?: string }) {
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
       <PanelHead title={title} subtitle={subtitle} />
       <Box sx={{ overflowX: "auto" }}>
         <Table size="small" sx={{ minWidth: 1120 }}>

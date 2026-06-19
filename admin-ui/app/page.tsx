@@ -4,6 +4,7 @@
 import {
   Activity,
   BadgePercent,
+  BadgeDollarSign,
   BarChart3,
   CalendarClock,
   CheckCircle2,
@@ -35,6 +36,7 @@ import {
   Box,
   Button,
   ButtonBase,
+  Alert,
   Checkbox,
   Chip,
   Card,
@@ -52,6 +54,7 @@ import {
   Toolbar,
   Typography,
   TextField,
+  Grid,
 } from "@mui/material";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
@@ -96,13 +99,15 @@ import {
   uniqueValues,
 } from "./dashboard-helpers";
 import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, type GroupMode } from "./dashboard-business";
-import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
+import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, PanelHead, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
+import { Metric } from "./metric-card";
 import { TrendChart as MuiTrendChart } from "./dashboard-components";
 import type { OrderPeriod } from "./dashboard-types";
 import { AnalyticsSection, OrdersSection } from "./dashboard-sections";
 import { CustomersSection } from "./customers-section";
 import { CampaignsSection } from "./campaigns-section";
 import { ChannelPostsSection } from "./channel-posts-section";
+import { AppSection, AppToolbar } from "./dashboard-components";
 import {
   ActivityEvent,
   BroadcastCampaign,
@@ -333,7 +338,7 @@ const DEMO_USERS: UserRow[] = [
 
 const popupFieldSx = {
   "& .MuiOutlinedInput-root": {
-    borderRadius: 2,
+    borderRadius: 4,
     backgroundColor: "#ffffff",
   },
   "& .MuiInputBase-input": {
@@ -345,37 +350,36 @@ const popupFieldSx = {
 } as const;
 
 const popupSelectSx = {
-  borderRadius: 2,
+  borderRadius: 4,
   backgroundColor: "#ffffff",
 } as const;
 
 const customerPopupTabSx = {
   minHeight: 0,
-  "& .MuiTabs-flexContainer": { gap: 1 },
+  "& .MuiTabs-flexContainer": { gap: 0.75 },
   "& .MuiTab-root": {
     alignItems: "center",
     justifyContent: "flex-start",
-    minHeight: 42,
+    minHeight: 40,
     px: 1.5,
-    py: 1,
-    borderRadius: 999,
+    py: 0.9,
+    borderRadius: 4,
     textTransform: "none",
-    fontWeight: 700,
+    fontWeight: 650,
     letterSpacing: "-0.01em",
-    border: "1px solid",
-    borderColor: "divider",
-    bgcolor: "background.paper",
-    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+    border: "1px solid transparent",
+    bgcolor: "transparent",
+    boxShadow: "none",
   },
   "& .MuiTab-root:hover": {
-    bgcolor: "rgba(37, 99, 235, 0.05)",
-    borderColor: "rgba(37, 99, 235, 0.18)",
+    bgcolor: "rgba(37, 99, 235, 0.06)",
+    borderColor: "rgba(37, 99, 235, 0.14)",
   },
   "& .Mui-selected": {
     bgcolor: "primary.main",
     color: "common.white",
-    borderColor: "primary.main",
-    boxShadow: "0 10px 22px rgba(37, 99, 235, 0.18)",
+    borderColor: "rgba(37,99,235,0.18)",
+    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
   },
   "& .MuiTabs-indicator": { display: "none" },
 } as const;
@@ -396,7 +400,7 @@ const customerInnerCardSx = {
   p: 1.5,
   border: 1,
   borderColor: "divider",
-  borderRadius: 2.5,
+  borderRadius: 4,
   bgcolor: "background.paper",
   boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)",
   position: "relative",
@@ -444,6 +448,20 @@ const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon:
   }
   return { ...statusChipSx("muted") };
 };
+
+const sectionCardSx = {
+  overflow: "hidden",
+  position: "relative",
+  borderRadius: 4,
+  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    inset: 0,
+    height: 4,
+    background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981, #8b5cf6)",
+  },
+} as const;
 
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
@@ -1994,6 +2012,7 @@ function normalizeChatId(value: string | number | null | undefined) {
 }
 
 export default function Home() {
+  const isDevPreview = process.env.NODE_ENV !== "production";
   const [secret, setSecret] = useState("");
   const [savedSecret, setSavedSecret] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
@@ -2003,8 +2022,8 @@ export default function Home() {
   const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("commandsVi");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [users, setUsers] = useState<UserRow[]>([]);
+  const [orders, setOrders] = useState<Order[]>(isDevPreview ? DEMO_ORDERS : []);
+  const [users, setUsers] = useState<UserRow[]>(isDevPreview ? DEMO_USERS : []);
   const [config, setConfig] = useState<ConfigRow[]>([]);
   const [menuPages, setMenuPages] = useState<MenuPage[]>([]);
   const [saleRules, setSaleRules] = useState<SaleRule[]>([]);
@@ -2111,9 +2130,15 @@ export default function Home() {
   const [demoDataInjected, setDemoDataInjected] = useState(false);
 
   useEffect(() => {
+    const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
     const stored = window.localStorage.getItem("prive_admin_secret") || "";
-    setSavedSecret(stored);
-    setSecret(stored);
+    const envSecret = process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
+    const initialSecret = envSecret || stored || (isLocalDevHost ? "dev-admin-secret" : "");
+    setSavedSecret(initialSecret);
+    setSecret(initialSecret);
+    if (isLocalDevHost && initialSecret) {
+      window.localStorage.setItem("prive_admin_secret", initialSecret);
+    }
     const queryTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     const storedTab = window.localStorage.getItem(TAB_STORAGE_KEY) as Tab | null;
     const nextTab = queryTab && TAB_VALUES.includes(queryTab) ? queryTab : storedTab && TAB_VALUES.includes(storedTab) ? storedTab : null;
@@ -2144,10 +2169,10 @@ export default function Home() {
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
-    if (!savedSecret) return;
     if (loading) return;
     if (demoDataInjected) return;
     if (orders.length || users.length) return;
+    if (savedSecret) return;
     setOrders(DEMO_ORDERS);
     setUsers(DEMO_USERS);
     setDemoDataInjected(true);
@@ -2409,11 +2434,38 @@ export default function Home() {
       addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
 
       await Promise.all(tasks);
+      if (
+        process.env.NODE_ENV !== "production" &&
+        !demoDataInjected &&
+        !orders.length &&
+        !users.length &&
+        typeof window !== "undefined" &&
+        ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      ) {
+        setOrders(DEMO_ORDERS);
+        setUsers(DEMO_USERS);
+        setWebhook((current) =>
+          current?.url
+            ? current
+            : {
+                url: "http://127.0.0.1:8000/webhook",
+                has_custom_certificate: false,
+                pending_update_count: 0,
+                allowed_updates: ["message", "callback_query", "chat_member"],
+              }
+        );
+        setDemoDataInjected(true);
+      }
       if (resetPages) {
         setOrderPage(1);
         setCouponPage(1);
       }
     } catch (err) {
+      if (process.env.NODE_ENV !== "production" && !demoDataInjected) {
+        setOrders(DEMO_ORDERS);
+        setUsers(DEMO_USERS);
+        setDemoDataInjected(true);
+      }
       if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
       if (!silent) setLoading(false);
@@ -4085,18 +4137,36 @@ export default function Home() {
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ gap: 2, minHeight: 68, px: 3 }}>
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
-            </Typography>
+        <Toolbar sx={{ minHeight: 68, px: 0, display: "grid", gridTemplateColumns: "280px minmax(0, 1fr)" }}>
+          <Box sx={{ height: "100%", display: "flex", alignItems: "center", gap: 1.5, px: 2.25, bgcolor: "#111827", color: "#f9fafb", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography sx={{ fontSize: "1.05rem", fontWeight: 900, letterSpacing: "-0.035em", lineHeight: 1.05 }}>
+                Prive Admin
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#94a3b8", lineHeight: 1.2 }}>
+                {ui("Dashboard vận hành bot", "Bot operations dashboard")}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1, py: 0.65, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(255,255,255,0.05)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
+              <Typography variant="caption" sx={{ color: "#e2e8f0", fontWeight: 700, lineHeight: 1 }}>
+                {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
+              </Typography>
+            </Box>
           </Box>
-          <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-            {ui("Tải lại", "Reload")}
-          </Button>
+          <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, px: 3 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+                {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
+              </Typography>
+            </Box>
+            <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+              {ui("Tải lại", "Reload")}
+            </Button>
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -4117,16 +4187,9 @@ export default function Home() {
         }}
       >
         <Toolbar />
-        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "18px 14px 16px" }}>
-        <Box sx={{ mb: 1.5, px: 0.5 }}>
+        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "16px 18px 16px 14px" }}>
+        <Box sx={{ mb: 1.25, px: 0.5 }}>
           <Typography sx={{ fontSize: "1.7rem", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.05 }}>Prive Admin</Typography>
-          <Box sx={{ mt: 1, p: 1.1, display: "flex", alignItems: "center", gap: 1, borderRadius: 2.5, border: "1px solid rgba(148, 163, 184, 0.22)", bgcolor: "rgba(255,255,255,0.05)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 6px rgba(34,197,94,0.12)" : "0 0 0 6px rgba(239,68,68,0.12)" }} />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 700, color: "#e2e8f0", lineHeight: 1.2 }}>{webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}</Typography>
-              <Typography variant="caption" sx={{ color: "#94a3b8", lineHeight: 1.2 }}>{webhook?.url ? webhook.url : ui("Cần kiểm tra kết nối backend", "Check backend connection")}</Typography>
-            </Box>
-          </Box>
         </Box>
         <Tabs
           orientation="vertical"
@@ -4138,36 +4201,45 @@ export default function Home() {
           sx={{
             mt: 1,
             minHeight: 0,
-            "& .MuiTabs-flexContainer": { gap: 0.55 },
+            pr: 0.5,
+            overflow: "visible",
+            "& .MuiTabs-flexContainer": { gap: 0.65 },
             "& .MuiTab-root": {
               justifyContent: "flex-start",
-              minHeight: 36,
-              px: 1.35,
-              py: 0.7,
+              minHeight: 44,
+              px: 1.5,
+              py: 0.9,
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.06)",
-              bgcolor: "rgba(255,255,255,0.035)",
+              border: "1px solid rgba(148,163,184,0.08)",
+              bgcolor: "rgba(255,255,255,0.03)",
+              width: "100%",
+              boxSizing: "border-box",
               textTransform: "none",
               fontWeight: 600,
-              color: "#cbd5e1",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+              color: "#94a3b8",
+              boxShadow: "none",
               transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+              borderLeft: "3px solid transparent",
               "& .MuiTab-iconWrapper": {
                 marginRight: 7,
               },
+              "& .MuiChip-root": {
+                bgcolor: "rgba(255,255,255,0.06)",
+                color: "#cbd5e1",
+                borderColor: "rgba(255,255,255,0.08)",
+              },
             },
             "& .MuiTab-root:hover": {
-              bgcolor: "rgba(255,255,255,0.08)",
-              borderColor: "rgba(96,165,250,0.28)",
+              bgcolor: "rgba(255,255,255,0.06)",
+              borderColor: "rgba(96,165,250,0.12)",
               color: "#fff",
             },
             "& .MuiTab-root.Mui-selected": {
-              bgcolor: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
               backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
               color: "#fff",
-              borderColor: "rgba(96,165,250,0.36)",
-              boxShadow: "0 12px 24px rgba(37, 99, 235, 0.28)",
-              transform: "translateX(2px)",
+              borderColor: "rgba(96,165,250,0.22)",
+              boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
+              borderLeftColor: "rgba(255,255,255,0.72)",
             },
             "& .MuiTab-root.Mui-selected:hover": {
               backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
@@ -4201,79 +4273,83 @@ export default function Home() {
         </aside>
       </Drawer>
 
-      <Box component="section" className="main" sx={{ flexGrow: 1, pt: 0.5 }}>
+      <Box
+        component="section"
+        className="main"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          px: { xs: 2, md: 3 },
+          py: { xs: 2, md: 2.5 },
+          overflowX: "hidden",
+        }}
+      >
 
-        {notice ? <div className={notice.type === "ok" ? "toast ok" : "toast error-toast"}>{notice.type === "ok" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}{notice.text}</div> : null}
+        {notice ? (
+          <Alert
+            severity={notice.type === "ok" ? "success" : "error"}
+            variant="filled"
+            sx={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 100,
+              minWidth: { xs: "min(360px, calc(100vw - 32px))", sm: 420 },
+              maxWidth: "min(520px, calc(100vw - 32px))",
+              boxShadow: "0 18px 48px rgba(15, 23, 42, 0.24)",
+              borderRadius: 4,
+              alignItems: "center",
+            }}
+          >
+            {notice.text}
+          </Alert>
+        ) : null}
 
         {missingCore.length ? (
-          <div className="warning">
+          <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
             <strong>Cần hoàn tất cấu hình</strong>
-            <span>{missingCore.join(" • ")}</span>
-          </div>
+            <Box component="span" sx={{ display: "block" }}>{missingCore.join(" • ")}</Box>
+          </Alert>
         ) : null}
 
         {tab === "overview" ? (
-          <div className="stack">
-            <div className="grid metrics-band">
+          <Stack spacing={2}>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
               <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} tone="vnd" icon={<TrendingUp size={16} />} />
               <Metric label="Đơn đang chờ" value={String(metrics.pending)} tone="usd" icon={<CalendarClock size={16} />} />
               <Metric label="Khách gần đây" value={String(metrics.users)} tone="crypto" icon={<Users size={16} />} />
               <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} tone="payos" icon={<ShieldCheck size={16} />} />
-            </div>
-            <div className="grid metrics-band">
-              <Metric
-                label="Doanh thu VNĐ"
-                value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
-                tone="vnd"
-                note="Nguồn chính: PayOS / manual nội địa"
-                icon={<CreditCard size={16} />}
-              />
-              <Metric
-                label="Doanh thu USD"
-                value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
-                tone="usd"
-                note="Chỉ cho khách quốc tế"
-                icon={<Send size={16} />}
-              />
-              <Metric
-                label="Doanh thu Crypto"
-                value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}
-                tone="crypto"
-                note="USDT / thanh toán crypto"
-                icon={<Coins size={16} />}
-              />
-              <Metric
-                label="Doanh thu PayOS"
-                value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)}
-                tone="payos"
-                note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"}
-                icon={<Gift size={16} />}
-              />
-            </div>
-            <div className="grid metrics-band">
+            </Box>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
+              <Metric label="Doanh thu VNĐ" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="vnd" note="Nguồn chính: PayOS / manual nội địa" icon={<CreditCard size={16} />} />
+              <Metric label="Doanh thu USD" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="usd" note="Chỉ cho khách quốc tế" icon={<Send size={16} />} />
+              <Metric label="Doanh thu Crypto" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="crypto" note="USDT / thanh toán crypto" icon={<Coins size={16} />} />
+              <Metric label="Doanh thu PayOS" value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)} tone="payos" note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"} icon={<Gift size={16} />} />
+            </Box>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
               <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} tone="paypal" icon={<CalendarClock size={16} />} />
               <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} tone="vnd" icon={<CheckCircle2 size={16} />} />
               <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} tone="usd" icon={<BarChart3 size={16} />} />
               <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} tone="crypto" icon={<BadgePercent size={16} />} />
-            </div>
-            <section className="panel">
+            </Box>
+            <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Xu hướng vận hành"
                 subtitle="Doanh thu và user VIP theo ngày, có thể chuyển sang view theo tháng."
                 action={
-                  <div className="actions" style={{ gap: 8 }}>
+                  <Stack direction="row" spacing={1}>
                     <Button variant={overviewTrendRange === "month" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("month")}>Theo ngày</Button>
                     <Button variant={overviewTrendRange === "year" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("year")}>Theo tháng</Button>
-                  </div>
+                  </Stack>
                 }
               />
-              <div className="stack" style={{ padding: 16 }}>
+              <Stack spacing={2} sx={{ p: 2 }}>
                 <MuiTrendChart
                   title="Doanh thu tăng giảm"
                   subtitle="Chỉ tính đơn PAID trong kỳ đang xem."
                   rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
                   points={overviewTrendPoints}
-                  accent="blue"
                   valueLabel={`Tổng: ${ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange)))}`}
                   secondaryLabel={`Mốc: ${overviewTrendPoints.length}`}
                 />
@@ -4282,26 +4358,27 @@ export default function Home() {
                   subtitle="Đếm user Telegram đã có đơn PAID trong từng mốc."
                   rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
                   points={overviewVipPoints}
-                  accent="emerald"
                   valueLabel={`Tổng VIP: ${overviewTrendPoints.reduce((sum, item) => sum + item.vip, 0)}`}
                   secondaryLabel={`Mốc: ${overviewVipPoints.length}`}
                 />
-              </div>
-            </section>
-            <section className="panel">
+              </Stack>
+            </Card>
+            <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
-              <div className="status-grid">
+              <Box sx={{ p: 2, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
                 <HealthItem ok={Boolean(webhook?.url)} title="Telegram webhook" detail={webhook?.url || "Chưa set webhook"} />
                 <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
                 <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
                 <HealthItem ok={metrics.coupons >= 0} title="Coupon" detail={`${metrics.coupons} mã trong hệ thống`} />
-              </div>
-            </section>
-            <section className="panel">
+              </Box>
+            </Card>
+            <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead title="Đơn hàng mới nhất" subtitle="10 đơn gần nhất." />
-              <MuiOrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
-            </section>
-          </div>
+              <Box sx={{ p: 0 }}>
+                <MuiOrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
+              </Box>
+            </Card>
+          </Stack>
         ) : null}
 
         {tab === "analytics" ? (
@@ -4330,10 +4407,10 @@ export default function Home() {
                 action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá SVIP</Button>}
               />
               <div className="system-list">
-                <Info label="SVIP 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_30D", "0") || 0))} />
-                <Info label="SVIP trọn đời VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_LIFE", "0") || 0))} />
-                <Info label="SVIP 30 ngày USD" value={getConfigValue(config, "PRICE_SVIP_30D_USD", "-") || "-"} />
-                <Info label="SVIP trọn đời USD" value={getConfigValue(config, "PRICE_SVIP_LIFE_USD", "-") || "-"} />
+                <Info label="SVIP 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_30D", "0") || 0))} icon={<BadgeDollarSign size={16} />} />
+                <Info label="SVIP trọn đời VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_LIFE", "0") || 0))} icon={<ShieldCheck size={16} />} />
+                <Info label="SVIP 30 ngày USD" value={getConfigValue(config, "PRICE_SVIP_30D_USD", "-") || "-"} icon={<CreditCard size={16} />} />
+                <Info label="SVIP trọn đời USD" value={getConfigValue(config, "PRICE_SVIP_LIFE_USD", "-") || "-"} icon={<Coins size={16} />} />
               </div>
             </section>
             <section className="panel">
@@ -4642,12 +4719,12 @@ export default function Home() {
         {tab === "supportGroup" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} />
-              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} />
-              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} />
-              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} />
-              <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} />
-              <Metric label="Group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} />
+              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} icon={<Plus size={16} />} />
+              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} icon={<TrendingUp size={16} />} />
+              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} icon={<XCircle size={16} />} />
+              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} icon={<ShieldCheck size={16} />} />
+              <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
+              <Metric label="Group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} icon={<Users size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
@@ -5100,9 +5177,9 @@ export default function Home() {
                 }
               />
               <div className="system-list">
-                <Info label="Webhook URL" value={webhook?.url || "Chưa cấu hình"} />
-                <Info label="Update đang chờ" value={String(webhook?.pending_update_count ?? 0)} />
-                <Info label="Lỗi gần nhất" value={webhook?.last_error_message || "Không có"} />
+                <Info label="Webhook URL" value={webhook?.url || "Chưa cấu hình"} icon={<Activity size={16} />} />
+                <Info label="Update đang chờ" value={String(webhook?.pending_update_count ?? 0)} icon={<BadgePercent size={16} />} />
+                <Info label="Lỗi gần nhất" value={webhook?.last_error_message || "Không có"} icon={<XCircle size={16} />} />
               </div>
             </section>
             <section className="panel">
@@ -5477,7 +5554,7 @@ export default function Home() {
                         return (
                           <FormControlLabel
                             key={item}
-                            sx={{ m: 0, px: 1, py: 0.75, borderRadius: 2, border: 1, borderColor: selected ? "primary.main" : "divider", bgcolor: selected ? "action.selected" : "background.paper" }}
+                            sx={{ m: 0, px: 1, py: 0.75, borderRadius: 4, border: 1, borderColor: selected ? "primary.main" : "divider", bgcolor: selected ? "action.selected" : "background.paper" }}
                             control={<Checkbox checked={selected} onChange={() => toggleCouponPlan(item)} />}
                             label={planOptionLabel(item)}
                           />
@@ -5526,7 +5603,7 @@ export default function Home() {
                   <TextField className="field" label="Hẹn giờ đăng" type="datetime-local" value={channelPostForm.scheduled_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, scheduled_at: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
                   <TextField className="field" label="Hẹn giờ xóa" type="datetime-local" value={channelPostForm.delete_at} onChange={(event) => setChannelPostForm({ ...channelPostForm, delete_at: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
                   <FormControlLabel
-                    sx={{ gridColumn: "span 1", alignItems: "flex-start", border: 1, borderColor: "divider", borderRadius: 2, px: 1.5, py: 1, m: 0 }}
+                    sx={{ gridColumn: "span 1", alignItems: "flex-start", border: 1, borderColor: "divider", borderRadius: 4, px: 1.5, py: 1, m: 0 }}
                     control={<Checkbox checked={Boolean(channelPostForm.repeat_daily)} onChange={(event) => setChannelPostForm({ ...channelPostForm, repeat_daily: event.target.checked })} />}
                     label={<Box><strong>Lặp lại mỗi ngày</strong><Box className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</Box></Box>}
                   />
@@ -5663,11 +5740,11 @@ export default function Home() {
                     border: 1,
                     borderColor: "divider",
                     bgcolor: "background.paper",
-                    borderRadius: 2,
+                    borderRadius: 4,
                     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
                   }}
                 >
-                  <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ p: 1.5, borderRadius: 4, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
                     {(() => {
                       const customerStatusTone = selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple");
                       return (
@@ -5697,7 +5774,7 @@ export default function Home() {
                         <Typography sx={{ fontWeight: 800 }}>{money(selectedCustomer.revenue)}</Typography>
                       </Box>
                     </Stack>
-                    <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
+                    <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 4, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
                       <Typography variant="body2" color="text.secondary">Gia hạn nhanh</Typography>
                       <Typography sx={{ fontWeight: 800, mt: 0.25 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
                       <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
@@ -5769,16 +5846,16 @@ export default function Home() {
                 {customerDetailTab === "groups" ? (
                     <>
                     <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
-                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} />
-                      <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} />
-                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} />
-                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} />
+                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} icon={<Users size={16} />} />
+                      <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} icon={<ShieldCheck size={16} />} />
+                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} icon={<ClipboardList size={16} />} />
+                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} icon={<Eye size={16} />} />
                     </Box>
                     <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
-                      <Metric label="Group giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} />
-                      <Metric label="Group đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} />
-                      <Metric label="Nhóm active hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} />
-                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} />
+                      <Metric label="Group giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} icon={<CheckCircle2 size={16} />} />
+                      <Metric label="Group đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} icon={<XCircle size={16} />} />
+                      <Metric label="Nhóm active hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} icon={<Users size={16} />} />
+                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} icon={<Activity size={16} />} />
                     </Box>
                     <section className="panel nested-panel">
                       <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
@@ -5820,10 +5897,10 @@ export default function Home() {
                       <Tab value="orders" label="Order timeline" />
                     </Tabs>
                     <div className="grid">
-                      <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} />
-                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} />
-                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} />
-                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} />
+                      <Metric label="Sự kiện support" value={String(selectedCustomerTimelineCounts.total)} icon={<Activity size={16} />} />
+                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} icon={<Plus size={16} />} />
+                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} icon={<TrendingUp size={16} />} />
+                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} icon={<XCircle size={16} />} />
                     </div>
                     <section className="panel nested-panel">
                       <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
@@ -5925,43 +6002,53 @@ export default function Home() {
   );
 }
 
-function Metric({ label, value, tone, note, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; icon?: ReactNode }) {
-  const compactValue = (() => {
-    const cleaned = value
-      .replace(/^PAYOS:\s*/i, "")
-      .replace(/^PAYPAL:\s*/i, "")
-      .replace(/^NOWPAYMENTS:\s*/i, "")
-      .replace(/^NOWPAYMENTS\s*\/\s*USDT:\s*/i, "")
-      .replace(/^CRYPTO:\s*/i, "")
-      .replace(/\bCRYPTO\b$/i, "")
-      .trim();
-    return cleaned || value;
-  })();
+function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
-    <div className={`card metric-card ${tone ? `tone-${tone}` : ""}`}>
-      <div className="metric-head">
-        <div className="metric-title-wrap">
-          <div className="metric-icon">{icon ?? <span className="metric-icon-dot" />}</div>
-          <div className="metric-title">{label}</div>
-        </div>
-        <div className="metric-badge">{tone ? tone.toUpperCase() : "LIVE"}</div>
-      </div>
-      <div className="metric">{compactValue}</div>
-      {note ? <div className="metric-note">{note}</div> : null}
-    </div>
+    <Card
+      variant="outlined"
+      sx={{
+        height: "100%",
+        borderRadius: 4,
+        boxShadow: "0 12px 26px rgba(15, 23, 42, 0.05)",
+        bgcolor: ok ? "rgba(236,253,245,0.9)" : "rgba(254,242,242,0.9)",
+        borderColor: ok ? "rgba(167,243,208,0.9)" : "rgba(254,202,202,0.9)",
+      }}
+    >
+      <CardContent sx={{ display: "flex", gap: 1.5, alignItems: "flex-start", py: 1.75, "&:last-child": { pb: 1.75 } }}>
+        <Box sx={{ width: 34, height: 34, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: ok ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)", color: ok ? "success.main" : "error.main" }}>
+          {ok ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{title}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.45, wordBreak: "break-word" }}>
+            {detail}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
   );
 }
 
-function PanelHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  return <div className="panel-head"><div><strong>{title}</strong>{subtitle ? <div className="muted">{subtitle}</div> : null}</div>{action}</div>;
-}
-
-function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
-  return <div className="health-item">{ok ? <CheckCircle2 className="good" size={20} /> : <XCircle className="bad" size={20} />}<div><strong>{title}</strong><span>{detail}</span></div></div>;
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="info-row"><span>{label}</span><strong>{value}</strong></div>;
+function Info({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 4,
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+      }}
+    >
+      <CardContent sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, py: 1.5, "&:last-child": { pb: 1.5 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+          {icon ? <Box sx={{ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37,99,235,0.08)", color: "primary.main" }}>{icon}</Box> : null}
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            {label}
+          </Typography>
+        </Box>
+        <Typography sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{value}</Typography>
+      </CardContent>
+    </Card>
+  );
 }
 
 function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean> }) {
@@ -6007,7 +6094,7 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
               alignItems: "center",
               px: 2,
               py: 1.5,
-              borderRadius: 2,
+              borderRadius: 4,
               border: 1,
               borderColor: "divider",
               bgcolor: "background.paper",
@@ -6104,7 +6191,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
           key={order.order_id}
           variant="outlined"
           sx={{
-            borderRadius: 3,
+            borderRadius: 4,
             overflow: "hidden",
             position: "relative",
             transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
@@ -6134,7 +6221,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
                 <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={statusChipSx("purple")} />
                 <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={statusChipSx("warning")} />
-                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 999, minWidth: 100 }}>
+                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 4, minWidth: 100 }}>
                   {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
                 </Button>
               </Box>
@@ -6173,7 +6260,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   <Button variant="contained" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
-                  }} sx={{ borderRadius: 999, minWidth: 72 }}>Lưu</Button>
+                  }} sx={{ borderRadius: 4, minWidth: 72 }}>Lưu</Button>
                 </Stack>
               </Box>
 
@@ -6197,7 +6284,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                   <Button variant="contained" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
-                  }} sx={{ borderRadius: 999, minWidth: 84 }}>Lưu hạn</Button>
+                  }} sx={{ borderRadius: 4, minWidth: 84 }}>Lưu hạn</Button>
                 </Stack>
               </Box>
 

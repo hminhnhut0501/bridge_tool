@@ -132,8 +132,13 @@ const baseTheme = createTheme({
     MuiTabs: {
       styleOverrides: {
         root: {
-          minHeight: 46,
-          gap: 8,
+          minHeight: 44,
+          padding: 4,
+          borderRadius: 999,
+          backgroundColor: "rgba(255,255,255,0.78)",
+          border: `1px solid ${styleGuide.palette.divider}`,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.82)",
+          gap: 6,
         },
         indicator: {
           display: "none",
@@ -156,29 +161,32 @@ const baseTheme = createTheme({
       styleOverrides: {
         root: {
           alignItems: "center",
-          border: `1px solid ${styleGuide.palette.divider}`,
+          border: "1px solid transparent",
           borderRadius: 999,
-          backgroundColor: "#ffffff",
+          backgroundColor: "transparent",
           color: styleGuide.palette.text.primary,
-          minHeight: 42,
-          padding: "10px 14px",
+          minHeight: 40,
+          padding: "10px 18px",
           fontWeight: 700,
           letterSpacing: styleGuide.typography.bodyTracking,
           textTransform: "none",
-          transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease",
+          transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
           "&:hover": {
             backgroundColor: "rgba(25, 118, 210, 0.06)",
-            borderColor: styleGuide.palette.primary.light,
+            borderColor: "rgba(37,99,235,0.10)",
           },
           "&.Mui-selected": {
             backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
-            borderColor: styleGuide.palette.primary.main,
+            borderColor: "rgba(37,99,235,0.18)",
             color: "#ffffff",
-            boxShadow: "0 8px 20px rgba(25, 118, 210, 0.16)",
+            boxShadow: "0 8px 18px rgba(25, 118, 210, 0.16)",
           },
           "&.Mui-selected:hover": {
             backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
             borderColor: styleGuide.palette.primary.dark,
+          },
+          "& .MuiTab-iconWrapper": {
+            marginRight: 8,
           },
         },
       },

@@ -3,7 +3,8 @@
 
 import { Box, Button, Chip, Stack } from "@mui/material";
 import { Megaphone, PauseCircle, PlayCircle, Plus, Send, Users } from "lucide-react";
-import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx, statusButtonSx } from "./dashboard-components";
+import { Metric } from "./metric-card";
 import { dateText } from "./dashboard-helpers";
 
 export function CampaignsSection(props: any) {

@@ -3,7 +3,8 @@
 
 import { Box, Button, Stack } from "@mui/material";
 import { Plus, Send, Trash2 } from "lucide-react";
-import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
+import { Metric } from "./metric-card";
 import { dateText } from "./dashboard-helpers";
 
 export function ChannelPostsSection(props: any) {

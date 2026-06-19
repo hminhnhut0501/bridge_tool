@@ -1,9 +1,10 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Button, MenuItem, Stack, TextField } from "@mui/material";
+import { Box, Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Coins, Megaphone } from "lucide-react";
-import { AppSection, AppToolbar, BreakdownChart, DonutChart, Metric, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
+import { AppSection, AppToolbar, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
+import { Metric } from "./metric-card";
 
 export function AnalyticsSection(props: any) {
   const { orders, yearStats, monthStats, paidRevenueByCurrency, paidRevenueByProvider, formatRevenueCurrency, providerRevenueFormat, isWithinPeriod } = props;
@@ -64,59 +65,42 @@ export function AnalyticsSection(props: any) {
   }[];
   return (
     <Stack spacing={2}>
-      <div className="grid metrics-band">
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
         <Metric label="Hôm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} accent="blue" icon={<TrendingUp size={16} />} />
         <Metric label="Tháng này" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} accent="cyan" icon={<CalendarClock size={16} />} />
         <Metric label="Năm nay" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "year")))} accent="emerald" icon={<ShieldCheck size={16} />} />
         <Metric label="Khách đã trả tiền" value={String(yearStats.customers)} accent="indigo" icon={<Users size={16} />} />
-      </div>
-      <div className="grid metrics-band">
+      </Box>
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
         <Metric label="PAID" value={String(monthStats.paid)} accent="emerald" icon={<CreditCard size={16} />} />
         <Metric label="PENDING" value={String(monthStats.pending)} accent="amber" icon={<BadgeDollarSign size={16} />} />
         <Metric label="CANCELLED" value={String(monthStats.cancelled)} accent="rose" icon={<ShieldCheck size={16} />} />
         <Metric label="EXPIRED" value={String(monthStats.expired)} accent="blue" icon={<CalendarClock size={16} />} />
-      </div>
-      <div className="grid metrics-band">
+      </Box>
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
         <Metric label="VNĐ tháng" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="vnd" accent="blue" icon={<TrendingUp size={16} />} />
         <Metric label="USD tháng" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="usd" accent="cyan" icon={<CreditCard size={16} />} />
         <Metric label="Crypto tháng" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0))} tone="crypto" accent="emerald" icon={<Coins size={16} />} />
         <Metric label="PayPal" value={providerRevenueFormat("PAYPAL", paidRevenueByProvider.PAYPAL || 0)} tone="paypal" accent="indigo" icon={<BadgeDollarSign size={16} />} />
-      </div>
-      <div className="grid metrics-band">
+      </Box>
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
         <Metric label="Đơn PAID tháng" value={String(monthStats.paid)} accent="blue" icon={<CreditCard size={16} />} />
         <Metric label="Đơn chờ tháng" value={String(monthStats.pending)} accent="amber" icon={<BadgeDollarSign size={16} />} />
         <Metric label="AOV tháng" value={props.ordersAverageMoney(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")))} accent="cyan" icon={<TrendingUp size={16} />} />
         <Metric label="Coupon giảm tháng" value={props.ordersMoney(orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")), "coupon_discount_amount")} accent="rose" icon={<Megaphone size={16} />} />
-      </div>
-      <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        <BreakdownChart
-          title="Doanh thu theo ngày"
-          subtitle="Xem mốc ngày nào đang tăng giảm để bám đà bán."
-          accent="blue"
-          items={monthRevenue.slice().reverse()}
-        />
-        <DonutChart
-          title="Cơ cấu trạng thái tháng"
-          subtitle="Tỉ trọng đơn để đọc nhanh trạng thái vận hành."
-          accent="emerald"
-          segments={paymentStatusBreakdown}
-          centerLabel={`${monthStats.conversion}%`}
-        />
-      </div>
-      <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        <BreakdownChart
-          title="Doanh thu theo currency"
-          subtitle="Biết ngay dòng tiền chính tháng này nằm ở đâu."
-          accent="cyan"
-          items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]}
-        />
-        <BreakdownChart
-          title="Doanh thu theo phương thức"
-          subtitle="PayOS, PayPal, NOWPayments và USDT TRC20."
-          accent="violet"
-          items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]}
-        />
-      </div>
+      </Box>
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+        <BreakdownChart title="Doanh thu theo ngày" subtitle="Xem mốc ngày nào đang tăng giảm để bám đà bán." accent="blue" items={monthRevenue.slice().reverse()} />
+        <Box>
+          <DonutChart title="Cơ cấu trạng thái tháng" subtitle="Tỉ trọng đơn để đọc nhanh trạng thái vận hành." accent="emerald" segments={paymentStatusBreakdown} centerLabel={`${monthStats.conversion}%`} />
+        </Box>
+      </Box>
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+        <BreakdownChart title="Doanh thu theo currency" subtitle="Biết ngay dòng tiền chính tháng này nằm ở đâu." accent="cyan" items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]} />
+        <Box>
+          <BreakdownChart title="Doanh thu theo phương thức" subtitle="PayOS, PayPal, NOWPayments và USDT TRC20." accent="violet" items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]} />
+        </Box>
+      </Box>
       <TrendTable title="Theo dõi tăng trưởng theo ngày" subtitle="Doanh thu, số đơn, khách trả tiền và tỉ lệ thanh toán trong tháng." rows={trendRows(monthGroups, monthPeak)} />
       <TrendTable title="Theo dõi tăng trưởng theo tháng" subtitle="Biểu đồ phát triển doanh thu trong năm hiện tại." rows={trendRows(yearGroups, yearPeak)} />
     </Stack>
@@ -128,10 +112,10 @@ export function OrdersSection(props: any) {
   return (
     <Stack spacing={2}>
       <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact accent="amber">
-        <div className="hint compact">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</div>
+        <Typography variant="body2" color="text.secondary">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</Typography>
       </AppSection>
       <AppSection title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>} accent="blue">
-        <div className="toolbar orders-toolbar orders-toolbar-accent">
+        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} sx={{ p: 2, bgcolor: "background.default", borderTop: 1, borderBottom: 1, borderColor: "divider" }}>
           <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
           <TextField select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)} size="small" fullWidth>
             <MenuItem value="ALL">Tất cả trạng thái</MenuItem><MenuItem value="PENDING">Đang chờ</MenuItem><MenuItem value="PAID">Đã thanh toán</MenuItem><MenuItem value="CANCELLED">Đã hủy</MenuItem><MenuItem value="EXPIRED">Hết hạn</MenuItem>
@@ -142,7 +126,7 @@ export function OrdersSection(props: any) {
           <TextField select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value)} size="small" fullWidth>
             <MenuItem value="day">Nhóm theo ngày</MenuItem><MenuItem value="month">Nhóm theo tháng</MenuItem><MenuItem value="none">Không nhóm</MenuItem>
           </TextField>
-        </div>
+        </Stack>
         {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
         <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
         <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />

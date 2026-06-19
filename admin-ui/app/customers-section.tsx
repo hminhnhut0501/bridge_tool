@@ -3,7 +3,8 @@
 
 import { Box, Button, Chip, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { BadgeDollarSign, CreditCard, ShieldCheck, Users } from "lucide-react";
-import { AppSection, AppToolbar, Metric, Pagination, SimpleTable, statusChipSx } from "./dashboard-components";
+import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "./dashboard-components";
+import { Metric } from "./metric-card";
 import { dateTextShort } from "./dashboard-helpers";
 
 export function CustomersSection(props: any) {

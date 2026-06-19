@@ -37,9 +37,9 @@ export const styleGuide = {
     divider: "#e2e8f0",
   },
   shape: {
-    cardRadius: 18,
-    dialogRadius: 24,
-    inputRadius: 14,
+    cardRadius: 4,
+    dialogRadius: 16,
+    inputRadius: 10,
     buttonRadius: 999,
   },
   shadows: {
@@ -87,7 +87,7 @@ export const styleGuide = {
       outlinedShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
     },
     panel: {
-      headerRadius: 18,
+      headerRadius: 12,
       border: "#e2e8f0",
       shadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
     },
