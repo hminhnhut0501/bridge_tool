@@ -368,9 +368,6 @@ select:disabled {
   grid-column: 1 / -1;
 }
 
-.field input,
-.field select,
-.field textarea,
 .toolbar input,
 .toolbar select {
   background: #fbfcfd;
@@ -384,14 +381,6 @@ select:disabled {
   transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
-.field textarea {
-  min-height: 112px;
-  resize: vertical;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus,
 .toolbar input:focus,
 .toolbar select:focus {
   border-color: var(--accent);
@@ -887,24 +876,6 @@ td select {
   width: min(100%, 1540px);
 }
 
-.customer-sidebar-backdrop {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.customer-sidebar-panel {
-  border-radius: 20px;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  height: calc(100vh - 48px);
-  max-height: calc(100vh - 48px);
-  max-width: 1540px;
-  overflow: hidden;
-  width: min(100%, 1540px);
-  box-shadow: 0 28px 84px rgba(15, 23, 42, 0.22);
-}
-
 .customer-sidebar-nav {
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%),
@@ -919,13 +890,6 @@ td select {
 .customer-sidebar-nav > .panel-head {
   position: relative;
   border-bottom: 1px solid var(--line);
-}
-
-.customer-sidebar-panel .customer-close-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 2;
 }
 
 .customer-sidebar-summary {
@@ -1083,11 +1047,6 @@ td select {
   min-height: 38px;
 }
 
-.customer-order-toggle {
-  min-height: 34px;
-  padding: 7px 12px;
-}
-
 .customer-order-card__details {
   border-top: 1px dashed var(--line);
   display: none;
@@ -1117,29 +1076,12 @@ td select {
   align-self: start;
 }
 
-.config-modal-backdrop {
-  align-items: center;
-}
-
-.modal-panel.config-edit-modal {
-  max-width: 620px;
-}
-
-.settings-config-modal > .panel {
-  border: 0;
-  border-radius: 0;
-}
-
 .modal-actions {
   border-top: 1px solid var(--line);
   display: flex;
   gap: 10px;
   justify-content: flex-end;
   padding: 14px 16px;
-}
-
-.modal-content {
-  padding: 16px;
 }
 
 .channel-preview,
@@ -1565,41 +1507,6 @@ td select {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* Grid variants */
-.grid.metrics-band {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 6px;
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.13), transparent 28%),
-    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.11), transparent 25%),
-    radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.11), transparent 28%),
-    linear-gradient(135deg, rgba(37, 99, 235, 0.07), rgba(6, 182, 212, 0.05), rgba(16, 185, 129, 0.06)),
-    rgba(255, 255, 255, 0.76);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 18px 34px rgba(37, 99, 235, 0.04);
-}
-
-.grid.metrics-band > * {
-  box-shadow:
-    0 14px 30px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  transform: translateZ(0);
-}
-
-.grid.metrics-band-customer {
-  background:
-    linear-gradient(135deg, rgba(124, 58, 237, 0.06), rgba(16, 185, 129, 0.03), rgba(37, 99, 235, 0.05)),
-    rgba(255, 255, 255, 0.66);
-}
-
-.grid.metrics-band-campaigns {
-  background:
-    linear-gradient(135deg, rgba(6, 182, 212, 0.07), rgba(124, 58, 237, 0.05), rgba(245, 158, 11, 0.05)),
-    rgba(255, 255, 255, 0.66);
-}
-
 /* Health item variants */
 .health-item.bad {
   background: #fef3f2;
@@ -1635,100 +1542,7 @@ td select {
   padding: 24px;
 }
 
-/* Modal backdrop variants */
-.modal-backdrop.config-modal-backdrop {
-  align-items: center;
-}
-
-.modal-backdrop.customer-sidebar-backdrop {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-/* Modal panel variants */
-.modal-panel.config-edit-modal {
-  max-width: 620px;
-}
-
-.modal-panel.customer-sidebar-panel {
-  border-radius: 12px;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  height: calc(100vh - 48px);
-  max-height: calc(100vh - 48px);
-  max-width: 1540px;
-  overflow: hidden;
-  width: min(100%, 1540px);
-}
-
-.modal-panel.wide-modal {
-  max-width: 980px;
-}
-
-.modal-panel.wide-modal.settings-config-modal {
-  max-width: 980px;
-}
-
-.modal-panel.wide-modal.settings-config-modal > .panel {
-  border: 0;
-  border-radius: 0;
-}
-
-/* Panel actions variants */
-.panel-actions.modal-toolbar {
-  background: #fbfcfd;
-  border-bottom: 1px solid var(--line);
-  padding: 12px 16px;
-}
-
-/* Subtabs variants */
-.subtabs.customer-order-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0;
-}
-
-.subtabs.customer-order-tabs button {
-  min-height: 44px;
-  padding: 10px 14px;
-}
-
-.subtabs.hidden-subtabs {
-  padding: 14px 16px;
-}
-
 /* Table wrap variants */
 .table-wrap.summary-wrap {
   border-top: 1px solid var(--line);
-}
-
-/* Toolbar variants */
-.toolbar.hidden-toolbar {
-  padding: 16px 16px 0;
-}
-
-.toolbar.orders-toolbar {
-  grid-template-columns: minmax(260px, 1fr) 180px 180px 180px;
-}
-
-.toolbar.orders-toolbar.orders-toolbar-accent {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(245, 158, 11, 0.05));
-  border-color: rgba(245, 158, 11, 0.18);
-  border-radius: 18px;
-  box-shadow:
-    0 10px 22px rgba(245, 158, 11, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-
-/* Customer order card block wide */
-.customer-order-card__block.customer-order-card__block--wide {
-  grid-column: 1 / -1;
-}
-
-/* Button secondary customer order toggle */
-.btn.secondary.customer-order-toggle {
-  min-height: 34px;
-  padding: 7px 12px;
 }

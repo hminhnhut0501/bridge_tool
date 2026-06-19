@@ -49,28 +49,25 @@ export function Metric({ label, value, tone, note, accent, icon }: { label: stri
       sx={{
         position: "relative",
         overflow: "hidden",
-        minHeight: 136,
-        p: 2.2,
-        borderRadius: "28px",
-        borderColor: accentStyle ? `${accentStyle.main}18` : "rgba(125, 211, 252, 0.28)",
-        boxShadow: "0 10px 26px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255,255,255,0.92)",
-        background: `linear-gradient(135deg, rgba(255,255,255,0.90) 0%, ${toneStyle.tintA} 36%, ${toneStyle.tintB} 68%, rgba(255,255,255,0.96) 100%)`,
-        backdropFilter: "blur(18px) saturate(1.08)",
-        WebkitBackdropFilter: "blur(18px) saturate(1.08)",
+        minHeight: 128,
+        p: 2,
+        borderRadius: "20px",
+        borderColor: accentStyle ? `${accentStyle.main}1a` : "rgba(125, 211, 252, 0.20)",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255,255,255,0.9)",
+        background: `linear-gradient(135deg, rgba(255,255,255,0.92) 0%, ${toneStyle.tintA} 34%, ${toneStyle.tintB} 72%, rgba(255,255,255,0.98) 100%)`,
+        backdropFilter: "blur(16px) saturate(1.05)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.05)",
       }}
     >
-      <Box sx={{ position: "absolute", inset: 10, borderRadius: "22px", pointerEvents: "none", background: `radial-gradient(circle at 18% 18%, rgba(255,255,255,0.84) 0%, transparent 18%), radial-gradient(circle at 84% 18%, ${glow} 0%, transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 54%)`, opacity: 0.9 }} />
-      <CardContent sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 1.1, minHeight: 130, "&:last-child": { pb: 2 } }}>
-        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
-            <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "999px", bgcolor: "#ffffff", color: accentColor, border: `1px solid ${accentColor}12`, boxShadow: `0 8px 18px ${accentColor}10` }}>{IconNode}</Box>
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25, fontWeight: 800, letterSpacing: "-0.01em" }}>{label}</Typography>
-          </Box>
-          <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, height: 30, px: 1.1, borderRadius: "999px", bgcolor: "rgba(255,255,255,0.88)", color: "#7c8798", border: "1px solid rgba(226,232,240,0.95)", fontSize: "0.78rem", fontWeight: 800, letterSpacing: "0.04em" }}>
-            {tone === "vnd" ? "VND" : tone === "usd" ? "USD" : tone === "crypto" ? "CRYPTO" : tone === "payos" ? "PAYOS" : tone === "paypal" ? "PAYPAL" : ""}
-          </Box>
+      <Box sx={{ position: "absolute", inset: 6, borderRadius: "16px", pointerEvents: "none", background: `radial-gradient(circle at 18% 18%, rgba(255,255,255,0.88) 0%, transparent 16%), radial-gradient(circle at 84% 16%, ${glow} 0%, transparent 28%), linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 58%)`, opacity: 0.78 }} />
+      <CardContent sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 1.1, minHeight: 120, "&:last-child": { pb: 1.9 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+          <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "999px", bgcolor: "rgba(255,255,255,0.9)", color: accentColor, boxShadow: `0 6px 14px ${accentColor}14` }}>{IconNode}</Box>
+          <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.02em" }}>
+            {label}
+          </Typography>
         </Box>
-        <Typography sx={{ mt: "auto", fontWeight: 900, lineHeight: 0.94, letterSpacing: "-0.04em", fontSize: { xs: "1.75rem", sm: "2rem", md: "2.2rem" }, wordBreak: "break-word", overflowWrap: "anywhere", maxWidth: "100%", color: "text.primary" }}>
+        <Typography sx={{ mt: "auto", fontWeight: 900, lineHeight: 0.96, letterSpacing: "-0.05em", fontSize: { xs: "1.8rem", sm: "2.05rem", md: "2.2rem" }, wordBreak: "break-word", overflowWrap: "anywhere", maxWidth: "100%", color: "text.primary" }}>
           {compactValue}
         </Typography>
         {note ? <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, fontSize: "0.93rem" }}>{note}</Typography> : null}

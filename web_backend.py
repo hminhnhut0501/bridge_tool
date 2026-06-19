@@ -40,7 +40,12 @@ _missing_table_warnings: set[str] = set()
 def _allowed_origins():
     raw = os.getenv("ADMIN_ALLOWED_ORIGINS", "")
     origins = [item.strip() for item in raw.split(",") if item.strip()]
-    return origins or ["http://localhost:3000"]
+    return origins or [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
 
 
 app.add_middleware(
@@ -527,7 +532,12 @@ async def startup():
     db.connect()
     if supabase_store.enabled:
         supabase_store.connect()
-    await set_commands()
+    webhook_url = os.getenv("WEBHOOK_URL")
+    skip_telegram_startup = str(os.getenv("SKIP_TELEGRAM_STARTUP", "")).strip().lower() in {"1", "true", "yes", "on"}
+    if webhook_url and not skip_telegram_startup:
+        await set_commands()
+    else:
+        print("⚠️ Bỏ qua set_commands() khi chạy local hoặc chưa cấu hình WEBHOOK_URL.")
     try:
         from helpers import setup_bot_availability
 
@@ -543,7 +553,6 @@ async def startup():
     load_all_modules()
     await start_background_workers()
 
-    webhook_url = os.getenv("WEBHOOK_URL")
     webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
     if webhook_url:
         await bot.set_webhook(webhook_url, secret_token=webhook_secret or None, allowed_updates=dp.resolve_used_update_types())

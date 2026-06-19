@@ -35,7 +35,7 @@ export function CustomersSection(props: any) {
 
   return (
     <Stack spacing={2}>
-      <Box className="metrics-band metrics-band-customer" sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+      <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <Metric label="Khách trong bộ lọc" value={String(filteredCustomers.length)} accent="violet" icon={<Users size={16} />} />
         <Metric label="Đang còn hạn" value={String(customerSummaries.filter((item: any) => item.activeOrders.length).length)} accent="emerald" icon={<ShieldCheck size={16} />} />
         <Metric label="Có dùng coupon" value={String(customerSummaries.filter((item: any) => item.coupons.length).length)} accent="blue" icon={<BadgeDollarSign size={16} />} />

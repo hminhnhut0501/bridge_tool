@@ -338,7 +338,7 @@ const DEMO_USERS: UserRow[] = [
 
 const popupFieldSx = {
   "& .MuiOutlinedInput-root": {
-    borderRadius: 4,
+    borderRadius: 2,
     backgroundColor: "#ffffff",
   },
   "& .MuiInputBase-input": {
@@ -350,20 +350,27 @@ const popupFieldSx = {
 } as const;
 
 const popupSelectSx = {
-  borderRadius: 4,
+  borderRadius: 2,
   backgroundColor: "#ffffff",
 } as const;
 
 const customerPopupTabSx = {
   minHeight: 0,
-  "& .MuiTabs-flexContainer": { gap: 0.75 },
+  p: 0.5,
+  borderRadius: 1,
+  border: 1,
+  borderColor: "divider",
+  bgcolor: "background.paper",
+  overflow: "hidden",
+  boxShadow: "0 4px 10px rgba(15, 23, 42, 0.03)",
+  "& .MuiTabs-flexContainer": { gap: 0.5 },
   "& .MuiTab-root": {
     alignItems: "center",
     justifyContent: "flex-start",
-    minHeight: 40,
-    px: 1.5,
-    py: 0.9,
-    borderRadius: 4,
+    minHeight: 38,
+    px: 1.35,
+    py: 0.75,
+    borderRadius: 1,
     textTransform: "none",
     fontWeight: 650,
     letterSpacing: "-0.01em",
@@ -372,14 +379,14 @@ const customerPopupTabSx = {
     boxShadow: "none",
   },
   "& .MuiTab-root:hover": {
-    bgcolor: "rgba(37, 99, 235, 0.06)",
-    borderColor: "rgba(37, 99, 235, 0.14)",
+    bgcolor: "rgba(37, 99, 235, 0.05)",
+    borderColor: "rgba(37, 99, 235, 0.10)",
   },
-  "& .Mui-selected": {
+  "& .MuiTab-root.Mui-selected": {
     bgcolor: "primary.main",
     color: "common.white",
     borderColor: "rgba(37,99,235,0.18)",
-    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
+    boxShadow: "0 6px 14px rgba(37, 99, 235, 0.12)",
   },
   "& .MuiTabs-indicator": { display: "none" },
 } as const;
@@ -400,19 +407,9 @@ const customerInnerCardSx = {
   p: 1.5,
   border: 1,
   borderColor: "divider",
-  borderRadius: 4,
+  borderRadius: 2,
   bgcolor: "background.paper",
-  boxShadow: "0 10px 22px rgba(15, 23, 42, 0.04)",
-  position: "relative",
-  overflow: "hidden",
-  "&::before": {
-    content: '""',
-    position: "absolute",
-    inset: "0 auto auto 0",
-    height: 3,
-    width: "100%",
-    background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981)",
-  },
+  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
 } as const;
 
 const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon: boolean) => {
@@ -452,13 +449,13 @@ const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon:
 const sectionCardSx = {
   overflow: "hidden",
   position: "relative",
-  borderRadius: 4,
+  borderRadius: 2,
   boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
   "&::before": {
     content: '""',
     position: "absolute",
     inset: 0,
-    height: 4,
+    height: 2,
     background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981, #8b5cf6)",
   },
 } as const;
@@ -4126,7 +4123,7 @@ export default function Home() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
-        position="static"
+        position="sticky"
         elevation={0}
         color="default"
         sx={{
@@ -4134,7 +4131,7 @@ export default function Home() {
           borderColor: "divider",
           bgcolor: "rgba(255,255,255,0.96)",
           backdropFilter: "blur(14px)",
-          zIndex: (theme) => theme.zIndex.drawer + 1,
+          zIndex: (theme) => theme.zIndex.drawer + 2,
         }}
       >
         <Toolbar sx={{ minHeight: 68, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
@@ -4190,22 +4187,25 @@ export default function Home() {
           sx={{
             mt: 1,
             minHeight: 0,
-            pr: 1,
+            pr: 0.5,
             overflow: "visible",
             bgcolor: "transparent",
+            backgroundColor: "transparent",
             border: 0,
+            borderRadius: 0,
             boxShadow: "none",
             p: 0,
             "& .MuiTabs-flexContainer": {
-              gap: 0.4,
+              gap: 0.35,
               alignItems: "stretch",
+              width: "100%",
             },
             "& .MuiTab-root": {
               justifyContent: "flex-start",
-              minHeight: 42,
-              px: 1.35,
-              py: 0.8,
-              borderRadius: 2,
+              minHeight: 40,
+              px: 1.4,
+              py: 0.82,
+              borderRadius: 1.5,
               border: "1px solid rgba(148,163,184,0.08)",
               bgcolor: "rgba(255,255,255,0.03)",
               width: "100%",
@@ -4276,7 +4276,6 @@ export default function Home() {
 
       <Box
         component="section"
-        className="main"
         sx={{
           flexGrow: 1,
           minWidth: 0,
@@ -5283,8 +5282,8 @@ export default function Home() {
                 subtitle="Mã reveal catalog hidden group. Có thể giới hạn group, điều kiện và khoảng thời gian sử dụng."
                 action={<IconButton color="error" size="small" onClick={() => setHiddenCodeModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
-              <div className="modal-content">
-                <div className="form-grid">
+              <Box sx={{ display: "grid", gap: 1.5, p: 2 }}>
+                <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                   <TextField className="field" label="Mã hidden" value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" fullWidth size="small" sx={popupFieldSx} helperText="Bot chỉ hiện hidden catalog cho người nhập đúng mã này." />
                   <TextField className="field" label="Tên nội bộ" value={hiddenCodeForm.name} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, name: event.target.value })} placeholder="VD: Code bán cho cộng tác viên A" fullWidth size="small" sx={popupFieldSx} />
                   <FormControl className="field" fullWidth size="small">
@@ -5313,7 +5312,7 @@ export default function Home() {
                   <TextField className="field" label="Used count" value={hiddenCodeForm.used_count} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, used_count: event.target.value })} inputMode="numeric" placeholder="0" fullWidth size="small" sx={popupFieldSx} />
                   <TextField className="field" label="Hiệu lực từ" type="datetime-local" value={hiddenCodeForm.valid_from} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_from: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
                   <TextField className="field" label="Hiệu lực đến" type="datetime-local" value={hiddenCodeForm.valid_until} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, valid_until: event.target.value })} fullWidth size="small" sx={popupFieldSx} slotProps={{ inputLabel: { shrink: true } }} />
-                </div>
+                </Box>
                 <div className="coupon-scope">
                   <div className="coupon-scope-head">
                     <strong>Hidden groups được reveal</strong>
@@ -5337,7 +5336,7 @@ export default function Home() {
                     <div className="hint compact">Code này sẽ tự reveal toàn bộ Hidden Group đang bật, nên không cần chọn group thủ công.</div>
                   )}
                 </div>
-              </div>
+              </Box>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</Button>
                 <Button variant="outlined" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })} startIcon={<RefreshCw size={16} />}>Gợi ý mã từ tên</Button>
@@ -5349,13 +5348,7 @@ export default function Home() {
 
         {campaignModalOpen ? (
           <MuiDialogShell open title="Tạo campaign" subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách." onClose={() => setCampaignModalOpen(false)} maxWidth="lg">
-              <PanelHead
-                title="Tạo campaign"
-                subtitle="Chọn tệp nhận, lọc theo gói và nhập nội dung gửi. Campaign tạo xong vẫn cần bấm Gửi ở danh sách."
-                action={<IconButton color="error" size="small" onClick={() => setCampaignModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="modal-content">
-                <div className="form-grid">
+              <Box sx={{ display: "grid", gap: 1.5 }}>
                   <TextField className="field" label="Tên campaign" value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} placeholder="VD: Sale cuối tuần / Tặng coupon tháng 6" fullWidth size="small" sx={popupFieldSx} />
                   <FormControl className="field" fullWidth size="small">
                     <InputLabel id="campaign-target-label">Tệp người nhận</InputLabel>
@@ -5395,18 +5388,17 @@ export default function Home() {
                     </Select>
                   </FormControl>
                   <TextField className="field wide" label="Nội dung tin nhắn" value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} fullWidth multiline minRows={6} sx={popupFieldSx} helperText={<span>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</span>} />
-                </div>
-                <div className="campaign-preview">
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
                   <strong>Preview: {campaignPreview?.total || 0} người</strong>
                   <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
                   <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
                   <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
-                </div>
-              </div>
-              <div className="modal-actions">
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setCampaignModalOpen(false)}>Đóng</Button>
                 <Button variant="contained" onClick={saveCampaign} disabled={saving === "campaign-create" || !campaignForm.title.trim() || !campaignForm.message.trim()} startIcon={saving === "campaign-create" ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}>Tạo campaign</Button>
-              </div>
+              </Stack>
           </MuiDialogShell>
         ) : null}
 
@@ -5435,12 +5427,7 @@ export default function Home() {
 
         {saleModalOpen ? (
           <MuiDialogShell open title="Thêm sale" subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói." onClose={() => setSaleModalOpen(false)} maxWidth="lg">
-              <PanelHead
-                title={saleForm.sale_id ? `Sale: ${saleForm.sale_id}` : "Thêm sale"}
-                subtitle="Tạo giảm giá theo phần trăm hoặc giá sale cố định cho một gói."
-                action={<IconButton color="error" size="small" onClick={() => setSaleModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="form-grid">
+              <Box sx={{ display: "grid", gap: 1.5 }}>
                 <TextField className="field" label="Tên chương trình sale" value={saleForm.sale_id} onChange={(event) => setSaleForm({ ...saleForm, sale_id: event.target.value })} placeholder="VD: FLASH-G1-THANG-5" fullWidth size="small" sx={popupFieldSx} />
                 <FormControl className="field" fullWidth size="small">
                   <InputLabel id="sale-price-key-label">Gói áp dụng</InputLabel>
@@ -5459,50 +5446,40 @@ export default function Home() {
                     <MenuItem value="OFF">Tắt</MenuItem>
                   </Select>
                 </FormControl>
-              </div>
-              <div className="modal-actions">
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setSaleModalOpen(false)}>Đóng</Button>
                 <Button variant="outlined" color="error" onClick={() => removeSaleRule()} disabled={!saleForm.sale_id} startIcon={<Trash2 size={16} />}>Xoá sale</Button>
                 <Button variant="contained" onClick={saveSaleRule} startIcon={<Save size={16} />}>Lưu sale</Button>
-              </div>
+              </Stack>
           </MuiDialogShell>
         ) : null}
 
         {blacklistModalOpen ? (
           <MuiDialogShell open title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"} subtitle="Chặn seller hoặc user spam theo Telegram ID." onClose={() => setBlacklistModalOpen(false)} maxWidth="sm">
-              <PanelHead
-                title={blacklistForm.telegram_user_id ? `Blacklist ${blacklistForm.telegram_user_id}` : "Thêm blacklist"}
-                subtitle="Chặn seller hoặc user spam theo Telegram ID."
-                action={<IconButton color="error" size="small" onClick={() => setBlacklistModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="form-grid two">
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
                 <TextField className="field" label="Telegram ID" value={blacklistForm.telegram_user_id} onChange={(event) => setBlacklistForm({ ...blacklistForm, telegram_user_id: event.target.value.trim() })} placeholder="VD: 123456789" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Username" value={blacklistForm.username} onChange={(event) => setBlacklistForm({ ...blacklistForm, username: event.target.value })} placeholder="@username nếu có" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Tên hiển thị" value={blacklistForm.full_name} onChange={(event) => setBlacklistForm({ ...blacklistForm, full_name: event.target.value })} placeholder="Tên user" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Lý do" value={blacklistForm.reason} onChange={(event) => setBlacklistForm({ ...blacklistForm, reason: event.target.value })} placeholder="VD: Seller gắn link bio" fullWidth size="small" sx={popupFieldSx} />
-              </div>
-              <div className="modal-actions">
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setBlacklistModalOpen(false)}>Đóng</Button>
                 <Button variant="outlined" color="error" onClick={() => removeBlacklistEntry()} disabled={!blacklistForm.telegram_user_id} startIcon={<Trash2 size={16} />}>Gỡ chặn</Button>
                 <Button variant="contained" onClick={saveBlacklistEntry} startIcon={<ShieldCheck size={16} />}>Lưu blacklist</Button>
-              </div>
+              </Stack>
           </MuiDialogShell>
         ) : null}
 
         {couponModalOpen ? (
           <MuiDialogShell open title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"} subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này." onClose={() => setCouponModalOpen(false)} maxWidth="lg">
-              <PanelHead
-                title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"}
-                subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này."
-                action={<IconButton color="error" size="small" onClick={() => setCouponModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="modal-content">
-                <div className="panel-actions modal-toolbar">
+              <Box sx={{ display: "grid", gap: 1.5 }}>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center", px: 2, pt: 1.5 }}>
                   <Button variant="outlined" onClick={generateCouponCode} startIcon={<RefreshCw size={16} />}>Gen mã HANGCU_</Button>
                   <TextField value={couponBatchCount} onChange={(event) => setCouponBatchCount(event.target.value)} inputMode="numeric" size="small" title="Số lượng mã cần gen cùng điều kiện" sx={{ width: 140 }} />
                   <Button variant="outlined" onClick={generateManyCoupons} startIcon={<RefreshCw size={16} />}>Gen nhiều cùng điều kiện</Button>
-                </div>
-                <div className="form-grid">
+                </Stack>
+                <Box sx={{ display: "grid", gap: 1.5 }}>
                   <TextField className="field" label="Mã coupon" value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" fullWidth size="small" sx={popupFieldSx} />
                   <FormControl className="field" fullWidth size="small">
                     <InputLabel id="coupon-type-label">Loại coupon</InputLabel>
@@ -5542,14 +5519,14 @@ export default function Home() {
                       <MenuItem value="OFF">Tắt</MenuItem>
                     </Select>
                   </FormControl>
-                </div>
+                </Box>
                 {couponForm.Coupon_Type === "DISCOUNT" ? (
-                  <div className="coupon-scope">
-                    <div className="coupon-scope-head">
+                  <Box sx={{ display: "grid", gap: 1.25, px: 2, pb: 2 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                       <strong>Gói được áp dụng</strong>
                       <Button variant={couponForm.Applies_To === "ALL" ? "contained" : "outlined"} onClick={() => setCouponForm({ ...couponForm, Applies_To: "ALL" })}>Tất cả gói</Button>
-                    </div>
-                    <div className="check-grid">
+                    </Box>
+                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
                       {discountPlanKeyOptions.map((item) => {
                         const selected = couponForm.Applies_To === "ALL" || couponForm.Applies_To.split(",").includes(item);
                         return (
@@ -5561,27 +5538,21 @@ export default function Home() {
                           />
                         );
                       })}
-                    </div>
-                  </div>
+                    </Box>
+                  </Box>
                 ) : null}
-              </div>
-              <div className="modal-actions">
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setCouponModalOpen(false)}>Đóng</Button>
                 <Button variant="outlined" color="error" onClick={() => removeCoupon()} disabled={!couponForm.Code} startIcon={<Trash2 size={16} />}>Xoá coupon</Button>
                 <Button variant="contained" onClick={saveCoupon} startIcon={<Gift size={16} />}>Lưu coupon</Button>
-              </div>
+              </Stack>
           </MuiDialogShell>
         ) : null}
 
         {channelPostModalOpen ? (
           <MuiDialogShell open title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"} subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend." onClose={() => setChannelPostModalOpen(false)} maxWidth="lg">
-              <PanelHead
-                title={channelPostForm.id ? "Sửa bài đăng channel" : "Soạn bài đăng channel"}
-                subtitle="Giờ nhập trong popup là giờ Việt Nam trên máy admin. Bot sẽ gửi/xóa bằng worker backend."
-                action={<IconButton color="error" size="small" onClick={() => setChannelPostModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="modal-content">
-                <div className="form-grid two">
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                   <TextField className="field" label="Channel / group nhận bài" value={channelPostForm.target_chat_id} onChange={(event) => setChannelPostForm({ ...channelPostForm, target_chat_id: event.target.value })} placeholder="@channel_username hoặc -100..." fullWidth size="small" sx={popupFieldSx} helperText="Bot phải là admin và có quyền gửi/xóa bài ở nơi này." />
                   <TextField className="field" label="Tiêu đề quản lý" value={channelPostForm.title} onChange={(event) => setChannelPostForm({ ...channelPostForm, title: event.target.value })} placeholder="VD: Sale cuối tuần" fullWidth size="small" sx={popupFieldSx} helperText="Chỉ để admin dễ tìm, không bắt buộc hiển thị cho khách." />
                   <TextField className="field wide" label="Ảnh / file_id Telegram" value={channelPostForm.image_ref} onChange={(event) => setChannelPostForm({ ...channelPostForm, image_ref: event.target.value })} placeholder="https://... hoặc file_id ảnh" fullWidth size="small" sx={popupFieldSx} helperText="Dán link ảnh công khai hoặc file_id ảnh từ Telegram. Để trống nếu chỉ muốn đăng text." />
@@ -5609,8 +5580,8 @@ export default function Home() {
                     label={<Box><strong>Lặp lại mỗi ngày</strong><Box className="muted">Sau khi xóa sẽ tự dời sang ngày kế tiếp.</Box></Box>}
                   />
                   <TextField className="field wide" label="Ghi chú" value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" fullWidth size="small" sx={popupFieldSx} />
-                </div>
-                <div className="channel-preview">
+              </Box>
+              <Box sx={{ display: "grid", gap: 1.25, px: 2, pb: 2, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
                   <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
                   <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {dateTimePreviewText(channelPostForm.scheduled_at, "gửi ngay")} • Xóa: {dateTimePreviewText(channelPostForm.delete_at, "không tự xóa")} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
@@ -5618,22 +5589,23 @@ export default function Home() {
                     {channelPostForm.repeat_daily ? <Chip size="small" label="Bật lặp ngày" variant="outlined" sx={statusChipSx("success")} /> : <Chip size="small" label="Không lặp" variant="outlined" sx={statusChipSx("muted")} />}
                     {channelPostForm.delete_at ? <Chip size="small" label="Có giờ xóa" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Không tự xóa" variant="outlined" sx={statusChipSx("muted")} />}
                   </Box>
-                </div>
+              </Box>
                 {channelEvents.length ? (
-                  <div className="channel-events">
+                  <Box sx={{ display: "grid", gap: 1.25, px: 2, pb: 2 }}>
                     <strong>Nhật ký bài đăng</strong>
                     {channelEvents.slice(0, 5).map((event) => (
-                      <div key={event.id}><span>{dateText(event.created_at)}</span><b>{event.event_type}</b><em>{event.message || "-"}</em></div>
+                      <Box key={event.id} sx={{ display: "grid", gap: 1, gridTemplateColumns: "130px 170px minmax(0, 1fr)", py: 1 }}>
+                        <span>{dateText(event.created_at)}</span><b>{event.event_type}</b><em>{event.message || "-"}</em>
+                      </Box>
                     ))}
-                  </div>
+                  </Box>
                 ) : null}
-              </div>
-              <div className="modal-actions">
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setChannelPostModalOpen(false)}>Đóng</Button>
                 <Button variant="outlined" onClick={() => saveChannelPost("draft")} disabled={saving.startsWith("channel-post")} startIcon={<Save size={16} />}>{channelPostForm.id ? "Lưu thay đổi" : "Lưu nháp"}</Button>
                 <Button variant="outlined" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at} startIcon={<CalendarClock size={16} />}>Lên lịch</Button>
                 <Button variant="contained" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")} startIcon={saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>Đăng ngay</Button>
-              </div>
+              </Stack>
           </MuiDialogShell>
         ) : null}
 
@@ -5663,12 +5635,7 @@ export default function Home() {
 
         {manualOrderModalOpen ? (
           <MuiDialogShell open title="Tạo đơn thủ công" subtitle="Nhập thông tin khách, tạo order PAID và gen link join group." onClose={() => setManualOrderModalOpen(false)} maxWidth="lg">
-              <PanelHead
-                title="Tạo đơn thủ công"
-                subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
-                action={<IconButton color="error" size="small" onClick={() => setManualOrderModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <div className="form-grid">
+              <Box sx={{ display: "grid", gap: 1.5 }}>
                 <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
                 <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
                 <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
@@ -5691,13 +5658,13 @@ export default function Home() {
                 <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText="Chỉ dùng khi ngày hết hạn trống." />
                 <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={`Xem trước: ${dateTimePreviewText(manualOrderForm.expire_at, "Dùng thời lượng ở trên nếu để trống")}`} />
                 <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
-              </div>
-              <div className="modal-actions">
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
                 <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen link</Button>
-              </div>
+              </Stack>
                 {manualOrderResult ? (
-                  <div className="form-grid two">
+                  <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                     <TextField
                       className="field wide"
                       label={manualOrderResult.bot_link_title || "Link kích hoạt qua bot"}
@@ -5714,14 +5681,14 @@ export default function Home() {
                       minRows={6}
                       sx={popupFieldSx}
                     />
-                    <div className="field wide">
-                      <div className="modal-actions" style={{ justifyContent: "flex-start" }}>
+                    <Box sx={{ gridColumn: "1 / -1" }}>
+                      <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
                         <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>
                         <Button variant="outlined" onClick={copyManualLinks}>Copy toàn bộ nội dung</Button>
-                      </div>
+                      </Stack>
                       {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
-                    </div>
-                  </div>
+                    </Box>
+                  </Box>
                 ) : null}
           </MuiDialogShell>
         ) : null}
@@ -6090,9 +6057,9 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
             sx={{
               width: "100%",
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) auto auto",
-              gap: 1.5,
-              alignItems: "center",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: 1,
+              alignItems: "start",
               px: 2,
               py: 1.5,
               borderRadius: 4,
@@ -6102,48 +6069,96 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
               textAlign: "left",
             }}
           >
-            <Box sx={{ display: "grid", gap: 0.25 }}>
+            <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
               <strong>{field.label}</strong>
               <span className="muted">{field.help}</span>
             </Box>
-            <Box sx={{ fontWeight: 700, color: values[field.key] ? "text.primary" : "text.secondary" }}>
+            <Pencil size={17} />
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+                minWidth: 0,
+                fontWeight: 700,
+                color: values[field.key] ? "text.primary" : "text.secondary",
+                lineHeight: 1.45,
+                overflowWrap: "anywhere",
+              }}
+            >
               {field.kind === "select"
                 ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder
                 : values[field.key] || "Chưa thiết lập"}
             </Box>
-            <Pencil size={17} />
           </ButtonBase>
         ))}
       </div>
       {editingField ? (
-        <div className="modal-backdrop config-modal-backdrop" role="dialog" aria-modal="true">
-          <section className="modal-panel config-edit-modal">
-            <PanelHead
-              title={editingField.label}
-              subtitle={editingField.help}
-              action={<IconButton color="error" size="small" onClick={() => setEditingField(null)} title="Đóng"><XCircle size={18} /></IconButton>}
-            />
-            <div className="modal-content">
-              <label className="field">
-                <span>Giá trị</span>
-                {editingField.kind === "textarea" ? (
-                  <TextField autoFocus multiline minRows={4} value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
-                ) : editingField.kind === "select" ? (
-                  <TextField select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(event.target.value)} fullWidth>
-                    {(editingField.options || []).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
-                  </TextField>
-                ) : (
-                  <TextField autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
-                )}
-                <small>Key kỹ thuật: {editingField.key}</small>
-              </label>
-            </div>
-            <div className="modal-actions">
-              <Button variant="outlined" onClick={() => setEditingField(null)}>Huỷ</Button>
-              <Button variant="contained" onClick={saveField} disabled={savingField} startIcon={savingField ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu thay đổi</Button>
-            </div>
-          </section>
-        </div>
+        <MuiDialogShell
+          open
+          title={editingField.label}
+          subtitle={editingField.help}
+          onClose={() => setEditingField(null)}
+          maxWidth="sm"
+        >
+          <Stack spacing={1.5}>
+            <Box sx={{ display: "grid", gap: 0.75 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                Giá trị
+              </Typography>
+              {editingField.kind === "textarea" ? (
+                <TextField
+                  autoFocus
+                  multiline
+                  minRows={5}
+                  value={draftValue}
+                  onChange={(event) => setDraftValue(event.target.value)}
+                  placeholder={editingField.placeholder}
+                  fullWidth
+                  sx={popupFieldSx}
+                />
+              ) : editingField.kind === "select" ? (
+                <TextField
+                  select
+                  autoFocus
+                  value={draftValue || editingField.placeholder}
+                  onChange={(event) => setDraftValue(event.target.value)}
+                  fullWidth
+                  sx={popupFieldSx}
+                >
+                  {(editingField.options || []).map((item) => (
+                    <MenuItem key={item.value} value={item.value}>
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <TextField
+                  autoFocus
+                  value={draftValue}
+                  onChange={(event) => setDraftValue(event.target.value)}
+                  placeholder={editingField.placeholder}
+                  fullWidth
+                  sx={popupFieldSx}
+                />
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              Key kỹ thuật: {editingField.key}
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", pt: 1 }}>
+            <Button variant="outlined" onClick={() => setEditingField(null)}>
+              Huỷ
+            </Button>
+            <Button
+              variant="contained"
+              onClick={saveField}
+              disabled={savingField}
+              startIcon={savingField ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
+            >
+              Lưu thay đổi
+            </Button>
+          </Stack>
+        </MuiDialogShell>
       ) : null}
     </section>
   );
@@ -6151,14 +6166,12 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
 
 function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSave, onClose }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean>; onClose: () => void }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <section className="modal-panel wide-modal settings-config-modal">
-        <ConfigEditor title={title} subtitle={subtitle} fields={fields} values={values} setValues={setValues} onSave={onSave} />
-        <div className="modal-actions">
-          <Button variant="outlined" onClick={onClose}>Đóng</Button>
-        </div>
-      </section>
-    </div>
+    <MuiDialogShell open title={title} subtitle={subtitle} onClose={onClose} maxWidth="lg">
+      <ConfigEditor title={title} subtitle={subtitle} fields={fields} values={values} setValues={setValues} onSave={onSave} />
+      <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", pt: 1 }}>
+        <Button variant="outlined" onClick={onClose}>Đóng</Button>
+      </Stack>
+    </MuiDialogShell>
   );
 }
 
@@ -6192,7 +6205,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
           key={order.order_id}
           variant="outlined"
           sx={{
-            borderRadius: 4,
+            borderRadius: 2,
             overflow: "hidden",
             position: "relative",
             transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
@@ -6203,14 +6216,6 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             },
             backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)",
             boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
-            "&::before": {
-              content: '""',
-              position: "absolute",
-              inset: "0 auto auto 0",
-              width: "100%",
-              height: 4,
-              background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981)",
-            },
           }}
         >
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>

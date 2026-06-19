@@ -11,7 +11,7 @@ export function CampaignsSection(props: any) {
   const { campaigns, campaignPreview, selectedCampaign, campaignRecipientCounts, pagedCampaignRecipients, campaignRecipients, totalCampaignRecipientPages, campaignRecipientPage, setCampaignRecipientPage, changeCampaignStatus, setSelectedCampaignId, setCampaignModalOpen, setCampaignForm, EMPTY_CAMPAIGN_FORM } = props;
   return (
     <Stack spacing={2}>
-      <Box className="metrics-band metrics-band-campaigns" sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+      <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <Metric label="Campaign" value={String(campaigns.length)} accent="cyan" icon={<Megaphone size={16} />} />
         <Metric label="Đang chạy" value={String(campaigns.filter((item: any) => item.status === "RUNNING").length)} accent="violet" icon={<PlayCircle size={16} />} />
         <Metric label="Đã gửi" value={String(campaigns.reduce((sum: number, item: any) => sum + (item.sent_count || 0), 0))} accent="amber" icon={<Send size={16} />} />
