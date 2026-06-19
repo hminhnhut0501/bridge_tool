@@ -4190,15 +4190,22 @@ export default function Home() {
           sx={{
             mt: 1,
             minHeight: 0,
-            pr: 0.5,
+            pr: 1,
             overflow: "visible",
-            "& .MuiTabs-flexContainer": { gap: 0.65 },
+            bgcolor: "transparent",
+            border: 0,
+            boxShadow: "none",
+            p: 0,
+            "& .MuiTabs-flexContainer": {
+              gap: 0.4,
+              alignItems: "stretch",
+            },
             "& .MuiTab-root": {
               justifyContent: "flex-start",
-              minHeight: 44,
-              px: 1.5,
-              py: 0.9,
-              borderRadius: 999,
+              minHeight: 42,
+              px: 1.35,
+              py: 0.8,
+              borderRadius: 2,
               border: "1px solid rgba(148,163,184,0.08)",
               bgcolor: "rgba(255,255,255,0.03)",
               width: "100%",
@@ -4209,8 +4216,13 @@ export default function Home() {
               boxShadow: "none",
               transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
               borderLeft: "3px solid transparent",
+              overflow: "hidden",
               "& .MuiTab-iconWrapper": {
                 marginRight: 7,
+                minWidth: 0,
+              },
+              "& .MuiTab-iconWrapper > *": {
+                display: "block",
               },
               "& .MuiChip-root": {
                 bgcolor: "rgba(255,255,255,0.06)",
