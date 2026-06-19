@@ -4137,30 +4137,20 @@ export default function Home() {
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ minHeight: 68, px: 0, display: "grid", gridTemplateColumns: "280px minmax(0, 1fr)" }}>
-          <Box sx={{ height: "100%", display: "flex", alignItems: "center", gap: 1.5, px: 2.25, bgcolor: "#111827", color: "#f9fafb", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-            <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontSize: "1.05rem", fontWeight: 900, letterSpacing: "-0.035em", lineHeight: 1.05 }}>
-                Prive Admin
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#94a3b8", lineHeight: 1.2 }}>
-                {ui("Dashboard vận hành bot", "Bot operations dashboard")}
-              </Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1, py: 0.65, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(255,255,255,0.05)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
-              <Typography variant="caption" sx={{ color: "#e2e8f0", fontWeight: 700, lineHeight: 1 }}>
-                {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
-              </Typography>
-            </Box>
+        <Toolbar sx={{ minHeight: 68, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+              {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
+            </Typography>
           </Box>
-          <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, px: 3 }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-                {ui("Quản lý bot Privé+", "Privé+ Bot Admin")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" noWrap>
-                {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
+              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
+                {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
               </Typography>
             </Box>
             <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
@@ -4186,8 +4176,7 @@ export default function Home() {
           },
         }}
       >
-        <Toolbar />
-        <aside className="sidebar" style={{ background: "transparent", color: "inherit", padding: "16px 18px 16px 14px" }}>
+        <Box sx={{ px: 1.5, pt: 2, pb: 2, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <Box sx={{ mb: 1.25, px: 0.5 }}>
           <Typography sx={{ fontSize: "1.7rem", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.05 }}>Prive Admin</Typography>
         </Box>
@@ -4270,7 +4259,7 @@ export default function Home() {
           <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
           <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
         </Tabs>
-        </aside>
+        </Box>
       </Drawer>
 
       <Box
