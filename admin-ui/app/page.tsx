@@ -4144,18 +4144,16 @@ export default function Home() {
               {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
             </Typography>
           </Box>
-          <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
-                <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
-                  {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
-                </Typography>
-              </Box>
-              <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                {ui("Tải lại", "Reload")}
-              </Button>
+          <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap", px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
+              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
+                {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
+              </Typography>
             </Box>
+            <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+              {ui("Tải lại", "Reload")}
+            </Button>
           </Box>
         </Toolbar>
       </AppBar>
