@@ -36,7 +36,6 @@ insert into public.bot_config (key, value) values
   ('MANUAL_ORDER_LINK_PROCESSING_TEXT', '⏳ Bot đang xác minh đơn hàng và tạo link join group...'),
   ('MANUAL_ORDER_LINK_FAIL_TEXT', '❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.'),
   ('MANUAL_ORDER_LINK_SUCCESS_TEXT', '✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.'),
-  ('MANUAL_ORDER_LINK_JOIN_LABEL', 'Nhận link join group'),
   ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/hangcuprivebot?start={code}'),
   ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{links_text}\n{support_text}'),
   ('MANUAL_ORDER_START_TEMPLATE', '{processing_text}'),

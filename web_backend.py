@@ -130,8 +130,12 @@ def format_manual_expire_at(value: str | None):
     return parsed.strftime("%H:%M %d/%m/%y")
 
 
+def normalize_template_text(value: str | None):
+    return str(value or "").replace("\\n", "\n").strip()
+
+
 def render_manual_order_support_text(template: str, context: dict[str, object]):
-    text = str(template or "").strip()
+    text = normalize_template_text(template)
     if not text:
         text = "💬 {support_group_name}:\n{support_link}"
     values = {
@@ -151,7 +155,7 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
 
 
 def render_manual_order_message_text(template: str, context: dict[str, object]):
-    text = str(template or "").strip()
+    text = normalize_template_text(template)
     if not text:
         text = "{links_text}\n{support_text}"
     values = {
@@ -172,7 +176,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
 
 
 def render_activation_text(template_key: str, default_text: str, context: dict[str, object]):
-    template = str(db.get_config(template_key, default_text) or default_text).strip()
+    template = normalize_template_text(db.get_config(template_key, default_text) or default_text)
     for key, value in context.items():
         template = template.replace(f"{{{key}}}", str(value or ""))
     return template.strip()
@@ -900,7 +904,6 @@ async def admin_create_manual_order(request: Request):
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt qua bot", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", {}),
             "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Mở bot nhận link", {}),
-            "bot_link_join_label": render_activation_text("MANUAL_ORDER_LINK_JOIN_LABEL", "Nhận link join group", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {

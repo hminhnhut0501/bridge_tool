@@ -1178,7 +1178,6 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", help: "Mô tả ngắn về link bot.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Mẫu deep link bot", placeholder: "t.me/hangcuprivebot?start={code}", help: "Dùng biến {code}. Có thể đổi username bot mà không cần sửa code." },
   { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút mở bot", placeholder: "Mở bot nhận link", help: "Text nút admin copy hoặc gửi khách." },
-  { key: "MANUAL_ORDER_LINK_JOIN_LABEL", label: "Nút nhận link nhóm", placeholder: "Nhận link join group", help: "Text nút mà bot dùng sau khi xác minh." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin xác nhận hợp lệ", placeholder: "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", help: "Tin bot trả khi mã hợp lệ.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn hàng và tạo link join group...", help: "Tin bot trả ngay khi khách bấm deep link.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Tin bot trả khi code không tồn tại." },

@@ -310,7 +310,6 @@ export type ManualOrderResult = {
   bot_link_title?: string;
   bot_link_subtitle?: string;
   bot_link_button_label?: string;
-  bot_link_join_label?: string;
   bot_link_success_text?: string;
   bot_link_processing_text?: string;
   manual_order_text: string;

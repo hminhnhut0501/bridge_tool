@@ -29,7 +29,7 @@ def render_cfg(key, default, values=None):
     text = cfg(key, default)
     for item_key, item_value in (values or {}).items():
         text = text.replace(f"{{{item_key}}}", str(item_value or ""))
-    return text
+    return text.replace("\\n", "\n")
 
 
 def language_switch_keyboard(current_language):
@@ -197,25 +197,28 @@ async def deliver_activation_order(message: Message, code: str):
     except Exception as exc:
         print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
 
-    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "")
+    render_context = {
+        "order_id": activation.get("order_id", ""),
+        "telegram_user_id": telegram_user_id,
+        "full_name": activation.get("full_name", ""),
+        "plan_name": plan_name,
+        "expire_at": expire_at,
+        "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
+        "support_link": "",
+        "support_error": "",
+    }
+    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "", render_context)
+    render_context["support_text"] = support_text
     delivery_text = render_cfg(
         "MANUAL_ORDER_DELIVERY_TEMPLATE",
         "{success_text}\n\n{links_text}\n{support_text}",
         {
+            **render_context,
             "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group."),
             "links_text": links_text,
-            "support_text": support_text,
         },
     )
-    kb = InlineKeyboardBuilder()
-    join_label = render_cfg("MANUAL_ORDER_LINK_JOIN_LABEL", "Nhận link join group")
-    has_button = False
-    if links_text:
-        first_link = next((line.strip() for line in links_text.splitlines() if line.strip().startswith("http")), "")
-        if first_link:
-            kb.row(InlineKeyboardButton(text=join_label, url=first_link))
-            has_button = True
-    await message.answer(delivery_text, reply_markup=kb.as_markup() if has_button else None, parse_mode="HTML")
+    await message.answer(delivery_text, parse_mode="HTML")
 
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
