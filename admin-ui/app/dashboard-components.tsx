@@ -390,6 +390,35 @@ export function DonutChart({
             ))}
           </Stack>
         </Box>
+        <Box sx={{ display: "grid", gap: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            Phân bổ chi tiết
+          </Typography>
+          <Stack spacing={1}>
+            {segments.map((segment, index) => {
+              const share = Math.max(2, Math.round((segment.value / total) * 100));
+              const barColor = segment.color || colors[index % colors.length];
+              return (
+                <Box key={`detail-${segment.label}`} sx={{ display: "grid", gap: 0.75 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: 999, bgcolor: barColor, boxShadow: `0 0 0 4px ${barColor}14` }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                        {segment.label}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>
+                      {segment.value} ({share}%)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ height: 10, borderRadius: 999, bgcolor: "rgba(148,163,184,0.12)", overflow: "hidden" }}>
+                    <Box sx={{ width: `${share}%`, height: "100%", borderRadius: 999, bgcolor: barColor, backgroundImage: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.20))`, boxShadow: `0 8px 20px ${barColor}22` }} />
+                  </Box>
+                </Box>
+              );
+            })}
+          </Stack>
+        </Box>
       </Box>
     </Card>
   );
