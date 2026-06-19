@@ -4123,7 +4123,7 @@ export default function Home() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
-        position="sticky"
+        position="fixed"
         elevation={0}
         color="default"
         sx={{
@@ -4132,6 +4132,8 @@ export default function Home() {
           bgcolor: "rgba(255,255,255,0.96)",
           backdropFilter: "blur(14px)",
           zIndex: (theme) => theme.zIndex.drawer + 2,
+          left: { xs: 0, md: "280px" },
+          width: { xs: "100%", md: "calc(100% - 280px)" },
         }}
       >
         <Toolbar sx={{ minHeight: 68, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
@@ -4170,6 +4172,8 @@ export default function Home() {
             borderColor: "divider",
             bgcolor: "#111827",
             color: "#f9fafb",
+            top: "68px",
+            height: "calc(100vh - 68px)",
           },
         }}
       >
@@ -4280,7 +4284,8 @@ export default function Home() {
           flexGrow: 1,
           minWidth: 0,
           px: { xs: 2, md: 3 },
-          py: { xs: 2, md: 2.5 },
+          pt: "68px",
+          pb: { xs: 2, md: 2.5 },
           overflowX: "hidden",
         }}
       >
