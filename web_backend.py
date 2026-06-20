@@ -157,7 +157,7 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
 def render_manual_order_info_text(context: dict[str, object]):
     template = normalize_template_text(db.get_config(
         "MANUAL_ORDER_INFO_TEMPLATE",
-        "⭐ Đơn hàng: {order_id}\nKhách hàng: {full_name} - ID: {telegram_user_id}\nGói: {plan_name}\nHạn dùng: {expire_at}",
+        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
     ) or "")
     values = {
         "order_id": context.get("order_id", ""),
@@ -174,7 +174,7 @@ def render_manual_order_info_text(context: dict[str, object]):
 def render_manual_order_message_text(template: str, context: dict[str, object]):
     text = normalize_template_text(template)
     if not text:
-        text = "{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
+        text = "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
     values = {
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
@@ -182,6 +182,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
         "order_text": context.get("order_text", ""),
+        "success_text": context.get("success_text", ""),
         "bot_link_title": context.get("bot_link_title", ""),
         "bot_link_subtitle": context.get("bot_link_subtitle", ""),
         "activation_url": context.get("activation_url", ""),
@@ -812,7 +813,7 @@ async def admin_create_manual_order(request: Request):
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
     message_template = str(db.get_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
-        "{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}",
+        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}",
     ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
@@ -930,11 +931,11 @@ async def admin_create_manual_order(request: Request):
             "support_link": support_link,
             "support_error": support_error,
             "support_text": support_text,
-            "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt qua bot", {}),
-            "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", {}),
-            "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Mở bot nhận link", {}),
-            "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", {}),
-            "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group...", {}),
+            "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt", {}),
+            "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
+            "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Copy link bot", {}),
+            "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
+            "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
@@ -942,8 +943,9 @@ async def admin_create_manual_order(request: Request):
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
-                "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt qua bot", {}),
-                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", {}),
+                "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
+                "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt", {}),
+                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
                 "activation_url": activation_url,
                 "links_text": "",
                 "support_text": support_text,

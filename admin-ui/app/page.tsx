@@ -1170,31 +1170,31 @@ const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_INFO_TEMPLATE",
     label: "Khối thông tin đơn",
-    placeholder: "⭐ Đơn hàng: {order_id}\\nKhách hàng: {full_name} - ID: {telegram_user_id}\\nGói: {plan_name}\\nHạn dùng: {expire_at}",
-    help: "Khối này đứng đầu tin, dùng để tóm tắt đơn trước khi hiển thị link bot.",
+    placeholder: "🧾 Đơn hàng: {order_id}\\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\\n📦 Gói: {plan_name}\\n⏳ Hạn dùng: {expire_at}",
+    help: "Khối tóm tắt đứng đầu tin, dùng để nhận diện đơn trước khi hiển thị link bot.",
     kind: "textarea",
   },
   {
     key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
     label: "Template tin gửi khách",
-    placeholder: "{order_text}\\n\\n{bot_link_title}\\n{activation_url}\\n\\n{bot_link_subtitle}\\n\\n{support_text}",
+    placeholder: "{success_text}\\n\\n{order_text}\\n\\n{bot_link_title}\\n{activation_url}\\n\\n{bot_link_subtitle}\\n\\n{support_text}",
     help: "Đổi thứ tự các khối để sắp xếp vị trí hiển thị trong cùng 1 tin.",
     kind: "textarea",
   },
-  { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề khối link", placeholder: "🔗 Link kích hoạt qua bot", help: "Tiêu đề hiển thị trước link bot." },
-  { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả khối link", placeholder: "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", help: "Dòng mô tả ngắn ngay dưới link bot.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề khối link", placeholder: "🔗 Link kích hoạt", help: "Tiêu đề hiển thị ngay trước link bot." },
+  { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả khối link", placeholder: "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", help: "Dòng mô tả ngắn ngay dưới link bot.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "t.me/hangcuprivebot?start={code}", help: "Dùng biến {code}.", },
-  { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy", placeholder: "Mở bot nhận link", help: "Text nút admin copy hoặc gửi khách." },
-  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin xác nhận hợp lệ", placeholder: "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", help: "Tin bot trả khi mã hợp lệ.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn hàng và tạo link join group...", help: "Tin bot trả ngay khi khách bấm deep link.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy", placeholder: "Copy link bot", help: "Text nút admin copy hoặc gửi khách." },
+  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin xác nhận hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Tin bot trả khi mã hợp lệ.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Tin bot trả ngay khi khách bấm deep link.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Tin bot trả khi code không tồn tại." },
-  { key: "MANUAL_ORDER_LINK_USED_TEXT", label: "Tin mã đã dùng", placeholder: "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới.", help: "Tin bot trả khi code đã được kích hoạt." },
+  { key: "MANUAL_ORDER_LINK_USED_TEXT", label: "Tin mã đã dùng", placeholder: "ℹ️ Mã này đã được sử dụng. Nếu cần, admin hãy tạo lại link mới.", help: "Tin bot trả khi code đã được kích hoạt." },
   { key: "MANUAL_ORDER_LINK_WRONG_USER_TEXT", label: "Tin sai Telegram ID", placeholder: "❌ Mã này không dành cho tài khoản Telegram hiện tại.", help: "Tin bot trả khi user không đúng." },
   { key: "MANUAL_ORDER_LINK_EXPIRED_TEXT", label: "Tin mã hết hạn", placeholder: "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.", help: "Tin bot trả khi link quá hạn." },
-  { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.", help: "Tin bot trả khi không sinh được link group." },
-  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Tin bot trả cuối", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{support_text}", help: "Dùng cho tin bot trả sau khi xác minh xong.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Hiển thị link hỗ trợ khi tạo được.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Khối lỗi hỗ trợ", placeholder: "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})", help: "Hiển thị khi link hỗ trợ lỗi.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link nhóm. Vui lòng thử lại sau.", help: "Tin bot trả khi không sinh được link group." },
+  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Tin bot trả cuối", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{support_text}", help: "Tin bot trả sau khi xác minh xong.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối hỗ trợ", placeholder: "💬 Hỗ trợ bảo hành:\\n{support_link}", help: "Hiển thị link hỗ trợ khi tạo được.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Khối lỗi hỗ trợ", placeholder: "💬 Hỗ trợ bảo hành: Không tạo được link ({support_error})", help: "Hiển thị khi link hỗ trợ lỗi.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -4108,12 +4108,6 @@ export default function Home() {
     });
   }
 
-  async function copyManualLinks() {
-    if (!manualOrderResult) return;
-    await navigator.clipboard.writeText([manualOrderResult.activation_url, stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || "")].filter(Boolean).join("\n\n"));
-    showNotice("ok", "Đã copy link đơn thủ công.");
-  }
-
   function appliesLabel(value: string | undefined) {
     if (!value || value === "ALL") return "Tất cả gói";
     const labels = value.split(",").filter(Boolean).map((item) => planOptionLabel(item));
@@ -5694,24 +5688,36 @@ export default function Home() {
                   <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                     <TextField
                       className="field wide"
-                      label={manualOrderResult.bot_link_title || "Link kích hoạt qua bot"}
-                      value={[
-                        manualOrderResult.activation_url,
-                        "",
-                        manualOrderResult.bot_link_subtitle || "",
-                        "",
-                        stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""),
-                      ].join("\n")}
+                      label="Tin nhắn hoàn chỉnh"
+                      value={stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || "")}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
-                      minRows={6}
+                      minRows={10}
+                      sx={popupFieldSx}
+                    />
+                    <TextField
+                      label={manualOrderResult.bot_link_title || "Link kích hoạt"}
+                      value={manualOrderResult.activation_url || ""}
+                      slotProps={{ input: { readOnly: true } }}
+                      fullWidth
+                      multiline
+                      minRows={4}
                       sx={popupFieldSx}
                     />
                     <Box sx={{ gridColumn: "1 / -1" }}>
                       <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
                         <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>
-                        <Button variant="outlined" onClick={copyManualLinks}>Copy toàn bộ nội dung</Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            if (!manualOrderResult) return;
+                            navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""));
+                            showNotice("ok", "Đã copy toàn bộ nội dung hiển thị.");
+                          }}
+                        >
+                          Copy toàn bộ nội dung
+                        </Button>
                       </Stack>
                       {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
                     </Box>
