@@ -5689,7 +5689,7 @@ export default function Home() {
                     <TextField
                       className="field wide"
                       label="Tin nhắn hoàn chỉnh"
-                      value={stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || "")}
+                      value={stripHtml([manualOrderResult.manual_order_text, manualOrderResult.support_text].filter(Boolean).join("\n\n"))}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
@@ -5712,7 +5712,7 @@ export default function Home() {
                           variant="outlined"
                           onClick={() => {
                             if (!manualOrderResult) return;
-                            navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""));
+                            navigator.clipboard.writeText(stripHtml([manualOrderResult.manual_order_text, manualOrderResult.support_text].filter(Boolean).join("\n\n")));
                             showNotice("ok", "Đã copy toàn bộ nội dung hiển thị.");
                           }}
                         >
