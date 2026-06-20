@@ -67,6 +67,31 @@ def format_membership_expire(value, user_id=None):
 
     return parsed.strftime("%d/%m/%Y %H:%M")
 
+
+def format_manual_expire(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return "-"
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+            try:
+                timezone = ZoneInfo(timezone_name)
+            except Exception:
+                timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+            parsed = parsed.astimezone(timezone).replace(tzinfo=None)
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+            try:
+                parsed = datetime.strptime(raw, fmt)
+                break
+            except ValueError:
+                parsed = None
+        if not parsed:
+            return raw.replace("T", " ").replace("+00:00", "")
+    return parsed.strftime("%H:%M %d/%m/%Y")
+
 def order_to_me_item(order):
     return [
         order.get("order_id", ""),
@@ -203,7 +228,7 @@ async def deliver_activation_order(message: Message, code: str):
         "telegram_user_id": telegram_user_id,
         "full_name": activation.get("full_name", ""),
         "plan_name": plan_name,
-        "expire_at": expire_at,
+        "expire_at": format_manual_expire(expire_at),
         "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
     }
     support_link, support_error = await create_support_invite_link(message.from_user.id)

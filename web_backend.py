@@ -127,7 +127,7 @@ def format_manual_expire_at(value: str | None):
     parsed = parse_manual_expire_at(value)
     if not parsed:
         return str(value or "").strip()
-    return parsed.strftime("%H:%M %d/%m/%y")
+    return parsed.strftime("%H:%M %d/%m/%Y")
 
 
 def normalize_template_text(value: str | None):
