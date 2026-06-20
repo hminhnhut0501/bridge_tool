@@ -12,6 +12,7 @@ from bot_instance import bot
 from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
 from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
+from support_utils import create_support_invite_link
 from i18n import get_user_language, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
@@ -204,18 +205,30 @@ async def deliver_activation_order(message: Message, code: str):
         "plan_name": plan_name,
         "expire_at": expire_at,
         "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
-        "support_link": "",
-        "support_error": "",
     }
+    support_link, support_error = await create_support_invite_link(message.from_user.id)
+    render_context["support_link"] = support_link or ""
+    render_context["support_error"] = support_error or ""
     support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "", render_context)
+    if not support_text and support_error:
+        support_text = render_cfg(
+            "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+            render_context,
+        )
     render_context["support_text"] = support_text
     delivery_text = render_cfg(
         "MANUAL_ORDER_DELIVERY_TEMPLATE",
-        "{success_text}\n\n{links_text}\n{support_text}",
+        "{success_text}\n\n{order_text}\n\n{links_text}\n\n{support_text}",
         {
             **render_context,
-            "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group."),
+            "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh."),
             "links_text": links_text,
+            "order_text": render_cfg(
+                "MANUAL_ORDER_INFO_TEMPLATE",
+                "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+                render_context,
+            ),
         },
     )
     await message.answer(delivery_text, parse_mode="HTML")
