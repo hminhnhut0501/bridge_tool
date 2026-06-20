@@ -37,7 +37,8 @@ insert into public.bot_config (key, value) values
   ('MANUAL_ORDER_LINK_FAIL_TEXT', '❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.'),
   ('MANUAL_ORDER_LINK_SUCCESS_TEXT', '✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.'),
   ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/hangcuprivebot?start={code}'),
-  ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{links_text}\n{support_text}'),
+  ('MANUAL_ORDER_INFO_TEMPLATE', '⭐ Đơn hàng: {order_id}\nKhách hàng: {full_name} - ID: {telegram_user_id}\nGói: {plan_name}\nHạn dùng: {expire_at}'),
+  ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}'),
   ('MANUAL_ORDER_START_TEMPLATE', '{processing_text}'),
-  ('MANUAL_ORDER_DELIVERY_TEMPLATE', '{success_text}\n\n{links_text}\n{support_text}')
+  ('MANUAL_ORDER_DELIVERY_TEMPLATE', '{success_text}\n\n{order_text}\n\n{links_text}\n\n{support_text}')
 on conflict (key) do update set value = excluded.value, updated_at = now();

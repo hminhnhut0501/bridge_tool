@@ -1168,16 +1168,23 @@ const SUPPORT_FIELDS: ConfigField[] = [
 
 const ORDER_FIELDS: ConfigField[] = [
   {
-    key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
-    label: "Template nội dung đơn thủ công",
-    placeholder: "{activation_url}\\n\\n{support_text}",
-    help: "Dùng biến {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}, {activation_code}, {activation_url}, {support_text}.",
+    key: "MANUAL_ORDER_INFO_TEMPLATE",
+    label: "Khối thông tin đơn",
+    placeholder: "⭐ Đơn hàng: {order_id}\\nKhách hàng: {full_name} - ID: {telegram_user_id}\\nGói: {plan_name}\\nHạn dùng: {expire_at}",
+    help: "Khối này đứng đầu tin, dùng để tóm tắt đơn trước khi hiển thị link bot.",
     kind: "textarea",
   },
-  { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề link bot", placeholder: "🔗 Link kích hoạt qua bot", help: "Tiêu đề hiển thị trong kết quả tạo đơn." },
-  { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", help: "Mô tả ngắn về link bot.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Mẫu deep link bot", placeholder: "t.me/hangcuprivebot?start={code}", help: "Dùng biến {code}. Có thể đổi username bot mà không cần sửa code." },
-  { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút mở bot", placeholder: "Mở bot nhận link", help: "Text nút admin copy hoặc gửi khách." },
+  {
+    key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
+    label: "Template tin gửi khách",
+    placeholder: "{order_text}\\n\\n{bot_link_title}\\n{activation_url}\\n\\n{bot_link_subtitle}\\n\\n{support_text}",
+    help: "Đổi thứ tự các khối để sắp xếp vị trí hiển thị trong cùng 1 tin.",
+    kind: "textarea",
+  },
+  { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề khối link", placeholder: "🔗 Link kích hoạt qua bot", help: "Tiêu đề hiển thị trước link bot." },
+  { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả khối link", placeholder: "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", help: "Dòng mô tả ngắn ngay dưới link bot.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "t.me/hangcuprivebot?start={code}", help: "Dùng biến {code}.", },
+  { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy", placeholder: "Mở bot nhận link", help: "Text nút admin copy hoặc gửi khách." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin xác nhận hợp lệ", placeholder: "✅ Đã xác minh đơn của bạn. Bấm nút bên dưới để nhận link vào group.", help: "Tin bot trả khi mã hợp lệ.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn hàng và tạo link join group...", help: "Tin bot trả ngay khi khách bấm deep link.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Tin bot trả khi code không tồn tại." },
@@ -1185,9 +1192,9 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_LINK_WRONG_USER_TEXT", label: "Tin sai Telegram ID", placeholder: "❌ Mã này không dành cho tài khoản Telegram hiện tại.", help: "Tin bot trả khi user không đúng." },
   { key: "MANUAL_ORDER_LINK_EXPIRED_TEXT", label: "Tin mã hết hạn", placeholder: "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.", help: "Tin bot trả khi link quá hạn." },
   { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau.", help: "Tin bot trả khi không sinh được link group." },
-  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Mẫu tin trả link bot", placeholder: "{success_text}\\n\\n{links_text}\\n{support_text}", help: "Dùng biến {success_text}, {links_text}, {support_text}.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Mẫu hỗ trợ đơn thủ công", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Dùng khi cần chèn link hỗ trợ.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Mẫu lỗi link hỗ trợ", placeholder: "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})", help: "Dùng khi bot không tạo được link hỗ trợ.", kind: "textarea" },
+  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Tin bot trả cuối", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{support_text}", help: "Dùng cho tin bot trả sau khi xác minh xong.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Hiển thị link hỗ trợ khi tạo được.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Khối lỗi hỗ trợ", placeholder: "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})", help: "Hiển thị khi link hỗ trợ lỗi.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -1709,6 +1716,7 @@ const EMPTY_MANUAL_ORDER_FORM = {
   plan_key: "FULL_1M",
   plan_name: "",
   amount: "0",
+  expiry_mode: "days",
   duration_days: "30",
   expire_at: "",
   coupon_code: "",
@@ -4062,22 +4070,33 @@ export default function Home() {
       plan_key: value,
       plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
+      expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
+      expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
     });
+  }
+
+  function manualExpiryPreview() {
+    if (manualOrderForm.expiry_mode === "date") {
+      return `Sẽ áp dụng: ${dateTimePreviewText(manualOrderForm.expire_at, "Chưa chọn ngày hết hạn")}`;
+    }
+    return `Sẽ áp dụng: ${manualOrderForm.duration_days || "30"} ngày`;
   }
 
   async function saveManualOrder() {
     const planName = manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key);
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
+    const durationDays = manualOrderForm.expiry_mode === "days" ? manualOrderForm.duration_days : "";
+    const expireAt = manualOrderForm.expiry_mode === "date" ? manualOrderForm.expire_at : "";
     await runAction("manual-order", async () => {
       const res = await createManualOrder(savedSecret, {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
         plan_name: planName,
         amount: manualOrderForm.amount,
-        duration_days: manualOrderForm.duration_days,
-        expire_at: manualOrderForm.expire_at,
+        duration_days: durationDays,
+        expire_at: expireAt,
         coupon_code: manualOrderForm.coupon_code.trim(),
         sale_id: "MANUAL",
         payment_currency: paymentCurrency,
@@ -5656,8 +5675,15 @@ export default function Home() {
                   <MenuItem value="NOWPAYMENTS">NOWPayments</MenuItem>
                   <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
                 </TextField>
-                <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText="Chỉ dùng khi ngày hết hạn trống." />
-                <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={`Xem trước: ${dateTimePreviewText(manualOrderForm.expire_at, "Dùng thời lượng ở trên nếu để trống")}`} />
+                <TextField select label="Kiểu hết hạn" value={manualOrderForm.expiry_mode} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : manualOrderForm.expire_at })} size="small" helperText="Chọn 1 cách duy nhất: theo số ngày hoặc ngày cụ thể." sx={{ gridColumn: "1 / -1" }}>
+                  <MenuItem value="days">Theo số ngày</MenuItem>
+                  <MenuItem value="date">Ngày cụ thể</MenuItem>
+                </TextField>
+                {manualOrderForm.expiry_mode === "days" ? (
+                  <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText={manualExpiryPreview()} />
+                ) : (
+                  <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview()} />
+                )}
                 <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
               </Box>
               <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>

@@ -154,16 +154,37 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
     return text.strip()
 
 
-def render_manual_order_message_text(template: str, context: dict[str, object]):
-    text = normalize_template_text(template)
-    if not text:
-        text = "{links_text}\n{support_text}"
+def render_manual_order_info_text(context: dict[str, object]):
+    template = normalize_template_text(db.get_config(
+        "MANUAL_ORDER_INFO_TEMPLATE",
+        "⭐ Đơn hàng: {order_id}\nKhách hàng: {full_name} - ID: {telegram_user_id}\nGói: {plan_name}\nHạn dùng: {expire_at}",
+    ) or "")
     values = {
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
+    }
+    for key, value in values.items():
+        template = template.replace(f"{{{key}}}", str(value or ""))
+    return template.strip()
+
+
+def render_manual_order_message_text(template: str, context: dict[str, object]):
+    text = normalize_template_text(template)
+    if not text:
+        text = "{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
+    values = {
+        "order_id": context.get("order_id", ""),
+        "telegram_user_id": context.get("telegram_user_id", ""),
+        "full_name": context.get("full_name", ""),
+        "plan_name": context.get("plan_name", ""),
+        "expire_at": format_manual_expire_at(context.get("expire_at", "")),
+        "order_text": context.get("order_text", ""),
+        "bot_link_title": context.get("bot_link_title", ""),
+        "bot_link_subtitle": context.get("bot_link_subtitle", ""),
+        "activation_url": context.get("activation_url", ""),
         "links_text": context.get("links_text", ""),
         "support_text": context.get("support_text", ""),
         "support_group_name": context.get("support_group_name", ""),
@@ -791,7 +812,7 @@ async def admin_create_manual_order(request: Request):
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
     message_template = str(db.get_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
-        "{links_text}\n{support_text}",
+        "{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}",
     ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
@@ -839,6 +860,14 @@ async def admin_create_manual_order(request: Request):
         )
     else:
         support_text = ""
+
+    order_text = render_manual_order_info_text({
+        "order_id": order_id,
+        "telegram_user_id": telegram_user_id,
+        "full_name": full_name or telegram_user_id,
+        "plan_name": plan_name,
+        "expire_at": expire_at.isoformat(timespec="seconds"),
+    })
 
     try:
         supabase_store.create_order_activation_code(
@@ -912,12 +941,15 @@ async def admin_create_manual_order(request: Request):
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
+                "order_text": order_text,
+                "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt qua bot", {}),
+                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Khách bấm link này để vào bot, bot sẽ tự tạo link join group cho đơn của họ.", {}),
+                "activation_url": activation_url,
                 "links_text": "",
                 "support_text": support_text,
                 "support_group_name": support_group_name(),
                 "support_link": support_link,
                 "support_error": support_error,
-                "activation_url": activation_url,
                 "activation_code": activation_code,
             }),
             "failed_groups": [],
