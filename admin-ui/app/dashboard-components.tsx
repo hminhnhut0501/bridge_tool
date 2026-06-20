@@ -27,7 +27,7 @@ import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Sa
 import { type ReactNode, useId, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
-import { dateText } from "./dashboard-helpers";
+import { dateText, orderMoney } from "./dashboard-helpers";
 import { styleGuide } from "./style-guide";
 
 const statusPalette = {
@@ -638,7 +638,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
             <TableCell>{order.order_id}</TableCell>
             <TableCell><Typography sx={{ fontWeight: 700 }}>{order.full_name || "-"}</Typography><Typography variant="caption" color="text.secondary">{order.telegram_user_id}</Typography></TableCell>
             <TableCell>{order.plan_name}</TableCell>
-            <TableCell>{order.amount}</TableCell>
+            <TableCell>{orderMoney(order)}</TableCell>
             <TableCell>{order.coupon_code || "-"}</TableCell>
             <TableCell>{statusChip(order.status)}</TableCell>
             <TableCell>{dateText(order.created_at)}</TableCell>

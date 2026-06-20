@@ -1,8 +1,12 @@
 import type { ActivityEvent, KickAuditRow, Order, SupportEvent } from "@/lib/api";
 import type { OrderPeriod } from "./dashboard-types";
 
+function groupedNumber(value: number) {
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value || 0);
+}
+
 export function money(value: number) {
-  return new Intl.NumberFormat("vi-VN").format(value || 0) + "đ";
+  return groupedNumber(value) + "đ";
 }
 
 export function displayText(value: unknown) {
@@ -85,13 +89,13 @@ export function normalizeRevenueCurrency(value: string | null | undefined) {
 
 export function formatRevenueCurrency(currency: string, value: number) {
   const normalized = normalizeRevenueCurrency(currency);
-  if (normalized === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
-  if (normalized === "USDT" || normalized === "CRYPTO") return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${normalized}`;
+  if (normalized === "USD") return `${groupedNumber(value)} USD`;
+  if (normalized === "USDT" || normalized === "CRYPTO") return `${groupedNumber(value)} ${normalized}`;
   return money(value || 0);
 }
 
 export function providerRevenueFormat(provider: string, value: number) {
-  return `${provider}: ${money(value || 0)}`;
+  return `${provider}: ${groupedNumber(value)}đ`;
 }
 
 export function dateText(value: string | null | undefined) {
@@ -207,7 +211,7 @@ export function hiddenValidityText(code: { valid_from?: string | null; valid_unt
 
 export function orderMoney(order: Order, value = order.amount) {
   const currency = inferOrderCurrency(order);
-  if (currency === "USD") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
-  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value || 0)} ${currency.replace("_TRC20", "")}`;
+  if (currency === "USD") return `${groupedNumber(value)} USD`;
+  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${groupedNumber(value)} ${currency.replace("_TRC20", "")}`;
   return money(value || 0);
 }
