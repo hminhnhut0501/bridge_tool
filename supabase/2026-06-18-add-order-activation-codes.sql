@@ -38,7 +38,7 @@ insert into public.bot_config (key, value) values
   ('MANUAL_ORDER_LINK_SUCCESS_TEXT', '✅ Đơn của bạn đã được xác minh.'),
   ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/hangcuprivebot?start={code}'),
   ('MANUAL_ORDER_INFO_TEMPLATE', '🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}'),
-  ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}'),
+  ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}'),
   ('MANUAL_ORDER_START_TEMPLATE', '{processing_text}'),
   ('MANUAL_ORDER_DELIVERY_TEMPLATE', '{success_text}\n\n{order_text}\n\n{links_text}\n\n{support_text}')
 on conflict (key) do update set value = excluded.value, updated_at = now();

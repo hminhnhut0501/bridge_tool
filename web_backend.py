@@ -813,7 +813,7 @@ async def admin_create_manual_order(request: Request):
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
     message_template = str(db.get_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
-        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}",
+        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
     ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
