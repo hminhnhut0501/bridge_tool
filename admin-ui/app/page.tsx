@@ -47,6 +47,7 @@ import {
   InputLabel,
   IconButton,
   MenuItem,
+  Tooltip,
   Select,
   Stack,
   Tab,
@@ -67,9 +68,13 @@ import {
   dateTimePreviewText,
   dateTimeInputValue,
   daysUntil,
+  activityEventDetailLabel,
+  activityEventLabel,
+  auditStatusLabel,
+  groupDebugText,
+  groupDisplayLabel,
   isoDayKey,
   describeActivityEvent,
-  describeSupportEvent,
   displayText,
   formatRevenueCurrency,
   groupNamesForOrder,
@@ -95,6 +100,9 @@ import {
   payloadText,
   providerRevenueFormat,
   statusClass,
+  logEntryTypeLabel,
+  orderStatusLabel,
+  tooltipLabel,
   supportEventLabel,
   uniqueValues,
 } from "./dashboard-helpers";
@@ -2795,7 +2803,7 @@ export default function Home() {
       "Khách": item.full_name || "-",
       "Gói": item.plan_name || "-",
       "Số tiền": item.amount || 0,
-      "Trạng thái": item.status || "-",
+      "Trạng thái": orderStatusLabel(item.status),
       "Thanh toán lúc": item.paid_at ? dateText(item.paid_at) : "-",
       "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
       "Sale ID": item.sale_id || "-",
@@ -2834,7 +2842,7 @@ export default function Home() {
         "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
         "Group": item.group_name || "-",
         "Group ID": item.group_id || "-",
-        "Trạng thái": item.status_label || item.status,
+        "Trạng thái": auditStatusLabel(item.status_label || item.status),
         "Live": item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
         "Lỗi gần nhất": item.latest_error || "-",
       }));
@@ -3584,12 +3592,23 @@ export default function Home() {
         type: item.status,
         sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
         row: [
-          <span key={`vip-${item.audit_id}-status`} className={statusClass(item.status)}>{item.status_label || item.status}</span>,
-          <><strong>{item.group_name || item.group_id || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
+          <Tooltip key={`vip-${item.audit_id}-status-tip`} title={tooltipLabel(auditStatusLabel(item.status_label || item.status), item.status)} arrow>
+            <span key={`vip-${item.audit_id}-status`} className={statusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>
+          </Tooltip>,
+          <Tooltip key={`vip-${item.audit_id}-group-tip`} title={groupDebugText(item.group_name, item.group_id)} arrow>
+            <Box component="span">
+              <strong>{groupDisplayLabel(item.group_name, item.group_id)}</strong>
+              <div className="muted">{item.group_id || "-"}</div>
+            </Box>
+          </Tooltip>,
           <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
           item.expire_at ? dateText(item.expire_at) : "-",
-          item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live",
-          item.latest_error || "-",
+          <Tooltip key={`vip-${item.audit_id}-live-tip`} title={item.live_checked ? `Mã live: ${item.live_status || "-"}` : "Chưa kiểm tra live"} arrow>
+            <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
+          </Tooltip>,
+          <Tooltip key={`vip-${item.audit_id}-err-tip`} title={item.latest_error || "Không có lỗi"} arrow>
+            <span>{item.latest_error || "-"}</span>
+          </Tooltip>,
         ],
       }));
     const kickRows = kickAudit
@@ -3599,12 +3618,23 @@ export default function Home() {
         type: item.status,
         sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
         row: [
-          <span key={`kick-${item.audit_id}-status`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
-          <><strong>{item.group_name || item.group_id || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
+          <Tooltip key={`kick-${item.audit_id}-status-tip`} title={tooltipLabel(auditStatusLabel(item.status_label || item.status), item.status)} arrow>
+            <span key={`kick-${item.audit_id}-status`} className={kickAuditStatusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>
+          </Tooltip>,
+          <Tooltip key={`kick-${item.audit_id}-group-tip`} title={groupDebugText(item.group_name, item.group_id)} arrow>
+            <Box component="span">
+              <strong>{groupDisplayLabel(item.group_name, item.group_id)}</strong>
+              <div className="muted">{item.group_id || "-"}</div>
+            </Box>
+          </Tooltip>,
           <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
           item.expire_at ? dateText(item.expire_at) : "-",
-          item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live",
-          kickAuditReason(item),
+          <Tooltip key={`kick-${item.audit_id}-live-tip`} title={item.live_checked ? `Mã live: ${item.live_status || "-"}` : "Chưa kiểm tra live"} arrow>
+            <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
+          </Tooltip>,
+          <Tooltip key={`kick-${item.audit_id}-reason-tip`} title={kickAuditReason(item)} arrow>
+            <span>{kickAuditReason(item)}</span>
+          </Tooltip>,
         ],
       }));
     return [...vipRows, ...kickRows]
@@ -3674,11 +3704,20 @@ export default function Home() {
         key: item.key,
         type: item.type,
         row: [
-          <span key={`${item.key}-type`} className={statusClass(item.type)}>{supportEventLabel(item.type)}</span>,
-          <><strong>{item.group}</strong><div className="muted">{item.order}</div></>,
+          <Tooltip key={`${item.key}-type-tip`} title={tooltipLabel(supportEventLabel(item.type), item.type)} arrow>
+            <span key={`${item.key}-type`} className={statusClass(item.type)}>{supportEventLabel(item.type)}</span>
+          </Tooltip>,
+          <Tooltip key={`${item.key}-group-tip`} title={item.group} arrow>
+            <Box component="span">
+              <strong>{item.group}</strong>
+              <div className="muted">{item.order}</div>
+            </Box>
+          </Tooltip>,
           item.order,
           dateText(item.createdAt),
-          item.detail,
+          <Tooltip key={`${item.key}-detail-tip`} title={item.detail} arrow>
+            <span>{item.detail}</span>
+          </Tooltip>,
         ],
       }));
     if (customerTimelineSubTab === "all") return rows.map((item) => item.row);
@@ -3782,12 +3821,22 @@ export default function Home() {
       return true;
     });
     return filtered.map((item) => [
-      supportEventLabel(item.event_type),
+      <Tooltip key={`${item.id}-type-tip`} title={tooltipLabel(supportEventLabel(item.event_type), item.event_type)} arrow>
+        <span>{supportEventLabel(item.event_type)}</span>
+      </Tooltip>,
       supportCustomerName(item),
       item.telegram_user_id || "-",
-      item.chat_title || item.chat_id || "-",
+      <Tooltip key={`${item.id}-chat-tip`} title={tooltipLabel(groupDisplayLabel(item.chat_title, item.chat_id), item.chat_id)} arrow>
+        <span>{groupDisplayLabel(item.chat_title, item.chat_id)}</span>
+      </Tooltip>,
       dateText(item.created_at),
-      [item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-"),
+      <Tooltip key={`${item.id}-detail-tip`} title={tooltipLabel([
+        item.raw_data?.old_status ? `Cũ: ${item.raw_data.old_status}` : "",
+        item.raw_data?.new_status ? `Mới: ${item.raw_data.new_status}` : "",
+        item.raw_data?.reason ? `Lý do: ${String(item.raw_data.reason)}` : "",
+      ].filter(Boolean).join(" • ") || "-", item.event_type)} arrow>
+        <span>{[item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-")}</span>
+      </Tooltip>,
     ]);
   }, [supportGroupEvents, supportTab, supportCustomerName]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
@@ -3848,7 +3897,7 @@ export default function Home() {
         <><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></>,
         <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></>,
         dateText(item.expire_at),
-        <span key="status" className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <span key="status" className={kickAuditStatusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>,
         kickAuditReason(item),
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
         item.needs_action && item.group_id ? (
@@ -3862,7 +3911,7 @@ export default function Home() {
         <Fragment key={`retained-plan-${item.audit_id}`}><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
         <Fragment key={`retained-group-${item.audit_id}`}><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></Fragment>,
         dateText(item.expire_at),
-        <span key={`retained-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <span key={`retained-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>,
         <Fragment key={`retained-reason-${item.audit_id}`}><strong>{item.retained_reason || "Còn đơn active khác nên không kick"}</strong><div className="muted">{item.retained_orders?.length ? `Đơn giữ nhóm: ${item.retained_orders.join(", ")}` : "Hệ thống giữ quyền vì user còn membership active khác."}</div></Fragment>,
         item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa kiểm tra live",
       ]),
@@ -3871,7 +3920,7 @@ export default function Home() {
         <Fragment key={`vipout-plan-${item.audit_id}`}><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
         <Fragment key={`vipout-group-${item.audit_id}`}><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "-"}</div></Fragment>,
         dateText(item.expire_at),
-        <span key={`vipout-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{item.status_label || item.status}</span>,
+        <span key={`vipout-status-${item.audit_id}`} className={kickAuditStatusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>,
         <Fragment key={`vipout-live-${item.audit_id}`}><strong>{item.live_checked ? `${item.live_status || "-"}` : "Chưa live"}</strong><div className="muted">{item.live_present === true ? "Còn trong group" : item.live_present === false ? "Đã rời group" : "Chưa kiểm tra"}</div></Fragment>,
         item.latest_error || "-",
       ]),
@@ -3906,10 +3955,11 @@ export default function Home() {
         id: `a-${event.id}`,
         direction: "user" as const,
         type: payloadText(payload, "event_type") || event.event_name || "event",
+        typeLabel: activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event"),
         userId: event.telegram_user_id || payloadText(payload, "user_id"),
         username: payloadText(payload, "username"),
         fullName: payloadText(payload, "full_name"),
-        title: describeActivityEvent(event),
+        title: activityEventDetailLabel(payloadText(payload, "event_type") || event.event_name || "event", describeActivityEvent(event), payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type")),
         detail: payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type"),
         createdAt: event.created_at,
       };
@@ -3918,10 +3968,11 @@ export default function Home() {
       id: `s-${event.id}`,
       direction: "bot" as const,
       type: event.event_type,
+      typeLabel: supportEventLabel(event.event_type),
       userId: event.telegram_user_id || "",
       username: event.username || "",
       fullName: supportCustomerName(event),
-      title: describeSupportEvent(event),
+      title: supportEventLabel(event.event_type),
       detail: [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
       createdAt: event.created_at,
     }));
@@ -4626,7 +4677,7 @@ export default function Home() {
                 </TextField>
                 <TextField select value={logType} onChange={(event) => setLogType(event.target.value)} size="small" fullWidth>
                   <MenuItem value="ALL">Tất cả loại event</MenuItem>
-                  {logTypeOptions.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                  {logTypeOptions.map((item) => <MenuItem key={item} value={item}>{logEntryTypeLabel(item)}</MenuItem>)}
                 </TextField>
                 <TextField select value={logDate} onChange={(event) => setLogDate(event.target.value)} size="small" fullWidth>
                   <MenuItem value="ALL">Tất cả ngày</MenuItem>
@@ -4639,7 +4690,7 @@ export default function Home() {
                   dateText(item.createdAt),
                   item.direction === "user" ? "User → Bot" : "Bot → User",
                   <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
-                  item.type,
+                  item.typeLabel || logEntryTypeLabel(item.type),
                   item.title,
                   item.detail || "-",
                 ])}

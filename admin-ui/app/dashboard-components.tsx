@@ -27,7 +27,7 @@ import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Sa
 import { type ReactNode, useId, useState } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
-import { dateText, orderMoney } from "./dashboard-helpers";
+import { dateText, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
 import { styleGuide } from "./style-guide";
 
 const statusPalette = {
@@ -619,11 +619,12 @@ export function Pagination({ page, totalPages, totalItems, onPage, label = "đơ
 export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
-    if (normalized === "PAID") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("success")} />;
-    if (normalized === "PENDING") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("warning")} />;
-    if (normalized === "EXPIRED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("muted")} />;
-    if (normalized === "CANCELLED") return <Chip size="small" label={status} variant="outlined" sx={statusChipSx("error")} />;
-    return <Chip size="small" label={status || "-"} variant="outlined" sx={statusChipSx("muted")} />;
+    const label = orderStatusLabel(status);
+    if (normalized === "PAID") return <Chip size="small" label={label} variant="outlined" sx={statusChipSx("success")} title={tooltipLabel(label, status)} />;
+    if (normalized === "PENDING") return <Chip size="small" label={label} variant="outlined" sx={statusChipSx("warning")} title={tooltipLabel(label, status)} />;
+    if (normalized === "EXPIRED") return <Chip size="small" label={label} variant="outlined" sx={statusChipSx("muted")} title={tooltipLabel(label, status)} />;
+    if (normalized === "CANCELLED") return <Chip size="small" label={label} variant="outlined" sx={statusChipSx("error")} title={tooltipLabel(label, status)} />;
+    return <Chip size="small" label={label || "-"} variant="outlined" sx={statusChipSx("muted")} title={tooltipLabel(label, status)} />;
   };
   return (
     <Table size="small">

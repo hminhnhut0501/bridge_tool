@@ -5,10 +5,10 @@ import { Box, Button, Stack } from "@mui/material";
 import { Plus, Send, Trash2 } from "lucide-react";
 import { AppSection, AppToolbar, Pagination, SimpleTable, statusButtonSx } from "./dashboard-components";
 import { Metric } from "./metric-card";
-import { dateText } from "./dashboard-helpers";
+import { dateText, channelPostStatusLabel, tooltipLabel } from "./dashboard-helpers";
 
 export function ChannelPostsSection(props: any) {
-  const { channelPosts, channelPostCounts, channelPostTab, setChannelPostTab, openNewChannelPostModal, pagedChannelPosts, channelPostPage, totalChannelPostPages, visibleChannelPosts, setChannelPostPage, editChannelPost, runChannelPostAction, channelPostStatusClass, channelPostStatusLabel } = props;
+  const { channelPosts, channelPostCounts, channelPostTab, setChannelPostTab, openNewChannelPostModal, pagedChannelPosts, channelPostPage, totalChannelPostPages, visibleChannelPosts, setChannelPostPage, editChannelPost, runChannelPostAction, channelPostStatusClass } = props;
   return (
     <Stack spacing={2}>
       <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
@@ -36,7 +36,7 @@ export function ChannelPostsSection(props: any) {
               </Box>
             </Button>,
             item.target_chat_id,
-            <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)}>{channelPostStatusLabel(item.status)}</span>,
+            <span key={`cp-status-${item.id}`} className={channelPostStatusClass(item.status)} title={tooltipLabel(channelPostStatusLabel(item.status), item.status)}>{channelPostStatusLabel(item.status)}</span>,
             <><strong>Đăng: {dateText(item.scheduled_at || item.sent_at)}</strong><div className="muted">Xóa: {dateText(item.delete_at || item.deleted_at)}</div></>,
             <><strong>{item.sent_message_id ? `Message ${item.sent_message_id}` : "-"}</strong><div className="muted">Thử {item.attempt_count || 0}</div></>,
             item.error || "-",

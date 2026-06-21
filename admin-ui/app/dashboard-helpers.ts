@@ -169,6 +169,12 @@ export function statusClass(status: string) {
   return `status ${String(status || "").toLowerCase()}`;
 }
 
+export function tooltipLabel(label: string, code?: string | null) {
+  const display = displayText(label) || "-";
+  const raw = displayText(code);
+  return raw && raw !== display ? `${display} (${raw})` : display;
+}
+
 export function kickAuditStatusClass(status: string) {
   return statusClass(status);
 }
@@ -178,11 +184,105 @@ export function kickAuditReason(item: KickAuditRow) {
 }
 
 export function supportEventLabel(type: string) {
-  return type;
+  const labels: Record<string, string> = {
+    support_joined: "Vừa vào group hỗ trợ",
+    support_left: "Rời group hỗ trợ",
+    member_muted: "Đã tắt tiếng",
+    member_unmuted: "Đã bật tiếng",
+    member_kicked: "Đã xóa khỏi group",
+    member_kick_closed: "Đã đóng quyền vào lại",
+    expired_notice_sent: "Đã gửi thông báo hết hạn",
+    renewal_reminder_sent: "Đã nhắc gia hạn",
+    vip_joined: "Vừa vào group VIP",
+    vip_left: "Rời group VIP",
+    vip_muted: "Đã tắt tiếng VIP",
+    vip_unmuted: "Đã bật tiếng VIP",
+    vip_kicked: "Đã xóa khỏi group VIP",
+  };
+  return labels[type] || type;
+}
+
+export function activityEventLabel(type: string) {
+  const labels: Record<string, string> = {
+    message: "Tin nhắn",
+    text: "Tin nhắn",
+    command: "Lệnh",
+    callback_query: "Bấm nút",
+    callback: "Bấm nút",
+    inline_query: "Tìm kiếm nội dung",
+    start: "Bắt đầu",
+    join: "Tham gia",
+    leave: "Rời đi",
+  };
+  return labels[type] || type || "Sự kiện";
+}
+
+export function activityEventDetailLabel(eventType: string, title: string, detail: string) {
+  if (eventType === "callback_query" || eventType === "callback") return detail || title || "Bấm nút";
+  if (eventType === "command") return detail || title || "Lệnh bot";
+  return title || detail || "Hoạt động";
+}
+
+export function logEntryTypeLabel(type: string) {
+  return activityEventLabel(type) !== type ? activityEventLabel(type) : supportEventLabel(type);
+}
+
+export function groupDisplayLabel(name: string | null | undefined, id: string | null | undefined) {
+  const cleanName = displayText(name);
+  const cleanId = displayText(id);
+  if (cleanName && cleanId) return cleanName;
+  return cleanName || cleanId || "-";
+}
+
+export function groupDebugText(name: string | null | undefined, id: string | null | undefined) {
+  const cleanName = displayText(name);
+  const cleanId = displayText(id);
+  if (cleanName && cleanId) return `${cleanName} • ${cleanId}`;
+  return cleanName || cleanId || "-";
+}
+
+export function auditStatusLabel(status: string | null | undefined) {
+  const value = String(status || "").toUpperCase();
+  const labels: Record<string, string> = {
+    ACTIVE_RETAINED: "Vẫn còn trong group vì còn gói active khác",
+    ACTIVE: "Đang hoạt động bình thường",
+    EXPIRED: "Đã hết hạn",
+    KICKED: "Đã kick khỏi group",
+    MUTED: "Đã tắt tiếng",
+    UNMUTED: "Đã mở tắt tiếng",
+    CLOSED: "Đã đóng quyền vào lại",
+    PENDING: "Đang chờ xử lý",
+    ERROR: "Đang có lỗi",
+  };
+  return labels[value] || displayText(status) || "-";
+}
+
+export function orderStatusLabel(status: string | null | undefined) {
+  const value = String(status || "").toUpperCase();
+  const labels: Record<string, string> = {
+    PENDING: "Đang chờ thanh toán",
+    PAID: "Đã thanh toán",
+    EXPIRED: "Đã hết hạn",
+    CANCELLED: "Đã hủy",
+    REFUNDED: "Đã hoàn tiền",
+  };
+  return labels[value] || displayText(status) || "-";
 }
 
 export function channelPostStatusLabel(status: string) {
-  return String(status || "-");
+  const value = String(status || "").toLowerCase();
+  const labels: Record<string, string> = {
+    draft: "Bản nháp",
+    queued: "Đang chờ gửi",
+    queue: "Đang chờ gửi",
+    scheduled: "Đã lên lịch",
+    sent: "Đã gửi",
+    failed: "Gửi lỗi",
+    deleted: "Đã xóa",
+    delete_scheduled: "Đã lên lịch xóa",
+    delete_failed: "Xóa lỗi",
+  };
+  return labels[value] || displayText(status) || "-";
 }
 
 export function channelPostStatusClass(status: string) {
