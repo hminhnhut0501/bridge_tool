@@ -234,7 +234,7 @@ async def deliver_activation_order(message: Message, code: str):
     support_link, support_error = await create_support_invite_link(message.from_user.id)
     render_context["support_link"] = support_link or ""
     render_context["support_error"] = support_error or ""
-    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "", render_context)
+    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
     if not support_text and support_error:
         support_text = render_cfg(
             "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",

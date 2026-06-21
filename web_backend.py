@@ -840,7 +840,7 @@ async def admin_create_manual_order(request: Request):
 
     support_link, support_error = await create_support_invite_link(user_id)
     if support_link:
-        support_text = render_manual_order_support_text("", {
+        support_text = render_manual_order_support_text("💬 {support_group_name}:\n{support_link}", {
             "order_id": order_id,
             "telegram_user_id": telegram_user_id,
             "full_name": full_name,
