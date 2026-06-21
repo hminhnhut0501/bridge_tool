@@ -259,7 +259,7 @@ async def deliver_activation_order(message: Message, code: str):
         await message.answer(delivery_text, parse_mode="HTML")
     finally:
         try:
-            await processing_message.delete()
+            await bot.delete_message(chat_id=message.chat.id, message_id=processing_message.message_id)
         except Exception:
             pass
 
