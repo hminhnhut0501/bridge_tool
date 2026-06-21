@@ -210,53 +210,58 @@ async def deliver_activation_order(message: Message, code: str):
         except Exception:
             pass
 
-    await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group..."))
-
-    plan_name = str(activation.get("plan_name") or "").strip()
-    links_text, group_names, failed_groups = await build_invite_links(message.from_user.id, plan_name)
-    if failed_groups or not group_names:
-        await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau."))
-        return
-
+    processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group..."))
     try:
-        supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=datetime.now().isoformat(timespec="seconds"))
-    except Exception as exc:
-        print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
+        plan_name = str(activation.get("plan_name") or "").strip()
+        links_text, group_names, failed_groups = await build_invite_links(message.from_user.id, plan_name)
+        if failed_groups or not group_names:
+            await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau."))
+            return
 
-    render_context = {
-        "order_id": activation.get("order_id", ""),
-        "telegram_user_id": telegram_user_id,
-        "full_name": activation.get("full_name", ""),
-        "plan_name": plan_name,
-        "expire_at": format_manual_expire(expire_at),
-        "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
-    }
-    support_link, support_error = await create_support_invite_link(message.from_user.id)
-    render_context["support_link"] = support_link or ""
-    render_context["support_error"] = support_error or ""
-    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
-    if not support_text and support_error:
-        support_text = render_cfg(
-            "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
-            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
-            render_context,
-        )
-    render_context["support_text"] = support_text
-    delivery_text = render_cfg(
-        "MANUAL_ORDER_DELIVERY_TEMPLATE",
-        "{success_text}\n\n{order_text}\n\n{links_text}\n\n{support_text}",
-        {
-            **render_context,
-            "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh."),
-            "links_text": links_text,
-            "order_text": render_cfg(
-                "MANUAL_ORDER_INFO_TEMPLATE",
-                "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+        try:
+            supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=datetime.now().isoformat(timespec="seconds"))
+        except Exception as exc:
+            print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
+
+        render_context = {
+            "order_id": activation.get("order_id", ""),
+            "telegram_user_id": telegram_user_id,
+            "full_name": activation.get("full_name", ""),
+            "plan_name": plan_name,
+            "expire_at": format_manual_expire(expire_at),
+            "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
+        }
+        support_link, support_error = await create_support_invite_link(message.from_user.id)
+        render_context["support_link"] = support_link or ""
+        render_context["support_error"] = support_error or ""
+        support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
+        if not support_text and support_error:
+            support_text = render_cfg(
+                "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+                "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
                 render_context,
-            ),
-        },
-    )
-    await message.answer(delivery_text, parse_mode="HTML")
+            )
+        render_context["support_text"] = support_text
+        delivery_text = render_cfg(
+            "MANUAL_ORDER_DELIVERY_TEMPLATE",
+            "{success_text}\n\n{order_text}\n\n{links_text}\n\n{support_text}",
+            {
+                **render_context,
+                "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh."),
+                "links_text": links_text,
+                "order_text": render_cfg(
+                    "MANUAL_ORDER_INFO_TEMPLATE",
+                    "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+                    render_context,
+                ),
+            },
+        )
+        await message.answer(delivery_text, parse_mode="HTML")
+    finally:
+        try:
+            await processing_message.delete()
+        except Exception:
+            pass
 
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
