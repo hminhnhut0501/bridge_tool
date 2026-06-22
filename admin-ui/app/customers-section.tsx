@@ -11,6 +11,7 @@ export function CustomersSection(props: any) {
   const {
     filteredCustomers,
     customerSummaries,
+    blacklist,
     ordersMoney,
     exportCustomersCsv,
     query,
@@ -32,6 +33,7 @@ export function CustomersSection(props: any) {
     totalCustomerPages,
     setCustomerPage,
   } = props;
+  const blacklistIds = new Set((blacklist || []).filter((item: any) => item.is_active).map((item: any) => String(item.telegram_user_id || "")));
 
   return (
     <Stack spacing={2}>
@@ -57,7 +59,10 @@ export function CustomersSection(props: any) {
           headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}
           rows={pagedCustomers.map((customer: any) => [
             <Box key={`customer-${customer.id}`} sx={{ display: "grid", gap: 0.25 }}>
-              <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{customer.name}{customer.hasLifetimeSvip ? " 👑" : ""}</Typography>
+                {blacklistIds.has(String(customer.id)) ? <Chip size="small" color="error" variant="outlined" label="Blacklist" sx={{ height: 20, fontSize: 11, fontWeight: 800 }} /> : null}
+              </Box>
               <Typography variant="body2" color="text.secondary">{customer.id}</Typography>
             </Box>,
             <Chip

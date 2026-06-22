@@ -2191,6 +2191,8 @@ export default function Home() {
   const [manualOrderModalOpen, setManualOrderModalOpen] = useState(false);
   const [blacklistForm, setBlacklistForm] = useState({ telegram_user_id: "", username: "", full_name: "", reason: "" });
   const [blacklistModalOpen, setBlacklistModalOpen] = useState(false);
+  const [blacklistQuery, setBlacklistQuery] = useState("");
+  const [blacklistStatusFilter, setBlacklistStatusFilter] = useState<"all" | "active" | "inactive" | "reason">("all");
   const [demoDataInjected, setDemoDataInjected] = useState(false);
 
   useEffect(() => {
@@ -3640,6 +3642,17 @@ export default function Home() {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.paidOrders.map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
   }, [selectedCustomer]);
+  const filteredBlacklist = useMemo(() => {
+    const q = blacklistQuery.trim().toLowerCase();
+    return blacklist.filter((item) => {
+      const text = `${item.telegram_user_id} ${item.username || ""} ${item.full_name || ""} ${item.reason || ""} ${item.source || ""}`.toLowerCase();
+      if (q && !text.includes(q)) return false;
+      if (blacklistStatusFilter === "active" && !item.is_active) return false;
+      if (blacklistStatusFilter === "inactive" && item.is_active) return false;
+      if (blacklistStatusFilter === "reason" && !String(item.reason || "").trim()) return false;
+      return true;
+    });
+  }, [blacklist, blacklistQuery, blacklistStatusFilter]);
   const customerQuickLookupResult = useMemo(() => {
     const customer = lookupCustomerByTelegramId(customerQuickLookupQuery);
     if (!customer) return null;
@@ -4798,6 +4811,7 @@ export default function Home() {
           <CustomersSection
             filteredCustomers={filteredCustomers}
             customerSummaries={customerSummaries}
+            blacklist={blacklist}
             ordersMoney={ordersMoney}
             exportCustomersCsv={exportCustomersCsv}
             query={query}
@@ -5395,9 +5409,21 @@ export default function Home() {
                 }
               />
               <div className="hint compact">Cấu hình bảo mật được tách vào popup để phần blacklist luôn gọn và dễ thao tác.</div>
+              <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 220px 220px" }, p: 2 }}>
+                <TextField size="small" value={blacklistQuery} onChange={(event) => setBlacklistQuery(event.target.value)} placeholder="Tìm Telegram ID, username, tên, lý do..." />
+                <TextField select size="small" value={blacklistStatusFilter} onChange={(event) => setBlacklistStatusFilter(event.target.value as "all" | "active" | "inactive" | "reason")}>
+                  <MenuItem value="all">Tất cả blacklist</MenuItem>
+                  <MenuItem value="active">Đang chặn</MenuItem>
+                  <MenuItem value="inactive">Đã tắt</MenuItem>
+                  <MenuItem value="reason">Có lý do</MenuItem>
+                </TextField>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: { xs: "flex-start", md: "flex-end" }, gap: 1, color: "text.secondary" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Hiển thị {filteredBlacklist.length}/{blacklist.length}</Typography>
+                </Box>
+              </Box>
               <SimpleTable
                 headers={["Telegram ID", "Username", "Tên", "Nguồn", "Lý do", "Trạng thái"]}
-                rows={blacklist.map((item) => [
+                rows={filteredBlacklist.map((item) => [
                   item.telegram_user_id,
                   item.username || "-",
                   item.full_name || "-",
@@ -5406,7 +5432,7 @@ export default function Home() {
                   item.is_active ? "Đang chặn" : "Tắt",
                 ])}
                 onRow={(idx) => {
-                  const item = blacklist[idx];
+                  const item = filteredBlacklist[idx];
                   setBlacklistForm({
                     telegram_user_id: item.telegram_user_id,
                     username: item.username || "",
@@ -5416,7 +5442,7 @@ export default function Home() {
                   setBlacklistModalOpen(true);
                 }}
                 actions={(idx) => (
-                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(blacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeBlacklistEntry(filteredBlacklist[idx].telegram_user_id); }} title="Gỡ blacklist">
                     <Trash2 size={16} />
                   </IconButton>
                 )}
