@@ -2222,6 +2222,13 @@ export default function Home() {
     setFieldValues(nextValues);
   }, [config]);
 
+  useEffect(() => {
+    if (!customerQuickLookupOpen || blacklist.length || !savedSecret) return;
+    void getBlacklist(savedSecret)
+      .then((res) => setBlacklist(res.data || []))
+      .catch(() => undefined);
+  }, [blacklist.length, customerQuickLookupOpen, savedSecret]);
+
   function ui(vi: string, _en: string) {
     void _en;
     return vi;
