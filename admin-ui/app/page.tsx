@@ -4256,6 +4256,20 @@ export default function Home() {
     return `Sẽ áp dụng: ${manualOrderForm.duration_days || "30"} ngày`;
   }
 
+  function syncCustomerRenewPlan(nextPlan: string) {
+    const matchedOrder = selectedCustomer?.paidOrders.find((item) => item.plan_name === nextPlan) || null;
+    const lifetime = isLifetimeText(nextPlan);
+    setCustomerRenewForm((current) => ({
+      ...current,
+      order_id: matchedOrder?.order_id || "",
+      plan_name: nextPlan,
+      amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
+      duration_days: lifetime ? "0" : "30",
+      payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
+      payment_provider: String(matchedOrder?.payment_provider || current.payment_provider || "MANUAL").toUpperCase(),
+    }));
+  }
+
   async function saveManualOrder() {
     const planName = manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key);
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
@@ -6374,23 +6388,18 @@ export default function Home() {
                 label="Đơn / Gói cần gia hạn"
                 value={customerRenewForm.plan_name}
                 onChange={(event) => {
-                  const nextPlan = event.target.value;
-                  const matchedOrder = selectedCustomer.paidOrders.find((item) => item.plan_name === nextPlan) || null;
-                  setCustomerRenewForm((current) => ({
-                    ...current,
-                    order_id: matchedOrder?.order_id || "",
-                    plan_name: nextPlan,
-                    amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
-                    duration_days: isLifetimeText(nextPlan) ? "0" : (Number(current.duration_days) > 0 ? current.duration_days : "30"),
-                    payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
-                    payment_provider: String(matchedOrder?.payment_provider || current.payment_provider || "MANUAL").toUpperCase(),
-                  }));
+                  syncCustomerRenewPlan(event.target.value);
                 }}
                 fullWidth
                 size="small"
               >
                 {selectedCustomerRenewPlanOptions.map((plan) => <MenuItem key={plan} value={plan}>{plan}</MenuItem>)}
               </TextField>
+              <Alert severity={isLifetimeText(customerRenewForm.plan_name) ? "warning" : "info"} variant="outlined">
+                {isLifetimeText(customerRenewForm.plan_name)
+                  ? "Đây là gói trọn đời nên số ngày sẽ luôn = 0. Nếu đang muốn gia hạn 30 ngày, hãy chọn lại gói 30 ngày."
+                  : "Đây là gói theo ngày. Hệ thống sẽ tự set số ngày gia hạn mặc định theo gói đang chọn."}
+              </Alert>
               <TextField
                 label="Số tiền thanh toán"
                 value={customerRenewForm.amount}
