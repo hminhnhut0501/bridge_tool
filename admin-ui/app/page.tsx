@@ -840,6 +840,10 @@ const AUTO_PAYMENT_FIELDS: ConfigField[] = [
   },
 ];
 
+const AUTO_PAYMENT_NEW_FIELDS = AUTO_PAYMENT_FIELDS.slice(0, 3);
+const AUTO_PAYMENT_RETURNING_FIELDS = AUTO_PAYMENT_FIELDS.slice(3, 6);
+const AUTO_PAYMENT_SUPPORT_FIELDS = AUTO_PAYMENT_FIELDS.slice(6);
+
 const RENEWAL_FIELDS: ConfigField[] = [
   {
     key: "REMINDER_ENABLED",
@@ -5152,9 +5156,12 @@ export default function Home() {
         {tab === "autoPayment" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Auto payment" subtitle="Tất cả cài đặt liên quan đến hẹn giờ bật/tắt auto payment, phân luồng khách mới/cũ và message chặn được gom ở đây." />
+              <PanelHead
+                title="Auto payment"
+                subtitle="Gom theo đúng flow mới: khách mới, khách cũ, lịch giờ cho phép và chuyển sang bot hỗ trợ khi bị chặn."
+              />
               <div className="hint">
-                Lịch được hiểu theo giờ Việt Nam. Khung mặc định 22:00-06:00 sẽ tự bật auto payment trong giờ ngủ và tắt ngoài khung đó.
+                Lịch được hiểu theo giờ Việt Nam. Quy tắc bên dưới áp dụng riêng cho từng tệp khách, không còn dùng chung một logic cũ nữa.
               </div>
               <div className="panel-actions" style={{ padding: "0 16px 16px" }}>
                 <Button variant="contained" size="small" onClick={() => quickSetAutoPaymentWindow(true)} startIcon={<CalendarClock size={16} />}>
@@ -5168,11 +5175,11 @@ export default function Home() {
             <div className="grid">
               <Metric label="Khách mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
               <Metric label="Khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON")} icon={<Settings size={16} />} />
-              <Metric label="Khung giờ mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
-              <Metric label="Khung giờ cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", "22:00-06:00")} icon={<CheckCircle2 size={16} />} />
+              <Metric label="Khung mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
+              <Metric label="Khung cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", "22:00-06:00")} icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
-              <PanelHead title="Audit gần nhất" subtitle="Worker sẽ ghi lại trạng thái hiệu lực của từng tệp khách để cpadmin xem nhanh." />
+              <PanelHead title="Audit gần nhất" subtitle="Worker ghi lại lần check gần nhất của từng tệp để admin kiểm tra nhanh." />
               <SimpleTable
                 headers={["Key", "Giá trị"]}
                 rows={[
@@ -5184,25 +5191,25 @@ export default function Home() {
               />
             </section>
             <ConfigEditor
-              title="Lịch auto payment"
-              subtitle="Thiết lập lịch bật/tắt tự động cho cả khách mới và khách cũ."
-              fields={AUTO_PAYMENT_FIELDS.slice(0, 2)}
+              title="Khách mới"
+              subtitle="Luồng dành riêng cho khách lần đầu. Tắt để chặn thanh toán tự động cho user chưa từng mua."
+              fields={AUTO_PAYMENT_NEW_FIELDS}
               values={fieldValues}
               setValues={setFieldValues}
               onSave={saveFields}
             />
             <ConfigEditor
-              title="Tệp khách"
-              subtitle="Quy định khách mới và khách cũ có được đi auto payment hay không."
-              fields={AUTO_PAYMENT_FIELDS.slice(2, 4)}
+              title="Khách cũ"
+              subtitle="Luồng dành riêng cho khách đã từng mua. Có thể bật/tắt tự động và khung giờ riêng."
+              fields={AUTO_PAYMENT_RETURNING_FIELDS}
               values={fieldValues}
               setValues={setFieldValues}
               onSave={saveFields}
             />
             <ConfigEditor
-              title="Thông báo"
-              subtitle="Tin nhắn bot trả về khi chặn auto payment."
-              fields={AUTO_PAYMENT_FIELDS.slice(4)}
+              title="Bot hỗ trợ"
+              subtitle="Cấu hình redirect deep link và nội dung bot gửi khi auto payment bị chặn."
+              fields={AUTO_PAYMENT_SUPPORT_FIELDS}
               values={fieldValues}
               setValues={setFieldValues}
               onSave={saveFields}
