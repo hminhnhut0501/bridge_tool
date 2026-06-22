@@ -4280,6 +4280,16 @@ export default function Home() {
     });
   }
 
+  function openQuickLookupPrimaryAction(customerId: string) {
+    const customer = lookupCustomerByTelegramId(customerId);
+    if (!customer) return;
+    if (customer.activeOrders.length > 0) {
+      openCustomerRenewFromLookup(customer.id);
+      return;
+    }
+    openManualOrderFromLookup(customer.id);
+  }
+
   function openManualOrderFromLookup(customerId: string) {
     const customer = lookupCustomerByTelegramId(customerId);
     const nextCustomerId = customer?.id || customerId.trim();
@@ -5909,6 +5919,12 @@ export default function Home() {
                 size="small"
                 helperText="Nhập đúng ID số Telegram của khách."
                 fullWidth
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && customerQuickLookupResult) {
+                    event.preventDefault();
+                    openQuickLookupPrimaryAction(customerQuickLookupResult.id);
+                  }
+                }}
               />
               {customerQuickLookupResult ? (
                 <>
@@ -5930,7 +5946,14 @@ export default function Home() {
                     ]}
                   />
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    <Button variant="contained" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />}>Mở chi tiết</Button>
+                    <Button
+                      variant="contained"
+                      onClick={() => openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
+                      startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
+                    >
+                      {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
+                    </Button>
+                    <Button variant="outlined" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />}>Mở khách gần nhất</Button>
                     <Button variant="outlined" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />}>Gia hạn nhanh</Button>
                     <Button variant="outlined" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />}>Tạo đơn mới</Button>
                   </Box>
