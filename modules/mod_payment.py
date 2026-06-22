@@ -491,6 +491,13 @@ def auto_payment_gate_message(user_id):
     )
 
 
+async def enforce_auto_payment_gate(callback: CallbackQuery):
+    if should_allow_auto_payment(callback.from_user.id):
+        return True
+    await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+    return False
+
+
 @router.callback_query(F.data.startswith("renew_") | F.data.startswith("payrenew|"))
 async def process_early_renew(callback: CallbackQuery):
     if not await check_protection(callback): return
@@ -506,8 +513,7 @@ async def process_early_renew(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew")
         if keyboard:
-            if not should_allow_auto_payment(callback.from_user.id):
-                await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+            if not await enforce_auto_payment_gate(callback):
                 return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
@@ -518,8 +524,7 @@ async def process_early_renew(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    if not should_allow_auto_payment(callback.from_user.id):
-        await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+    if not await enforce_auto_payment_gate(callback):
         return
 
     if not is_early_renew_enabled():
@@ -666,8 +671,7 @@ async def process_buy_request(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy")
         if keyboard:
-            if not should_allow_auto_payment(callback.from_user.id):
-                await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+            if not await enforce_auto_payment_gate(callback):
                 return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
@@ -678,8 +682,7 @@ async def process_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    if not should_allow_auto_payment(callback.from_user.id):
-        await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+    if not await enforce_auto_payment_gate(callback):
         return
 
     # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
@@ -742,6 +745,8 @@ async def process_hidden_buy_request(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy")
         if keyboard:
+            if not await enforce_auto_payment_gate(callback):
+                return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
@@ -750,6 +755,9 @@ async def process_hidden_buy_request(callback: CallbackQuery):
         if provider == "__NONE__":
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
+
+    if not await enforce_auto_payment_gate(callback):
+        return
 
     if not await enforce_payment_cooldown(callback, action, provider):
         return
