@@ -3677,6 +3677,11 @@ export default function Home() {
       statusText: customer.statusLabel,
     };
   }, [blacklist, customerQuickLookupQuery, customerSummaries]);
+  const selectedCustomerBlacklistEntry = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return blacklist.find((item) => item.telegram_user_id === selectedCustomerId && item.is_active) || null;
+  }, [blacklist, selectedCustomerId]);
+  const selectedCustomerIsBlacklisted = Boolean(selectedCustomerBlacklistEntry);
   const selectedCustomerActiveGroups = useMemo(() => {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.activeOrders.flatMap(groupNamesForOrder)).sort((a, b) => a.localeCompare(b));
@@ -6177,6 +6182,14 @@ export default function Home() {
                   }}
                 >
                   <Box sx={{ p: 1.5, borderRadius: 4, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                    {selectedCustomerIsBlacklisted ? (
+                      <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                        <Chip size="small" color="error" variant="outlined" label="Blacklist" sx={{ height: 22, fontSize: 11, fontWeight: 800 }} />
+                        <Typography variant="caption" color="error.main" sx={{ fontWeight: 800 }}>
+                          Lý do: {selectedCustomerBlacklistEntry?.reason || "chưa ghi lý do"}
+                        </Typography>
+                      </Box>
+                    ) : null}
                     {(() => {
                       const customerStatusTone = selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple");
                       return (
@@ -6351,6 +6364,7 @@ export default function Home() {
         {customerRenewModalOpen && selectedCustomer ? (
           <MuiDialogShell open title="Tạo gia hạn" subtitle={`Khách: ${selectedCustomer.name} • Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerRenewModalOpen(false)} maxWidth="sm">
             <Box sx={{ display: "grid", gap: 1.5 }}>
+              {selectedCustomerIsBlacklisted ? <Alert severity="error" variant="outlined">Khách này đang blacklist. Lý do: {selectedCustomerBlacklistEntry?.reason || "chưa ghi lý do"}.</Alert> : null}
               <TextField
                 select
                 label="Đơn / Gói cần gia hạn"
