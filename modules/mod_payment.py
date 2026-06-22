@@ -494,10 +494,39 @@ def auto_payment_gate_message(user_id):
     )
 
 
+def manual_support_bot_url():
+    return str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot") or "https://t.me/cuhotro_bot").strip()
+
+
+def manual_support_bot_label():
+    return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Mở bot hỗ trợ") or "💬 Mở bot hỗ trợ").strip()
+
+
+def manual_support_keyboard():
+    url = manual_support_bot_url()
+    if not url:
+        return None
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=manual_support_bot_label(), url=url))
+    return kb.as_markup()
+
+
 async def enforce_auto_payment_gate(callback: CallbackQuery):
     if should_allow_auto_payment(callback.from_user.id):
         return True
     await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
+    keyboard = manual_support_keyboard()
+    if keyboard and callback.message:
+        try:
+            await callback.message.answer(
+                db.get_config(
+                    "MSG_MANUAL_SUPPORT_REDIRECT",
+                    "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+                ),
+                reply_markup=keyboard,
+            )
+        except Exception as exc:
+            print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
     return False
 
 

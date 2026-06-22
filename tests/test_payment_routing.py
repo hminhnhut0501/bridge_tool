@@ -295,6 +295,41 @@ def test_create_payment_for_user_allows_returning_customer():
         create_link.assert_called_once_with(100, 99000, "PRIVE100", provider="PAYOS")
 
 
+def test_enforce_auto_payment_gate_sends_redirect_message():
+    class Message:
+        def __init__(self):
+            self.sent = []
+
+        async def answer(self, text, reply_markup=None):
+            self.sent.append((text, reply_markup))
+
+    class Callback:
+        def __init__(self):
+            self.from_user = type("U", (), {"id": 42})()
+            self.message = Message()
+            self.alerts = []
+
+        async def answer(self, text, show_alert=False):
+            self.alerts.append((text, show_alert))
+
+    with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.auto_payment_gate_message",
+        return_value="blocked",
+    ), patch("modules.mod_payment.manual_support_keyboard", return_value="keyboard"), patch(
+        "modules.mod_payment.db.get_config",
+        return_value="redirect text",
+    ):
+        from modules.mod_payment import enforce_auto_payment_gate
+
+        cb = Callback()
+        import asyncio
+
+        ok = asyncio.run(enforce_auto_payment_gate(cb))
+        assert ok is False
+        assert cb.alerts == [("blocked", True)]
+        assert cb.message.sent == [("redirect text", "keyboard")]
+
+
 def test_auto_payment_schedule_is_active_during_night_window():
     class Db:
         @staticmethod

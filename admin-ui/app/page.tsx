@@ -819,6 +819,25 @@ const AUTO_PAYMENT_FIELDS: ConfigField[] = [
     help: "Tin nhắn bot trả về khi user đã từng mua VIP nhưng auto payment cho khách cũ đang tắt.",
     kind: "textarea",
   },
+  {
+    key: "MANUAL_SUPPORT_BOT_URL",
+    label: "Link bot hỗ trợ",
+    placeholder: "https://t.me/cuhotro_bot",
+    help: "Bot sẽ hiện nút này khi tự động thanh toán bị tắt để chuyển sang xử lý thủ công.",
+  },
+  {
+    key: "MANUAL_SUPPORT_BOT_LABEL",
+    label: "Text nút bot hỗ trợ",
+    placeholder: "💬 Mở bot hỗ trợ",
+    help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
+  },
+  {
+    key: "MSG_MANUAL_SUPPORT_REDIRECT",
+    label: "Tin chuyển sang bot hỗ trợ",
+    placeholder: "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+    help: "Tin nhắn bot gửi kèm nút khi auto payment bị chặn, để khách/admin sang xử lý thủ công.",
+    kind: "textarea",
+  },
 ];
 
 const RENEWAL_FIELDS: ConfigField[] = [
