@@ -17,7 +17,7 @@ export function displayText(value: unknown) {
 
 export function isLifetimeText(value: string | null | undefined) {
   const text = displayText(value).toLowerCase();
-  return ["life", "lifetime", "svip", "trọn đời", "tron doi", "long life"].some((part) => text.includes(part));
+  return ["trọn đời", "tron doi", "lifetime", "long life"].some((part) => text.includes(part)) || /\blife\b/i.test(text);
 }
 
 export function inferOrderProvider(order: Order) {
