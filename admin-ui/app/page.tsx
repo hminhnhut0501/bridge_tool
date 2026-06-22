@@ -5909,7 +5909,7 @@ export default function Home() {
 
         {customerQuickLookupOpen ? (
           <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Nhập Telegram ID để xem khách đã từng mua chưa, còn hạn hay không, rồi thao tác ngay." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
-            <Box sx={{ display: "grid", gap: 1.5 }}>
+            <Box sx={{ display: "grid", gap: 1.25 }}>
               <TextField
                 autoFocus
                 label="Telegram ID"
@@ -5928,11 +5928,48 @@ export default function Home() {
               />
               {customerQuickLookupResult ? (
                 <>
-                  <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
-                    <Metric label="Tên khách" value={customerQuickLookupResult.name || "-"} icon={<Users size={16} />} />
-                    <Metric label="Trạng thái" value={customerQuickLookupResult.statusText} icon={<ShieldCheck size={16} />} />
-                    <Metric label="Đã có đơn" value={customerQuickLookupResult.hasPaidOrder ? "Có" : "Chưa"} icon={<ClipboardList size={16} />} />
-                    <Metric label="Đang còn hạn" value={customerQuickLookupResult.hasActiveOrder ? "Có" : "Không"} icon={<CheckCircle2 size={16} />} />
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, minmax(0, 1fr))",
+                      },
+                    }}
+                  >
+                    {[
+                      { label: "Tên khách", value: customerQuickLookupResult.name || "-", icon: <Users size={15} /> },
+                      { label: "Trạng thái", value: customerQuickLookupResult.statusText, icon: <ShieldCheck size={15} /> },
+                      { label: "Đã có đơn", value: customerQuickLookupResult.hasPaidOrder ? "Có" : "Chưa", icon: <ClipboardList size={15} /> },
+                      { label: "Đang còn hạn", value: customerQuickLookupResult.hasActiveOrder ? "Có" : "Không", icon: <CheckCircle2 size={15} /> },
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: 2,
+                          bgcolor: "rgba(15, 23, 42, 0.03)",
+                          border: "1px solid rgba(148, 163, 184, 0.14)",
+                        }}
+                      >
+                        <Box sx={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37, 99, 235, 0.08)", color: "primary.main", flex: "0 0 auto" }}>
+                          {item.icon}
+                        </Box>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                            {item.label}
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2, wordBreak: "break-word" }}>
+                            {item.value}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))}
                   </Box>
                   <SimpleTable
                     headers={["Mục", "Giá trị"]}
@@ -5945,17 +5982,24 @@ export default function Home() {
                       ["Group gần nhất", customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"],
                     ]}
                   />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
                     <Button
                       variant="contained"
                       onClick={() => openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
                       startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
+                      sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
                     >
                       {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
                     </Button>
-                    <Button variant="outlined" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />}>Mở khách gần nhất</Button>
-                    <Button variant="outlined" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />}>Gia hạn nhanh</Button>
-                    <Button variant="outlined" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />}>Tạo đơn mới</Button>
+                    <Button variant="text" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                      Mở khách gần nhất
+                    </Button>
+                    <Button variant="text" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                      Gia hạn nhanh
+                    </Button>
+                    <Button variant="text" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                      Tạo đơn mới
+                    </Button>
                   </Box>
                 </>
               ) : customerQuickLookupQuery.trim() ? (
