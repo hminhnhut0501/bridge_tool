@@ -80,6 +80,7 @@ export function CustomersSection(props: any) {
             <Typography key={`expire-${customer.id}`} sx={{ fontWeight: 600 }}>{dateTextShort(customer.latestExpire)}</Typography>,
             <Typography key={`money-${customer.id}`} sx={{ fontWeight: 700 }}>{ordersMoney(customer.paidOrders)}</Typography>,
           ])}
+          rowSx={(idx: number) => blacklistIds.has(String(pagedCustomers[idx]?.id || "")) ? { bgcolor: "rgba(239, 68, 68, 0.06)", "&:hover": { bgcolor: "rgba(239, 68, 68, 0.1)" }, "& td": { borderBottomColor: "rgba(239, 68, 68, 0.14)" } } : {}}
           actions={(idx: number) => (
             <Button variant="outlined" size="small" onClick={() => {
               const customer = pagedCustomers[idx];

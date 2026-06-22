@@ -578,7 +578,7 @@ export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWi
   );
 }
 
-export function SimpleTable({ headers, rows, onRow, actions }: { headers: string[]; rows: ReactNode[][]; onRow?: (index: number) => void; actions?: (index: number) => ReactNode }) {
+export function SimpleTable({ headers, rows, onRow, actions, rowSx }: { headers: string[]; rows: ReactNode[][]; onRow?: (index: number) => void; actions?: (index: number) => ReactNode; rowSx?: (index: number) => object }) {
   return (
     <Table size="small">
       <TableHead>
@@ -589,7 +589,7 @@ export function SimpleTable({ headers, rows, onRow, actions }: { headers: string
       </TableHead>
       <TableBody>
         {rows.length ? rows.map((row, idx) => (
-          <TableRow key={idx} hover onClick={() => onRow?.(idx)} sx={{ cursor: onRow ? "pointer" : "default" }}>
+          <TableRow key={idx} hover onClick={() => onRow?.(idx)} sx={{ cursor: onRow ? "pointer" : "default", ...(rowSx ? rowSx(idx) : {}) }}>
             {row.map((cell, cellIdx) => <TableCell key={cellIdx}>{cell}</TableCell>)}
             {actions ? <TableCell>{actions(idx)}</TableCell> : null}
           </TableRow>

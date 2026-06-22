@@ -5991,7 +5991,13 @@ export default function Home() {
                     }}
                   >
                     {[
-                      { label: "Tên khách", value: customerQuickLookupResult.name || "-", icon: <Users size={15} /> },
+                      {
+                        label: "Tên khách",
+                        value: customerQuickLookupResult.name || "-",
+                        icon: <Users size={15} />,
+                        badge: customerQuickLookupResult.isBlacklisted ? "Blacklist" : "",
+                        badgeTone: "error" as const,
+                      },
                       { label: "Trạng thái", value: customerQuickLookupResult.statusText, icon: <ShieldCheck size={15} /> },
                       { label: "Đã có đơn", value: customerQuickLookupResult.hasPaidOrder ? "Có" : "Chưa", icon: <ClipboardList size={15} /> },
                       { label: "Đang còn hạn", value: customerQuickLookupResult.hasActiveOrder ? "Có" : "Không", icon: <CheckCircle2 size={15} /> },
@@ -6013,9 +6019,12 @@ export default function Home() {
                           {item.icon}
                         </Box>
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
-                            {item.label}
-                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
+                              {item.label}
+                            </Typography>
+                            {item.badge ? <Chip size="small" color={item.badgeTone} variant="outlined" label={item.badge} sx={{ height: 18, fontSize: 10.5, fontWeight: 800 }} /> : null}
+                          </Box>
                           <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2, wordBreak: "break-word" }}>
                             {item.value}
                           </Typography>
