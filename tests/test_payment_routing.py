@@ -283,7 +283,7 @@ def test_auto_payment_schedule_is_active_during_night_window():
         assert auto_payment_schedule_active(datetime(2026, 6, 22, 7, 0, 0)) is False
 
 
-def test_auto_payment_schedule_applies_both_customer_flags():
+def test_auto_payment_schedule_only_forces_new_customer_flag():
     class Db:
         values = {
             "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
@@ -304,6 +304,30 @@ def test_auto_payment_schedule_applies_both_customer_flags():
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
         assert result["active"] is True
         assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
+        assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
+
+
+def test_auto_payment_schedule_leaves_returning_customer_flag_alone_when_window_turns_off():
+    class Db:
+        values = {
+            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+        }
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+        @staticmethod
+        def set_config(key, value):
+            Db.values[key] = value
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 10, 0, 0))
+        assert result["active"] is False
+        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
         assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
 
 

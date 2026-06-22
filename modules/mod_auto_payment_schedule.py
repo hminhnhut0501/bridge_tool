@@ -69,10 +69,7 @@ def auto_payment_schedule_active(now=None):
 def apply_auto_payment_schedule(now=None):
     active = auto_payment_schedule_active(now)
     desired = "ON" if active else "OFF"
-    keys = (
-        "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",
-        "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
-    )
+    keys = ("NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",)
     changed = []
     for key in keys:
         current = str(db.get_config(key, "OFF") or "OFF").strip().upper()
