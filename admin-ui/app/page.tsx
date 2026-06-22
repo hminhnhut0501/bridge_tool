@@ -18,6 +18,7 @@ import {
   Loader2,
   Megaphone,
   Pencil,
+  Search,
   Plus,
   RefreshCw,
   Download,
@@ -2132,6 +2133,8 @@ export default function Home() {
     payment_currency: "VND",
     payment_provider: "MANUAL",
   });
+  const [customerQuickLookupOpen, setCustomerQuickLookupOpen] = useState(false);
+  const [customerQuickLookupQuery, setCustomerQuickLookupQuery] = useState("");
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -3631,6 +3634,20 @@ export default function Home() {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.paidOrders.map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
   }, [selectedCustomer]);
+  const customerQuickLookupResult = useMemo(() => {
+    const customer = lookupCustomerByTelegramId(customerQuickLookupQuery);
+    if (!customer) return null;
+    return {
+      ...customer,
+      hasPaidOrder: customer.paidOrders.length > 0,
+      hasActiveOrder: customer.activeOrders.length > 0,
+      activeOrderCount: customer.activeOrders.length,
+      paidOrderCount: customer.paidOrders.length,
+      latestExpireText: customer.latestExpire ? dateTextShort(customer.latestExpire) : "-",
+      latestExpireOrder: customer.activeOrders[0] || customer.paidOrders[0] || null,
+      statusText: customer.statusLabel,
+    };
+  }, [customerQuickLookupQuery, customerSummaries]);
   const selectedCustomerActiveGroups = useMemo(() => {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.activeOrders.flatMap(groupNamesForOrder)).sort((a, b) => a.localeCompare(b));
@@ -4229,6 +4246,54 @@ export default function Home() {
     });
   }
 
+  function openCustomerQuickLookup() {
+    setCustomerQuickLookupQuery(selectedCustomerId || "");
+    setCustomerQuickLookupOpen(true);
+  }
+
+  function lookupCustomerByTelegramId(rawId: string) {
+    const telegramId = rawId.trim();
+    if (!telegramId) return null;
+    return customerSummaries.find((item) => item.id === telegramId) || null;
+  }
+
+  function openCustomerFromLookup(customerId: string) {
+    const customer = lookupCustomerByTelegramId(customerId);
+    if (!customer) return;
+    setSelectedCustomerId(customer.id);
+    setCustomerOrderTab("all");
+    setCustomerDetailTab("orders");
+    setCustomerTimelineSubTab("all");
+    setCustomerModalOpen(true);
+  }
+
+  function openCustomerRenewFromLookup(customerId: string) {
+    const customer = lookupCustomerByTelegramId(customerId);
+    if (!customer) return;
+    setSelectedCustomerId(customer.id);
+    setCustomerOrderTab("all");
+    setCustomerDetailTab("orders");
+    setCustomerTimelineSubTab("all");
+    setCustomerModalOpen(true);
+    requestAnimationFrame(() => {
+      setCustomerRenewModalOpen(true);
+    });
+  }
+
+  function openManualOrderFromLookup(customerId: string) {
+    const customer = lookupCustomerByTelegramId(customerId);
+    const nextCustomerId = customer?.id || customerId.trim();
+    if (!nextCustomerId) return;
+    setManualOrderForm((current) => ({
+      ...current,
+      telegram_user_id: nextCustomerId,
+      full_name: customer?.name && customer.name !== "-" ? customer.name : current.full_name,
+      plan_name: customer?.paidOrders.length ? current.plan_name : manualPlanNameFromKey("FULL_1M"),
+    }));
+    setManualOrderModalOpen(true);
+    setCustomerQuickLookupOpen(false);
+  }
+
   function appliesLabel(value: string | undefined) {
     if (!value || value === "ALL") return "Tất cả gói";
     const labels = value.split(",").filter(Boolean).map((item) => planOptionLabel(item));
@@ -4279,6 +4344,9 @@ export default function Home() {
             </Typography>
           </Box>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
+            <Button variant="outlined" onClick={openCustomerQuickLookup} size="small" startIcon={<Search size={16} />}>
+              Tra cứu khách
+            </Button>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap", px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
               <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
               <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
@@ -5827,6 +5895,53 @@ export default function Home() {
             onSave={saveFields}
             onClose={() => setOrderSettingsOpen(false)}
           />
+        ) : null}
+
+        {customerQuickLookupOpen ? (
+          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Nhập Telegram ID để xem khách đã từng mua chưa, còn hạn hay không, rồi thao tác ngay." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
+            <Box sx={{ display: "grid", gap: 1.5 }}>
+              <TextField
+                autoFocus
+                label="Telegram ID"
+                value={customerQuickLookupQuery}
+                onChange={(event) => setCustomerQuickLookupQuery(event.target.value.replace(/[^\d]/g, ""))}
+                placeholder="VD: 7344961485"
+                size="small"
+                helperText="Nhập đúng ID số Telegram của khách."
+                fullWidth
+              />
+              {customerQuickLookupResult ? (
+                <>
+                  <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
+                    <Metric label="Tên khách" value={customerQuickLookupResult.name || "-"} icon={<Users size={16} />} />
+                    <Metric label="Trạng thái" value={customerQuickLookupResult.statusText} icon={<ShieldCheck size={16} />} />
+                    <Metric label="Đã có đơn" value={customerQuickLookupResult.hasPaidOrder ? "Có" : "Chưa"} icon={<ClipboardList size={16} />} />
+                    <Metric label="Đang còn hạn" value={customerQuickLookupResult.hasActiveOrder ? "Có" : "Không"} icon={<CheckCircle2 size={16} />} />
+                  </Box>
+                  <SimpleTable
+                    headers={["Mục", "Giá trị"]}
+                    rows={[
+                      ["Telegram ID", customerQuickLookupResult.id],
+                      ["Số đơn PAID", String(customerQuickLookupResult.paidOrderCount)],
+                      ["Số đơn active", String(customerQuickLookupResult.activeOrderCount)],
+                      ["Hạn gần nhất", customerQuickLookupResult.latestExpireText],
+                      ["Gói gần nhất", customerQuickLookupResult.latestExpireOrder?.plan_name || "-"],
+                      ["Group gần nhất", customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"],
+                    ]}
+                  />
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Button variant="contained" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />}>Mở chi tiết</Button>
+                    <Button variant="outlined" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />}>Gia hạn nhanh</Button>
+                    <Button variant="outlined" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />}>Tạo đơn mới</Button>
+                  </Box>
+                </>
+              ) : customerQuickLookupQuery.trim() ? (
+                <Alert severity="warning" variant="outlined">Không tìm thấy khách khớp Telegram ID này.</Alert>
+              ) : (
+                <Alert severity="info" variant="outlined">Nhập Telegram ID để xem nhanh trạng thái đơn và hạn dùng.</Alert>
+              )}
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {manualOrderModalOpen ? (
