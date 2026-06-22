@@ -4280,7 +4280,10 @@ export default function Home() {
     });
   }
 
-  function openCustomerQuickLookup() {
+  async function openCustomerQuickLookup() {
+    if (savedSecret && !orders.length) {
+      await loadAll(savedSecret, { silent: true, resetPages: false, scope: "all" });
+    }
     setCustomerQuickLookupQuery(selectedCustomerId || "");
     setCustomerQuickLookupOpen(true);
   }
@@ -4393,7 +4396,7 @@ export default function Home() {
             </Typography>
           </Box>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
-            <Button variant="outlined" onClick={openCustomerQuickLookup} size="small" startIcon={<Search size={16} />}>
+            <Button variant="outlined" onClick={() => void openCustomerQuickLookup()} size="small" startIcon={<Search size={16} />}>
               Tra cứu khách
             </Button>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap", px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
