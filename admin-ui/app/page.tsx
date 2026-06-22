@@ -3324,6 +3324,12 @@ export default function Home() {
     });
   }
 
+  function openSecurityTabForCustomer(customerId: string) {
+    setTab("security");
+    setSelectedCustomerId(customerId);
+    setCustomerModalOpen(false);
+  }
+
   async function changeOrderStatus(orderId: string, status: string) {
     await runAction(`order-${orderId}`, async () => {
       await updateOrderStatus(savedSecret, orderId, status);
@@ -3637,8 +3643,11 @@ export default function Home() {
   const customerQuickLookupResult = useMemo(() => {
     const customer = lookupCustomerByTelegramId(customerQuickLookupQuery);
     if (!customer) return null;
+    const blacklistEntry = blacklist.find((item) => item.telegram_user_id === customer.id && item.is_active) || null;
     return {
       ...customer,
+      blacklistEntry,
+      isBlacklisted: Boolean(blacklistEntry),
       hasPaidOrder: customer.paidOrders.length > 0,
       hasActiveOrder: customer.activeOrders.length > 0,
       activeOrderCount: customer.activeOrders.length,
@@ -3647,7 +3656,7 @@ export default function Home() {
       latestExpireOrder: customer.activeOrders[0] || customer.paidOrders[0] || null,
       statusText: customer.statusLabel,
     };
-  }, [customerQuickLookupQuery, customerSummaries]);
+  }, [blacklist, customerQuickLookupQuery, customerSummaries]);
   const selectedCustomerActiveGroups = useMemo(() => {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.activeOrders.flatMap(groupNamesForOrder)).sort((a, b) => a.localeCompare(b));
@@ -4283,6 +4292,11 @@ export default function Home() {
   function openQuickLookupPrimaryAction(customerId: string) {
     const customer = lookupCustomerByTelegramId(customerId);
     if (!customer) return;
+    const blacklistEntry = blacklist.find((item) => item.telegram_user_id === customer.id && item.is_active) || null;
+    if (blacklistEntry) {
+      showNotice("error", `Khách ${customer.id} đang blacklist: ${blacklistEntry.reason || "không có lý do"}`);
+      return;
+    }
     if (customer.activeOrders.length > 0) {
       openCustomerRenewFromLookup(customer.id);
       return;
@@ -5928,6 +5942,11 @@ export default function Home() {
               />
               {customerQuickLookupResult ? (
                 <>
+                  {customerQuickLookupResult.isBlacklisted ? (
+                    <Alert severity="error" variant="outlined" icon={<ShieldCheck size={16} />}>
+                      <strong>Khách này đang bị blacklist.</strong> Hệ thống sẽ từ chối phục vụ bot và admin nên cẩn thận trước khi tạo đơn/gia hạn. Lý do: {customerQuickLookupResult.blacklistEntry?.reason || "chưa ghi lý do"}.
+                    </Alert>
+                  ) : null}
                   <Box
                     sx={{
                       display: "grid",
@@ -5987,6 +6006,7 @@ export default function Home() {
                       variant="contained"
                       onClick={() => openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
                       startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
+                      disabled={customerQuickLookupResult.isBlacklisted}
                       sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
                     >
                       {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
@@ -5994,12 +6014,17 @@ export default function Home() {
                     <Button variant="text" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
                       Mở khách gần nhất
                     </Button>
-                    <Button variant="text" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                    <Button variant="text" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
                       Gia hạn nhanh
                     </Button>
-                    <Button variant="text" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                    <Button variant="text" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
                       Tạo đơn mới
                     </Button>
+                    {customerQuickLookupResult.isBlacklisted ? (
+                      <Button variant="outlined" color="error" onClick={() => openSecurityTabForCustomer(customerQuickLookupResult.id)} sx={{ borderRadius: 999, px: 1.75 }}>
+                        Mở tab blacklist
+                      </Button>
+                    ) : null}
                   </Box>
                 </>
               ) : customerQuickLookupQuery.trim() ? (

@@ -792,6 +792,15 @@ async def admin_create_manual_order(request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Telegram ID phải là số.")
 
+    try:
+        blacklist_entry = supabase_store.get_blacklist_entry(telegram_user_id)
+    except Exception as exc:
+        blacklist_entry = None
+        print(f"⚠️ Không đọc được blacklist khi tạo đơn thủ công cho {telegram_user_id}: {exc}")
+    if blacklist_entry and blacklist_entry.get("is_active"):
+        reason = str(blacklist_entry.get("reason") or "Không rõ lý do").strip()
+        raise HTTPException(status_code=403, detail=f"Khách đang bị blacklist: {reason}")
+
     db.reload_config(force=True)
     groups = resolve_plan_groups(plan_name)
     if not groups:
