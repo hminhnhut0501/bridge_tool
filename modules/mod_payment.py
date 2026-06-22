@@ -515,19 +515,22 @@ def manual_support_keyboard(user_id=None):
 async def enforce_auto_payment_gate(callback: CallbackQuery):
     if should_allow_auto_payment(callback.from_user.id):
         return True
-    await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
     keyboard = manual_support_keyboard(callback.from_user.id)
     if keyboard and callback.message:
         try:
             await callback.message.answer(
                 db.get_config(
                     "MSG_MANUAL_SUPPORT_REDIRECT",
-                    "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+                    "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
                 ),
                 reply_markup=keyboard,
             )
         except Exception as exc:
             print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
+    try:
+        await callback.answer()
+    except Exception:
+        pass
     return False
 
 

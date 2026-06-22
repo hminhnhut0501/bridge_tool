@@ -323,9 +323,8 @@ def test_enforce_auto_payment_gate_sends_redirect_message():
             self.alerts.append((text, show_alert))
 
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
-        "modules.mod_payment.auto_payment_gate_message",
-        return_value="blocked",
-    ), patch("modules.mod_payment.manual_support_keyboard", return_value="keyboard"), patch(
+        "modules.mod_payment.manual_support_keyboard", return_value="keyboard"
+    ), patch(
         "modules.mod_payment.db.get_config",
         return_value="redirect text",
     ):
@@ -336,7 +335,7 @@ def test_enforce_auto_payment_gate_sends_redirect_message():
 
         ok = asyncio.run(enforce_auto_payment_gate(cb))
         assert ok is False
-        assert cb.alerts == [("blocked", True)]
+        assert cb.alerts == []
         assert cb.message.sent == [("redirect text", "keyboard")]
 
 
