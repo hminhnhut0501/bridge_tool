@@ -483,11 +483,11 @@ def auto_payment_gate_message(user_id):
     if has_prior_paid_vip_order(user_id):
         return db.get_config(
             "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
-            "Tài khoản của bạn đã từng mua VIP nhưng thanh toán tự động đang tắt. Vui lòng chờ admin xử lý thủ công.",
+            "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
         )
     return db.get_config(
         "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-        "Đơn mua đầu tiên đang được xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+        "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
     )
 
 

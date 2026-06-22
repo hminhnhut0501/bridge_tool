@@ -704,12 +704,26 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+    label: "Thông báo khách mới",
+    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+    help: "Tin nhắn bot trả về khi user chưa từng có đơn PAID và đang bị chặn auto payment.",
+    kind: "textarea",
+  },
+  {
     key: "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
     label: "Cho khách cũ thanh toán tự động",
     placeholder: "ON",
     help: "Chỉ áp dụng cho user đã từng có ít nhất một đơn PAID trước đó.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
+    label: "Thông báo khách cũ",
+    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
+    help: "Tin nhắn bot trả về khi user đã từng mua VIP nhưng auto payment cho khách cũ đang tắt.",
+    kind: "textarea",
   },
   {
     key: "PAYMENT_PROVIDERS_VI",
