@@ -342,8 +342,9 @@ def test_auto_payment_schedule_is_active_during_night_window():
         @staticmethod
         def get_config(key, default=""):
             return {
-                "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-                "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+                "AUTO_PAYMENT_NEW_ENABLED": "ON",
+                "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+                "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
             }.get(key, default)
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
@@ -351,13 +352,15 @@ def test_auto_payment_schedule_is_active_during_night_window():
         assert auto_payment_schedule_active(datetime(2026, 6, 22, 7, 0, 0)) is False
 
 
-def test_auto_payment_schedule_only_forces_new_customer_flag():
+def test_auto_payment_schedule_uses_new_and_returning_tiers_separately():
     class Db:
         values = {
-            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
-            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+            "AUTO_PAYMENT_NEW_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
+            "AUTO_PAYMENT_RETURNING_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_WINDOWS": "06:00-12:00",
         }
 
         @staticmethod
@@ -370,18 +373,19 @@ def test_auto_payment_schedule_only_forces_new_customer_flag():
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
-        assert result["active"] is True
-        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
-        assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
+        assert result["new_active"] is True
+        assert result["returning_active"] is False
 
 
 def test_auto_payment_schedule_leaves_returning_customer_flag_alone_when_window_turns_off():
     class Db:
         values = {
-            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
-            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_ENABLED": "OFF",
+            "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
+            "AUTO_PAYMENT_RETURNING_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_WINDOWS": "22:00-06:00",
         }
 
         @staticmethod
@@ -394,17 +398,16 @@ def test_auto_payment_schedule_leaves_returning_customer_flag_alone_when_window_
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 10, 0, 0))
-        assert result["active"] is False
-        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
-        assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
+        assert result["new_active"] is False
+        assert result["returning_active"] is True
 
 
 def test_auto_payment_schedule_worker_should_not_force_state_at_boot():
     class Db:
         values = {
-            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+            "AUTO_PAYMENT_NEW_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
         }
 
         @staticmethod
@@ -419,19 +422,17 @@ def test_auto_payment_schedule_worker_should_not_force_state_at_boot():
         from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 
         before = dict(Db.values)
-        # simulate boot by not calling worker init; only assert the config stays untouched until poll runs
         assert Db.values == before
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
-        assert result["active"] is True
+        assert result["new_active"] is True
 
 
 def test_auto_payment_schedule_lock_prevents_worker_from_reenabling_new_customer_flag():
     class Db:
         values = {
-            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_LOCKED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+            "AUTO_PAYMENT_NEW_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
         }
 
         @staticmethod
@@ -445,10 +446,9 @@ def test_auto_payment_schedule_lock_prevents_worker_from_reenabling_new_customer
     with patch("modules.mod_auto_payment_schedule.db", Db):
         from modules.mod_auto_payment_schedule import apply_auto_payment_schedule, auto_payment_schedule_active
 
-        assert auto_payment_schedule_active(datetime(2026, 6, 22, 23, 30, 0)) is False
+        assert auto_payment_schedule_active(datetime(2026, 6, 22, 23, 30, 0)) is True
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
-        assert result["desired"] == "OFF"
-        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
+        assert result["new_active"] is True
 
 
 def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():

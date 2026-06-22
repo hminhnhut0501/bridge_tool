@@ -8,9 +8,8 @@ from aiogram import Router
 
 from database import db
 from supabase_store import supabase_store
-
 router = Router()
-_LAST_SCHEDULE_STATE = {"desired": None, "active": None}
+_LAST_SCHEDULE_STATE = {"new": None, "returning": None}
 
 
 def bot_timezone():
@@ -23,6 +22,47 @@ def bot_timezone():
 
 def config_enabled(key, default="OFF"):
     return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
+
+
+def tier_key(tier: str):
+    normalized = str(tier or "").strip().lower()
+    return "returning" if normalized in {"returning", "old", "existing", "customer_cu"} else "new"
+
+
+def tier_prefix(tier: str):
+    return "RETURNING" if tier_key(tier) == "returning" else "NEW"
+
+
+def legacy_schedule_enabled():
+    return config_enabled("AUTO_PAYMENT_SCHEDULE_ENABLED", "ON")
+
+
+def legacy_schedule_windows():
+    return db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00")
+
+
+def payment_tier_enabled(tier: str):
+    prefix = tier_prefix(tier)
+    default = "ON" if prefix == "RETURNING" else "OFF"
+    legacy_key = "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED" if prefix == "RETURNING" else "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"
+    if db.get_config(f"AUTO_PAYMENT_{prefix}_ENABLED", "") == "":
+        return config_enabled(legacy_key, default)
+    return config_enabled(f"AUTO_PAYMENT_{prefix}_ENABLED", default)
+
+
+def payment_tier_schedule_enabled(tier: str):
+    prefix = tier_prefix(tier)
+    raw = db.get_config(f"AUTO_PAYMENT_{prefix}_SCHEDULE_ENABLED", "")
+    if raw == "":
+        return legacy_schedule_enabled()
+    return config_enabled(f"AUTO_PAYMENT_{prefix}_SCHEDULE_ENABLED", "ON")
+
+
+def payment_tier_windows(tier: str):
+    prefix = tier_prefix(tier)
+    legacy = legacy_schedule_windows()
+    raw = db.get_config(f"AUTO_PAYMENT_{prefix}_WINDOWS", "")
+    return raw if raw != "" else legacy
 
 
 def poll_interval_seconds():
@@ -55,12 +95,12 @@ def time_in_window(current_time, start, end):
     return current_time >= start or current_time < end
 
 
-def auto_payment_schedule_active(now=None):
-    if config_enabled("AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF"):
+def auto_payment_schedule_active_for_tier(tier: str, now=None):
+    if not payment_tier_enabled(tier):
         return False
-    if not config_enabled("AUTO_PAYMENT_SCHEDULE_ENABLED", "ON"):
+    if not payment_tier_schedule_enabled(tier):
         return False
-    windows = parse_windows(db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))
+    windows = parse_windows(payment_tier_windows(tier))
     if not windows:
         return False
     local_now = now or datetime.now(bot_timezone())
@@ -68,71 +108,64 @@ def auto_payment_schedule_active(now=None):
     return any(time_in_window(current_time, start, end) for start, end in windows)
 
 
+def auto_payment_schedule_active(now=None):
+    return auto_payment_schedule_active_for_tier("new", now)
+
+
+def auto_payment_allowed_for_user(user_id, now=None):
+    from modules.mod_payment import has_prior_paid_vip_order
+
+    tier = "returning" if str(user_id).strip() and has_prior_paid_vip_order(user_id) else "new"
+    return auto_payment_schedule_active_for_tier(tier, now)
+
+
 def apply_auto_payment_schedule(now=None):
-    active = auto_payment_schedule_active(now)
-    desired = "ON" if active else "OFF"
-    if config_enabled("AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF"):
-        return {"active": False, "desired": "OFF", "changed": [], "state_changed": False, "persisted_changed": False}
-    keys = ("NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",)
-    changed = []
-    for key in keys:
-        current = str(db.get_config(key, "OFF") or "OFF").strip().upper()
-        if current != desired:
-            db.set_config(key, desired)
-            changed.append(key)
+    new_active = auto_payment_schedule_active_for_tier("new", now)
+    returning_active = auto_payment_schedule_active_for_tier("returning", now)
     audit_now = (now or datetime.now(bot_timezone())).strftime("%Y-%m-%d %H:%M:%S")
     audit_payload = {
-        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT": audit_now,
-        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO": desired,
-        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON": "AUTO_WINDOW_ACTIVE" if active else "AUTO_WINDOW_INACTIVE",
+        "AUTO_PAYMENT_NEW_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT": "ON" if new_active else "OFF",
+        "AUTO_PAYMENT_RETURNING_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT": "ON" if returning_active else "OFF",
     }
     for key, value in audit_payload.items():
         db.set_config(key, value)
-    existing_to = str(db.get_config("AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "") or "").strip().upper()
-    existing_reason = str(db.get_config("AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", "") or "").strip().upper()
-    state_changed = (
-        _LAST_SCHEDULE_STATE["desired"] != desired
-        or _LAST_SCHEDULE_STATE["active"] != active
-    )
-    persisted_changed = existing_to != desired or existing_reason != ("AUTO_WINDOW_ACTIVE" if active else "AUTO_WINDOW_INACTIVE")
-    _LAST_SCHEDULE_STATE["desired"] = desired
-    _LAST_SCHEDULE_STATE["active"] = active
-    if supabase_store.enabled and (changed or persisted_changed):
+    state_changed = _LAST_SCHEDULE_STATE["new"] != new_active or _LAST_SCHEDULE_STATE["returning"] != returning_active
+    _LAST_SCHEDULE_STATE["new"] = new_active
+    _LAST_SCHEDULE_STATE["returning"] = returning_active
+    if supabase_store.enabled and state_changed:
         try:
             supabase_store.record_support_event(
                 "auto_payment_schedule_toggled",
                 None,
                 raw_data={
-                    "active": active,
-                    "desired": desired,
-                    "changed": changed,
+                    "new_active": new_active,
+                    "returning_active": returning_active,
                     "scheduled_at": audit_now,
-                    "window": db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"),
+                    "new_window": payment_tier_windows("new"),
+                    "returning_window": payment_tier_windows("returning"),
                 },
             )
         except Exception as exc:
             logging.warning("⚠️ Không ghi được audit auto payment schedule: %s", exc)
-    return {"active": active, "desired": desired, "changed": changed, "state_changed": state_changed, "persisted_changed": persisted_changed}
+    return {
+        "new_active": new_active,
+        "returning_active": returning_active,
+        "state_changed": state_changed,
+    }
 
 
 async def auto_payment_schedule_worker():
     logging.info("⏰ Auto payment schedule worker đã khởi động.")
-    # Tránh ép trạng thái ngay lúc deploy/boot để không lật lại cờ admin vừa set tay.
-    # Worker sẽ tự đồng bộ ở các vòng poll tiếp theo.
     while True:
         try:
             result = apply_auto_payment_schedule()
-            if result["changed"]:
+            if result["state_changed"]:
                 logging.info(
-                    "🔁 Auto payment schedule đã đổi %s -> %s cho %s",
-                    "ON" if result["active"] else "OFF",
-                    result["desired"],
-                    ", ".join(result["changed"]),
-                )
-            elif result["persisted_changed"]:
-                logging.info(
-                    "⏱ Auto payment schedule vẫn ở trạng thái %s.",
-                    result["desired"],
+                    "🔁 Auto payment schedule new=%s returning=%s",
+                    "ON" if result["new_active"] else "OFF",
+                    "ON" if result["returning_active"] else "OFF",
                 )
         except Exception as exc:
             logging.error("❌ Auto payment schedule worker lỗi: %s", exc)

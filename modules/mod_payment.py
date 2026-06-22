@@ -476,10 +476,7 @@ def has_prior_paid_vip_order(user_id):
 
 
 def should_allow_auto_payment(user_id):
-    has_history = has_prior_paid_vip_order(user_id)
-    if has_history:
-        return truthy_config("RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED", "ON")
-    return truthy_config("NEW_CUSTOMER_AUTO_PAYMENT_ENABLED", "OFF")
+    return auto_payment_allowed_for_user(user_id)
 
 
 def auto_payment_gate_message(user_id):

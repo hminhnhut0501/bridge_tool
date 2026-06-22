@@ -776,48 +776,48 @@ const PAYMENT_FIELDS: ConfigField[] = [
 
 const AUTO_PAYMENT_FIELDS: ConfigField[] = [
   {
-    key: "AUTO_PAYMENT_SCHEDULE_ENABLED",
-    label: "Hẹn giờ bật/tắt auto payment",
+    key: "AUTO_PAYMENT_NEW_ENABLED",
+    label: "Khách mới: bật thanh toán tự động",
     placeholder: "ON",
-    help: "Bật ON để bot tự bật auto payment trong khung giờ đã đặt và tự tắt ngoài khung giờ đó.",
+    help: "Bật ON để khách mới được đi auto payment khi khung giờ cho phép cũng bật.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "AUTO_PAYMENT_SCHEDULE_WINDOWS",
-    label: "Khung giờ auto payment",
+    key: "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED",
+    label: "Khách mới: bật khung giờ",
+    placeholder: "ON",
+    help: "Bật ON để áp dụng khung giờ cho khách mới. Tắt thì khách mới luôn theo cờ bật/tắt chính.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_NEW_WINDOWS",
+    label: "Khách mới: khung giờ",
     placeholder: "22:00-06:00",
     help: "Nhập theo giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy. Ví dụ: 22:00-06:00 hoặc 22:00-23:30,00:30-06:00.",
   },
   {
-    key: "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",
-    label: "Cho khách mới thanh toán tự động",
-    placeholder: "OFF",
-    help: "Cờ này sẽ được worker tự bật trong khung giờ đã hẹn và tắt ngoài giờ.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
-    key: "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
-    label: "Cho khách cũ thanh toán tự động",
+    key: "AUTO_PAYMENT_RETURNING_ENABLED",
+    label: "Khách cũ: bật thanh toán tự động",
     placeholder: "ON",
-    help: "Cờ này sẽ được worker tự bật trong khung giờ đã hẹn và tắt ngoài giờ.",
+    help: "Bật ON để khách cũ được đi auto payment khi khung giờ cho phép cũng bật.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-    label: "Thông báo khách mới",
-    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
-    help: "Tin nhắn bot trả về khi user chưa từng có đơn PAID và đang bị chặn auto payment.",
-    kind: "textarea",
+    key: "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED",
+    label: "Khách cũ: bật khung giờ",
+    placeholder: "ON",
+    help: "Bật ON để áp dụng khung giờ cho khách cũ. Tắt thì khách cũ luôn theo cờ bật/tắt chính.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
-    label: "Thông báo khách cũ",
-    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
-    help: "Tin nhắn bot trả về khi user đã từng mua VIP nhưng auto payment cho khách cũ đang tắt.",
-    kind: "textarea",
+    key: "AUTO_PAYMENT_RETURNING_WINDOWS",
+    label: "Khách cũ: khung giờ",
+    placeholder: "22:00-06:00",
+    help: "Nhập theo giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy. Ví dụ: 22:00-06:00 hoặc 22:00-23:30,00:30-06:00.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_URL",
@@ -2741,13 +2741,16 @@ export default function Home() {
     await runAction(enabled ? "auto-payment-schedule-on" : "auto-payment-schedule-off", async () => {
       const items = enabled
         ? [
-          { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "ON" },
-          { key: "AUTO_PAYMENT_SCHEDULE_WINDOWS", value: "22:00-06:00" },
-          { key: "AUTO_PAYMENT_SCHEDULE_LOCKED", value: "OFF" },
+          { key: "AUTO_PAYMENT_NEW_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_NEW_WINDOWS", value: "22:00-06:00" },
+          { key: "AUTO_PAYMENT_RETURNING_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_RETURNING_WINDOWS", value: "22:00-06:00" },
         ]
         : [
-          { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "OFF" },
-          { key: "AUTO_PAYMENT_SCHEDULE_LOCKED", value: "ON" },
+          { key: "AUTO_PAYMENT_NEW_ENABLED", value: "OFF" },
+          { key: "AUTO_PAYMENT_RETURNING_ENABLED", value: "OFF" },
         ];
       const res = await updateConfigs(savedSecret, items);
       const changedKeys = new Set(items.map((item) => item.key));
@@ -2755,7 +2758,7 @@ export default function Home() {
         ...current.filter((item) => !changedKeys.has(item.key)),
         ...res.data,
       ]);
-      showNotice("ok", enabled ? "Đã bật lịch 22:00-06:00." : "Đã tắt lịch auto payment.");
+      showNotice("ok", enabled ? "Đã bật lịch auto payment cho cả 2 tệp khách." : "Đã tắt auto payment cho cả 2 tệp khách.");
     });
   }
 
@@ -5163,21 +5166,20 @@ export default function Home() {
               </div>
             </section>
             <div className="grid">
-              <Metric label="Lịch auto payment" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
-              <Metric label="Khung giờ" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
-              <Metric label="Khóa thủ công" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF")} icon={<Settings size={16} />} />
-              <Metric label="Lần đổi gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"} icon={<ClipboardList size={16} />} />
-              <Metric label="Trạng thái gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"} icon={<CheckCircle2 size={16} />} />
+              <Metric label="Khách mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", getConfigValue(config, "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED", "OFF"))} icon={<CalendarClock size={16} />} />
+              <Metric label="Khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", getConfigValue(config, "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED", "ON"))} icon={<Settings size={16} />} />
+              <Metric label="Khung giờ mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))} icon={<Clock3 size={16} />} />
+              <Metric label="Khung giờ cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))} icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
-              <PanelHead title="Audit gần nhất" subtitle="Worker sẽ ghi lại lần tự bật/tắt gần nhất vào bot_config để cpadmin xem nhanh." />
+              <PanelHead title="Audit gần nhất" subtitle="Worker sẽ ghi lại trạng thái hiệu lực của từng tệp khách để cpadmin xem nhanh." />
               <SimpleTable
                 headers={["Key", "Giá trị"]}
                 rows={[
-                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"],
-                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"],
-                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", "-") || "-"],
-                  ["AUTO_PAYMENT_SCHEDULE_LOCKED", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF") || "OFF"],
+                  ["AUTO_PAYMENT_NEW_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_AT", "-") || "-"],
+                  ["AUTO_PAYMENT_NEW_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT", "-") || "-"],
+                  ["AUTO_PAYMENT_RETURNING_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_AT", "-") || "-"],
+                  ["AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT", "-") || "-"],
                 ]}
               />
             </section>
