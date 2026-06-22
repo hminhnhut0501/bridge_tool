@@ -305,3 +305,43 @@ def test_auto_payment_schedule_applies_both_customer_flags():
         assert result["active"] is True
         assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
         assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
+
+
+def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
+    class Db:
+        values = {
+            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+        }
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+        @staticmethod
+        def set_config(key, value):
+            Db.values[key] = value
+
+    class Store:
+        enabled = True
+        events = []
+
+        @staticmethod
+        def record_support_event(*args, **kwargs):
+            Store.events.append((args, kwargs))
+
+    with patch("modules.mod_auto_payment_schedule.db", Db), patch("modules.mod_auto_payment_schedule.supabase_store", Store):
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
+        assert result["active"] is True
+        assert result["changed"] == []
+        assert result["state_changed"] is True
+        assert len(Store.events) == 1
+
+        Store.events.clear()
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 40, 0))
+        assert result["active"] is True
+        assert result["changed"] == []
+        assert result["state_changed"] is False
+        assert len(Store.events) == 0

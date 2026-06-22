@@ -10,6 +10,7 @@ from database import db
 from supabase_store import supabase_store
 
 router = Router()
+_LAST_SCHEDULE_STATE = {"desired": None, "active": None}
 
 
 def bot_timezone():
@@ -78,7 +79,13 @@ def apply_auto_payment_schedule(now=None):
     }
     for key, value in audit_payload.items():
         db.set_config(key, value)
-    if supabase_store.enabled:
+    state_changed = (
+        _LAST_SCHEDULE_STATE["desired"] != desired
+        or _LAST_SCHEDULE_STATE["active"] != active
+    )
+    _LAST_SCHEDULE_STATE["desired"] = desired
+    _LAST_SCHEDULE_STATE["active"] = active
+    if supabase_store.enabled and state_changed:
         try:
             supabase_store.record_support_event(
                 "auto_payment_schedule_toggled",
@@ -93,7 +100,7 @@ def apply_auto_payment_schedule(now=None):
             )
         except Exception as exc:
             logging.warning("⚠️ Không ghi được audit auto payment schedule: %s", exc)
-    return {"active": active, "desired": desired, "changed": changed}
+    return {"active": active, "desired": desired, "changed": changed, "state_changed": state_changed}
 
 
 async def auto_payment_schedule_worker():
@@ -108,6 +115,11 @@ async def auto_payment_schedule_worker():
                     "ON" if result["active"] else "OFF",
                     result["desired"],
                     ", ".join(result["changed"]),
+                )
+            elif result["state_changed"]:
+                logging.info(
+                    "⏱ Auto payment schedule vẫn ở trạng thái %s.",
+                    result["desired"],
                 )
         except Exception as exc:
             logging.error("❌ Auto payment schedule worker lỗi: %s", exc)
