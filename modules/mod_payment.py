@@ -476,6 +476,8 @@ def has_prior_paid_vip_order(user_id):
 
 
 def should_allow_auto_payment(user_id):
+    from modules.mod_auto_payment_schedule import auto_payment_allowed_for_user
+
     return auto_payment_allowed_for_user(user_id)
 
 

@@ -33,36 +33,20 @@ def tier_prefix(tier: str):
     return "RETURNING" if tier_key(tier) == "returning" else "NEW"
 
 
-def legacy_schedule_enabled():
-    return config_enabled("AUTO_PAYMENT_SCHEDULE_ENABLED", "ON")
-
-
-def legacy_schedule_windows():
-    return db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00")
-
-
 def payment_tier_enabled(tier: str):
     prefix = tier_prefix(tier)
     default = "ON" if prefix == "RETURNING" else "OFF"
-    legacy_key = "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED" if prefix == "RETURNING" else "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"
-    if db.get_config(f"AUTO_PAYMENT_{prefix}_ENABLED", "") == "":
-        return config_enabled(legacy_key, default)
     return config_enabled(f"AUTO_PAYMENT_{prefix}_ENABLED", default)
 
 
 def payment_tier_schedule_enabled(tier: str):
     prefix = tier_prefix(tier)
-    raw = db.get_config(f"AUTO_PAYMENT_{prefix}_SCHEDULE_ENABLED", "")
-    if raw == "":
-        return legacy_schedule_enabled()
     return config_enabled(f"AUTO_PAYMENT_{prefix}_SCHEDULE_ENABLED", "ON")
 
 
 def payment_tier_windows(tier: str):
     prefix = tier_prefix(tier)
-    legacy = legacy_schedule_windows()
-    raw = db.get_config(f"AUTO_PAYMENT_{prefix}_WINDOWS", "")
-    return raw if raw != "" else legacy
+    return db.get_config(f"AUTO_PAYMENT_{prefix}_WINDOWS", "22:00-06:00")
 
 
 def poll_interval_seconds():

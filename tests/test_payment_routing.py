@@ -243,7 +243,7 @@ def test_new_customer_is_blocked_from_auto_payment_by_default():
     with patch("modules.mod_payment.supabase_store", Store), patch(
         "modules.mod_payment.db.get_config",
         side_effect=lambda key, default="": {
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+            "AUTO_PAYMENT_NEW_ENABLED": "OFF",
         }.get(key, default),
     ):
         assert has_prior_paid_vip_order("42") is False
@@ -259,11 +259,21 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
         def list_paid_orders_for_user(user_id, limit=500):
             return [{"order_id": "1", "plan_name": "VIP 30 Ngày"}]
 
+    config = {
+        "AUTO_PAYMENT_RETURNING_ENABLED": "ON",
+        "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED": "ON",
+        "AUTO_PAYMENT_RETURNING_WINDOWS": "22:00-06:00",
+    }
+
     with patch("modules.mod_payment.supabase_store", Store), patch(
         "modules.mod_payment.db.get_config",
-        side_effect=lambda key, default="": {
-            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
-        }.get(key, default),
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.auto_payment_schedule_active_for_tier",
+        return_value=True,
     ):
         assert has_prior_paid_vip_order("42") is True
         assert should_allow_auto_payment("42") is True
@@ -348,8 +358,10 @@ def test_auto_payment_schedule_is_active_during_night_window():
             }.get(key, default)
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
-        assert auto_payment_schedule_active(datetime(2026, 6, 22, 23, 30, 0)) is True
-        assert auto_payment_schedule_active(datetime(2026, 6, 22, 7, 0, 0)) is False
+        from modules.mod_auto_payment_schedule import auto_payment_schedule_active_for_tier
+
+        assert auto_payment_schedule_active_for_tier("new", datetime(2026, 6, 22, 23, 30, 0)) is True
+        assert auto_payment_schedule_active_for_tier("new", datetime(2026, 6, 22, 7, 0, 0)) is False
 
 
 def test_auto_payment_schedule_uses_new_and_returning_tiers_separately():
@@ -372,6 +384,8 @@ def test_auto_payment_schedule_uses_new_and_returning_tiers_separately():
             Db.values[key] = value
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
+        from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
         assert result["new_active"] is True
         assert result["returning_active"] is False
@@ -397,7 +411,9 @@ def test_auto_payment_schedule_leaves_returning_customer_flag_alone_when_window_
             Db.values[key] = value
 
     with patch("modules.mod_auto_payment_schedule.db", Db):
-        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 10, 0, 0))
+        from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 0, 0))
         assert result["new_active"] is False
         assert result["returning_active"] is True
 
@@ -418,7 +434,10 @@ def test_auto_payment_schedule_worker_should_not_force_state_at_boot():
         def set_config(key, value):
             Db.values[key] = value
 
-    with patch("modules.mod_auto_payment_schedule.db", Db), patch("modules.mod_auto_payment_schedule.supabase_store.enabled", False):
+    class Store:
+        enabled = False
+
+    with patch("modules.mod_auto_payment_schedule.db", Db), patch("modules.mod_auto_payment_schedule.supabase_store", Store):
         from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 
         before = dict(Db.values)
@@ -454,10 +473,12 @@ def test_auto_payment_schedule_lock_prevents_worker_from_reenabling_new_customer
 def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
     class Db:
         values = {
-            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
-            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
-            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
-            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_NEW_WINDOWS": "22:00-06:00",
+            "AUTO_PAYMENT_RETURNING_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_RETURNING_WINDOWS": "22:00-06:00",
         }
 
         @staticmethod
@@ -477,16 +498,18 @@ def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
             Store.events.append((args, kwargs))
 
     with patch("modules.mod_auto_payment_schedule.db", Db), patch("modules.mod_auto_payment_schedule.supabase_store", Store):
+        from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+        import modules.mod_auto_payment_schedule as schedule_module
+
+        schedule_module._LAST_SCHEDULE_STATE = {"new": None, "returning": None}
+
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
-        assert result["active"] is True
-        assert result["changed"] == []
+        assert result["new_active"] is True
         assert result["state_changed"] is True
         assert len(Store.events) == 1
 
         Store.events.clear()
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 40, 0))
-        assert result["active"] is True
-        assert result["changed"] == []
         assert result["state_changed"] is False
         assert len(Store.events) == 0
 

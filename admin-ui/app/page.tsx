@@ -5166,10 +5166,10 @@ export default function Home() {
               </div>
             </section>
             <div className="grid">
-              <Metric label="Khách mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", getConfigValue(config, "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED", "OFF"))} icon={<CalendarClock size={16} />} />
-              <Metric label="Khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", getConfigValue(config, "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED", "ON"))} icon={<Settings size={16} />} />
-              <Metric label="Khung giờ mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))} icon={<Clock3 size={16} />} />
-              <Metric label="Khung giờ cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))} icon={<CheckCircle2 size={16} />} />
+              <Metric label="Khách mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
+              <Metric label="Khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON")} icon={<Settings size={16} />} />
+              <Metric label="Khung giờ mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
+              <Metric label="Khung giờ cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", "22:00-06:00")} icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
               <PanelHead title="Audit gần nhất" subtitle="Worker sẽ ghi lại trạng thái hiệu lực của từng tệp khách để cpadmin xem nhanh." />
