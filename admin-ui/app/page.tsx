@@ -696,6 +696,22 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",
+    label: "Cho khách mới thanh toán tự động",
+    placeholder: "OFF",
+    help: "Mặc định tắt để chặn khách mua lần đầu đi qua QR/crypto tự động.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
+    label: "Cho khách cũ thanh toán tự động",
+    placeholder: "ON",
+    help: "Chỉ áp dụng cho user đã từng có ít nhất một đơn PAID trước đó.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
     placeholder: "PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY",

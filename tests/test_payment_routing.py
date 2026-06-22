@@ -3,6 +3,7 @@ import hmac
 from unittest.mock import patch
 
 from payment import payment_manager
+from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message
 
 
 def test_vietnamese_prefers_payos_when_both_are_enabled():
@@ -227,3 +228,40 @@ def test_binance_pay_polling_scans_pending_orders():
         side_effect=lambda order_ref: "PAID" if order_ref == "1" else "PENDING",
     ):
         assert payment_manager.scan_pending_orders("BINANCE_PAY") == ["1"]
+
+
+def test_new_customer_is_blocked_from_auto_payment_by_default():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return []
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": {
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+        }.get(key, default),
+    ):
+        assert has_prior_paid_vip_order("42") is False
+        assert should_allow_auto_payment("42") is False
+        assert "khách mới" in auto_payment_gate_message("42").lower()
+
+
+def test_returning_customer_can_use_auto_payment_when_enabled():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return [{"order_id": "1", "plan_name": "VIP 30 Ngày"}]
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": {
+            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "ON",
+        }.get(key, default),
+    ):
+        assert has_prior_paid_vip_order("42") is True
+        assert should_allow_auto_payment("42") is True
