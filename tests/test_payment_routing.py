@@ -345,3 +345,31 @@ def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
         assert result["changed"] == []
         assert result["state_changed"] is False
         assert len(Store.events) == 0
+
+
+def test_auto_payment_schedule_poll_interval_uses_configured_floor():
+    class Db:
+        values = {"AUTO_PAYMENT_SCHEDULE_POLL_SECONDS": "45"}
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        from modules.mod_auto_payment_schedule import poll_interval_seconds
+
+        assert poll_interval_seconds() == 45
+
+
+def test_auto_payment_schedule_poll_interval_has_minimum():
+    class Db:
+        values = {"AUTO_PAYMENT_SCHEDULE_POLL_SECONDS": "10"}
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        from modules.mod_auto_payment_schedule import poll_interval_seconds
+
+        assert poll_interval_seconds() == 30

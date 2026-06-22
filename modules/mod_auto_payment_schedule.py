@@ -25,6 +25,14 @@ def config_enabled(key, default="OFF"):
     return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
 
 
+def poll_interval_seconds():
+    try:
+        value = int(str(db.get_config("AUTO_PAYMENT_SCHEDULE_POLL_SECONDS", "60") or "60").strip())
+        return max(value, 30)
+    except Exception:
+        return 60
+
+
 def parse_windows(raw):
     windows = []
     for item in re.split(r"[\n,]+", str(raw or "")):
@@ -123,4 +131,4 @@ async def auto_payment_schedule_worker():
                 )
         except Exception as exc:
             logging.error("❌ Auto payment schedule worker lỗi: %s", exc)
-        await asyncio.sleep(30)
+        await asyncio.sleep(poll_interval_seconds())
