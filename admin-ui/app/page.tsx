@@ -4569,7 +4569,7 @@ export default function Home() {
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
-              zIndex: 100,
+              zIndex: (theme) => theme.zIndex.modal + 1000,
               minWidth: { xs: "min(360px, calc(100vw - 32px))", sm: 420 },
               maxWidth: "min(520px, calc(100vw - 32px))",
               boxShadow: "0 18px 48px rgba(15, 23, 42, 0.24)",
@@ -6454,7 +6454,13 @@ export default function Home() {
               </Stack>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setCustomerRenewModalOpen(false)}>Huỷ</Button>
-                <Button variant="contained" onClick={saveCustomerRenewal}>Tạo đơn gia hạn</Button>
+                <Button
+                  variant="contained"
+                  onClick={saveCustomerRenewal}
+                  disabled={saving === `customer-renew-${selectedCustomer?.id}`}
+                >
+                  {saving === `customer-renew-${selectedCustomer?.id}` ? "Đang tạo..." : "Tạo đơn gia hạn"}
+                </Button>
               </div>
             </Box>
           </MuiDialogShell>
