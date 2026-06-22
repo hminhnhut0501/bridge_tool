@@ -3402,7 +3402,8 @@ export default function Home() {
       showNotice("error", "Vui lòng nhập số ngày gia hạn hợp lệ.");
       return;
     }
-    await runAction(`customer-renew-${selectedCustomer.id}`, async () => {
+    showNotice("ok", `Đang tạo đơn gia hạn cho ${selectedCustomer.name || selectedCustomer.id}...`);
+    const ok = await runAction(`customer-renew-${selectedCustomer.id}`, async () => {
       await createManualOrder(savedSecret, {
         telegram_user_id: selectedCustomer.id,
         full_name: selectedCustomer.name || selectedCustomer.id,
@@ -3416,6 +3417,9 @@ export default function Home() {
       setCustomerRenewModalOpen(false);
       await loadAll();
     });
+    if (ok) {
+      showNotice("ok", `Đã tạo đơn gia hạn cho ${selectedCustomer.name || selectedCustomer.id}.`);
+    }
   }
 
   async function removeOrder(orderId: string, label = "") {
