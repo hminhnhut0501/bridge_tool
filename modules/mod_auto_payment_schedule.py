@@ -56,6 +56,8 @@ def time_in_window(current_time, start, end):
 
 
 def auto_payment_schedule_active(now=None):
+    if config_enabled("AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF"):
+        return False
     if not config_enabled("AUTO_PAYMENT_SCHEDULE_ENABLED", "ON"):
         return False
     windows = parse_windows(db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"))
@@ -69,6 +71,8 @@ def auto_payment_schedule_active(now=None):
 def apply_auto_payment_schedule(now=None):
     active = auto_payment_schedule_active(now)
     desired = "ON" if active else "OFF"
+    if config_enabled("AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF"):
+        return {"active": False, "desired": "OFF", "changed": [], "state_changed": False, "persisted_changed": False}
     keys = ("NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",)
     changed = []
     for key in keys:

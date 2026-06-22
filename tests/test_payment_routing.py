@@ -425,6 +425,32 @@ def test_auto_payment_schedule_worker_should_not_force_state_at_boot():
         assert result["active"] is True
 
 
+def test_auto_payment_schedule_lock_prevents_worker_from_reenabling_new_customer_flag():
+    class Db:
+        values = {
+            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_LOCKED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+        }
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+        @staticmethod
+        def set_config(key, value):
+            Db.values[key] = value
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        from modules.mod_auto_payment_schedule import apply_auto_payment_schedule, auto_payment_schedule_active
+
+        assert auto_payment_schedule_active(datetime(2026, 6, 22, 23, 30, 0)) is False
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
+        assert result["desired"] == "OFF"
+        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "OFF"
+
+
 def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
     class Db:
         values = {

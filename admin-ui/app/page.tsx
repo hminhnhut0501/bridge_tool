@@ -2743,9 +2743,11 @@ export default function Home() {
         ? [
           { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "ON" },
           { key: "AUTO_PAYMENT_SCHEDULE_WINDOWS", value: "22:00-06:00" },
+          { key: "AUTO_PAYMENT_SCHEDULE_LOCKED", value: "OFF" },
         ]
         : [
           { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "OFF" },
+          { key: "AUTO_PAYMENT_SCHEDULE_LOCKED", value: "ON" },
         ];
       const res = await updateConfigs(savedSecret, items);
       const changedKeys = new Set(items.map((item) => item.key));
@@ -5163,6 +5165,7 @@ export default function Home() {
             <div className="grid">
               <Metric label="Lịch auto payment" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
               <Metric label="Khung giờ" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
+              <Metric label="Khóa thủ công" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF")} icon={<Settings size={16} />} />
               <Metric label="Lần đổi gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"} icon={<ClipboardList size={16} />} />
               <Metric label="Trạng thái gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"} icon={<CheckCircle2 size={16} />} />
             </div>
@@ -5174,6 +5177,7 @@ export default function Home() {
                   ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"],
                   ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"],
                   ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", "-") || "-"],
+                  ["AUTO_PAYMENT_SCHEDULE_LOCKED", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LOCKED", "OFF") || "OFF"],
                 ]}
               />
             </section>
