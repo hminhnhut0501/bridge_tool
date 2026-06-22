@@ -92,6 +92,34 @@ def format_manual_expire(value):
             return raw.replace("T", " ").replace("+00:00", "")
     return parsed.strftime("%H:%M %d/%m/%Y")
 
+
+def is_lifetime_plan_name(plan_name: str) -> bool:
+    text = str(plan_name or "").strip().lower()
+    return any(part in text for part in ("trọn đời", "tron doi", "lifetime", "life"))
+
+
+def parse_membership_expire_dt(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
+            try:
+                timezone = ZoneInfo(timezone_name)
+            except Exception:
+                timezone = ZoneInfo("Asia/Ho_Chi_Minh")
+            parsed = parsed.astimezone(timezone).replace(tzinfo=None)
+        return parsed
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+    return None
+
 def order_to_me_item(order):
     return [
         order.get("order_id", ""),
@@ -402,14 +430,43 @@ async def cmd_me(event):
         my_plans = [row for row in all_data if len(row) > 7 and str(row[1]) == user_id and row[5] == "PAID"]
     
     text = t(event.from_user.id, "MSG_ME_TITLE", "👤 <b>GÓI DỊCH VỤ CỦA BẠN:</b>\n\n").replace("\\n", "\n")
+    active_plans = []
+    expired_plans = []
     if not my_plans: 
         text += t(event.from_user.id, "MSG_ME_EMPTY", "❌ Bạn chưa có gói VIP nào.")
     else:
+        now = datetime.now()
+        for p in my_plans:
+            expire_dt = parse_membership_expire_dt(p[7])
+            if is_lifetime_plan_name(str(p[3])) or (expire_dt and expire_dt > now):
+                active_plans.append(p)
+            else:
+                expired_plans.append(p)
         for p in my_plans: 
             expire_text = format_membership_expire(p[7], event.from_user.id)
             text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", display_plan_name(str(p[3]))).replace("{date}", expire_text)
             
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    kb = InlineKeyboardBuilder()
+    if my_plans:
+        latest_plan = active_plans[0] if active_plans else my_plans[0]
+        latest_plan_name = str(latest_plan[3] or "").strip()
+        latest_order_id = str(latest_plan[0] or "").strip()
+        if is_lifetime_plan_name(latest_plan_name):
+            if latest_order_id:
+                kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        elif "svip" in latest_plan_name.lower() or "full" in latest_plan_name.lower():
+            if latest_order_id:
+                kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên Trọn đời"), callback_data="buy_full_life"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        else:
+            if latest_order_id:
+                kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_SVIP", "🌟 Xem gói SVIP+"), callback_data="view_svip_page"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    else:
+        kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     
     await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME", ""))
 
