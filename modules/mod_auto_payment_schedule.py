@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from aiogram import Router
 
 from database import db
+from supabase_store import supabase_store
 
 router = Router()
 
@@ -69,6 +70,29 @@ def apply_auto_payment_schedule(now=None):
         if current != desired:
             db.set_config(key, desired)
             changed.append(key)
+    audit_now = (now or datetime.now(bot_timezone())).strftime("%Y-%m-%d %H:%M:%S")
+    audit_payload = {
+        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT": audit_now,
+        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO": desired,
+        "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON": "AUTO_WINDOW_ACTIVE" if active else "AUTO_WINDOW_INACTIVE",
+    }
+    for key, value in audit_payload.items():
+        db.set_config(key, value)
+    if supabase_store.enabled:
+        try:
+            supabase_store.record_support_event(
+                "auto_payment_schedule_toggled",
+                None,
+                raw_data={
+                    "active": active,
+                    "desired": desired,
+                    "changed": changed,
+                    "scheduled_at": audit_now,
+                    "window": db.get_config("AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00"),
+                },
+            )
+        except Exception as exc:
+            logging.warning("⚠️ Không ghi được audit auto payment schedule: %s", exc)
     return {"active": active, "desired": desired, "changed": changed}
 
 

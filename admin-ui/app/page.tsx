@@ -6,6 +6,7 @@ import {
   BadgePercent,
   BadgeDollarSign,
   BarChart3,
+  Clock3,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
@@ -181,6 +182,7 @@ import {
   startCampaign,
   updateChannelPost,
   updateConfigs,
+  updateConfig,
   updateMenuPage,
   updateOrder,
   updateOrderStatus,
@@ -2209,7 +2211,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     setFieldValues(nextValues);
@@ -2700,6 +2702,27 @@ export default function Home() {
         ...current.filter((item) => !changedKeys.has(item.key)),
         ...res.data,
       ]);
+    });
+  }
+
+  async function quickSetAutoPaymentWindow(enabled: boolean) {
+    if (!savedSecret) return;
+    await runAction(enabled ? "auto-payment-schedule-on" : "auto-payment-schedule-off", async () => {
+      const items = enabled
+        ? [
+          { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_SCHEDULE_WINDOWS", value: "22:00-06:00" },
+        ]
+        : [
+          { key: "AUTO_PAYMENT_SCHEDULE_ENABLED", value: "OFF" },
+        ];
+      const res = await updateConfigs(savedSecret, items);
+      const changedKeys = new Set(items.map((item) => item.key));
+      setConfig((current) => [
+        ...current.filter((item) => !changedKeys.has(item.key)),
+        ...res.data,
+      ]);
+      showNotice("ok", enabled ? "Đã bật lịch 22:00-06:00." : "Đã tắt lịch auto payment.");
     });
   }
 
@@ -4969,6 +4992,31 @@ export default function Home() {
               <div className="hint">
                 Lịch được hiểu theo giờ Việt Nam. Khung mặc định 22:00-06:00 sẽ tự bật auto payment trong giờ ngủ và tắt ngoài khung đó.
               </div>
+              <div className="panel-actions" style={{ padding: "0 16px 16px" }}>
+                <Button variant="contained" size="small" onClick={() => quickSetAutoPaymentWindow(true)} startIcon={<CalendarClock size={16} />}>
+                  Bật ngay 22:00-06:00
+                </Button>
+                <Button variant="outlined" size="small" onClick={() => quickSetAutoPaymentWindow(false)} startIcon={<Settings size={16} />}>
+                  Tắt lịch
+                </Button>
+              </div>
+            </section>
+            <div className="grid">
+              <Metric label="Lịch auto payment" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
+              <Metric label="Khung giờ" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
+              <Metric label="Lần đổi gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"} icon={<ClipboardList size={16} />} />
+              <Metric label="Trạng thái gần nhất" value={getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"} icon={<CheckCircle2 size={16} />} />
+            </div>
+            <section className="panel">
+              <PanelHead title="Audit gần nhất" subtitle="Worker sẽ ghi lại lần tự bật/tắt gần nhất vào bot_config để cpadmin xem nhanh." />
+              <SimpleTable
+                headers={["Key", "Giá trị"]}
+                rows={[
+                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_AT", "-") || "-"],
+                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "-") || "-"],
+                  ["AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", getConfigValue(config, "AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", "-") || "-"],
+                ]}
+              />
             </section>
             <ConfigEditor
               title="Lịch auto payment"
