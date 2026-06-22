@@ -3373,11 +3373,12 @@ export default function Home() {
     if (!selectedCustomer) return;
     const defaultOrder = selectedCustomerRenewTargetOrder || selectedCustomer.paidOrders[0] || null;
     const defaultPlanName = defaultOrder?.plan_name || selectedCustomerRenewPlanOptions[0] || "";
+    const defaultDuration = isLifetimeText(defaultPlanName) ? "0" : "30";
     setCustomerRenewForm({
       order_id: defaultOrder?.order_id || "",
       plan_name: defaultPlanName,
       amount: defaultOrder ? String(defaultOrder.amount || "") : "",
-      duration_days: isLifetimeText(defaultPlanName) ? "0" : "30",
+      duration_days: defaultDuration,
       payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
       payment_provider: String(defaultOrder?.payment_provider || "MANUAL").toUpperCase(),
     });
@@ -6380,7 +6381,7 @@ export default function Home() {
                     order_id: matchedOrder?.order_id || "",
                     plan_name: nextPlan,
                     amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
-                    duration_days: isLifetimeText(nextPlan) ? "0" : current.duration_days || "30",
+                    duration_days: isLifetimeText(nextPlan) ? "0" : (Number(current.duration_days) > 0 ? current.duration_days : "30"),
                     payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
                     payment_provider: String(matchedOrder?.payment_provider || current.payment_provider || "MANUAL").toUpperCase(),
                   }));
@@ -6405,7 +6406,7 @@ export default function Home() {
                 onChange={(event) => setCustomerRenewForm((current) => ({ ...current, duration_days: event.target.value }))}
                 slotProps={{ htmlInput: { min: 1, step: 1 } }}
                 disabled={isLifetimeText(customerRenewForm.plan_name)}
-                helperText={isLifetimeText(customerRenewForm.plan_name) ? "Gói trọn đời không cần nhập số ngày." : "Sẽ tạo đơn mới và cộng hạn từ đơn này."}
+                helperText={isLifetimeText(customerRenewForm.plan_name) ? "Gói trọn đời không cần nhập số ngày." : "Nhập số ngày cộng thêm cho đơn gia hạn."}
                 fullWidth
                 size="small"
               />
