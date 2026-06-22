@@ -113,7 +113,8 @@ def apply_auto_payment_schedule(now=None):
 
 async def auto_payment_schedule_worker():
     logging.info("⏰ Auto payment schedule worker đã khởi động.")
-    apply_auto_payment_schedule()
+    # Tránh ép trạng thái ngay lúc deploy/boot để không lật lại cờ admin vừa set tay.
+    # Worker sẽ tự đồng bộ ở các vòng poll tiếp theo.
     while True:
         try:
             result = apply_auto_payment_schedule()

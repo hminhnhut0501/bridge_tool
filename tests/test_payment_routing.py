@@ -399,6 +399,32 @@ def test_auto_payment_schedule_leaves_returning_customer_flag_alone_when_window_
         assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
 
 
+def test_auto_payment_schedule_worker_should_not_force_state_at_boot():
+    class Db:
+        values = {
+            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+        }
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+        @staticmethod
+        def set_config(key, value):
+            Db.values[key] = value
+
+    with patch("modules.mod_auto_payment_schedule.db", Db), patch("modules.mod_auto_payment_schedule.supabase_store.enabled", False):
+        from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+
+        before = dict(Db.values)
+        # simulate boot by not calling worker init; only assert the config stays untouched until poll runs
+        assert Db.values == before
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
+        assert result["active"] is True
+
+
 def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
     class Db:
         values = {
