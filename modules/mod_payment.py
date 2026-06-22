@@ -494,16 +494,18 @@ def auto_payment_gate_message(user_id):
     )
 
 
-def manual_support_bot_url():
-    return str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot") or "https://t.me/cuhotro_bot").strip()
+def manual_support_bot_url(user_id=None):
+    template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
+    payload = f"auto_payment_gate_{user_id}" if user_id else "auto_payment_gate"
+    return template.replace("{payload}", payload)
 
 
 def manual_support_bot_label():
     return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Mở bot hỗ trợ") or "💬 Mở bot hỗ trợ").strip()
 
 
-def manual_support_keyboard():
-    url = manual_support_bot_url()
+def manual_support_keyboard(user_id=None):
+    url = manual_support_bot_url(user_id)
     if not url:
         return None
     kb = InlineKeyboardBuilder()
@@ -515,7 +517,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery):
     if should_allow_auto_payment(callback.from_user.id):
         return True
     await callback.answer(auto_payment_gate_message(callback.from_user.id), show_alert=True)
-    keyboard = manual_support_keyboard()
+    keyboard = manual_support_keyboard(callback.from_user.id)
     if keyboard and callback.message:
         try:
             await callback.message.answer(

@@ -821,9 +821,9 @@ const AUTO_PAYMENT_FIELDS: ConfigField[] = [
   },
   {
     key: "MANUAL_SUPPORT_BOT_URL",
-    label: "Link bot hỗ trợ",
-    placeholder: "https://t.me/cuhotro_bot",
-    help: "Bot sẽ hiện nút này khi tự động thanh toán bị tắt để chuyển sang xử lý thủ công.",
+    label: "Deep link bot hỗ trợ",
+    placeholder: "https://t.me/cuhotro_bot?start={payload}",
+    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",

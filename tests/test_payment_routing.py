@@ -330,6 +330,13 @@ def test_enforce_auto_payment_gate_sends_redirect_message():
         assert cb.message.sent == [("redirect text", "keyboard")]
 
 
+def test_manual_support_bot_url_uses_deep_link_payload():
+    with patch("modules.mod_payment.db.get_config", return_value="https://t.me/cuhotro_bot?start={payload}"):
+        from modules.mod_payment import manual_support_bot_url
+
+        assert manual_support_bot_url(42) == "https://t.me/cuhotro_bot?start=auto_payment_gate_42"
+
+
 def test_auto_payment_schedule_is_active_during_night_window():
     class Db:
         @staticmethod
