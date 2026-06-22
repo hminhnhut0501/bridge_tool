@@ -533,6 +533,11 @@ async def start_background_workers():
     except Exception:
         bot_runtime_worker = None
 
+    try:
+        from modules.mod_auto_payment_schedule import auto_payment_schedule_worker
+    except Exception:
+        auto_payment_schedule_worker = None
+
     if maintenance_worker:
         create_background_task(maintenance_worker(), name="maintenance_worker", context="web_backend")
     if scheduler_worker:
@@ -547,6 +552,8 @@ async def start_background_workers():
         create_background_task(channel_publisher_worker(), name="channel_publisher_worker", context="web_backend")
     if bot_runtime_worker:
         create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="web_backend")
+    if auto_payment_schedule_worker:
+        create_background_task(auto_payment_schedule_worker(), name="auto_payment_schedule_worker", context="web_backend")
 
 
 @app.on_event("startup")

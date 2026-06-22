@@ -468,7 +468,7 @@ const sectionCardSx = {
   },
 } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -696,36 +696,6 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",
-    label: "Cho khách mới thanh toán tự động",
-    placeholder: "OFF",
-    help: "Mặc định tắt để chặn khách mua lần đầu đi qua QR/crypto tự động.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
-    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-    label: "Thông báo khách mới",
-    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
-    help: "Tin nhắn bot trả về khi user chưa từng có đơn PAID và đang bị chặn auto payment.",
-    kind: "textarea",
-  },
-  {
-    key: "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
-    label: "Cho khách cũ thanh toán tự động",
-    placeholder: "ON",
-    help: "Chỉ áp dụng cho user đã từng có ít nhất một đơn PAID trước đó.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
-    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
-    label: "Thông báo khách cũ",
-    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
-    help: "Tin nhắn bot trả về khi user đã từng mua VIP nhưng auto payment cho khách cũ đang tắt.",
-    kind: "textarea",
-  },
-  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
     placeholder: "PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY",
@@ -798,6 +768,53 @@ const PAYMENT_FIELDS: ConfigField[] = [
     label: "Thời gian chờ USDT",
     placeholder: "7200",
     help: "Số giây bot giữ đơn USDT ở trạng thái chờ. Mặc định 2 giờ.",
+  },
+];
+
+const AUTO_PAYMENT_FIELDS: ConfigField[] = [
+  {
+    key: "AUTO_PAYMENT_SCHEDULE_ENABLED",
+    label: "Hẹn giờ bật/tắt auto payment",
+    placeholder: "ON",
+    help: "Bật ON để bot tự bật auto payment trong khung giờ đã đặt và tự tắt ngoài khung giờ đó.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_SCHEDULE_WINDOWS",
+    label: "Khung giờ auto payment",
+    placeholder: "22:00-06:00",
+    help: "Nhập theo giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy. Ví dụ: 22:00-06:00 hoặc 22:00-23:30,00:30-06:00.",
+  },
+  {
+    key: "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED",
+    label: "Cho khách mới thanh toán tự động",
+    placeholder: "OFF",
+    help: "Cờ này sẽ được worker tự bật trong khung giờ đã hẹn và tắt ngoài giờ.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED",
+    label: "Cho khách cũ thanh toán tự động",
+    placeholder: "ON",
+    help: "Cờ này sẽ được worker tự bật trong khung giờ đã hẹn và tắt ngoài giờ.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+    label: "Thông báo khách mới",
+    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+    help: "Tin nhắn bot trả về khi user chưa từng có đơn PAID và đang bị chặn auto payment.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
+    label: "Thông báo khách cũ",
+    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
+    help: "Tin nhắn bot trả về khi user đã từng mua VIP nhưng auto payment cho khách cũ đang tắt.",
+    kind: "textarea",
   },
 ];
 
@@ -4354,6 +4371,7 @@ export default function Home() {
           <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
           <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group hỗ trợ", "Support group")} />
           <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
+          <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
           <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
           <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
           <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
@@ -4941,6 +4959,41 @@ export default function Home() {
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và NOWPayments dùng giá USD riêng, không quy đổi tỷ giá. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+          </div>
+        ) : null}
+
+        {tab === "autoPayment" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead title="Auto payment" subtitle="Tất cả cài đặt liên quan đến hẹn giờ bật/tắt auto payment, phân luồng khách mới/cũ và message chặn được gom ở đây." />
+              <div className="hint">
+                Lịch được hiểu theo giờ Việt Nam. Khung mặc định 22:00-06:00 sẽ tự bật auto payment trong giờ ngủ và tắt ngoài khung đó.
+              </div>
+            </section>
+            <ConfigEditor
+              title="Lịch auto payment"
+              subtitle="Thiết lập lịch bật/tắt tự động cho cả khách mới và khách cũ."
+              fields={AUTO_PAYMENT_FIELDS.slice(0, 2)}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
+            <ConfigEditor
+              title="Tệp khách"
+              subtitle="Quy định khách mới và khách cũ có được đi auto payment hay không."
+              fields={AUTO_PAYMENT_FIELDS.slice(2, 4)}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
+            <ConfigEditor
+              title="Thông báo"
+              subtitle="Tin nhắn bot trả về khi chặn auto payment."
+              fields={AUTO_PAYMENT_FIELDS.slice(4)}
+              values={fieldValues}
+              setValues={setFieldValues}
+              onSave={saveFields}
+            />
           </div>
         ) : null}
 

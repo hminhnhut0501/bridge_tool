@@ -46,6 +46,11 @@ try:
 except:
     bot_runtime_worker = None
 
+try:
+    from modules.mod_auto_payment_schedule import auto_payment_schedule_worker
+except:
+    auto_payment_schedule_worker = None
+
 # ==========================================
 # 🧩 CƠ CHẾ AUTO-DISCOVERY (NẠP ROUTERS)
 # ==========================================
@@ -106,6 +111,10 @@ async def main():
     if bot_runtime_worker:
         create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="main")
         print("🧭 [Worker] Đã kích hoạt Bot Runtime State")
+
+    if auto_payment_schedule_worker:
+        create_background_task(auto_payment_schedule_worker(), name="auto_payment_schedule_worker", context="main")
+        print("⏰ [Worker] Đã kích hoạt Auto Payment Schedule")
 
     print("🤖 Bot Hang Cu Privé+ đang sẵn sàng nhận lệnh...")
     

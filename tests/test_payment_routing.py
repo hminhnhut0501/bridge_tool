@@ -1,9 +1,11 @@
 import hashlib
 import hmac
+from datetime import datetime
 from unittest.mock import patch
 
 from payment import payment_manager
 from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message
+from modules.mod_auto_payment_schedule import auto_payment_schedule_active, apply_auto_payment_schedule
 
 
 def test_vietnamese_prefers_payos_when_both_are_enabled():
@@ -265,3 +267,41 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
     ):
         assert has_prior_paid_vip_order("42") is True
         assert should_allow_auto_payment("42") is True
+
+
+def test_auto_payment_schedule_is_active_during_night_window():
+    class Db:
+        @staticmethod
+        def get_config(key, default=""):
+            return {
+                "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+                "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            }.get(key, default)
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        assert auto_payment_schedule_active(datetime(2026, 6, 22, 23, 30, 0)) is True
+        assert auto_payment_schedule_active(datetime(2026, 6, 22, 7, 0, 0)) is False
+
+
+def test_auto_payment_schedule_applies_both_customer_flags():
+    class Db:
+        values = {
+            "AUTO_PAYMENT_SCHEDULE_ENABLED": "ON",
+            "AUTO_PAYMENT_SCHEDULE_WINDOWS": "22:00-06:00",
+            "NEW_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+            "RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED": "OFF",
+        }
+
+        @staticmethod
+        def get_config(key, default=""):
+            return Db.values.get(key, default)
+
+        @staticmethod
+        def set_config(key, value):
+            Db.values[key] = value
+
+    with patch("modules.mod_auto_payment_schedule.db", Db):
+        result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
+        assert result["active"] is True
+        assert Db.values["NEW_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
+        assert Db.values["RETURNING_CUSTOMER_AUTO_PAYMENT_ENABLED"] == "ON"
