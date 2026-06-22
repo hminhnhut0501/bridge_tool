@@ -269,6 +269,32 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
         assert should_allow_auto_payment("42") is True
 
 
+def test_create_payment_for_user_blocks_new_customer_when_auto_payment_is_off():
+    with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.auto_payment_gate_message",
+        return_value="blocked",
+    ), patch("modules.mod_payment.payment_manager.create_payment_link") as create_link:
+        from modules.mod_payment import create_payment_for_user
+
+        assert create_payment_for_user("42", 100, 99000, "PRIVE100") is None
+        create_link.assert_not_called()
+
+
+def test_create_payment_for_user_allows_returning_customer():
+    with patch("modules.mod_payment.should_allow_auto_payment", return_value=True), patch(
+        "modules.mod_payment.get_user_language",
+        return_value="vi",
+    ), patch("modules.mod_payment.payment_manager.preferred_provider", return_value="PAYOS"), patch(
+        "modules.mod_payment.payment_manager.create_payment_link",
+        return_value={"provider": "PAYOS"},
+    ) as create_link:
+        from modules.mod_payment import create_payment_for_user
+
+        result = create_payment_for_user("42", 100, 99000, "PRIVE100")
+        assert result == {"provider": "PAYOS"}
+        create_link.assert_called_once_with(100, 99000, "PRIVE100", provider="PAYOS")
+
+
 def test_auto_payment_schedule_is_active_during_night_window():
     class Db:
         @staticmethod

@@ -408,6 +408,9 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
 
 
 def create_payment_for_user(user_id, order_id, amount, description, provider=""):
+    if not should_allow_auto_payment(user_id):
+        print(f"⛔ Chặn tạo QR cho user {user_id}: {auto_payment_gate_message(user_id)}")
+        return None
     provider = provider or payment_manager.preferred_provider(get_user_language(user_id))
     return payment_manager.create_payment_link(order_id, amount, description, provider=provider)
 
