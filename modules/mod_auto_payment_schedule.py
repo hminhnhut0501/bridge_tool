@@ -87,13 +87,16 @@ def apply_auto_payment_schedule(now=None):
     }
     for key, value in audit_payload.items():
         db.set_config(key, value)
+    existing_to = str(db.get_config("AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_TO", "") or "").strip().upper()
+    existing_reason = str(db.get_config("AUTO_PAYMENT_SCHEDULE_LAST_TOGGLED_REASON", "") or "").strip().upper()
     state_changed = (
         _LAST_SCHEDULE_STATE["desired"] != desired
         or _LAST_SCHEDULE_STATE["active"] != active
     )
+    persisted_changed = existing_to != desired or existing_reason != ("AUTO_WINDOW_ACTIVE" if active else "AUTO_WINDOW_INACTIVE")
     _LAST_SCHEDULE_STATE["desired"] = desired
     _LAST_SCHEDULE_STATE["active"] = active
-    if supabase_store.enabled and state_changed:
+    if supabase_store.enabled and (changed or persisted_changed):
         try:
             supabase_store.record_support_event(
                 "auto_payment_schedule_toggled",
@@ -108,7 +111,7 @@ def apply_auto_payment_schedule(now=None):
             )
         except Exception as exc:
             logging.warning("⚠️ Không ghi được audit auto payment schedule: %s", exc)
-    return {"active": active, "desired": desired, "changed": changed, "state_changed": state_changed}
+    return {"active": active, "desired": desired, "changed": changed, "state_changed": state_changed, "persisted_changed": persisted_changed}
 
 
 async def auto_payment_schedule_worker():
@@ -124,7 +127,7 @@ async def auto_payment_schedule_worker():
                     result["desired"],
                     ", ".join(result["changed"]),
                 )
-            elif result["state_changed"]:
+            elif result["persisted_changed"]:
                 logging.info(
                     "⏱ Auto payment schedule vẫn ở trạng thái %s.",
                     result["desired"],
