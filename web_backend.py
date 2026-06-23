@@ -205,9 +205,9 @@ def render_activation_text(template_key: str, default_text: str, context: dict[s
 
 
 def build_manual_activation_url(code: str):
-    template = str(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start={code}") or "").strip()
+    template = str(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "").strip()
     if not template:
-        template = "t.me/hangcuprivebot?start={code}"
+        template = "t.me/hangcuprivebot?start=act_{code}"
     return template.replace("{code}", str(code or "").strip())
 
 

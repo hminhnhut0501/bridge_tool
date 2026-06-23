@@ -207,6 +207,26 @@ async def send_sale_announcement(message: Message):
         return False
 
 
+async def record_start_event(message: Message, payload: str, event_type: str, *, source_ref: str = "", activation_code: str = "", legacy: bool = False):
+    event_payload = {
+        "event_type": event_type,
+        "command": "start",
+        "start_payload": payload,
+        "source_ref": source_ref,
+        "activation_code": activation_code,
+        "legacy": bool(legacy),
+        "user_id": str(message.from_user.id) if message.from_user else "",
+        "username": message.from_user.username or "" if message.from_user else "",
+        "full_name": message.from_user.full_name or "" if message.from_user else "",
+        "chat_id": str(message.chat.id) if message.chat else "",
+        "chat_type": message.chat.type if message.chat else "",
+    }
+    try:
+        supabase_store.insert_analytics_events([event_payload])
+    except Exception as exc:
+        print(f"⚠️ Không ghi được start event {event_type}: {exc}")
+
+
 async def deliver_activation_order(message: Message, code: str):
     from modules.mod_coupon import build_invite_links
 
@@ -300,7 +320,36 @@ async def cmd_start(message: Message):
     parts = (message.text or "").split(maxsplit=1)
     payload = parts[1].strip() if len(parts) > 1 else ""
     if payload:
-        await deliver_activation_order(message, payload)
+        normalized = payload.strip()
+        if normalized.lower().startswith("src_"):
+            await record_start_event(
+                message,
+                normalized,
+                "start_source",
+                source_ref=normalized[4:].strip(),
+            )
+            if await send_sale_announcement(message):
+                return
+            await render_page(message, "main_menu")
+            return
+        if normalized.lower().startswith("act_"):
+            activation_code = normalized[4:].strip()
+            await record_start_event(
+                message,
+                normalized,
+                "start_activation",
+                activation_code=activation_code,
+            )
+            await deliver_activation_order(message, activation_code)
+            return
+        await record_start_event(
+            message,
+            normalized,
+            "start_activation_legacy",
+            activation_code=normalized,
+            legacy=True,
+        )
+        await deliver_activation_order(message, normalized)
         return
     if await send_sale_announcement(message):
         return

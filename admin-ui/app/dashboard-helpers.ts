@@ -211,6 +211,9 @@ export function activityEventLabel(type: string) {
     callback: "Bấm nút",
     inline_query: "Tìm kiếm nội dung",
     start: "Bắt đầu",
+    start_source: "Nguồn vào bot",
+    start_activation: "Kích hoạt đơn",
+    start_activation_legacy: "Kích hoạt đơn cũ",
     join: "Tham gia",
     leave: "Rời đi",
   };

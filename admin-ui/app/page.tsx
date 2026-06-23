@@ -823,8 +823,8 @@ const AUTO_PAYMENT_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_URL",
     label: "Deep link bot hỗ trợ",
-    placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn.",
+    placeholder: "https://t.me/cuhotro_bot?start=act_{payload}",
+    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn. Với link kích hoạt đơn, prefix mặc định là act_.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",
@@ -4106,6 +4106,8 @@ export default function Home() {
     });
     const userEvents = privateActivityEvents.map((event) => {
       const payload = event.payload || {};
+      const detail = payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type");
+      const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || describeActivityEvent(event);
       return {
         id: `a-${event.id}`,
         direction: "user" as const,
@@ -4114,8 +4116,8 @@ export default function Home() {
         userId: event.telegram_user_id || payloadText(payload, "user_id"),
         username: payloadText(payload, "username"),
         fullName: payloadText(payload, "full_name"),
-        title: activityEventDetailLabel(payloadText(payload, "event_type") || event.event_name || "event", describeActivityEvent(event), payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type")),
-        detail: payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type"),
+        title: activityEventDetailLabel(payloadText(payload, "event_type") || event.event_name || "event", title, detail),
+        detail,
         createdAt: event.created_at,
       };
     });
