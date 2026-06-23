@@ -3885,17 +3885,17 @@ export default function Home() {
   }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit, customerTimelineSubTab]);
   const selectedCustomerTimelineCounts = useMemo(() => {
     if (!selectedCustomer) return { total: 0, joined: 0, left: 0, muted: 0, kicked: 0 };
-    const supportJoined = selectedCustomerSupportEvents.filter((item) => item.event_type === "support_joined").length;
-    const supportLeft = selectedCustomerSupportEvents.filter((item) => item.event_type === "support_left").length;
-    const supportMuted = selectedCustomerSupportEvents.filter((item) => item.event_type === "member_muted").length;
-    const supportKicked = selectedCustomerSupportEvents.filter((item) => item.event_type === "member_kicked").length;
+    const joined = selectedCustomerSupportEvents.filter((item) => ["support_joined", "vip_joined"].includes(item.event_type)).length;
+    const left = selectedCustomerSupportEvents.filter((item) => ["support_left", "vip_left"].includes(item.event_type)).length;
+    const muted = selectedCustomerSupportEvents.filter((item) => ["member_muted", "vip_muted"].includes(item.event_type)).length;
+    const kicked = selectedCustomerSupportEvents.filter((item) => ["member_kicked", "vip_kicked"].includes(item.event_type)).length;
     const orderKicked = kickAudit.filter((item) => String(item.telegram_user_id || "").trim() === selectedCustomer.id && item.status !== "ACTIVE_RETAINED").length;
     return {
       total: selectedCustomerTimelineRows.length,
-      joined: supportJoined,
-      left: supportLeft,
-      muted: supportMuted,
-      kicked: supportKicked + orderKicked,
+      joined,
+      left,
+      muted,
+      kicked: kicked + orderKicked,
     };
   }, [selectedCustomer, selectedCustomerSupportEvents, selectedCustomerTimelineRows, kickAudit]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
