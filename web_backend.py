@@ -204,10 +204,19 @@ def render_activation_text(template_key: str, default_text: str, context: dict[s
     return template.strip()
 
 
-def build_manual_activation_url(code: str):
-    template = str(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "").strip()
+def normalize_manual_order_link_template(value: str):
+    template = str(value or "").strip()
     if not template:
-        template = "t.me/hangcuprivebot?start=act_{code}"
+        return "t.me/hangcuprivebot?start=act_{code}"
+    if "start=act_{code}" in template:
+        return template
+    if "start={code}" in template:
+        return template.replace("start={code}", "start=act_{code}")
+    return template
+
+
+def build_manual_activation_url(code: str):
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
     return template.replace("{code}", str(code or "").strip())
 
 
@@ -982,14 +991,22 @@ async def admin_users(limit: int = 200):
 
 @app.get("/admin-api/config", dependencies=[Depends(require_admin)])
 async def admin_config():
-    return {"data": supabase_store.get_config()}
+    rows = supabase_store.get_config()
+    for row in rows or []:
+        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
+            row["value"] = normalize_manual_order_link_template(row.get("value"))
+    return {"data": rows}
 
 
 @app.patch("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
 async def admin_set_config(key: str, request: Request):
     body = await request.json()
-    data = supabase_store.set_config(key, body.get("value", ""))
-    db.cache_config[str(key).strip().upper()] = str(body.get("value", ""))
+    normalized_key = str(key).strip().upper()
+    value = body.get("value", "")
+    if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
+        value = normalize_manual_order_link_template(value)
+    data = supabase_store.set_config(key, value)
+    db.cache_config[normalized_key] = str(value)
     normalized_key = str(key).strip().upper()
     if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
         await set_commands()
@@ -1000,9 +1017,15 @@ async def admin_set_config(key: str, request: Request):
 async def admin_set_config_batch(request: Request):
     body = await request.json()
     items = body.get("items", body if isinstance(body, list) else [])
-    data = supabase_store.set_configs(items)
-    command_changed = False
+    normalized_items = []
     for item in items:
+        normalized_item = dict(item)
+        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
+            normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
+        normalized_items.append(normalized_item)
+    data = supabase_store.set_configs(normalized_items)
+    command_changed = False
+    for item in normalized_items:
         normalized_key = str(item.get("key", "")).strip().upper()
         if not normalized_key:
             continue

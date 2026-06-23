@@ -379,7 +379,9 @@ class SupabaseStore:
         return self._request("GET", "bot_config", params={"select": "*", "order": "key.asc"})
 
     def set_config(self, key, value):
-        payload = {"key": _clean_text(key).upper(), "value": str(value)}
+        normalized_key = _clean_text(key).upper()
+        normalized_value = self._normalize_config_value(normalized_key, value)
+        payload = {"key": normalized_key, "value": normalized_value}
         rows = self._request(
             "POST",
             "bot_config",
@@ -397,7 +399,10 @@ class SupabaseStore:
 
     def set_configs(self, items):
         payload = [
-            {"key": _clean_text(item.get("key")).upper(), "value": str(item.get("value", ""))}
+            {
+                "key": _clean_text(item.get("key")).upper(),
+                "value": self._normalize_config_value(_clean_text(item.get("key")).upper(), item.get("value", "")),
+            }
             for item in (items or [])
             if _clean_text(item.get("key"))
         ]
@@ -417,6 +422,17 @@ class SupabaseStore:
         except Exception:
             pass
         return rows
+
+    def _normalize_config_value(self, key, value):
+        text = str(value or "").strip()
+        if key == "MANUAL_ORDER_LINK_TEMPLATE":
+            if not text:
+                return "t.me/hangcuprivebot?start=act_{code}"
+            if "start=act_{code}" in text:
+                return text
+            if "start={code}" in text:
+                return text.replace("start={code}", "start=act_{code}")
+        return text
 
     def get_user_preference(self, telegram_user_id):
         rows = self._request(

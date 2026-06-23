@@ -99,7 +99,10 @@ class Database:
                 for row in supabase_store.list_config():
                     key = normalize_key(row.get("key")).upper()
                     if key:
-                        temp_cache[key] = str(row.get("value") or "").strip()
+                        value = str(row.get("value") or "").strip()
+                        if key == "MANUAL_ORDER_LINK_TEMPLATE":
+                            value = self._normalize_manual_order_link_template(value)
+                        temp_cache[key] = value
                 self.cache_config = temp_cache
 
                 temp_pages = {}
@@ -125,7 +128,11 @@ class Database:
             for row in all_rows:
                 if len(row) >= 2:
                     key = normalize_key(row[0]).upper()
-                    if key: temp_cache[key] = str(row[1]).strip()
+                    if key:
+                        value = str(row[1]).strip()
+                        if key == "MANUAL_ORDER_LINK_TEMPLATE":
+                            value = self._normalize_manual_order_link_template(value)
+                        temp_cache[key] = value
             self.cache_config = temp_cache
             
             # 2. TẢI GIAO DIỆN ĐỘNG TỪ MENU BUILDER VÀO RAM
@@ -154,15 +161,20 @@ class Database:
 
     def get_config(self, key, default=""):
         if not self.cache_config: self.reload_config(force=True)
-        return self.cache_config.get(normalize_key(key).upper(), str(default))
+        normalized_key = normalize_key(key).upper()
+        value = self.cache_config.get(normalized_key, str(default))
+        if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
+            return self._normalize_manual_order_link_template(value)
+        return value
 
     def set_config(self, key, value):
         normalized_key = normalize_key(key).upper()
         if not normalized_key:
             raise ValueError("Config key không hợp lệ")
+        normalized_value = self._normalize_manual_order_link_template(value) if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE" else str(value)
         if self.backend == "supabase" and supabase_store.enabled:
-            supabase_store.set_config(normalized_key, value)
-            self.cache_config[normalized_key] = str(value)
+            supabase_store.set_config(normalized_key, normalized_value)
+            self.cache_config[normalized_key] = str(normalized_value)
             try:
                 from helpers import recompute_bot_runtime_state
 
@@ -177,18 +189,28 @@ class Database:
         rows = self.config_sheet.get_all_values()
         for idx, row in enumerate(rows, start=1):
             if row and normalize_key(row[0]).upper() == normalized_key:
-                self.config_sheet.update_cell(idx, 2, str(value))
-                self.cache_config[normalized_key] = str(value)
+                self.config_sheet.update_cell(idx, 2, str(normalized_value))
+                self.cache_config[normalized_key] = str(normalized_value)
                 return
 
-        self.config_sheet.append_row([normalized_key, str(value)])
-        self.cache_config[normalized_key] = str(value)
+        self.config_sheet.append_row([normalized_key, str(normalized_value)])
+        self.cache_config[normalized_key] = str(normalized_value)
         try:
             from helpers import recompute_bot_runtime_state
 
             recompute_bot_runtime_state()
         except Exception:
             pass
+
+    def _normalize_manual_order_link_template(self, value):
+        text = str(value or "").strip()
+        if not text:
+            return "t.me/hangcuprivebot?start=act_{code}"
+        if "start=act_{code}" in text:
+            return text
+        if "start={code}" in text:
+            return text.replace("start={code}", "start=act_{code}")
+        return text
 
     def get_page(self, page_id):
         normalized = normalize_key(page_id)
