@@ -3501,7 +3501,6 @@ export default function Home() {
     }));
   }, [orders, overviewTrendRange]);
   const overviewVipPoints = useMemo(() => overviewTrendPoints.map((item) => ({ label: item.label, value: item.vip })), [overviewTrendPoints]);
-
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
   const visibleGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config, maxGroups]);
@@ -4180,6 +4179,99 @@ export default function Home() {
     return counts;
   }, [channelPosts]);
   const botScheduleStatus = botScheduleStatusApi;
+  const overviewRecentOrders = useMemo(() => {
+    return [...orders]
+      .sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime())
+      .slice(0, 10);
+  }, [orders]);
+  const overviewNewCustomers = useMemo(() => {
+    return [...customerSummaries]
+      .filter((item) => item.lastOrderAt || item.hasAnyPaidOrder || item.orders.length)
+      .sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime())
+      .slice(0, 10);
+  }, [customerSummaries]);
+  const overviewRecentUserActivity = useMemo(() => {
+    return [...activityEvents]
+      .filter((event) => {
+        const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
+        return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 10);
+  }, [activityEvents]);
+  const overviewRecentNotifications = useMemo(() => {
+    const userEvents = activityEvents
+      .filter((event) => {
+        const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
+        return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
+      })
+      .map((event) => {
+        const payload = event.payload || {};
+        const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event");
+        const detail = payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || "-";
+        return {
+          key: `activity-${event.id}`,
+          kind: "user" as const,
+          title,
+          detail,
+          createdAt: event.created_at,
+          userId: event.telegram_user_id || payloadText(payload, "user_id") || "",
+        };
+      });
+    const botEvents = supportEvents
+      .filter((event) => [
+        "manual_order_created",
+        "expired_notice_sent",
+        "renewal_reminder_sent",
+        "member_kicked",
+        "member_muted",
+        "member_unmuted",
+        "support_joined",
+        "support_left",
+        "vip_joined",
+        "vip_left",
+      ].includes(event.event_type))
+      .map((event) => ({
+        key: `support-${event.id}`,
+        kind: "bot" as const,
+        title: supportEventLabel(event.event_type),
+        detail: [event.full_name, event.plan_name, event.order_id].filter(Boolean).join(" • ") || event.raw_data?.reason || "-",
+        createdAt: event.created_at,
+        userId: event.telegram_user_id || "",
+      }));
+    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
+  }, [activityEvents, supportEvents]);
+  const overviewExpiringCustomers = useMemo(() => {
+    return [...customerSummaries]
+      .filter((item) => item.expiringWithinWindow || item.activeOrders.some((order) => daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= reminderNoticeDays))
+      .sort((a, b) => {
+        const aDays = a.activeOrders.length ? Math.min(...a.activeOrders.map((order) => daysUntil(order.expire_at)).filter((days) => Number.isFinite(days))) : 9999;
+        const bDays = b.activeOrders.length ? Math.min(...b.activeOrders.map((order) => daysUntil(order.expire_at)).filter((days) => Number.isFinite(days))) : 9999;
+        return aDays - bDays;
+      })
+      .slice(0, 10);
+  }, [customerSummaries, reminderNoticeDays]);
+  const overviewHealthAlerts = useMemo(() => {
+    const alerts: { title: string; detail: string; tone: "good" | "warning" | "bad" }[] = [];
+    if (!webhook?.url) alerts.push({ title: "Webhook", detail: "Chưa có URL webhook đang hoạt động", tone: "bad" });
+    else alerts.push({ title: "Webhook", detail: "Webhook đang hoạt động", tone: "good" });
+    if (botScheduleStatus?.active) alerts.push({ title: "Bot", detail: botScheduleStatus.title || "Bot đang hoạt động", tone: "good" });
+    else alerts.push({ title: "Bot", detail: botScheduleStatus?.title || "Bot đang tạm dừng", tone: "warning" });
+    alerts.push({ title: "Đơn chờ", detail: `${metrics.pending} đơn đang chờ`, tone: metrics.pending > 0 ? "warning" : "good" });
+    alerts.push({ title: "Sắp hết hạn", detail: `${expiringSoon.length} khách trong khung nhắc`, tone: expiringSoon.length > 0 ? "warning" : "good" });
+    if (missingCore.length) {
+      alerts.push({ title: "Thiếu cấu hình", detail: missingCore[0], tone: "bad" });
+    }
+    return alerts.slice(0, 5);
+  }, [botScheduleStatus, expiringSoon.length, metrics.pending, missingCore, webhook]);
+  const overviewPriorityAlerts = useMemo(() => {
+    const rows: { title: string; detail: string; tone: "warning" | "bad" }[] = [];
+    if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
+    if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
+    if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
+    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Support group", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
+    return rows.slice(0, 4);
+  }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4621,68 +4713,125 @@ export default function Home() {
 
         {tab === "overview" ? (
           <Stack spacing={2}>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
-              <Metric label="Doanh thu đã thanh toán" value={ordersMoney(orders.filter((item) => item.status === "PAID"))} tone="vnd" icon={<TrendingUp size={16} />} />
-              <Metric label="Đơn đang chờ" value={String(metrics.pending)} tone="usd" icon={<CalendarClock size={16} />} />
-              <Metric label="Khách gần đây" value={String(metrics.users)} tone="crypto" icon={<Users size={16} />} />
-              <Metric label="Nhóm đang bán" value={String(configuredGroups.length)} tone="payos" icon={<ShieldCheck size={16} />} />
-            </Box>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
-              <Metric label="Doanh thu VNĐ" value={formatRevenueCurrency("VND", (paidRevenueByCurrency.VND || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="vnd" note="Nguồn chính: PayOS / manual nội địa" icon={<CreditCard size={16} />} />
-              <Metric label="Doanh thu USD" value={formatRevenueCurrency("USD", (paidRevenueByCurrency.USD || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="usd" note="Chỉ cho khách quốc tế" icon={<Send size={16} />} />
-              <Metric label="Doanh thu Crypto" value={formatRevenueCurrency("CRYPTO", (paidRevenueByCurrency.CRYPTO || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))} tone="crypto" note="USDT / thanh toán crypto" icon={<Coins size={16} />} />
-              <Metric label="Doanh thu PayOS" value={providerRevenueFormat("PAYOS", paidRevenueByProvider.PAYOS || 0)} tone="payos" note={hasPayosOrders ? "Đã có đơn PayOS" : "Chưa có đơn nào gắn PAYOS"} icon={<Gift size={16} />} />
-            </Box>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
-              <Metric label="Doanh thu hôm nay" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "today")))} tone="paypal" icon={<CalendarClock size={16} />} />
-              <Metric label="Đơn PAID hôm nay" value={String(todayStats.paid)} tone="vnd" icon={<CheckCircle2 size={16} />} />
-              <Metric label="Doanh thu tháng này" value={ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, "month")))} tone="usd" icon={<BarChart3 size={16} />} />
-              <Metric label="Tỉ lệ thanh toán tháng" value={`${monthStats.conversion}%`} tone="crypto" icon={<BadgePercent size={16} />} />
-            </Box>
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
-                title="Xu hướng vận hành"
-                subtitle="Doanh thu và user VIP theo ngày, có thể chuyển sang view theo tháng."
+                title="Tổng quan vận hành"
+                subtitle="Trung tâm theo dõi hoạt động bot, đơn mới, khách mới và cảnh báo cần xử lý."
                 action={
                   <Stack direction="row" spacing={1}>
-                    <Button variant={overviewTrendRange === "month" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("month")}>Theo ngày</Button>
-                    <Button variant={overviewTrendRange === "year" ? "contained" : "outlined"} size="small" onClick={() => setOverviewTrendRange("year")}>Theo tháng</Button>
+                    <Button variant="outlined" size="small" onClick={() => selectTab("analytics")}>Xem thống kê</Button>
+                    <Button variant="contained" size="small" onClick={() => loadAll(savedSecret, { silent: false, resetPages: false, scope: "overview" })}>Tải lại</Button>
                   </Stack>
                 }
               />
               <Stack spacing={2} sx={{ p: 2 }}>
-                <MuiTrendChart
-                  title="Doanh thu tăng giảm"
-                  subtitle="Chỉ tính đơn PAID trong kỳ đang xem."
-                  rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
-                  points={overviewTrendPoints}
-                  valueLabel={`Tổng: ${ordersMoney(orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange)))}`}
-                  secondaryLabel={`Mốc: ${overviewTrendPoints.length}`}
-                />
-                <MuiTrendChart
-                  title="User VIP tăng giảm"
-                  subtitle="Đếm user Telegram đã có đơn PAID trong từng mốc."
-                  rangeLabel={overviewTrendRange === "month" ? "Theo ngày" : "Theo tháng"}
-                  points={overviewVipPoints}
-                  valueLabel={`Tổng VIP: ${overviewTrendPoints.reduce((sum, item) => sum + item.vip, 0)}`}
-                  secondaryLabel={`Mốc: ${overviewVipPoints.length}`}
-                />
+                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
+                  {overviewHealthAlerts.map((item) => (
+                    <Box key={item.title} className={`overview-health-card ${item.tone}`}>
+                      <strong>{item.title}</strong>
+                      <span>{item.detail}</span>
+                    </Box>
+                  ))}
+                </Box>
+                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+                  <Box className="overview-priority-card">
+                    <div className="overview-section-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
+                    <Stack spacing={1}>
+                      {overviewPriorityAlerts.length ? overviewPriorityAlerts.map((item) => (
+                        <Box key={`${item.title}-${item.detail}`} className={`overview-alert ${item.tone}`}>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                        </Box>
+                      )) : <div className="empty-card">Hiện chưa có cảnh báo ưu tiên.</div>}
+                    </Stack>
+                  </Box>
+                  <Box className="overview-priority-card">
+                    <div className="overview-section-head"><strong>Hệ thống</strong><span>Trạng thái nhanh</span></div>
+                    <Stack spacing={1}>
+                      <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chưa set webhook"} />
+                      <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
+                      <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
+                      <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
+                    </Stack>
+                  </Box>
+                </Box>
               </Stack>
             </Card>
+
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
+              <Card variant="outlined" sx={sectionCardSx}>
+                <PanelHead title="10 hoạt động gần nhất của user" subtitle="Theo dõi các tương tác private gần nhất." />
+                <SimpleTable
+                  headers={["Thời điểm", "Khách", "Loại", "Nội dung", "Chi tiết"]}
+                  rows={overviewRecentUserActivity.map((event) => [
+                    dateText(event.created_at),
+                    <><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></>,
+                    activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event"),
+                    payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
+                    payloadText(event.payload || {}, "chat_type") || "-",
+                  ])}
+                />
+              </Card>
+              <Card variant="outlined" sx={sectionCardSx}>
+                <PanelHead title="10 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
+                <SimpleTable
+                  headers={["Thời điểm", "Đơn", "Khách", "Gói", "Trạng thái"]}
+                  rows={overviewRecentOrders.map((order) => [
+                    dateText(order.created_at),
+                    <strong key={order.order_id}>{order.order_id}</strong>,
+                    <><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></>,
+                    order.plan_name,
+                    orderLifecycleLabel(order),
+                  ])}
+                />
+              </Card>
+            </Box>
+
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
+              <Card variant="outlined" sx={sectionCardSx}>
+                <PanelHead title="10 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
+                <SimpleTable
+                  headers={["Khách", "Mốc gần nhất", "Gói", "Trạng thái", "Giá trị"]}
+                  rows={overviewNewCustomers.map((customer) => [
+                    <><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></>,
+                    dateText(customer.lastOrderAt),
+                    customer.plans[0] || "-",
+                    customer.statusLabel,
+                    money(customer.revenue),
+                  ])}
+                />
+              </Card>
+              <Card variant="outlined" sx={sectionCardSx}>
+                <PanelHead title="Khách gần hết hạn" subtitle={`Ưu tiên nhóm trong ${reminderNoticeDays} ngày tới.`} />
+                <SimpleTable
+                  headers={["Khách", "Gói", "Hạn", "Còn lại", "Trạng thái"]}
+                  rows={overviewExpiringCustomers.map((customer) => {
+                    const targetOrder = customer.activeOrders[0] || customer.paidOrders[0] || null;
+                    const expireAt = targetOrder?.expire_at || customer.latestExpire;
+                    return [
+                      <><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></>,
+                      targetOrder?.plan_name || customer.plans[0] || "-",
+                      dateText(expireAt),
+                      expireAt ? `${daysUntil(expireAt)} ngày` : "-",
+                      customer.statusLabel,
+                    ];
+                  })}
+                />
+              </Card>
+            </Box>
+
             <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead title="Trạng thái vận hành" subtitle="Kiểm tra nhanh các phần cần có trước khi bán." />
-              <Box sx={{ p: 2, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" } }}>
-                <HealthItem ok={Boolean(webhook?.url)} title="Telegram webhook" detail={webhook?.url || "Chưa set webhook"} />
-                <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
-                <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
-                <HealthItem ok={metrics.coupons >= 0} title="Coupon" detail={`${metrics.coupons} mã trong hệ thống`} />
-              </Box>
-            </Card>
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead title="Đơn hàng mới nhất" subtitle="10 đơn gần nhất." />
-              <Box sx={{ p: 0 }}>
-                <MuiOrdersTable orders={orders.slice(0, 10)} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
-              </Box>
+              <PanelHead title="Nhật ký bot cần chú ý" subtitle="Feed tóm tắt các tín hiệu từ bot và user." />
+              <SimpleTable
+                headers={["Thời điểm", "Nguồn", "Khách", "Nội dung", "Chi tiết"]}
+                rows={overviewRecentNotifications.map((item) => [
+                  dateText(item.createdAt),
+                  item.kind === "user" ? "User" : "Bot",
+                  item.userId || "-",
+                  item.title,
+                  item.detail,
+                ]) as ReactNode[][]}
+              />
             </Card>
           </Stack>
         ) : null}
