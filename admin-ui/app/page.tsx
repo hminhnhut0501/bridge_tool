@@ -70,6 +70,7 @@ import {
   dateTimePreviewText,
   dateTimeInputValue,
   daysUntil,
+  activityEventBadgeTone,
   activityEventDetailLabel,
   activityEventLabel,
   auditStatusLabel,
@@ -4734,15 +4735,16 @@ export default function Home() {
                   ))}
                 </Box>
                 <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-                  <Box className="overview-priority-card">
-                    <div className="overview-section-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
+                  <Box className="overview-priority-card overview-noc-card">
+                    <div className="overview-section-head overview-noc-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
                     <Stack spacing={1}>
                       {overviewPriorityAlerts.length ? overviewPriorityAlerts.map((item) => (
                         <Box key={`${item.title}-${item.detail}`} className={`overview-alert ${item.tone}`}>
+                          <span className={`overview-pill ${item.tone}`}>{item.tone === "bad" ? "Critical" : "Warning"}</span>
                           <strong>{item.title}</strong>
                           <span>{item.detail}</span>
                         </Box>
-                      )) : <div className="empty-card">Hiện chưa có cảnh báo ưu tiên.</div>}
+                      )) : <div className="overview-empty overview-empty-compact">Hiện chưa có cảnh báo ưu tiên.</div>}
                     </Stack>
                   </Box>
                   <Box className="overview-priority-card">
@@ -4761,77 +4763,113 @@ export default function Home() {
             <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="10 hoạt động gần nhất của user" subtitle="Theo dõi các tương tác private gần nhất." />
-                <SimpleTable
-                  headers={["Thời điểm", "Khách", "Loại", "Nội dung", "Chi tiết"]}
-                  rows={overviewRecentUserActivity.map((event) => [
-                    dateText(event.created_at),
-                    <><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></>,
-                    activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event"),
-                    payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
-                    payloadText(event.payload || {}, "chat_type") || "-",
-                  ])}
-                />
+                {overviewRecentUserActivity.length ? (
+                  <SimpleTable
+                    headers={["Thời điểm", "Khách", "Loại", "Nội dung", "Chi tiết"]}
+                    rows={overviewRecentUserActivity.map((event) => [
+                      dateText(event.created_at),
+                      <Fragment key={`${event.id}-customer`}><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></Fragment>,
+                      <span key={`${event.id}-type`} className={`overview-pill ${activityEventBadgeTone(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}`}>{activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}</span>,
+                      payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
+                      payloadText(event.payload || {}, "chat_type") || "-",
+                    ])}
+                  />
+                ) : (
+                  <Stack spacing={1.25}>
+                    <div className="overview-empty">Chưa có hoạt động private nào để hiển thị.</div>
+                    <div className="overview-skeleton card" />
+                    <div className="overview-skeleton card" />
+                  </Stack>
+                )}
               </Card>
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="10 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
-                <SimpleTable
-                  headers={["Thời điểm", "Đơn", "Khách", "Gói", "Trạng thái"]}
-                  rows={overviewRecentOrders.map((order) => [
-                    dateText(order.created_at),
-                    <strong key={order.order_id}>{order.order_id}</strong>,
-                    <><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></>,
-                    order.plan_name,
-                    orderLifecycleLabel(order),
-                  ])}
-                />
+                {overviewRecentOrders.length ? (
+                  <SimpleTable
+                    headers={["Thời điểm", "Đơn", "Khách", "Gói", "Trạng thái"]}
+                    rows={overviewRecentOrders.map((order) => [
+                      dateText(order.created_at),
+                      <strong key={order.order_id}>{order.order_id}</strong>,
+                      <Fragment key={`${order.order_id}-customer`}><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></Fragment>,
+                      order.plan_name,
+                      <span key={`${order.order_id}-status`} className={`overview-pill ${order.status === "PAID" ? "good" : order.status === "PENDING" ? "warning" : "bad"}`}>{orderLifecycleLabel(order)}</span>,
+                    ])}
+                  />
+                ) : (
+                  <Stack spacing={1.25}>
+                    <div className="overview-empty">Chưa có đơn mới.</div>
+                    <div className="overview-skeleton card" />
+                  </Stack>
+                )}
               </Card>
             </Box>
 
             <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="10 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
-                <SimpleTable
-                  headers={["Khách", "Mốc gần nhất", "Gói", "Trạng thái", "Giá trị"]}
-                  rows={overviewNewCustomers.map((customer) => [
-                    <><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></>,
-                    dateText(customer.lastOrderAt),
-                    customer.plans[0] || "-",
-                    customer.statusLabel,
-                    money(customer.revenue),
-                  ])}
-                />
+                {overviewNewCustomers.length ? (
+                  <SimpleTable
+                    headers={["Khách", "Mốc gần nhất", "Gói", "Trạng thái", "Giá trị"]}
+                    rows={overviewNewCustomers.map((customer) => [
+                      <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
+                      dateText(customer.lastOrderAt),
+                      customer.plans[0] || "-",
+                      <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : customer.statusColor === "error" ? "bad" : ""}`}>{customer.statusLabel}</span>,
+                      money(customer.revenue),
+                    ])}
+                  />
+                ) : (
+                  <Stack spacing={1.25}>
+                    <div className="overview-empty">Chưa có khách mới.</div>
+                    <div className="overview-skeleton card" />
+                  </Stack>
+                )}
               </Card>
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="Khách gần hết hạn" subtitle={`Ưu tiên nhóm trong ${reminderNoticeDays} ngày tới.`} />
-                <SimpleTable
-                  headers={["Khách", "Gói", "Hạn", "Còn lại", "Trạng thái"]}
-                  rows={overviewExpiringCustomers.map((customer) => {
-                    const targetOrder = customer.activeOrders[0] || customer.paidOrders[0] || null;
-                    const expireAt = targetOrder?.expire_at || customer.latestExpire;
-                    return [
-                      <><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></>,
-                      targetOrder?.plan_name || customer.plans[0] || "-",
-                      dateText(expireAt),
-                      expireAt ? `${daysUntil(expireAt)} ngày` : "-",
-                      customer.statusLabel,
-                    ];
-                  })}
-                />
+                {overviewExpiringCustomers.length ? (
+                  <SimpleTable
+                    headers={["Khách", "Gói", "Hạn", "Còn lại", "Trạng thái"]}
+                    rows={overviewExpiringCustomers.map((customer) => {
+                      const targetOrder = customer.activeOrders[0] || customer.paidOrders[0] || null;
+                      const expireAt = targetOrder?.expire_at || customer.latestExpire;
+                      return [
+                        <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
+                        targetOrder?.plan_name || customer.plans[0] || "-",
+                        dateText(expireAt),
+                        <span key={`${customer.id}-remaining`} className={`overview-pill ${daysUntil(expireAt) <= 0 ? "bad" : daysUntil(expireAt) <= 1 ? "warning" : "good"}`}>{expireAt ? `${daysUntil(expireAt)} ngày` : "-"}</span>,
+                        <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : "bad"}`}>{customer.statusLabel}</span>,
+                      ];
+                    })}
+                  />
+                ) : (
+                  <Stack spacing={1.25}>
+                    <div className="overview-empty">Chưa có khách nào sắp hết hạn.</div>
+                    <div className="overview-skeleton card" />
+                  </Stack>
+                )}
               </Card>
             </Box>
 
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead title="Nhật ký bot cần chú ý" subtitle="Feed tóm tắt các tín hiệu từ bot và user." />
-              <SimpleTable
-                headers={["Thời điểm", "Nguồn", "Khách", "Nội dung", "Chi tiết"]}
-                rows={overviewRecentNotifications.map((item) => [
-                  dateText(item.createdAt),
-                  item.kind === "user" ? "User" : "Bot",
-                  item.userId || "-",
-                  item.title,
-                  item.detail,
-                ]) as ReactNode[][]}
-              />
+              {overviewRecentNotifications.length ? (
+                <SimpleTable
+                  headers={["Thời điểm", "Nguồn", "Khách", "Nội dung", "Chi tiết"]}
+                  rows={overviewRecentNotifications.map((item) => [
+                    dateText(item.createdAt),
+                    <span key={`${item.key}-kind`} className={`overview-pill ${item.kind === "user" ? "user" : "bot"}`}>{item.kind === "user" ? "User" : "Bot"}</span>,
+                    item.userId || "-",
+                    item.title,
+                    item.detail,
+                  ]) as ReactNode[][]}
+                />
+              ) : (
+                <Stack spacing={1.25}>
+                  <div className="overview-empty">Chưa có nhật ký bot đáng chú ý.</div>
+                  <div className="overview-skeleton card" />
+                </Stack>
+              )}
             </Card>
           </Stack>
         ) : null}

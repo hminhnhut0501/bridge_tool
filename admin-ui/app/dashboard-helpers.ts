@@ -220,6 +220,14 @@ export function activityEventLabel(type: string) {
   return labels[type] || type || "Sự kiện";
 }
 
+export function activityEventBadgeTone(type: string) {
+  const normalized = String(type || "").trim().toLowerCase();
+  if (normalized.includes("error") || normalized.includes("fail") || normalized.includes("kick") || normalized.includes("blocked")) return "bad";
+  if (normalized.includes("paid") || normalized.includes("activated") || normalized.includes("joined") || normalized.includes("success")) return "good";
+  if (normalized.includes("start") || normalized.includes("command") || normalized.includes("message") || normalized.includes("callback")) return "user";
+  return "warning";
+}
+
 export function activityEventDetailLabel(eventType: string, title: string, detail: string) {
   if (eventType === "callback_query" || eventType === "callback") return detail || title || "Bấm nút";
   if (eventType === "command") return detail || title || "Lệnh bot";
