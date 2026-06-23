@@ -6223,20 +6223,20 @@ export default function Home() {
                 <Box
                   component="aside"
                   sx={{
-                    width: { xs: "100%", md: 300 },
+                    width: { xs: "100%", md: 260 },
                     flexShrink: 0,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 2,
-                    p: 2,
+                    gap: 1.5,
+                    p: 1.5,
                     border: 1,
                     borderColor: "divider",
                     bgcolor: "background.paper",
-                    borderRadius: 4,
-                    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
+                    borderRadius: 3,
+                    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.05)",
                   }}
                 >
-                  <Box sx={{ p: 1.5, borderRadius: 4, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ p: 1.25, borderRadius: 3, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
                     {selectedCustomerIsBlacklisted ? (
                       <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                         <Chip size="small" color="error" variant="outlined" label="Blacklist" sx={{ height: 22, fontSize: 11, fontWeight: 800 }} />
@@ -6256,7 +6256,7 @@ export default function Home() {
                     />
                       );
                     })()}
-                    <Stack spacing={1.25}>
+                    <Stack spacing={1}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">Đơn PAID</Typography>
                         <Typography sx={{ fontWeight: 800 }}>{selectedCustomer.paidOrders.length}</Typography>
@@ -6274,21 +6274,21 @@ export default function Home() {
                         <Typography sx={{ fontWeight: 800 }}>{money(selectedCustomer.revenue)}</Typography>
                       </Box>
                     </Stack>
-                    <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 4, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
+                    <Box sx={{ mt: 1.25, p: 1.25, borderRadius: 3, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
                       <Typography variant="body2" color="text.secondary">Gia hạn nhanh</Typography>
-                      <Typography sx={{ fontWeight: 800, mt: 0.25 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
+                      <Typography sx={{ fontWeight: 800, mt: 0.25, fontSize: 15 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
                       <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
                         <Button
                           variant="contained"
                           size="small"
                           onClick={openCustomerRenewModal}
-                          sx={{ borderRadius: 999, minWidth: 96 }}
+                          sx={{ borderRadius: 999, minWidth: 96, px: 1.5 }}
                         >
                           Tạo gia hạn
                         </Button>
                       </Stack>
                     </Box>
-                    <Box sx={{ mt: 1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                    <Box sx={{ mt: 1.25, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                       {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
                       {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
                     </Box>
@@ -6345,23 +6345,47 @@ export default function Home() {
                 ) : null}
                 {customerDetailTab === "groups" ? (
                     <>
-                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
+                    <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 1.5 }}>
                       <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} icon={<Users size={16} />} />
                       <Metric label="Group còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} icon={<ShieldCheck size={16} />} />
                       <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} icon={<ClipboardList size={16} />} />
                       <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} icon={<Eye size={16} />} />
                     </Box>
-                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 2 }}>
+                    <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, mb: 1.5 }}>
                       <Metric label="Group giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} icon={<CheckCircle2 size={16} />} />
                       <Metric label="Group đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} icon={<XCircle size={16} />} />
                       <Metric label="Nhóm active hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} icon={<Users size={16} />} />
                       <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} icon={<Activity size={16} />} />
                     </Box>
-                    <section className="panel nested-panel">
-                      <PanelHead title="Nhóm còn active" subtitle="Nhóm mà user vẫn đang có quyền theo dữ liệu đơn hàng hiện tại." />
+                    <section className="panel nested-panel" style={{ borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: "var(--mui-palette-primary-main)" }}>
+                      <PanelHead title="Nhóm còn active" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
                       {selectedCustomerActiveGroups.length ? (
-                        <div className="tag-list">
-                          {selectedCustomerActiveGroups.map((group) => <span key={group}>{group}</span>)}
+                        <div
+                          className="tag-list"
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "10px",
+                            padding: "6px 0 2px",
+                          }}
+                        >
+                          {selectedCustomerActiveGroups.map((group) => (
+                            <span
+                              key={group}
+                              style={{
+                                fontSize: "14px",
+                                fontWeight: 800,
+                                padding: "10px 14px",
+                                borderRadius: "999px",
+                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
+                                border: "1px solid rgba(37,99,235,0.18)",
+                                color: "#1e3a8a",
+                                boxShadow: "0 8px 18px rgba(37,99,235,0.08)",
+                              }}
+                            >
+                              {group}
+                            </span>
+                          ))}
                         </div>
                       ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
                     </section>
