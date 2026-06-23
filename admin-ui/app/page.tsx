@@ -6735,6 +6735,22 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
   return (
     <Stack spacing={1.5}>
       {sorted.map((order) => (
+        (() => {
+          const canEdit = String(order.status || "").toUpperCase() === "PAID";
+          const cardSx = canEdit
+            ? undefined
+            : {
+                opacity: 0.72,
+                filter: "grayscale(0.95)",
+                bgcolor: "#f8fafc",
+                borderColor: "divider",
+                "&:hover": {
+                  transform: "none",
+                  boxShadow: "0 14px 30px rgba(15, 23, 42, 0.04)",
+                  borderColor: "divider",
+                },
+              };
+          return (
         <Card
           key={order.order_id}
           variant="outlined"
@@ -6750,6 +6766,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             },
             backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%)",
             boxShadow: "0 14px 30px rgba(15, 23, 42, 0.06)",
+            ...cardSx,
           }}
         >
           <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
@@ -6796,8 +6813,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
               <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                  <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} />
-                  <Button variant="contained" size="small" disabled={saving === `order-plan-${order.order_id}`} onClick={() => {
+                  <TextField defaultValue={order.plan_name} id={`plan-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} disabled={!canEdit} helperText={!canEdit ? "Chỉ xem vì đơn chưa PAID." : ""} />
+                  <Button variant="contained" size="small" disabled={!canEdit || saving === `order-plan-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`plan-${order.order_id}`) as HTMLInputElement | null;
                     onPlanChange(order.order_id, input?.value || "");
                   }} sx={{ borderRadius: 4, minWidth: 72 }}>Lưu</Button>
@@ -6813,15 +6830,15 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     variant="outlined"
                     sx={customerOrderStateChipSx(order.status, isOrderActive(order), daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3)}
                   />
-                  <Typography variant="caption" color="text.secondary">Chỉ xem nhanh, không chỉnh ở đây.</Typography>
+                  <Typography variant="caption" color="text.secondary">{canEdit ? "Chỉ xem nhanh, không chỉnh ở đây." : "Đơn chưa PAID nên chỉ theo dõi, không chỉnh sửa."}</Typography>
                 </Box>
               </Box>
 
               <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Cập nhật hạn</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                  <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} slotProps={{ inputLabel: { shrink: true } }} />
-                  <Button variant="contained" size="small" disabled={saving === `order-expire-${order.order_id}`} onClick={() => {
+                  <TextField type="datetime-local" defaultValue={orderExpireValue(order.expire_at)} id={`expire-${order.order_id}`} size="small" fullWidth sx={customerPopupInputSx} slotProps={{ inputLabel: { shrink: true } }} disabled={!canEdit} helperText={!canEdit ? "Chỉ xem vì đơn chưa PAID." : ""} />
+                  <Button variant="contained" size="small" disabled={!canEdit || saving === `order-expire-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
                   }} sx={{ borderRadius: 4, minWidth: 84 }}>Lưu hạn</Button>
@@ -6831,6 +6848,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
             </Box>
           </CardContent>
         </Card>
+          );
+        })()
       ))}
     </Stack>
   );
