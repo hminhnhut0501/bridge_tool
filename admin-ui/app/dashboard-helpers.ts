@@ -269,6 +269,22 @@ export function orderStatusLabel(status: string | null | undefined) {
   return labels[value] || displayText(status) || "-";
 }
 
+export function orderLifecycleLabel(order: Order) {
+  const status = String(order.status || "").toUpperCase();
+  const active = isOrderActive(order);
+  if (status === "PAID" && active) return "Đang active";
+  if (status === "PAID" && !active) {
+    return isLifetimeText(order.plan_name) ? "Trọn đời" : "VIP đã hết hạn";
+  }
+  if (status === "PENDING") {
+    return order.expire_at && new Date(order.expire_at).getTime() < Date.now()
+      ? "Chưa thanh toán / quá hạn"
+      : "Đang chờ thanh toán";
+  }
+  if (status === "EXPIRED") return "Hết hạn / chờ kick";
+  return orderStatusLabel(order.status);
+}
+
 export function channelPostStatusLabel(status: string) {
   const value = String(status || "").toLowerCase();
   const labels: Record<string, string> = {

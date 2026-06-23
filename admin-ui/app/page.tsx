@@ -97,6 +97,7 @@ import {
   normalizeRevenueCurrency,
   orderCouponCode,
   orderExpireValue,
+  orderLifecycleLabel,
   orderPlanKind,
   orderMoney,
   payloadText,
@@ -6729,7 +6730,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
     const normalized = String(order.status || "").toUpperCase();
     const active = isOrderActive(order);
     const expiringSoon = daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3;
-    return <Chip size="small" label={String(order.status || "-")} variant="outlined" sx={customerOrderStateChipSx(normalized, active, expiringSoon)} />;
+    return <Chip size="small" label={orderLifecycleLabel(order)} variant="outlined" sx={customerOrderStateChipSx(normalized, active, expiringSoon)} />;
   };
   return (
     <Stack spacing={1.5}>
@@ -6782,7 +6783,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
                   {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={statusChipSx("purple")} /> : null}
-                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label="Hết hạn" variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
+                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label={String(order.status || "").toUpperCase() === "PENDING" ? "Chưa thanh toán / quá hạn" : "VIP đã hết hạn"} variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
               <Box sx={customerInnerCardSx}>
