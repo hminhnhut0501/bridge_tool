@@ -897,6 +897,13 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     help: "Tin hiển thị khi khách cũ bị chặn auto payment.",
     kind: "textarea",
   },
+  {
+    key: "MSG_MANUAL_SUPPORT_REDIRECT",
+    label: "Tin chuyển sang bot hỗ trợ",
+    placeholder: "⚠️ Thanh toán tự động hiện không hoạt động! Vui lòng liên hệ nhân viên hỗ trợ để mua gói VIP 👑",
+    help: "Tin đi kèm nút bot hỗ trợ khi auto payment bị chặn.",
+    kind: "textarea",
+  },
 ];
 
 const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
@@ -5550,7 +5557,7 @@ export default function Home() {
             <div className="two-col">
               <ConfigEditor
                 title="Bot hỗ trợ"
-                subtitle="Link bot và tin nhắn hỗ trợ thủ công cho khách Việt."
+                subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách Việt."
                 fields={AUTO_PAYMENT_SUPPORT_FIELDS}
                 values={fieldValues}
                 setValues={setFieldValues}
@@ -5558,7 +5565,7 @@ export default function Home() {
               />
               <ConfigEditor
                 title="Bot hỗ trợ tiếng Anh"
-                subtitle="Tin nhắn hỗ trợ thủ công cho khách nước ngoài."
+                subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách nước ngoài."
                 fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
                 values={fieldValues}
                 setValues={setFieldValues}
