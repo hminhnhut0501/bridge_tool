@@ -279,6 +279,37 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
         assert should_allow_auto_payment("42") is True
 
 
+def test_english_customer_uses_separate_auto_payment_flow():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return [{"order_id": "1", "plan_name": "VIP 30 Ngày"}]
+
+    config = {
+        "AUTO_PAYMENT_EN_RETURNING_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_RETURNING_WINDOWS": "22:00-06:00",
+    }
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.customer_segment_key",
+        return_value="en",
+    ), patch(
+        "modules.mod_auto_payment_schedule.auto_payment_schedule_active_for_tier",
+        return_value=True,
+    ):
+        assert has_prior_paid_vip_order("42") is True
+        assert should_allow_auto_payment("42") is True
+
+
 def test_create_payment_for_user_blocks_new_customer_when_auto_payment_is_off():
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
         "modules.mod_payment.auto_payment_gate_message",
@@ -500,7 +531,7 @@ def test_auto_payment_schedule_does_not_spam_audit_when_state_is_unchanged():
         from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
         import modules.mod_auto_payment_schedule as schedule_module
 
-        schedule_module._LAST_SCHEDULE_STATE = {"new": None, "returning": None}
+        schedule_module._LAST_SCHEDULE_STATE = {"vi": {"new": None, "returning": None}, "en": {"new": None, "returning": None}}
 
         result = apply_auto_payment_schedule(datetime(2026, 6, 22, 23, 30, 0))
         assert result["new_active"] is True

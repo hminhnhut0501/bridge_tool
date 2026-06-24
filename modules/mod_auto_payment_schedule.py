@@ -9,7 +9,7 @@ from aiogram import Router
 from database import db
 from supabase_store import supabase_store
 router = Router()
-_LAST_SCHEDULE_STATE = {"new": None, "returning": None}
+_LAST_SCHEDULE_STATE = {"vi": {"new": None, "returning": None}, "en": {"new": None, "returning": None}}
 
 
 def bot_timezone():
@@ -33,20 +33,95 @@ def tier_prefix(tier: str):
     return "RETURNING" if tier_key(tier) == "returning" else "NEW"
 
 
-def payment_tier_enabled(tier: str):
+def customer_segment_key(user_id=None):
+    try:
+        from i18n import get_user_language
+
+        return "en" if get_user_language(user_id) == "en" else "vi"
+    except Exception:
+        return "vi"
+
+
+def segment_prefix(segment: str):
+    return "EN" if str(segment or "").strip().lower() == "en" else "VI"
+
+
+def legacy_tier_enabled_key(tier: str):
+    return f"AUTO_PAYMENT_{tier_prefix(tier)}_ENABLED"
+
+
+def legacy_tier_schedule_key(tier: str):
+    return f"AUTO_PAYMENT_{tier_prefix(tier)}_SCHEDULE_ENABLED"
+
+
+def legacy_tier_windows_key(tier: str):
+    return f"AUTO_PAYMENT_{tier_prefix(tier)}_WINDOWS"
+
+
+def _payment_tier_enabled(segment: str, tier: str):
     prefix = tier_prefix(tier)
+    segment_key = f"AUTO_PAYMENT_{segment_prefix(segment)}_{prefix}_ENABLED"
     default = "ON" if prefix == "RETURNING" else "OFF"
-    return config_enabled(f"AUTO_PAYMENT_{prefix}_ENABLED", default)
+    value = db.get_config(segment_key, "")
+    if str(value).strip() != "":
+        return config_enabled(segment_key, default)
+    return config_enabled(legacy_tier_enabled_key(tier), default)
 
 
-def payment_tier_schedule_enabled(tier: str):
-    prefix = tier_prefix(tier)
-    return config_enabled(f"AUTO_PAYMENT_{prefix}_SCHEDULE_ENABLED", "ON")
+def _payment_tier_schedule_enabled(segment: str, tier: str):
+    segment_key = f"AUTO_PAYMENT_{segment_prefix(segment)}_{tier_prefix(tier)}_SCHEDULE_ENABLED"
+    value = db.get_config(segment_key, "")
+    if str(value).strip() != "":
+        return config_enabled(segment_key, "ON")
+    return config_enabled(legacy_tier_schedule_key(tier), "ON")
 
 
-def payment_tier_windows(tier: str):
-    prefix = tier_prefix(tier)
-    return db.get_config(f"AUTO_PAYMENT_{prefix}_WINDOWS", "22:00-06:00")
+def _payment_tier_windows(segment: str, tier: str):
+    segment_key = f"AUTO_PAYMENT_{segment_prefix(segment)}_{tier_prefix(tier)}_WINDOWS"
+    value = db.get_config(segment_key, "")
+    if str(value).strip() != "":
+        return value
+    return db.get_config(legacy_tier_windows_key(tier), "22:00-06:00")
+
+
+def payment_tier_enabled_for_user(user_id, tier: str):
+    return _payment_tier_enabled(customer_segment_key(user_id), tier)
+
+
+def payment_tier_schedule_enabled_for_user(user_id, tier: str):
+    return _payment_tier_schedule_enabled(customer_segment_key(user_id), tier)
+
+
+def payment_tier_windows_for_user(user_id, tier: str):
+    return _payment_tier_windows(customer_segment_key(user_id), tier)
+
+
+def payment_tier_enabled_vi(tier: str):
+    return _payment_tier_enabled("vi", tier)
+
+
+def payment_tier_schedule_enabled_vi(tier: str):
+    return _payment_tier_schedule_enabled("vi", tier)
+
+
+def payment_tier_windows_vi(tier: str):
+    return _payment_tier_windows("vi", tier)
+
+
+def payment_tier_enabled_en(tier: str):
+    return _payment_tier_enabled("en", tier)
+
+
+def payment_tier_schedule_enabled_en(tier: str):
+    return _payment_tier_schedule_enabled("en", tier)
+
+
+def payment_tier_windows_en(tier: str):
+    return _payment_tier_windows("en", tier)
+
+
+def payment_tier_enabled(tier: str):
+    return payment_tier_enabled_vi(tier)
 
 
 def poll_interval_seconds():
@@ -79,12 +154,12 @@ def time_in_window(current_time, start, end):
     return current_time >= start or current_time < end
 
 
-def auto_payment_schedule_active_for_tier(tier: str, now=None):
-    if not payment_tier_enabled(tier):
+def auto_payment_schedule_active_for_tier(tier: str, now=None, segment="vi"):
+    if not _payment_tier_enabled(segment, tier):
         return False
-    if not payment_tier_schedule_enabled(tier):
+    if not _payment_tier_schedule_enabled(segment, tier):
         return False
-    windows = parse_windows(payment_tier_windows(tier))
+    windows = parse_windows(_payment_tier_windows(segment, tier))
     if not windows:
         return False
     local_now = now or datetime.now(bot_timezone())
@@ -100,42 +175,68 @@ def auto_payment_allowed_for_user(user_id, now=None):
     from modules.mod_payment import has_prior_paid_vip_order
 
     tier = "returning" if str(user_id).strip() and has_prior_paid_vip_order(user_id) else "new"
-    return auto_payment_schedule_active_for_tier(tier, now)
+    segment = customer_segment_key(user_id)
+    return auto_payment_schedule_active_for_tier(tier, now, segment=segment)
 
 
 def apply_auto_payment_schedule(now=None):
-    new_active = auto_payment_schedule_active_for_tier("new", now)
-    returning_active = auto_payment_schedule_active_for_tier("returning", now)
+    vi_new_active = auto_payment_schedule_active_for_tier("new", now, segment="vi")
+    vi_returning_active = auto_payment_schedule_active_for_tier("returning", now, segment="vi")
+    en_new_active = auto_payment_schedule_active_for_tier("new", now, segment="en")
+    en_returning_active = auto_payment_schedule_active_for_tier("returning", now, segment="en")
     audit_now = (now or datetime.now(bot_timezone())).strftime("%Y-%m-%d %H:%M:%S")
     audit_payload = {
+        "AUTO_PAYMENT_VI_NEW_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_VI_NEW_LAST_CHECK_RESULT": "ON" if vi_new_active else "OFF",
+        "AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_RESULT": "ON" if vi_returning_active else "OFF",
+        "AUTO_PAYMENT_EN_NEW_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_EN_NEW_LAST_CHECK_RESULT": "ON" if en_new_active else "OFF",
+        "AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_AT": audit_now,
+        "AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_RESULT": "ON" if en_returning_active else "OFF",
         "AUTO_PAYMENT_NEW_LAST_CHECK_AT": audit_now,
-        "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT": "ON" if new_active else "OFF",
+        "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT": "ON" if vi_new_active else "OFF",
         "AUTO_PAYMENT_RETURNING_LAST_CHECK_AT": audit_now,
-        "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT": "ON" if returning_active else "OFF",
+        "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT": "ON" if vi_returning_active else "OFF",
     }
     for key, value in audit_payload.items():
         db.set_config(key, value)
-    state_changed = _LAST_SCHEDULE_STATE["new"] != new_active or _LAST_SCHEDULE_STATE["returning"] != returning_active
-    _LAST_SCHEDULE_STATE["new"] = new_active
-    _LAST_SCHEDULE_STATE["returning"] = returning_active
+    state_changed = (
+        _LAST_SCHEDULE_STATE["vi"]["new"] != vi_new_active
+        or _LAST_SCHEDULE_STATE["vi"]["returning"] != vi_returning_active
+        or _LAST_SCHEDULE_STATE["en"]["new"] != en_new_active
+        or _LAST_SCHEDULE_STATE["en"]["returning"] != en_returning_active
+    )
+    _LAST_SCHEDULE_STATE["vi"]["new"] = vi_new_active
+    _LAST_SCHEDULE_STATE["vi"]["returning"] = vi_returning_active
+    _LAST_SCHEDULE_STATE["en"]["new"] = en_new_active
+    _LAST_SCHEDULE_STATE["en"]["returning"] = en_returning_active
     if supabase_store.enabled and state_changed:
         try:
             supabase_store.record_support_event(
                 "auto_payment_schedule_toggled",
                 None,
                 raw_data={
-                    "new_active": new_active,
-                    "returning_active": returning_active,
+                    "vi_new_active": vi_new_active,
+                    "vi_returning_active": vi_returning_active,
+                    "en_new_active": en_new_active,
+                    "en_returning_active": en_returning_active,
                     "scheduled_at": audit_now,
-                    "new_window": payment_tier_windows("new"),
-                    "returning_window": payment_tier_windows("returning"),
+                    "vi_new_window": _payment_tier_windows("vi", "new"),
+                    "vi_returning_window": _payment_tier_windows("vi", "returning"),
+                    "en_new_window": _payment_tier_windows("en", "new"),
+                    "en_returning_window": _payment_tier_windows("en", "returning"),
                 },
             )
         except Exception as exc:
             logging.warning("⚠️ Không ghi được audit auto payment schedule: %s", exc)
     return {
-        "new_active": new_active,
-        "returning_active": returning_active,
+        "vi_new_active": vi_new_active,
+        "vi_returning_active": vi_returning_active,
+        "en_new_active": en_new_active,
+        "en_returning_active": en_returning_active,
+        "new_active": vi_new_active,
+        "returning_active": vi_returning_active,
         "state_changed": state_changed,
     }
 
@@ -147,9 +248,11 @@ async def auto_payment_schedule_worker():
             result = apply_auto_payment_schedule()
             if result["state_changed"]:
                 logging.info(
-                    "🔁 Auto payment schedule new=%s returning=%s",
-                    "ON" if result["new_active"] else "OFF",
-                    "ON" if result["returning_active"] else "OFF",
+                    "🔁 Auto payment schedule vi(new=%s returning=%s) en(new=%s returning=%s)",
+                    "ON" if result["vi_new_active"] else "OFF",
+                    "ON" if result["vi_returning_active"] else "OFF",
+                    "ON" if result["en_new_active"] else "OFF",
+                    "ON" if result["en_returning_active"] else "OFF",
                 )
         except Exception as exc:
             logging.error("❌ Auto payment schedule worker lỗi: %s", exc)

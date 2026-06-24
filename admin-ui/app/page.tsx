@@ -776,55 +776,102 @@ const PAYMENT_FIELDS: ConfigField[] = [
   },
 ];
 
-const AUTO_PAYMENT_FIELDS: ConfigField[] = [
+const AUTO_PAYMENT_VI_FIELDS: ConfigField[] = [
   {
-    key: "AUTO_PAYMENT_NEW_ENABLED",
-    label: "Khách mới: bật thanh toán tự động",
+    key: "AUTO_PAYMENT_VI_NEW_ENABLED",
+    label: "Khách mới (VI): bật thanh toán tự động",
     placeholder: "ON",
-    help: "Bật ON để khách mới được đi auto payment khi khung giờ cho phép cũng bật.",
+    help: "Bật ON để khách Việt mới được đi auto payment khi khung giờ cho phép cũng bật.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED",
-    label: "Khách mới: bật khung giờ",
+    key: "AUTO_PAYMENT_VI_NEW_SCHEDULE_ENABLED",
+    label: "Khách mới (VI): bật khung giờ",
     placeholder: "ON",
-    help: "Bật ON để áp dụng khung giờ cho khách mới. Tắt thì khách mới luôn theo cờ bật/tắt chính.",
+    help: "Bật ON để áp dụng khung giờ cho khách Việt mới. Tắt thì khách mới luôn theo cờ bật/tắt chính.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "AUTO_PAYMENT_NEW_WINDOWS",
-    label: "Khách mới: khung giờ",
+    key: "AUTO_PAYMENT_VI_NEW_WINDOWS",
+    label: "Khách mới (VI): khung giờ",
     placeholder: "22:00-06:00",
     help: "Nhập theo giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy. Ví dụ: 22:00-06:00 hoặc 22:00-23:30,00:30-06:00.",
   },
   {
-    key: "AUTO_PAYMENT_RETURNING_ENABLED",
-    label: "Khách cũ: bật thanh toán tự động",
+    key: "AUTO_PAYMENT_VI_RETURNING_ENABLED",
+    label: "Khách cũ (VI): bật thanh toán tự động",
     placeholder: "ON",
-    help: "Bật ON để khách cũ được đi auto payment khi khung giờ cho phép cũng bật.",
+    help: "Bật ON để khách Việt cũ được đi auto payment khi khung giờ cho phép cũng bật.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED",
-    label: "Khách cũ: bật khung giờ",
+    key: "AUTO_PAYMENT_VI_RETURNING_SCHEDULE_ENABLED",
+    label: "Khách cũ (VI): bật khung giờ",
     placeholder: "ON",
-    help: "Bật ON để áp dụng khung giờ cho khách cũ. Tắt thì khách cũ luôn theo cờ bật/tắt chính.",
+    help: "Bật ON để áp dụng khung giờ cho khách Việt cũ. Tắt thì khách cũ luôn theo cờ bật/tắt chính.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "AUTO_PAYMENT_RETURNING_WINDOWS",
-    label: "Khách cũ: khung giờ",
+    key: "AUTO_PAYMENT_VI_RETURNING_WINDOWS",
+    label: "Khách cũ (VI): khung giờ",
     placeholder: "22:00-06:00",
     help: "Nhập theo giờ Việt Nam. Có thể nhập nhiều khung, cách nhau bằng dấu phẩy. Ví dụ: 22:00-06:00 hoặc 22:00-23:30,00:30-06:00.",
+  },
+];
+
+const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
+  {
+    key: "AUTO_PAYMENT_EN_NEW_ENABLED",
+    label: "New users (EN): auto payment",
+    placeholder: "ON",
+    help: "Turn ON to let English-speaking new users use auto payment when schedule is also enabled.",
+    kind: "select",
+    options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_EN_NEW_SCHEDULE_ENABLED",
+    label: "New users (EN): time window",
+    placeholder: "ON",
+    help: "Turn ON to enforce time windows for English-speaking new users.",
+    kind: "select",
+    options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_EN_NEW_WINDOWS",
+    label: "New users (EN): windows",
+    placeholder: "22:00-06:00",
+    help: "Example: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
+  },
+  {
+    key: "AUTO_PAYMENT_EN_RETURNING_ENABLED",
+    label: "Returning users (EN): auto payment",
+    placeholder: "ON",
+    help: "Turn ON to let English-speaking returning users use auto payment when schedule is also enabled.",
+    kind: "select",
+    options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED",
+    label: "Returning users (EN): time window",
+    placeholder: "ON",
+    help: "Turn ON to enforce time windows for English-speaking returning users.",
+    kind: "select",
+    options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
+  },
+  {
+    key: "AUTO_PAYMENT_EN_RETURNING_WINDOWS",
+    label: "Returning users (EN): windows",
+    placeholder: "22:00-06:00",
+    help: "Example: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_URL",
     label: "Deep link bot hỗ trợ",
-    placeholder: "https://t.me/cuhotro_bot?start=act_{payload}",
+    placeholder: "https://t.me/cuhotro_bot?start={payload}",
     help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn. Với link kích hoạt đơn, prefix mặc định là act_.",
   },
   {
@@ -842,9 +889,32 @@ const AUTO_PAYMENT_FIELDS: ConfigField[] = [
   },
 ];
 
-const AUTO_PAYMENT_NEW_FIELDS = AUTO_PAYMENT_FIELDS.slice(0, 3);
-const AUTO_PAYMENT_RETURNING_FIELDS = AUTO_PAYMENT_FIELDS.slice(3, 6);
-const AUTO_PAYMENT_SUPPORT_FIELDS = AUTO_PAYMENT_FIELDS.slice(6);
+const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
+  {
+    key: "MANUAL_SUPPORT_BOT_URL",
+    label: "Deep link bot hỗ trợ",
+    placeholder: "https://t.me/cuhotro_bot?start={payload}",
+    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn. Với link kích hoạt đơn, prefix mặc định là act_.",
+  },
+  {
+    key: "MANUAL_SUPPORT_BOT_LABEL",
+    label: "Text nút bot hỗ trợ",
+    placeholder: "💬 Mở bot hỗ trợ",
+    help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
+  },
+  {
+    key: "MSG_MANUAL_SUPPORT_REDIRECT",
+    label: "Tin chuyển sang bot hỗ trợ",
+    placeholder: "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+    help: "Tin nhắn bot gửi kèm nút khi auto payment bị chặn, để khách/admin sang xử lý thủ công.",
+    kind: "textarea",
+  },
+];
+
+const AUTO_PAYMENT_VI_NEW_FIELDS = AUTO_PAYMENT_VI_FIELDS.slice(0, 3);
+const AUTO_PAYMENT_VI_RETURNING_FIELDS = AUTO_PAYMENT_VI_FIELDS.slice(3, 6);
+const AUTO_PAYMENT_EN_NEW_FIELDS = AUTO_PAYMENT_EN_FIELDS.slice(0, 3);
+const AUTO_PAYMENT_EN_RETURNING_FIELDS = AUTO_PAYMENT_EN_FIELDS.slice(3, 6);
 
 const RENEWAL_FIELDS: ConfigField[] = [
   {
@@ -2241,7 +2311,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     setFieldValues(nextValues);
@@ -2747,16 +2817,16 @@ export default function Home() {
     await runAction(enabled ? "auto-payment-schedule-on" : "auto-payment-schedule-off", async () => {
       const items = enabled
         ? [
-          { key: "AUTO_PAYMENT_NEW_ENABLED", value: "ON" },
-          { key: "AUTO_PAYMENT_NEW_SCHEDULE_ENABLED", value: "ON" },
-          { key: "AUTO_PAYMENT_NEW_WINDOWS", value: "22:00-06:00" },
-          { key: "AUTO_PAYMENT_RETURNING_ENABLED", value: "ON" },
-          { key: "AUTO_PAYMENT_RETURNING_SCHEDULE_ENABLED", value: "ON" },
-          { key: "AUTO_PAYMENT_RETURNING_WINDOWS", value: "22:00-06:00" },
+          { key: "AUTO_PAYMENT_VI_NEW_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_VI_NEW_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_VI_NEW_WINDOWS", value: "22:00-06:00" },
+          { key: "AUTO_PAYMENT_VI_RETURNING_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_VI_RETURNING_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_VI_RETURNING_WINDOWS", value: "22:00-06:00" },
         ]
         : [
-          { key: "AUTO_PAYMENT_NEW_ENABLED", value: "OFF" },
-          { key: "AUTO_PAYMENT_RETURNING_ENABLED", value: "OFF" },
+          { key: "AUTO_PAYMENT_VI_NEW_ENABLED", value: "OFF" },
+          { key: "AUTO_PAYMENT_VI_RETURNING_ENABLED", value: "OFF" },
         ];
       const res = await updateConfigs(savedSecret, items);
       const changedKeys = new Set(items.map((item) => item.key));
@@ -2764,7 +2834,7 @@ export default function Home() {
         ...current.filter((item) => !changedKeys.has(item.key)),
         ...res.data,
       ]);
-      showNotice("ok", enabled ? "Đã bật lịch auto payment cho cả 2 tệp khách." : "Đã tắt auto payment cho cả 2 tệp khách.");
+      showNotice("ok", enabled ? "Đã bật lịch auto payment cho khách Việt." : "Đã tắt auto payment cho khách Việt.");
     });
   }
 
@@ -5348,54 +5418,60 @@ export default function Home() {
             <section className="panel content-hub">
               <PanelHead
                 title="Auto payment"
-                subtitle="Gom theo đúng flow mới: khách mới, khách cũ, lịch giờ cho phép và chuyển sang bot hỗ trợ khi bị chặn."
+                subtitle="Tách riêng theo ngôn ngữ và tệp khách: khách Việt, khách nước ngoài, cùng bot hỗ trợ và audit gần nhất."
               />
               <div className="hint">
-                Lịch được hiểu theo giờ Việt Nam. Quy tắc bên dưới áp dụng riêng cho từng tệp khách, không còn dùng chung một logic cũ nữa.
+                Khách Việt dùng bộ config VI, khách nước ngoài dùng bộ config EN. Mỗi bộ có cờ bật/tắt và khung giờ riêng cho khách mới và khách cũ.
               </div>
-              <div className="panel-actions" style={{ padding: "0 16px 16px" }}>
+              <div className="panel-actions" style={{ padding: "0 16px 16px", flexWrap: "wrap" }}>
                 <Button variant="contained" size="small" onClick={() => quickSetAutoPaymentWindow(true)} startIcon={<CalendarClock size={16} />}>
-                  Bật ngay 22:00-06:00
+                  Bật nhanh lịch VI
                 </Button>
                 <Button variant="outlined" size="small" onClick={() => quickSetAutoPaymentWindow(false)} startIcon={<Settings size={16} />}>
-                  Tắt lịch
+                  Tắt lịch VI
                 </Button>
               </div>
             </section>
             <div className="grid">
-              <Metric label="Khách mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF")} icon={<CalendarClock size={16} />} />
-              <Metric label="Khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON")} icon={<Settings size={16} />} />
-              <Metric label="Khung mới" value={getConfigValue(config, "AUTO_PAYMENT_NEW_WINDOWS", "22:00-06:00")} icon={<Clock3 size={16} />} />
-              <Metric label="Khung cũ" value={getConfigValue(config, "AUTO_PAYMENT_RETURNING_WINDOWS", "22:00-06:00")} icon={<CheckCircle2 size={16} />} />
+              <Metric label="VI khách mới" value={getConfigValue(config, "AUTO_PAYMENT_VI_NEW_ENABLED", getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF"))} icon={<CalendarClock size={16} />} />
+              <Metric label="VI khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_ENABLED", getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON"))} icon={<Settings size={16} />} />
+              <Metric label="EN khách mới" value={getConfigValue(config, "AUTO_PAYMENT_EN_NEW_ENABLED", "OFF")} icon={<Clock3 size={16} />} />
+              <Metric label="EN khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_ENABLED", "ON")} icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
-              <PanelHead title="Audit gần nhất" subtitle="Worker ghi lại lần check gần nhất của từng tệp để admin kiểm tra nhanh." />
+              <PanelHead title="Audit gần nhất" subtitle="Worker ghi lại trạng thái mới nhất của từng tệp theo ngôn ngữ để admin kiểm tra nhanh." />
               <SimpleTable
                 headers={["Key", "Giá trị"]}
                 rows={[
-                  ["AUTO_PAYMENT_NEW_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_AT", "-") || "-"],
-                  ["AUTO_PAYMENT_NEW_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT", "-") || "-"],
-                  ["AUTO_PAYMENT_RETURNING_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_AT", "-") || "-"],
-                  ["AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT", "-") || "-"],
+                  ["AUTO_PAYMENT_VI_NEW_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_VI_NEW_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_AT", "-")) || "-"],
+                  ["AUTO_PAYMENT_VI_NEW_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_VI_NEW_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_NEW_LAST_CHECK_RESULT", "-")) || "-"],
+                  ["AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_AT", "-")) || "-"],
+                  ["AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_RETURNING_LAST_CHECK_RESULT", "-")) || "-"],
+                  ["AUTO_PAYMENT_EN_NEW_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_EN_NEW_LAST_CHECK_AT", "-") || "-"],
+                  ["AUTO_PAYMENT_EN_NEW_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_EN_NEW_LAST_CHECK_RESULT", "-") || "-"],
+                  ["AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_AT", getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_AT", "-") || "-"],
+                  ["AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_RESULT", getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_LAST_CHECK_RESULT", "-") || "-"],
                 ]}
               />
             </section>
-            <ConfigEditor
-              title="Khách mới"
-              subtitle="Luồng dành riêng cho khách lần đầu. Tắt để chặn thanh toán tự động cho user chưa từng mua."
-              fields={AUTO_PAYMENT_NEW_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
-            <ConfigEditor
-              title="Khách cũ"
-              subtitle="Luồng dành riêng cho khách đã từng mua. Có thể bật/tắt tự động và khung giờ riêng."
-              fields={AUTO_PAYMENT_RETURNING_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
+            <div className="two-col">
+              <ConfigEditor
+                title="Khách Việt"
+                subtitle="Bộ riêng cho khách nội địa, giữ tương thích với cấu hình cũ trong giai đoạn chuyển đổi."
+                fields={[...AUTO_PAYMENT_VI_NEW_FIELDS, ...AUTO_PAYMENT_VI_RETURNING_FIELDS]}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+              <ConfigEditor
+                title="Khách nước ngoài"
+                subtitle="Bộ riêng cho khách tiếng Anh, không dùng chung lịch với khách Việt."
+                fields={[...AUTO_PAYMENT_EN_NEW_FIELDS, ...AUTO_PAYMENT_EN_RETURNING_FIELDS]}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+            </div>
             <ConfigEditor
               title="Bot hỗ trợ"
               subtitle="Cấu hình redirect deep link và nội dung bot gửi khi auto payment bị chặn."
