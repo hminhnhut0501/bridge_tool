@@ -1396,6 +1396,20 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
+    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+    label: "Tin chặn khách mới auto payment",
+    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+    help: "Tin hiển thị khi khách mới bị chặn auto payment.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
+    label: "Tin chặn khách cũ auto payment",
+    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
+    help: "Tin hiển thị khi khách cũ bị chặn auto payment.",
+    kind: "textarea",
+  },
+  {
     key: "MSG_TIMEOUT_QR",
     label: "Tin khi QR hết hạn",
     placeholder: "⏳ Mã QR đã hết hạn sau {minutes} phút. Vui lòng tạo đơn mới để thanh toán.",
