@@ -496,8 +496,19 @@ def auto_payment_gate_message(user_id):
 
 
 def manual_support_bot_url(user_id=None):
-    template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
-    payload = f"auto_payment_gate_{user_id}" if user_id else "auto_payment_gate"
+    language = get_user_language(user_id) if user_id else "vi"
+    if language == "en":
+        template = str(
+            db.get_config(
+                "MANUAL_SUPPORT_BOT_URL_EN",
+                db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}",
+            )
+            or "https://t.me/cuhotro_bot?start={payload}"
+        ).strip()
+        payload = f"auto_payment_gate_en_{user_id}" if user_id else "auto_payment_gate_en"
+    else:
+        template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
+        payload = f"auto_payment_gate_{user_id}" if user_id else "auto_payment_gate"
     return template.replace("{payload}", payload)
 
 
@@ -505,12 +516,23 @@ def manual_support_bot_label():
     return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Mở bot hỗ trợ") or "💬 Mở bot hỗ trợ").strip()
 
 
+def manual_support_bot_label_en():
+    return str(
+        db.get_config(
+            "MANUAL_SUPPORT_BOT_LABEL_EN",
+            db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Open support bot") or "💬 Open support bot",
+        )
+        or "💬 Open support bot"
+    ).strip()
+
+
 def manual_support_keyboard(user_id=None):
     url = manual_support_bot_url(user_id)
     if not url:
         return None
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=manual_support_bot_label(), url=url))
+    label = manual_support_bot_label_en() if get_user_language(user_id) == "en" else manual_support_bot_label()
+    kb.row(InlineKeyboardButton(text=label, url=url))
     return kb.as_markup()
 
 
@@ -520,11 +542,9 @@ async def enforce_auto_payment_gate(callback: CallbackQuery):
     keyboard = manual_support_keyboard(callback.from_user.id)
     if keyboard and callback.message:
         try:
+            message_key = "MSG_MANUAL_SUPPORT_REDIRECT_EN" if get_user_language(callback.from_user.id) == "en" else "MSG_MANUAL_SUPPORT_REDIRECT"
             await callback.message.answer(
-                db.get_config(
-                    "MSG_MANUAL_SUPPORT_REDIRECT",
-                    "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
-                ),
+                db.get_config(message_key, "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công." if message_key == "MSG_MANUAL_SUPPORT_REDIRECT" else "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing."),
                 reply_markup=keyboard,
             )
         except Exception as exc:

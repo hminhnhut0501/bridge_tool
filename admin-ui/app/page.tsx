@@ -908,6 +908,18 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
 
 const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
   {
+    key: "MANUAL_SUPPORT_BOT_URL_EN",
+    label: "Deep link bot hỗ trợ (EN)",
+    placeholder: "https://t.me/cuhotro_bot?start={payload}",
+    help: "Dùng {payload} để bot hỗ trợ nhận biết khách tiếng Anh. Nên để payload có đuôi _en để phân biệt rõ với khách Việt.",
+  },
+  {
+    key: "MANUAL_SUPPORT_BOT_LABEL_EN",
+    label: "Text nút bot hỗ trợ (EN)",
+    placeholder: "💬 Open support bot",
+    help: "Tên nút dẫn sang bot hỗ trợ thủ công cho khách tiếng Anh.",
+  },
+  {
     key: "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
     label: "New customer gate text (EN)",
     placeholder: "This is your first purchase, so the system is processing it manually to avoid auto payment for new customers. Please contact admin for help.",
