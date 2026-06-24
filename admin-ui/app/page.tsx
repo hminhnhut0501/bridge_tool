@@ -868,25 +868,6 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     placeholder: "22:00-06:00",
     help: "Example: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
   },
-  {
-    key: "MANUAL_SUPPORT_BOT_URL",
-    label: "Deep link bot hỗ trợ",
-    placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn. Với link kích hoạt đơn, prefix mặc định là act_.",
-  },
-  {
-    key: "MANUAL_SUPPORT_BOT_LABEL",
-    label: "Text nút bot hỗ trợ",
-    placeholder: "💬 Mở bot hỗ trợ",
-    help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
-  },
-  {
-    key: "MSG_MANUAL_SUPPORT_REDIRECT",
-    label: "Tin chuyển sang bot hỗ trợ",
-    placeholder: "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
-    help: "Tin nhắn bot gửi kèm nút khi auto payment bị chặn, để khách/admin sang xử lý thủ công.",
-    kind: "textarea",
-  },
 ];
 
 const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
@@ -2314,6 +2295,11 @@ export default function Home() {
     [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
+    Object.keys(nextValues).forEach((key) => {
+      if (/^AUTO_PAYMENT_(NEW|RETURNING)_/.test(key)) {
+        delete nextValues[key];
+      }
+    });
     setFieldValues(nextValues);
   }, [config]);
 
@@ -2835,6 +2821,32 @@ export default function Home() {
         ...res.data,
       ]);
       showNotice("ok", enabled ? "Đã bật lịch auto payment cho khách Việt." : "Đã tắt auto payment cho khách Việt.");
+    });
+  }
+
+  async function quickSetAutoPaymentWindowEn(enabled: boolean) {
+    if (!savedSecret) return;
+    await runAction(enabled ? "auto-payment-schedule-en-on" : "auto-payment-schedule-en-off", async () => {
+      const items = enabled
+        ? [
+          { key: "AUTO_PAYMENT_EN_NEW_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_EN_NEW_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_EN_NEW_WINDOWS", value: "22:00-06:00" },
+          { key: "AUTO_PAYMENT_EN_RETURNING_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED", value: "ON" },
+          { key: "AUTO_PAYMENT_EN_RETURNING_WINDOWS", value: "22:00-06:00" },
+        ]
+        : [
+          { key: "AUTO_PAYMENT_EN_NEW_ENABLED", value: "OFF" },
+          { key: "AUTO_PAYMENT_EN_RETURNING_ENABLED", value: "OFF" },
+        ];
+      const res = await updateConfigs(savedSecret, items);
+      const changedKeys = new Set(items.map((item) => item.key));
+      setConfig((current) => [
+        ...current.filter((item) => !changedKeys.has(item.key)),
+        ...res.data,
+      ]);
+      showNotice("ok", enabled ? "Đã bật lịch auto payment cho khách nước ngoài." : "Đã tắt auto payment cho khách nước ngoài.");
     });
   }
 
@@ -5429,6 +5441,12 @@ export default function Home() {
                 </Button>
                 <Button variant="outlined" size="small" onClick={() => quickSetAutoPaymentWindow(false)} startIcon={<Settings size={16} />}>
                   Tắt lịch VI
+                </Button>
+                <Button variant="contained" size="small" color="secondary" onClick={() => quickSetAutoPaymentWindowEn(true)} startIcon={<CalendarClock size={16} />}>
+                  Bật nhanh lịch EN
+                </Button>
+                <Button variant="outlined" size="small" color="secondary" onClick={() => quickSetAutoPaymentWindowEn(false)} startIcon={<Settings size={16} />}>
+                  Tắt lịch EN
                 </Button>
               </div>
             </section>
