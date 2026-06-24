@@ -884,10 +884,41 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
   },
   {
-    key: "MSG_MANUAL_SUPPORT_REDIRECT",
-    label: "Tin chuyển sang bot hỗ trợ",
-    placeholder: "👋 Thanh toán tự động đang tắt cho tài khoản này.\nNhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
-    help: "Tin nhắn bot gửi kèm nút khi auto payment bị chặn, để khách/admin sang xử lý thủ công.",
+    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+    label: "Tin chặn khách mới auto payment",
+    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+    help: "Tin hiển thị khi khách mới bị chặn auto payment.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
+    label: "Tin chặn khách cũ auto payment",
+    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
+    help: "Tin hiển thị khi khách cũ bị chặn auto payment.",
+    kind: "textarea",
+  },
+];
+
+const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
+  {
+    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
+    label: "New customer gate text (EN)",
+    placeholder: "This is your first purchase, so the system is processing it manually to avoid auto payment for new customers. Please contact admin for help.",
+    help: "Message shown when an English-speaking new customer is blocked from auto payment.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED_EN",
+    label: "Returning customer gate text (EN)",
+    placeholder: "You have bought VIP before, but auto payment is currently off. Please contact admin for manual support.",
+    help: "Message shown when an English-speaking returning customer is blocked from auto payment.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_MANUAL_SUPPORT_REDIRECT_EN",
+    label: "Support redirect text (EN)",
+    placeholder: "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
+    help: "Message shown together with the support button when auto payment is blocked.",
     kind: "textarea",
   },
 ];
@@ -1713,8 +1744,19 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
 ];
 
+const AUTO_PAYMENT_MESSAGE_KEYS = new Set([
+  "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+  "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
+  "MSG_MANUAL_SUPPORT_REDIRECT",
+]);
+const AUTO_PAYMENT_MESSAGE_EN_KEYS = new Set([
+  "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
+  "MSG_RETURNING_CUSTOMER_AUTO_DISABLED_EN",
+  "MSG_MANUAL_SUPPORT_REDIRECT_EN",
+]);
+
 const HIDDEN_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => field.key.startsWith("MSG_HIDDEN_"));
-const VISIBLE_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => !field.key.startsWith("MSG_HIDDEN_"));
+const VISIBLE_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => !field.key.startsWith("MSG_HIDDEN_") && !AUTO_PAYMENT_MESSAGE_KEYS.has(field.key));
 
 const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_BACK", label: "Nút quay lại", placeholder: "🔙 Quay lại Menu", help: "Dùng ở hầu hết trang bot." },
@@ -1823,6 +1865,7 @@ const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
 const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
 const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
+const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key));
 const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
 const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN");
 const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");
@@ -2306,7 +2349,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     Object.keys(nextValues).forEach((key) => {
@@ -5504,14 +5547,24 @@ export default function Home() {
                 onSave={saveFields}
               />
             </div>
-            <ConfigEditor
-              title="Bot hỗ trợ"
-              subtitle="Cấu hình redirect deep link và nội dung bot gửi khi auto payment bị chặn."
-              fields={AUTO_PAYMENT_SUPPORT_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
+            <div className="two-col">
+              <ConfigEditor
+                title="Bot hỗ trợ"
+                subtitle="Link bot và tin nhắn hỗ trợ thủ công cho khách Việt."
+                fields={AUTO_PAYMENT_SUPPORT_FIELDS}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+              <ConfigEditor
+                title="Bot hỗ trợ tiếng Anh"
+                subtitle="Tin nhắn hỗ trợ thủ công cho khách nước ngoài."
+                fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+            </div>
           </div>
         ) : null}
 
@@ -5569,7 +5622,7 @@ export default function Home() {
             {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh." fields={MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh, không gồm các tin auto payment đã gom về tab Auto payment." fields={VISIBLE_MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
