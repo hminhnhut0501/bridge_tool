@@ -885,20 +885,6 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-    label: "Tin chặn khách mới auto payment",
-    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
-    help: "Tin hiển thị khi khách mới bị chặn auto payment.",
-    kind: "textarea",
-  },
-  {
-    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
-    label: "Tin chặn khách cũ auto payment",
-    placeholder: "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
-    help: "Tin hiển thị khi khách cũ bị chặn auto payment.",
-    kind: "textarea",
-  },
-  {
-    key: "MSG_MANUAL_SUPPORT_REDIRECT",
     label: "Tin chuyển sang bot hỗ trợ",
     placeholder: "⚠️ Thanh toán tự động hiện không hoạt động! Vui lòng liên hệ nhân viên hỗ trợ để mua gói VIP 👑",
     help: "Tin đi kèm nút bot hỗ trợ khi auto payment bị chặn.",
@@ -918,20 +904,6 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
     label: "Text nút bot hỗ trợ (EN)",
     placeholder: "💬 Open support bot",
     help: "Tên nút dẫn sang bot hỗ trợ thủ công cho khách tiếng Anh.",
-  },
-  {
-    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
-    label: "New customer gate text (EN)",
-    placeholder: "This is your first purchase, so the system is processing it manually to avoid auto payment for new customers. Please contact admin for help.",
-    help: "Message shown when an English-speaking new customer is blocked from auto payment.",
-    kind: "textarea",
-  },
-  {
-    key: "MSG_RETURNING_CUSTOMER_AUTO_DISABLED_EN",
-    label: "Returning customer gate text (EN)",
-    placeholder: "You have bought VIP before, but auto payment is currently off. Please contact admin for manual support.",
-    help: "Message shown when an English-speaking returning customer is blocked from auto payment.",
-    kind: "textarea",
   },
   {
     key: "MSG_MANUAL_SUPPORT_REDIRECT_EN",

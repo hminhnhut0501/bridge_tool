@@ -482,16 +482,17 @@ def should_allow_auto_payment(user_id):
 
 
 def auto_payment_gate_message(user_id):
-    if has_prior_paid_vip_order(user_id):
+    language = get_user_language(user_id)
+    if language == "en":
         return t(
             user_id,
-            "MSG_RETURNING_CUSTOMER_AUTO_DISABLED",
-            "Tài khoản của bạn đã từng mua VIP, nhưng thanh toán tự động hiện đang tắt. Vui lòng nhắn admin để được xử lý thủ công.",
+            "MSG_MANUAL_SUPPORT_REDIRECT_EN",
+            "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
         )
     return t(
         user_id,
-        "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-        "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+        "MSG_MANUAL_SUPPORT_REDIRECT",
+        "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
     )
 
 
@@ -542,11 +543,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery):
     keyboard = manual_support_keyboard(callback.from_user.id)
     if keyboard and callback.message:
         try:
-            message_key = "MSG_MANUAL_SUPPORT_REDIRECT_EN" if get_user_language(callback.from_user.id) == "en" else "MSG_MANUAL_SUPPORT_REDIRECT"
-            await callback.message.answer(
-                db.get_config(message_key, "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công." if message_key == "MSG_MANUAL_SUPPORT_REDIRECT" else "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing."),
-                reply_markup=keyboard,
-            )
+            await callback.message.answer(auto_payment_gate_message(callback.from_user.id), reply_markup=keyboard)
         except Exception as exc:
             print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
     try:
