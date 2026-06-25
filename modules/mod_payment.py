@@ -487,12 +487,18 @@ def auto_payment_gate_message(user_id):
         return t(
             user_id,
             "MSG_MANUAL_SUPPORT_REDIRECT_EN",
-            "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
+            db.get_config(
+                "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
+                "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
+            ),
         )
     return t(
         user_id,
         "MSG_MANUAL_SUPPORT_REDIRECT",
-        "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+        db.get_config(
+            "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+            "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+        ),
     )
 
 

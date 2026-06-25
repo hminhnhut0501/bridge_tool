@@ -884,7 +884,7 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
   },
   {
-    key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
+    key: "MSG_MANUAL_SUPPORT_REDIRECT",
     label: "Tin chuyển sang bot hỗ trợ",
     placeholder: "⚠️ Thanh toán tự động hiện không hoạt động! Vui lòng liên hệ nhân viên hỗ trợ để mua gói VIP 👑",
     help: "Tin đi kèm nút bot hỗ trợ khi auto payment bị chặn.",
