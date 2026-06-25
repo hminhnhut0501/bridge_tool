@@ -6367,10 +6367,15 @@ export default function Home() {
                 helperText="Nhập đúng ID số Telegram của khách."
                 fullWidth
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && customerQuickLookupResult) {
-                    event.preventDefault();
+                  if (event.key !== "Enter") return;
+                  const lookupId = customerQuickLookupQuery.trim();
+                  if (!lookupId) return;
+                  event.preventDefault();
+                  if (customerQuickLookupResult) {
                     openQuickLookupPrimaryAction(customerQuickLookupResult.id);
+                    return;
                   }
+                  openManualOrderFromLookup(lookupId);
                 }}
               />
               {customerQuickLookupResult ? (
@@ -6470,7 +6475,19 @@ export default function Home() {
                   </Box>
                 </>
               ) : customerQuickLookupQuery.trim() ? (
-                <Alert severity="warning" variant="outlined">Không tìm thấy khách khớp Telegram ID này.</Alert>
+                <>
+                  <Alert severity="warning" variant="outlined">Không tìm thấy khách khớp Telegram ID này.</Alert>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
+                    <Button
+                      variant="contained"
+                      onClick={() => openManualOrderFromLookup(customerQuickLookupQuery.trim())}
+                      startIcon={<Plus size={16} />}
+                      sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
+                    >
+                      Tạo đơn mới
+                    </Button>
+                  </Box>
+                </>
               ) : (
                 <Alert severity="info" variant="outlined">Nhập Telegram ID để xem nhanh trạng thái đơn và hạn dùng.</Alert>
               )}
