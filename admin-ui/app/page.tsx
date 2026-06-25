@@ -4338,8 +4338,8 @@ export default function Home() {
       })
       .map((event) => {
         const payload = event.payload || {};
-        const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event");
-        const detail = payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || "-";
+        const title = String(payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event"));
+        const detail = String(payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || "-");
         return {
           key: `activity-${event.id}`,
           kind: "user" as const,
@@ -4365,8 +4365,8 @@ export default function Home() {
       .map((event) => ({
         key: `support-${event.id}`,
         kind: "bot" as const,
-        title: supportEventLabel(event.event_type),
-        detail: [event.full_name, event.plan_name, event.order_id].filter(Boolean).join(" • ") || event.raw_data?.reason || "-",
+        title: String(supportEventLabel(event.event_type)),
+        detail: String([event.full_name, event.plan_name, event.order_id].filter(Boolean).join(" • ") || event.raw_data?.reason || "-"),
         createdAt: event.created_at,
         userId: event.telegram_user_id || "",
       }));
@@ -4403,6 +4403,96 @@ export default function Home() {
     if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Support group", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
+  const overviewBotSignalCount = useMemo(() => {
+    return supportEvents.filter((event) => {
+      return [
+        "manual_order_created",
+        "expired_notice_sent",
+        "renewal_reminder_sent",
+        "member_kicked",
+        "member_muted",
+        "member_unmuted",
+        "support_joined",
+        "support_left",
+        "vip_joined",
+        "vip_left",
+      ].includes(event.event_type);
+    }).length;
+  }, [supportEvents]);
+  const overviewRevenueToday = useMemo(() => {
+    return orders
+      .filter((order) => order.status === "PAID" && isTodayDate(order.paid_at || order.created_at))
+      .reduce((sum, order) => sum + Number(order.amount || 0), 0);
+  }, [orders]);
+  const overviewHeroStats = useMemo(() => {
+    return [
+      {
+        key: "pending",
+        label: "Don cho xu ly",
+        value: String(metrics.pending),
+        detail: metrics.pending > 0 ? "Can chot trang thai som" : "Khong co don tre",
+        tone: metrics.pending > 0 ? "warning" : "good",
+      },
+      {
+        key: "expiring",
+        label: "Khach sap het han",
+        value: String(expiringSoon.length),
+        detail: `Khung nhac ${reminderNoticeDays} ngay`,
+        tone: expiringSoon.length > 0 ? "warning" : "good",
+      },
+      {
+        key: "revenue",
+        label: "Doanh thu hom nay",
+        value: money(overviewRevenueToday),
+        detail: overviewRevenueToday > 0 ? "Da co giao dich thanh cong" : "Chua co thanh toan moi",
+        tone: overviewRevenueToday > 0 ? "good" : "neutral",
+      },
+      {
+        key: "activity",
+        label: "Tin hieu moi",
+        value: String(overviewRecentNotifications.length),
+        detail: `${overviewRecentUserActivity.length} user, ${Math.min(overviewBotSignalCount, overviewRecentNotifications.length)} bot`,
+        tone: overviewRecentNotifications.length > 0 ? "accent" : "neutral",
+      },
+    ] as const;
+  }, [expiringSoon.length, metrics.pending, money, overviewBotSignalCount, overviewRecentNotifications.length, overviewRecentUserActivity.length, overviewRevenueToday, reminderNoticeDays]);
+  const overviewSystemStatusLabel = useMemo(() => {
+    if (missingCore.length) return "Can hoan tat cau hinh de van hanh on dinh.";
+    if (metrics.pending > 0 || expiringSoon.length > 0) {
+      return `He thong dang on, nhung con ${metrics.pending} don cho va ${expiringSoon.length} khach can theo doi.`;
+    }
+    return "He thong dang on dinh, khong co canh bao uu tien.";
+  }, [expiringSoon.length, metrics.pending, missingCore.length]);
+  const overviewActionLinks = useMemo(() => {
+    const actions: { key: string; label: string; onClick: () => void }[] = [];
+    if (metrics.pending > 0) actions.push({ key: "orders", label: "Mo don cho", onClick: () => selectTab("orders") });
+    if (expiringSoon.length > 0) actions.push({ key: "renewals", label: "Xem gia han", onClick: () => selectTab("renewals") });
+    if (overviewRecentNotifications.length > 0) actions.push({ key: "log", label: "Mo nhat ky", onClick: () => selectTab("activityLog") });
+    if (!actions.length) actions.push({ key: "analytics", label: "Xem thong ke", onClick: () => selectTab("analytics") });
+    return actions.slice(0, 3);
+  }, [expiringSoon.length, metrics.pending, overviewRecentNotifications.length, selectTab]);
+  const overviewLiveFeed = useMemo(() => overviewRecentNotifications.slice(0, 5), [overviewRecentNotifications]);
+  const overviewUserActivityFeed = useMemo(() => {
+    return overviewRecentUserActivity.map((event) => {
+      const payload = event.payload || {};
+      const eventType = payloadText(payload, "event_type") || event.event_name || "event";
+      return {
+        id: event.id,
+        createdAt: event.created_at,
+        customerName:
+          customerNameById.get(event.telegram_user_id || payloadText(payload, "user_id")) ||
+          payloadText(payload, "full_name") ||
+          payloadText(payload, "username") ||
+          event.telegram_user_id ||
+          "-",
+        userId: event.telegram_user_id || payloadText(payload, "user_id") || "-",
+        typeLabel: activityEventLabel(eventType),
+        tone: activityEventBadgeTone(eventType),
+        title: payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || payloadText(payload, "start_payload") || payloadText(payload, "command") || "Tuong tac moi",
+        detail: payloadText(payload, "callback_data") || payloadText(payload, "chat_type") || payloadText(payload, "command") || "Tin hieu private",
+      };
+    });
+  }, [customerNameById, overviewRecentUserActivity]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4855,18 +4945,49 @@ export default function Home() {
                   </Stack>
                 }
               />
-              <Stack spacing={2} sx={{ p: 2 }}>
-                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-                  {overviewHealthAlerts.map((item) => (
-                    <Box key={item.title} className={`overview-health-card ${item.tone}`}>
-                      <strong>{item.title}</strong>
-                      <span>{item.detail}</span>
+              <Stack spacing={2} sx={{ p: 2 }} className="overview-cockpit">
+                <Box className="overview-hero-grid">
+                  <Box className="overview-hero-panel">
+                    <div className="overview-hero-kicker">Premium ops cockpit</div>
+                    <div className="overview-hero-headline">Dieu hanh bot, don hang va nhac gia han tu mot man hinh trung tam.</div>
+                    <div className="overview-hero-copy">{overviewSystemStatusLabel}</div>
+                    <div className="overview-hero-actions">
+                      {overviewActionLinks.map((item) => (
+                        <Button key={item.key} variant={item.key === "orders" || item.key === "renewals" ? "contained" : "outlined"} size="small" onClick={item.onClick}>
+                          {item.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </Box>
+                  <Box className="overview-hero-status">
+                    <div className="overview-section-head overview-section-head--inverse">
+                      <strong>Trang thai song</strong>
+                      <span>Cap nhat tu dashboard</span>
+                    </div>
+                    <Box className="overview-health-rail">
+                      {overviewHealthAlerts.map((item) => (
+                        <Box key={item.title} className={`overview-health-card ${item.tone}`}>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box className="overview-stat-grid">
+                  {overviewHeroStats.map((item) => (
+                    <Box key={item.key} className={`overview-stat-card ${item.tone}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.detail}</small>
                     </Box>
                   ))}
                 </Box>
-                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+
+                <Box className="overview-action-grid">
                   <Box className="overview-priority-card overview-noc-card">
-                    <div className="overview-section-head overview-noc-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
+                    <div className="overview-section-head overview-noc-head"><strong>Can chu y ngay</strong><span>{overviewPriorityAlerts.length} muc</span></div>
                     <Stack spacing={1}>
                       {overviewPriorityAlerts.length ? overviewPriorityAlerts.map((item) => (
                         <Box key={`${item.title}-${item.detail}`} className={`overview-alert ${item.tone}`}>
@@ -4874,36 +4995,64 @@ export default function Home() {
                           <strong>{item.title}</strong>
                           <span>{item.detail}</span>
                         </Box>
-                      )) : <div className="overview-empty overview-empty-compact">Hiện chưa có cảnh báo ưu tiên.</div>}
+                      )) : <div className="overview-empty overview-empty-compact">Hien chua co canh bao uu tien.</div>}
                     </Stack>
                   </Box>
-                  <Box className="overview-priority-card">
-                    <div className="overview-section-head"><strong>Hệ thống</strong><span>Trạng thái nhanh</span></div>
+                  <Box className="overview-priority-card overview-live-card">
+                    <div className="overview-section-head"><strong>Live signal</strong><span>{overviewLiveFeed.length} tin hieu moi</span></div>
                     <Stack spacing={1}>
-                      <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chưa set webhook"} />
-                      <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
-                      <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
-                      <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
+                      {overviewLiveFeed.length ? overviewLiveFeed.map((item) => (
+                        <Box key={item.key} className="overview-live-item">
+                          <div className="overview-live-item__top">
+                            <span className={`overview-pill ${item.kind === "user" ? "user" : "bot"}`}>{item.kind === "user" ? "User" : "Bot"}</span>
+                            <small>{dateText(item.createdAt)}</small>
+                          </div>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                          <small>{item.userId || "Khong co user id"}</small>
+                        </Box>
+                      )) : <div className="overview-empty overview-empty-compact">Chua co tin hieu moi tu bot va user.</div>}
                     </Stack>
+                  </Box>
+                </Box>
+
+                <Box className="overview-system-shell">
+                  <div className="overview-section-head"><strong>He thong va ha tang</strong><span>Kiem tra nhanh cac diem song</span></div>
+                  <Box className="overview-system-grid overview-system-grid--premium">
+                    <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chua set webhook"} />
+                    <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
+                    <HealthItem ok={configuredGroups.length > 0} title="Nhom nhan link" detail={configuredGroups.length ? `Da co ${configuredGroups.length} nhom` : "Vao Nhom & gia de cau hinh"} />
+                    <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
                   </Box>
                 </Box>
               </Stack>
             </Card>
 
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
+            <Box className="overview-data-grid">
               <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="10 hoạt động gần nhất của user" subtitle="Theo dõi các tương tác private gần nhất." />
-                {overviewRecentUserActivity.length ? (
-                  <SimpleTable
-                    headers={["Thời điểm", "Khách", "Loại", "Nội dung", "Chi tiết"]}
-                    rows={overviewRecentUserActivity.map((event) => [
-                      dateText(event.created_at),
-                      <Fragment key={`${event.id}-customer`}><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></Fragment>,
-                      <span key={`${event.id}-type`} className={`overview-pill ${activityEventBadgeTone(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}`}>{activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}</span>,
-                      payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
-                      payloadText(event.payload || {}, "chat_type") || "-",
-                    ])}
-                  />
+                <PanelHead title="10 hoạt động gần nhất của user" subtitle="Live feed cho cac tuong tac private gan nhat." />
+                {overviewUserActivityFeed.length ? (
+                  <Box className="overview-event-feed">
+                    {overviewUserActivityFeed.map((item, index) => (
+                      <Box key={item.id} className="overview-event-item" style={{ ["--event-delay" as string]: `${index * 70}ms` }}>
+                        <div className="overview-event-item__rail" />
+                        <div className="overview-event-item__body">
+                          <div className="overview-event-item__top">
+                            <div>
+                              <strong>{item.customerName}</strong>
+                              <small>{item.userId}</small>
+                            </div>
+                            <small>{dateText(item.createdAt)}</small>
+                          </div>
+                          <div className="overview-event-item__meta">
+                            <span className={`overview-pill ${item.tone}`}>{item.typeLabel}</span>
+                            <span>{item.detail}</span>
+                          </div>
+                          <div className="overview-event-item__title">{item.title}</div>
+                        </div>
+                      </Box>
+                    ))}
+                  </Box>
                 ) : (
                   <Stack spacing={1.25}>
                     <div className="overview-empty">Chưa có hoạt động private nào để hiển thị.</div>
@@ -4915,16 +5064,31 @@ export default function Home() {
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="10 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
                 {overviewRecentOrders.length ? (
-                  <SimpleTable
-                    headers={["Thời điểm", "Đơn", "Khách", "Gói", "Trạng thái"]}
-                    rows={overviewRecentOrders.map((order) => [
-                      dateText(order.created_at),
-                      <strong key={order.order_id}>{order.order_id}</strong>,
-                      <Fragment key={`${order.order_id}-customer`}><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></Fragment>,
-                      order.plan_name,
-                      <span key={`${order.order_id}-status`} className={`overview-pill ${order.status === "PAID" ? "good" : order.status === "PENDING" ? "warning" : "bad"}`}>{orderLifecycleLabel(order)}</span>,
-                    ])}
-                  />
+                  <Box className="overview-spotlight-list">
+                    {overviewRecentOrders.map((order, index) => {
+                      const statusTone = order.status === "PAID" ? "good" : order.status === "PENDING" ? "warning" : "bad";
+                      return (
+                        <Box key={order.order_id} className="overview-spotlight-row" style={{ ["--spotlight-delay" as string]: `${index * 60}ms` }}>
+                          <div className={`overview-spotlight-row__accent ${statusTone}`} />
+                          <div className="overview-spotlight-row__main">
+                            <div className="overview-spotlight-row__top">
+                              <div>
+                                <strong>{order.full_name || "-"}</strong>
+                                <small>{order.telegram_user_id}</small>
+                              </div>
+                              <span className={`overview-pill ${statusTone}`}>{orderLifecycleLabel(order)}</span>
+                            </div>
+                            <div className="overview-spotlight-row__headline">{order.plan_name}</div>
+                            <div className="overview-spotlight-row__meta">
+                              <span>Don {order.order_id}</span>
+                              <span>{dateText(order.created_at)}</span>
+                              <span>{money(Number(order.amount || 0))}</span>
+                            </div>
+                          </div>
+                        </Box>
+                      );
+                    })}
+                  </Box>
                 ) : (
                   <Stack spacing={1.25}>
                     <div className="overview-empty">Chưa có đơn mới.</div>
@@ -4934,20 +5098,35 @@ export default function Home() {
               </Card>
             </Box>
 
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
+            <Box className="overview-data-grid">
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="10 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
                 {overviewNewCustomers.length ? (
-                  <SimpleTable
-                    headers={["Khách", "Mốc gần nhất", "Gói", "Trạng thái", "Giá trị"]}
-                    rows={overviewNewCustomers.map((customer) => [
-                      <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
-                      dateText(customer.lastOrderAt),
-                      customer.plans[0] || "-",
-                      <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : customer.statusColor === "error" ? "bad" : ""}`}>{customer.statusLabel}</span>,
-                      money(customer.revenue),
-                    ])}
-                  />
+                  <Box className="overview-spotlight-list">
+                    {overviewNewCustomers.map((customer, index) => {
+                      const customerTone = customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : customer.statusColor === "error" ? "bad" : "accent";
+                      return (
+                        <Box key={customer.id} className="overview-spotlight-row" style={{ ["--spotlight-delay" as string]: `${index * 60}ms` }}>
+                          <div className={`overview-spotlight-row__accent ${customerTone}`} />
+                          <div className="overview-spotlight-row__main">
+                            <div className="overview-spotlight-row__top">
+                              <div>
+                                <strong>{customer.name || "-"}</strong>
+                                <small>{customer.id}</small>
+                              </div>
+                              <span className={`overview-pill ${customerTone === "accent" ? "good" : customerTone}`}>{customer.statusLabel}</span>
+                            </div>
+                            <div className="overview-spotlight-row__headline">{customer.plans[0] || "-"}</div>
+                            <div className="overview-spotlight-row__meta">
+                              <span>Moc {dateText(customer.lastOrderAt)}</span>
+                              <span>{money(customer.revenue)}</span>
+                              <span>{customer.orders.length} don</span>
+                            </div>
+                          </div>
+                        </Box>
+                      );
+                    })}
+                  </Box>
                 ) : (
                   <Stack spacing={1.25}>
                     <div className="overview-empty">Chưa có khách mới.</div>
@@ -4958,20 +5137,33 @@ export default function Home() {
               <Card variant="outlined" sx={sectionCardSx}>
                 <PanelHead title="Khách gần hết hạn" subtitle={`Ưu tiên nhóm trong ${reminderNoticeDays} ngày tới.`} />
                 {overviewExpiringCustomers.length ? (
-                  <SimpleTable
-                    headers={["Khách", "Gói", "Hạn", "Còn lại", "Trạng thái"]}
-                    rows={overviewExpiringCustomers.map((customer) => {
+                  <Box className="overview-priority-list">
+                    {overviewExpiringCustomers.map((customer, index) => {
                       const targetOrder = customer.activeOrders[0] || customer.paidOrders[0] || null;
                       const expireAt = targetOrder?.expire_at || customer.latestExpire;
-                      return [
-                        <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
-                        targetOrder?.plan_name || customer.plans[0] || "-",
-                        dateText(expireAt),
-                        <span key={`${customer.id}-remaining`} className={`overview-pill ${daysUntil(expireAt) <= 0 ? "bad" : daysUntil(expireAt) <= 1 ? "warning" : "good"}`}>{expireAt ? `${daysUntil(expireAt)} ngày` : "-"}</span>,
-                        <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : "bad"}`}>{customer.statusLabel}</span>,
-                      ];
+                      const remainingDays = expireAt ? daysUntil(expireAt) : null;
+                      const remainingTone = remainingDays !== null && remainingDays <= 0 ? "bad" : remainingDays !== null && remainingDays <= 1 ? "warning" : "good";
+                      return (
+                        <Box key={customer.id} className="overview-priority-row" style={{ ["--priority-delay" as string]: `${index * 65}ms` }}>
+                          <div className={`overview-priority-row__accent ${remainingTone}`} />
+                          <div className="overview-priority-row__main">
+                            <div className="overview-priority-row__top">
+                              <div>
+                                <strong>{customer.name || "-"}</strong>
+                                <small>{customer.id}</small>
+                              </div>
+                              <span className={`overview-pill ${remainingTone}`}>{expireAt ? `${remainingDays} ngay` : "-"}</span>
+                            </div>
+                            <div className="overview-priority-row__plan">{targetOrder?.plan_name || customer.plans[0] || "-"}</div>
+                            <div className="overview-priority-row__meta">
+                              <span>Han {dateText(expireAt)}</span>
+                              <span className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : "bad"}`}>{customer.statusLabel}</span>
+                            </div>
+                          </div>
+                        </Box>
+                      );
                     })}
-                  />
+                  </Box>
                 ) : (
                   <Stack spacing={1.25}>
                     <div className="overview-empty">Chưa có khách nào sắp hết hạn.</div>
