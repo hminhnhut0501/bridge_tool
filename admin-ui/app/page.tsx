@@ -543,7 +543,6 @@ type LoadOptions = {
   mode?: "full" | "light";
 };
 
-const TAB_VALUES: Tab[] = ["overview", "analytics", "setup", "orders", "customers", "activityLog", "campaigns", "channelPosts", "renewals", "supportGroup", "content", "botVi", "botEn", "botTools", "hiddenMessages", "menuBuilder", "coupons", "activationCodes", "security", "sales", "system"];
 const TAB_STORAGE_KEY = "prive_admin_tab";
 const AUTO_REFRESH_SECONDS = 60;
 
@@ -2329,10 +2328,10 @@ export default function Home() {
     if (isLocalDevHost && initialSecret) {
       window.localStorage.setItem("prive_admin_secret", initialSecret);
     }
-    const queryTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
-    const storedTab = window.localStorage.getItem(TAB_STORAGE_KEY) as Tab | null;
-    const nextTab = queryTab && TAB_VALUES.includes(queryTab) ? queryTab : storedTab && TAB_VALUES.includes(storedTab) ? storedTab : null;
-    if (nextTab) setTab(nextTab);
+    const queryTab = new URLSearchParams(window.location.search).get("tab");
+    const storedTab = window.localStorage.getItem(TAB_STORAGE_KEY);
+    const nextTab = queryTab || storedTab;
+    if (nextTab) setTab(nextTab as Tab);
   }, []);
 
   useEffect(() => {
