@@ -4313,13 +4313,13 @@ export default function Home() {
   const overviewRecentOrders = useMemo(() => {
     return [...orders]
       .sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime())
-      .slice(0, 5);
+      .slice(0, 10);
   }, [orders]);
   const overviewNewCustomers = useMemo(() => {
     return [...customerSummaries]
       .filter((item) => item.lastOrderAt || item.hasAnyPaidOrder || item.orders.length)
       .sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime())
-      .slice(0, 5);
+      .slice(0, 10);
   }, [customerSummaries]);
   const overviewRecentUserActivity = useMemo(() => {
     return [...activityEvents]
@@ -4328,7 +4328,7 @@ export default function Home() {
         return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
       })
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5);
+      .slice(0, 10);
   }, [activityEvents]);
   const overviewRecentNotifications = useMemo(() => {
     const userEvents = activityEvents
@@ -4370,7 +4370,7 @@ export default function Home() {
         createdAt: event.created_at,
         userId: event.telegram_user_id || "",
       }));
-    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
+    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
   }, [activityEvents, supportEvents]);
   const overviewExpiringCustomers = useMemo(() => {
     return [...customerSummaries]
@@ -4380,7 +4380,7 @@ export default function Home() {
         const bDays = b.activeOrders.length ? Math.min(...b.activeOrders.map((order) => daysUntil(order.expire_at)).filter((days) => Number.isFinite(days))) : 9999;
         return aDays - bDays;
       })
-      .slice(0, 5);
+      .slice(0, 10);
   }, [customerSummaries, reminderNoticeDays]);
   const overviewHealthAlerts = useMemo(() => {
     const alerts: { title: string; detail: string; tone: "good" | "warning" | "bad" }[] = [];
@@ -4428,28 +4428,28 @@ export default function Home() {
     return [
       {
         key: "pending",
-        label: "Đơn chờ xử lý",
+        label: "Don cho xu ly",
         value: String(metrics.pending),
-        detail: metrics.pending > 0 ? "Cần chốt trạng thái sớm" : "Không có đơn trễ",
+        detail: metrics.pending > 0 ? "Can chot trang thai som" : "Khong co don tre",
         tone: metrics.pending > 0 ? "warning" : "good",
       },
       {
         key: "expiring",
-        label: "Khách sắp hết hạn",
+        label: "Khach sap het han",
         value: String(expiringSoon.length),
-        detail: `Khung nhắc ${reminderNoticeDays} ngày`,
+        detail: `Khung nhac ${reminderNoticeDays} ngay`,
         tone: expiringSoon.length > 0 ? "warning" : "good",
       },
       {
         key: "revenue",
-        label: "Doanh thu hôm nay",
+        label: "Doanh thu hom nay",
         value: money(overviewRevenueToday),
-        detail: overviewRevenueToday > 0 ? "Đã có giao dịch thành công" : "Chưa có thanh toán mới",
+        detail: overviewRevenueToday > 0 ? "Da co giao dich thanh cong" : "Chua co thanh toan moi",
         tone: overviewRevenueToday > 0 ? "good" : "neutral",
       },
       {
         key: "activity",
-        label: "Log mới",
+        label: "Tin hieu moi",
         value: String(overviewRecentNotifications.length),
         detail: `${overviewRecentUserActivity.length} user, ${Math.min(overviewBotSignalCount, overviewRecentNotifications.length)} bot`,
         tone: overviewRecentNotifications.length > 0 ? "accent" : "neutral",
@@ -4457,36 +4457,42 @@ export default function Home() {
     ] as const;
   }, [expiringSoon.length, metrics.pending, money, overviewBotSignalCount, overviewRecentNotifications.length, overviewRecentUserActivity.length, overviewRevenueToday, reminderNoticeDays]);
   const overviewSystemStatusLabel = useMemo(() => {
-    if (missingCore.length) return "Cần hoàn tất cấu hình để vận hành ổn định.";
+    if (missingCore.length) return "Can hoan tat cau hinh de van hanh on dinh.";
     if (metrics.pending > 0 || expiringSoon.length > 0) {
-      return `Hệ thống đang ổn, nhưng còn ${metrics.pending} đơn chờ và ${expiringSoon.length} khách cần theo dõi.`;
+      return `He thong dang on, nhung con ${metrics.pending} don cho va ${expiringSoon.length} khach can theo doi.`;
     }
-    return "Hệ thống đang ổn định, không có cảnh báo ưu tiên.";
+    return "He thong dang on dinh, khong co canh bao uu tien.";
   }, [expiringSoon.length, metrics.pending, missingCore.length]);
   const overviewActionLinks = useMemo(() => {
     const actions: { key: string; label: string; onClick: () => void }[] = [];
-    if (metrics.pending > 0) actions.push({ key: "orders", label: "Mở đơn chờ", onClick: () => selectTab("orders") });
-    if (expiringSoon.length > 0) actions.push({ key: "renewals", label: "Xem gia hạn", onClick: () => selectTab("renewals") });
-    if (overviewRecentNotifications.length > 0) actions.push({ key: "log", label: "Mở nhật ký", onClick: () => selectTab("activityLog") });
-    if (!actions.length) actions.push({ key: "analytics", label: "Xem thống kê", onClick: () => selectTab("analytics") });
+    if (metrics.pending > 0) actions.push({ key: "orders", label: "Mo don cho", onClick: () => selectTab("orders") });
+    if (expiringSoon.length > 0) actions.push({ key: "renewals", label: "Xem gia han", onClick: () => selectTab("renewals") });
+    if (overviewRecentNotifications.length > 0) actions.push({ key: "log", label: "Mo nhat ky", onClick: () => selectTab("activityLog") });
+    if (!actions.length) actions.push({ key: "analytics", label: "Xem thong ke", onClick: () => selectTab("analytics") });
     return actions.slice(0, 3);
   }, [expiringSoon.length, metrics.pending, overviewRecentNotifications.length, selectTab]);
   const overviewLiveFeed = useMemo(() => overviewRecentNotifications.slice(0, 5), [overviewRecentNotifications]);
   const overviewUserActivityFeed = useMemo(() => {
-    return overviewRecentNotifications.slice(0, 5).map((event) => {
-      const tone = event.kind === "user" ? "user" : "bot";
+    return overviewRecentUserActivity.map((event) => {
+      const payload = event.payload || {};
+      const eventType = payloadText(payload, "event_type") || event.event_name || "event";
       return {
-        id: event.key,
-        createdAt: event.createdAt,
-        customerName: customerNameById.get(event.userId) || event.userId || "-",
-        userId: event.userId || "-",
-        typeLabel: event.kind === "user" ? "Người dùng" : "Bot",
-        tone,
-        title: event.title || "Log mới",
-        detail: event.detail || "Không có chi tiết",
+        id: event.id,
+        createdAt: event.created_at,
+        customerName:
+          customerNameById.get(event.telegram_user_id || payloadText(payload, "user_id")) ||
+          payloadText(payload, "full_name") ||
+          payloadText(payload, "username") ||
+          event.telegram_user_id ||
+          "-",
+        userId: event.telegram_user_id || payloadText(payload, "user_id") || "-",
+        typeLabel: activityEventLabel(eventType),
+        tone: activityEventBadgeTone(eventType),
+        title: payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || payloadText(payload, "start_payload") || payloadText(payload, "command") || "Tuong tac moi",
+        detail: payloadText(payload, "callback_data") || payloadText(payload, "chat_type") || payloadText(payload, "command") || "Tin hieu private",
       };
     });
-  }, [customerNameById, overviewRecentNotifications]);
+  }, [customerNameById, overviewRecentUserActivity]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -4940,18 +4946,33 @@ export default function Home() {
                 }
               />
               <Stack spacing={2} sx={{ p: 2 }} className="overview-cockpit">
-                <Box className="overview-summary-strip">
-                  <div className="overview-summary-copy">
-                    <strong>Trạng thái tổng quan</strong>
-                    <span>{overviewSystemStatusLabel}</span>
-                  </div>
-                  <div className="overview-summary-actions">
-                    {overviewActionLinks.map((item) => (
-                      <Button key={item.key} variant={item.key === "orders" || item.key === "renewals" ? "contained" : "outlined"} size="small" onClick={item.onClick}>
-                        {item.label}
-                      </Button>
-                    ))}
-                  </div>
+                <Box className="overview-hero-grid">
+                  <Box className="overview-hero-panel">
+                    <div className="overview-hero-kicker">Premium ops cockpit</div>
+                    <div className="overview-hero-headline">Dieu hanh bot, don hang va nhac gia han tu mot man hinh trung tam.</div>
+                    <div className="overview-hero-copy">{overviewSystemStatusLabel}</div>
+                    <div className="overview-hero-actions">
+                      {overviewActionLinks.map((item) => (
+                        <Button key={item.key} variant={item.key === "orders" || item.key === "renewals" ? "contained" : "outlined"} size="small" onClick={item.onClick}>
+                          {item.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </Box>
+                  <Box className="overview-hero-status">
+                    <div className="overview-section-head overview-section-head--inverse">
+                      <strong>Trang thai song</strong>
+                      <span>Cap nhat tu dashboard</span>
+                    </div>
+                    <Box className="overview-health-rail">
+                      {overviewHealthAlerts.map((item) => (
+                        <Box key={item.title} className={`overview-health-card ${item.tone}`}>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
                 </Box>
 
                 <Box className="overview-stat-grid">
@@ -4966,41 +4987,41 @@ export default function Home() {
 
                 <Box className="overview-action-grid">
                   <Box className="overview-priority-card overview-noc-card">
-                    <div className="overview-section-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
+                    <div className="overview-section-head overview-noc-head"><strong>Can chu y ngay</strong><span>{overviewPriorityAlerts.length} muc</span></div>
                     <Stack spacing={1}>
                       {overviewPriorityAlerts.length ? overviewPriorityAlerts.map((item) => (
                         <Box key={`${item.title}-${item.detail}`} className={`overview-alert ${item.tone}`}>
-                          <span className={`overview-pill ${item.tone}`}>{item.tone === "bad" ? "Lỗi" : "Cảnh báo"}</span>
+                          <span className={`overview-pill ${item.tone}`}>{item.tone === "bad" ? "Critical" : "Warning"}</span>
                           <strong>{item.title}</strong>
                           <span>{item.detail}</span>
                         </Box>
-                      )) : <div className="overview-empty overview-empty-compact">Hiện chưa có cảnh báo ưu tiên.</div>}
+                      )) : <div className="overview-empty overview-empty-compact">Hien chua co canh bao uu tien.</div>}
                     </Stack>
                   </Box>
                   <Box className="overview-priority-card overview-live-card">
-                    <div className="overview-section-head"><strong>5 log gần nhất</strong><span>{overviewLiveFeed.length} mục</span></div>
+                    <div className="overview-section-head"><strong>Live signal</strong><span>{overviewLiveFeed.length} tin hieu moi</span></div>
                     <Stack spacing={1}>
                       {overviewLiveFeed.length ? overviewLiveFeed.map((item) => (
                         <Box key={item.key} className="overview-live-item">
                           <div className="overview-live-item__top">
-                            <span className={`overview-pill ${item.kind === "user" ? "user" : "bot"}`}>{item.kind === "user" ? "Người dùng" : "Bot"}</span>
+                            <span className={`overview-pill ${item.kind === "user" ? "user" : "bot"}`}>{item.kind === "user" ? "User" : "Bot"}</span>
                             <small>{dateText(item.createdAt)}</small>
                           </div>
                           <strong>{item.title}</strong>
                           <span>{item.detail}</span>
-                          <small>{item.userId || "Không có user id"}</small>
+                          <small>{item.userId || "Khong co user id"}</small>
                         </Box>
-                      )) : <div className="overview-empty overview-empty-compact">Chưa có log mới từ bot và người dùng.</div>}
+                      )) : <div className="overview-empty overview-empty-compact">Chua co tin hieu moi tu bot va user.</div>}
                     </Stack>
                   </Box>
                 </Box>
 
                 <Box className="overview-system-shell">
-                  <div className="overview-section-head"><strong>Hệ thống và hạ tầng</strong><span>Kiểm tra nhanh các điểm sống</span></div>
+                  <div className="overview-section-head"><strong>He thong va ha tang</strong><span>Kiem tra nhanh cac diem song</span></div>
                   <Box className="overview-system-grid overview-system-grid--premium">
-                    <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chưa set webhook"} />
+                    <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chua set webhook"} />
                     <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
-                    <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
+                    <HealthItem ok={configuredGroups.length > 0} title="Nhom nhan link" detail={configuredGroups.length ? `Da co ${configuredGroups.length} nhom` : "Vao Nhom & gia de cau hinh"} />
                     <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
                   </Box>
                 </Box>
@@ -5009,7 +5030,7 @@ export default function Home() {
 
             <Box className="overview-data-grid">
               <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="5 log gần nhất" subtitle="Tổng hợp nhanh từ tất cả log bot và người dùng." />
+                <PanelHead title="10 hoạt động gần nhất của user" subtitle="Live feed cho cac tuong tac private gan nhat." />
                 {overviewUserActivityFeed.length ? (
                   <Box className="overview-event-feed">
                     {overviewUserActivityFeed.map((item, index) => (
@@ -5034,14 +5055,14 @@ export default function Home() {
                   </Box>
                 ) : (
                   <Stack spacing={1.25}>
-                    <div className="overview-empty">Chưa có log nào để hiển thị.</div>
+                    <div className="overview-empty">Chưa có hoạt động private nào để hiển thị.</div>
                     <div className="overview-skeleton card" />
                     <div className="overview-skeleton card" />
                   </Stack>
                 )}
               </Card>
               <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="5 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
+                <PanelHead title="10 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
                 {overviewRecentOrders.length ? (
                   <Box className="overview-spotlight-list">
                     {overviewRecentOrders.map((order, index) => {
@@ -5059,7 +5080,7 @@ export default function Home() {
                             </div>
                             <div className="overview-spotlight-row__headline">{order.plan_name}</div>
                             <div className="overview-spotlight-row__meta">
-                              <span>Đơn {order.order_id}</span>
+                              <span>Don {order.order_id}</span>
                               <span>{dateText(order.created_at)}</span>
                               <span>{money(Number(order.amount || 0))}</span>
                             </div>
@@ -5079,7 +5100,7 @@ export default function Home() {
 
             <Box className="overview-data-grid">
               <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="5 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
+                <PanelHead title="10 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
                 {overviewNewCustomers.length ? (
                   <Box className="overview-spotlight-list">
                     {overviewNewCustomers.map((customer, index) => {
@@ -5097,9 +5118,9 @@ export default function Home() {
                             </div>
                             <div className="overview-spotlight-row__headline">{customer.plans[0] || "-"}</div>
                             <div className="overview-spotlight-row__meta">
-                              <span>Mốc {dateText(customer.lastOrderAt)}</span>
+                              <span>Moc {dateText(customer.lastOrderAt)}</span>
                               <span>{money(customer.revenue)}</span>
-                              <span>{customer.orders.length} đơn</span>
+                              <span>{customer.orders.length} don</span>
                             </div>
                           </div>
                         </Box>
@@ -5131,11 +5152,11 @@ export default function Home() {
                                 <strong>{customer.name || "-"}</strong>
                                 <small>{customer.id}</small>
                               </div>
-                              <span className={`overview-pill ${remainingTone}`}>{expireAt ? `${remainingDays} ngày` : "-"}</span>
+                              <span className={`overview-pill ${remainingTone}`}>{expireAt ? `${remainingDays} ngay` : "-"}</span>
                             </div>
                             <div className="overview-priority-row__plan">{targetOrder?.plan_name || customer.plans[0] || "-"}</div>
                             <div className="overview-priority-row__meta">
-                              <span>Hạn {dateText(expireAt)}</span>
+                              <span>Han {dateText(expireAt)}</span>
                               <span className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : "bad"}`}>{customer.statusLabel}</span>
                             </div>
                           </div>
