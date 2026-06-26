@@ -3751,6 +3751,7 @@ export default function Home() {
       };
     }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
   }, [orders, reminderNoticeDays]);
+  const customerSummaryById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item] as const)), [customerSummaries]);
   const customerNameById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item.name] as const)), [customerSummaries]);
   const customerGroupOptions = useMemo(() => uniqueValues(customerSummaries.flatMap((item) => item.groups)).sort(), [customerSummaries]);
   const filteredCustomers = useMemo(() => {
@@ -4029,13 +4030,47 @@ export default function Home() {
   }, [selectedCustomer, selectedCustomerSupportEvents, selectedCustomerTimelineRows, kickAudit]);
   const paidMemberOrders = useMemo(() => orders.filter((item) => item.status === "PAID" && item.expire_at), [orders]);
   const expiringToday = useMemo(() => paidMemberOrders.filter((item) => daysUntil(item.expire_at) === 0), [paidMemberOrders]);
-  const expiringSoon = useMemo(() => {
-    return paidMemberOrders.filter((item) => {
-      const days = daysUntil(item.expire_at);
-      return days >= 0 && days <= reminderNoticeDays;
+  function renewalPriorityScore(item: Pick<Order, "telegram_user_id" | "expire_at" | "created_at" | "last_reminder_date"> | Pick<SupportEvent, "telegram_user_id" | "created_at">, options?: { reminderSentAt?: string; forceImportant?: boolean }) {
+    const customerId = String(item.telegram_user_id || "").trim();
+    const customer = customerSummaryById.get(customerId);
+    const paidCount = customer?.paidOrders.length || 0;
+    const firstPaidAt = customer?.paidOrders
+      .map((order) => order.created_at)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a || "").getTime() - new Date(b || "").getTime())[0] || "";
+    const daysFromFirstPaid = firstPaidAt ? Math.max(0, Math.floor((Date.now() - new Date(firstPaidAt).getTime()) / 86400000)) : Number.MAX_SAFE_INTEGER;
+    const isNewCustomer = paidCount <= 1 || daysFromFirstPaid <= 14;
+    const expireDays = "expire_at" in item ? daysUntil(item.expire_at) : Number.MAX_SAFE_INTEGER;
+    const latestReminder = options?.reminderSentAt || ("last_reminder_date" in item ? item.last_reminder_date || "" : "");
+    const needsUrgentAttention = Boolean(options?.forceImportant) || expireDays <= 1 || (!latestReminder && expireDays <= reminderNoticeDays);
+    return [needsUrgentAttention ? 0 : 1, isNewCustomer ? 0 : 1] as const;
+  }
+  function sortRenewalOrders(items: Order[], options?: { useReminderMap?: boolean; forceImportant?: boolean }) {
+    return [...items].sort((a, b) => {
+      const aPriority = renewalPriorityScore(a, {
+        reminderSentAt: options?.useReminderMap ? latestReminderByOrder.get(a.order_id)?.created_at || "" : "",
+        forceImportant: options?.forceImportant,
+      });
+      const bPriority = renewalPriorityScore(b, {
+        reminderSentAt: options?.useReminderMap ? latestReminderByOrder.get(b.order_id)?.created_at || "" : "",
+        forceImportant: options?.forceImportant,
+      });
+      if (aPriority[0] !== bPriority[0]) return aPriority[0] - bPriority[0];
+      if (aPriority[1] !== bPriority[1]) return aPriority[1] - bPriority[1];
+      const expireDiff = new Date(a.expire_at || "").getTime() - new Date(b.expire_at || "").getTime();
+      if (!Number.isNaN(expireDiff) && expireDiff !== 0) return expireDiff;
+      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
     });
-  }, [paidMemberOrders, reminderNoticeDays]);
-  const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
+  }
+  function sortRenewalEvents<T extends SupportEvent>(items: T[]) {
+    return [...items].sort((a, b) => {
+      const aPriority = renewalPriorityScore(a);
+      const bPriority = renewalPriorityScore(b);
+      if (aPriority[0] !== bPriority[0]) return aPriority[0] - bPriority[0];
+      if (aPriority[1] !== bPriority[1]) return aPriority[1] - bPriority[1];
+      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+    });
+  }
   const supportNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const item of supportEvents) {
@@ -4052,6 +4087,18 @@ export default function Home() {
   }, [supportEvents, supportGroupId]);
   const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
+  const latestReminderByOrder = useMemo(() => {
+    const map = new Map<string, SupportEvent>();
+    for (const event of renewalReminderEvents) {
+      const orderId = event.order_id || "";
+      if (!orderId) continue;
+      const current = map.get(orderId);
+      if (!current || new Date(event.created_at).getTime() > new Date(current.created_at).getTime()) {
+        map.set(orderId, event);
+      }
+    }
+    return map;
+  }, [renewalReminderEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
   const supportKickedToday = useMemo(() => supportGroupTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportGroupTodayEvents]);
   const uniqueKickedEvents = useMemo(() => {
@@ -4065,18 +4112,13 @@ export default function Home() {
     }
     return Array.from(map.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [supportEvents]);
-  const latestReminderByOrder = useMemo(() => {
-    const map = new Map<string, SupportEvent>();
-    for (const event of renewalReminderEvents) {
-      const orderId = event.order_id || "";
-      if (!orderId) continue;
-      const current = map.get(orderId);
-      if (!current || new Date(event.created_at).getTime() > new Date(current.created_at).getTime()) {
-        map.set(orderId, event);
-      }
-    }
-    return map;
-  }, [renewalReminderEvents]);
+  const expiringSoon = useMemo(() => {
+    return sortRenewalOrders(paidMemberOrders.filter((item) => {
+      const days = daysUntil(item.expire_at);
+      return days >= 0 && days <= reminderNoticeDays;
+    }), { useReminderMap: true });
+  }, [latestReminderByOrder, paidMemberOrders, reminderNoticeDays]);
+  const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
   function renewalCustomerName(item: Order | SupportEvent) {
     const telegramId = "telegram_user_id" in item ? String(item.telegram_user_id || "").trim() : "";
     const fromOrder = "full_name" in item ? displayText(item.full_name) : "";
@@ -4131,6 +4173,10 @@ export default function Home() {
     return supportEventRows.slice(start, start + SUPPORT_PAGE_SIZE);
   }, [supportEventRows, supportPage, totalSupportPages]);
   const renewalRows = useMemo(() => {
+    const sortedExpiringToday = sortRenewalOrders(expiringToday, { forceImportant: true });
+    const sortedReminderEvents = sortRenewalEvents(renewalReminderEvents);
+    const sortedExpiredNoticeEvents = sortRenewalEvents(expiredNoticeEvents);
+    const sortedUniqueKickedEvents = sortRenewalEvents(uniqueKickedEvents);
     const rows: Record<RenewalSubTab, ReactNode[][]> = {
       soon: expiringSoon.map((item) => {
         const reminderEvent = latestReminderByOrder.get(item.order_id);
@@ -4144,7 +4190,7 @@ export default function Home() {
           reminderEvent ? dateText(reminderEvent.created_at) : item.last_reminder_date || "-",
         ];
       }),
-      today: expiringToday.map((item) => [
+      today: sortedExpiringToday.map((item) => [
         renewalCustomerName(item),
         item.telegram_user_id,
         item.plan_name,
@@ -4152,7 +4198,7 @@ export default function Home() {
         item.status,
         item.expired_notice_at ? dateText(item.expired_notice_at) : "-",
       ]),
-      reminded: renewalReminderEvents.map((item) => [
+      reminded: sortedReminderEvents.map((item) => [
         renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
@@ -4160,7 +4206,7 @@ export default function Home() {
         dateText(item.created_at),
         item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
       ]),
-      expiredNotice: expiredNoticeEvents.map((item) => [
+      expiredNotice: sortedExpiredNoticeEvents.map((item) => [
         renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
@@ -4168,7 +4214,7 @@ export default function Home() {
         dateText(item.created_at),
         item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
       ]),
-      kicked: uniqueKickedEvents.map((item) => [
+      kicked: sortedUniqueKickedEvents.map((item) => [
         renewalCustomerName(item),
         item.telegram_user_id || "-",
         item.plan_name || "-",
@@ -4210,7 +4256,7 @@ export default function Home() {
       ]),
     };
     return rows;
-  }, [expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, vipGroupAudit, latestReminderByOrder, reminderNoticeDays, saving, renewalCustomerName, manualKickAudit]);
+  }, [customerSummaryById, expiringSoon, expiringToday, renewalReminderEvents, expiredNoticeEvents, uniqueKickedEvents, kickAudit, vipGroupAudit, latestReminderByOrder, reminderNoticeDays, saving, renewalCustomerName, manualKickAudit]);
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Còn lại", "Bắt đầu nhắc từ", "Nhắc gần nhất"],
     today: ["Khách", "Telegram ID", "Gói", "Hết hạn lúc", "Trạng thái", "Báo hết hạn lúc"],
