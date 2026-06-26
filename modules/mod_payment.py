@@ -534,7 +534,9 @@ def manual_support_payload(user_id=None, action="", provider=""):
     offer = support_offer_from_action(action, user_id, provider)
     currency = offer.get("currency") or (currency_for_provider(provider) if provider else default_currency_for_user(user_id))
     amount = support_payload_amount(offer.get("amount"), currency)
-    parts = [f"act_{prefix}", f"u{user_id}"]
+    parts = [f"act_{prefix}"]
+    if truthy_config("MANUAL_SUPPORT_PAYLOAD_INCLUDE_USER_ID", "OFF"):
+        parts.append(f"u{user_id}")
     if plan_key:
         parts.append(f"p{plan_key}")
     if amount:

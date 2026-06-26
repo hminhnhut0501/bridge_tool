@@ -875,7 +875,15 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL",
     label: "Deep link bot hỗ trợ",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có Telegram ID, gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
+    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
+  },
+  {
+    key: "MANUAL_SUPPORT_PAYLOAD_INCLUDE_USER_ID",
+    label: "Kèm Telegram ID trong payload",
+    placeholder: "OFF",
+    help: "Mặc định OFF để link gọn hơn. Bật ON nếu muốn bot hỗ trợ nhận luôn Telegram ID trong start payload.",
+    kind: "select",
+    options: [{ label: "Tắt", value: "OFF" }, { label: "Bật", value: "ON" }],
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",
@@ -897,7 +905,7 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL_EN",
     label: "Deep link bot hỗ trợ (EN)",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có Telegram ID, gói VIP, số tiền và ngôn ngữ EN. Có thể để ...?start={payload} hoặc ...?start=act_.",
+    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ EN. Có thể để ...?start={payload} hoặc ...?start=act_.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL_EN",
