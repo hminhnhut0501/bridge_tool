@@ -451,6 +451,99 @@ def truthy_config(key, default="OFF"):
     return value in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def support_payload_token(value, max_len=24):
+    token = "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
+    return token[:max_len]
+
+
+def compact_plan_key_from_action(action):
+    data = str(action or "").strip()
+    if data.startswith("confirm_"):
+        data = data.replace("confirm_", "buy_", 1)
+    if data.startswith("couponbuy|"):
+        try:
+            _, code, plan_key = data.split("|", 2)
+        except ValueError:
+            return ""
+        return f"C{support_payload_token(code, 10)}P{support_payload_token(plan_key, 12)}"
+    if data.startswith("hgbuy|"):
+        try:
+            _, code, hidden_group_id, duration_key = data.split("|", 3)
+        except ValueError:
+            return ""
+        return f"H{support_payload_token(hidden_group_id, 8)}{support_payload_token(duration_key, 4)}C{support_payload_token(code, 8)}"
+    if "upsell_full" in data:
+        return "UPSVIP"
+    if "upsell_G" in data:
+        num = data.split("_")[1][1:] if "_" in data else ""
+        return f"UPG{support_payload_token(num, 4)}"
+    if "full" in data:
+        return "SVIP30" if "1m" in data.lower() else "SVIPLIFE"
+    parts = data.split("_")
+    if len(parts) >= 3 and parts[0] == "buy":
+        group = support_payload_token(parts[1], 8)
+        duration = support_payload_token(parts[2], 6)
+        return f"{group}{duration}"
+    if data.startswith("renew_"):
+        return "RENEW"
+    return support_payload_token(data, 16)
+
+
+def support_payload_amount(amount, currency):
+    try:
+        number = float(amount or 0)
+    except (TypeError, ValueError):
+        number = 0
+    currency_token = support_payload_token(currency, 5)
+    if number <= 0:
+        return currency_token
+    if float(number).is_integer():
+        amount_token = str(int(number))
+    else:
+        amount_token = str(number).replace(".", "P")[:10]
+    return f"{amount_token}{currency_token}"
+
+
+def support_offer_from_action(action, user_id=None, provider=""):
+    data = str(action or "").strip()
+    try:
+        if data.startswith("couponbuy|"):
+            try:
+                _, _, plan_key = data.split("|", 2)
+            except ValueError:
+                return {}
+            buy_data = buy_data_from_plan_key(plan_key)
+            return resolve_purchase_offer(buy_data, user_id, provider) if buy_data else {}
+        if data.startswith("hgbuy|"):
+            return hidden_offer_for_action(data, user_id, provider)
+        if data.startswith("renew_"):
+            return {}
+        if data.startswith(("buy_", "confirm_", "upsell_")):
+            return resolve_purchase_offer(data, user_id, provider)
+    except Exception as exc:
+        print(f"⚠️ Không build được payload bot hỗ trợ cho action {data}: {exc}")
+    return {}
+
+
+def manual_support_payload(user_id=None, action="", provider=""):
+    language = get_user_language(user_id) if user_id else "vi"
+    prefix = "apgen" if language == "en" else "apg"
+    if not user_id:
+        return f"act_{prefix}"
+    plan_key = compact_plan_key_from_action(action)
+    offer = support_offer_from_action(action, user_id, provider)
+    currency = offer.get("currency") or (currency_for_provider(provider) if provider else default_currency_for_user(user_id))
+    amount = support_payload_amount(offer.get("amount"), currency)
+    parts = [f"act_{prefix}", f"u{user_id}"]
+    if plan_key:
+        parts.append(f"p{plan_key}")
+    if amount:
+        parts.append(f"a{amount}")
+    parts.append(f"l{language}")
+    payload = "_".join(parts)
+    return payload[:64]
+
+
 def has_prior_paid_vip_order(user_id):
     target = str(user_id).strip()
     if not target:
@@ -502,7 +595,7 @@ def auto_payment_gate_message(user_id):
     )
 
 
-def manual_support_bot_url(user_id=None):
+def manual_support_bot_url(user_id=None, action="", provider=""):
     language = get_user_language(user_id) if user_id else "vi"
     if language == "en":
         template = str(
@@ -512,11 +605,14 @@ def manual_support_bot_url(user_id=None):
             )
             or "https://t.me/cuhotro_bot?start={payload}"
         ).strip()
-        payload = f"auto_payment_gate_en_{user_id}" if user_id else "auto_payment_gate_en"
     else:
         template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
-        payload = f"auto_payment_gate_{user_id}" if user_id else "auto_payment_gate"
-    return template.replace("{payload}", payload)
+    payload = manual_support_payload(user_id, action, provider)
+    if "{payload}" in template:
+        return template.replace("{payload}", urllib.parse.quote(payload, safe="_"))
+    if template.endswith(("start=act_", "start=src_")):
+        return f"{template}{urllib.parse.quote(payload.removeprefix('act_'), safe='_')}"
+    return template
 
 
 def manual_support_bot_label():
@@ -533,8 +629,8 @@ def manual_support_bot_label_en():
     ).strip()
 
 
-def manual_support_keyboard(user_id=None):
-    url = manual_support_bot_url(user_id)
+def manual_support_keyboard(user_id=None, action="", provider=""):
+    url = manual_support_bot_url(user_id, action, provider)
     if not url:
         return None
     kb = InlineKeyboardBuilder()
@@ -543,10 +639,10 @@ def manual_support_keyboard(user_id=None):
     return kb.as_markup()
 
 
-async def enforce_auto_payment_gate(callback: CallbackQuery):
+async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider=""):
     if should_allow_auto_payment(callback.from_user.id):
         return True
-    keyboard = manual_support_keyboard(callback.from_user.id)
+    keyboard = manual_support_keyboard(callback.from_user.id, action or callback.data, provider)
     if keyboard and callback.message:
         try:
             await callback.message.answer(auto_payment_gate_message(callback.from_user.id), reply_markup=keyboard)
@@ -574,7 +670,7 @@ async def process_early_renew(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew")
         if keyboard:
-            if not await enforce_auto_payment_gate(callback):
+            if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
@@ -585,7 +681,7 @@ async def process_early_renew(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    if not await enforce_auto_payment_gate(callback):
+    if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
     if not is_early_renew_enabled():
@@ -732,7 +828,7 @@ async def process_buy_request(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy")
         if keyboard:
-            if not await enforce_auto_payment_gate(callback):
+            if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
@@ -743,7 +839,7 @@ async def process_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    if not await enforce_auto_payment_gate(callback):
+    if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
     # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
@@ -806,7 +902,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy")
         if keyboard:
-            if not await enforce_auto_payment_gate(callback):
+            if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
@@ -817,7 +913,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
-    if not await enforce_auto_payment_gate(callback):
+    if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
     if not await enforce_payment_cooldown(callback, action, provider):
@@ -878,6 +974,8 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     else:
         keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paycoupon")
         if keyboard:
+            if not await enforce_auto_payment_gate(callback, action, provider):
+                return
             await callback.message.answer(
                 t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
@@ -886,6 +984,9 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         if provider == "__NONE__":
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
+
+    if not await enforce_auto_payment_gate(callback, action, provider):
+        return
 
     try:
         _, code, plan_key = action.split("|", 2)

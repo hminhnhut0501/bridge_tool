@@ -875,7 +875,7 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL",
     label: "Deep link bot hỗ trợ",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload} để bot hỗ trợ nhận biết ca thanh toán nào đang bị chặn. Với link kích hoạt đơn, prefix mặc định là act_.",
+    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có Telegram ID, gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",
@@ -897,7 +897,7 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL_EN",
     label: "Deep link bot hỗ trợ (EN)",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload} để bot hỗ trợ nhận biết khách tiếng Anh. Nên để payload có đuôi _en để phân biệt rõ với khách Việt.",
+    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có Telegram ID, gói VIP, số tiền và ngôn ngữ EN. Có thể để ...?start={payload} hoặc ...?start=act_.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL_EN",
