@@ -239,6 +239,41 @@ class SupabaseStore:
         )
         return [_normalize_payment_provider(row) for row in rows]
 
+    def search_customer_orders(self, query, limit=30):
+        raw = _clean_text(query)
+        if not raw:
+            return []
+        safe_limit = max(1, min(int(limit or 30), 100))
+        if raw.isdigit():
+            rows = self._request(
+                "GET",
+                "orders",
+                params={
+                    "select": "*",
+                    "telegram_user_id": f"eq.{raw}",
+                    "order": "created_at.desc",
+                    "limit": str(safe_limit),
+                },
+            )
+            return [_normalize_payment_provider(row) for row in rows]
+
+        # Keep the fuzzy branch intentionally small: this powers quick lookup only,
+        # not the full customers table.
+        cleaned = raw.replace("*", " ").replace(",", " ").replace("(", " ").replace(")", " ").strip()
+        if len(cleaned) < 2:
+            return []
+        rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "*",
+                "full_name": f"ilike.*{cleaned}*",
+                "order": "created_at.desc",
+                "limit": str(safe_limit),
+            },
+        )
+        return [_normalize_payment_provider(row) for row in rows]
+
     def get_order(self, order_id):
         rows = self._request(
             "GET",

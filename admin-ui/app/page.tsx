@@ -129,6 +129,7 @@ import {
   ChannelPost,
   ChannelPostEvent,
   ConfigRow,
+  CustomerSearchResult,
   BlacklistEntry,
   Coupon,
   KickAuditRow,
@@ -174,6 +175,7 @@ import {
   getMenuPages,
   getOrders,
   getSaleRules,
+  searchCustomers,
   getSupportEvents,
   getUsers,
   getWebhookInfo,
@@ -2267,6 +2269,9 @@ export default function Home() {
   });
   const [customerQuickLookupOpen, setCustomerQuickLookupOpen] = useState(false);
   const [customerQuickLookupQuery, setCustomerQuickLookupQuery] = useState("");
+  const [customerQuickLookupResults, setCustomerQuickLookupResults] = useState<CustomerSearchResult[]>([]);
+  const [customerQuickLookupLoading, setCustomerQuickLookupLoading] = useState(false);
+  const [customerQuickLookupSearched, setCustomerQuickLookupSearched] = useState(false);
   const [logDirection, setLogDirection] = useState<LogDirectionFilter>("all");
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
@@ -2367,6 +2372,40 @@ export default function Home() {
       .then((res) => setBlacklist(res.data || []))
       .catch(() => undefined);
   }, [blacklist.length, customerQuickLookupOpen, savedSecret]);
+
+  useEffect(() => {
+    const query = customerQuickLookupQuery.trim();
+    if (!customerQuickLookupOpen || !savedSecret) return;
+    if (query.length < 2) {
+      setCustomerQuickLookupResults([]);
+      setCustomerQuickLookupLoading(false);
+      setCustomerQuickLookupSearched(false);
+      return;
+    }
+    let cancelled = false;
+    setCustomerQuickLookupLoading(true);
+    const timer = window.setTimeout(() => {
+      void searchCustomers(savedSecret, query, 20)
+        .then((res) => {
+          if (cancelled) return;
+          setCustomerQuickLookupResults(res.data || []);
+          setCustomerQuickLookupSearched(true);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setCustomerQuickLookupResults([]);
+          setCustomerQuickLookupSearched(true);
+          showNotice("error", `Không tra cứu được khách: ${error instanceof Error ? error.message : String(error)}`);
+        })
+        .finally(() => {
+          if (!cancelled) setCustomerQuickLookupLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [customerQuickLookupOpen, customerQuickLookupQuery, savedSecret]);
 
   function ui(vi: string, _en: string) {
     void _en;
@@ -3835,23 +3874,7 @@ export default function Home() {
       return true;
     });
   }, [blacklist, blacklistQuery, blacklistStatusFilter]);
-  const customerQuickLookupResult = useMemo(() => {
-    const customer = lookupCustomerByTelegramId(customerQuickLookupQuery);
-    if (!customer) return null;
-    const blacklistEntry = blacklist.find((item) => item.telegram_user_id === customer.id && item.is_active) || null;
-    return {
-      ...customer,
-      blacklistEntry,
-      isBlacklisted: Boolean(blacklistEntry),
-      hasPaidOrder: customer.paidOrders.length > 0,
-      hasActiveOrder: customer.activeOrders.length > 0,
-      activeOrderCount: customer.activeOrders.length,
-      paidOrderCount: customer.paidOrders.length,
-      latestExpireText: customer.latestExpire ? dateTextShort(customer.latestExpire) : "-",
-      latestExpireOrder: customer.activeOrders[0] || customer.paidOrders[0] || null,
-      statusText: customer.statusLabel,
-    };
-  }, [blacklist, customerQuickLookupQuery, customerSummaries]);
+  const customerQuickLookupResult = customerQuickLookupResults[0] || null;
   const selectedCustomerBlacklistEntry = useMemo(() => {
     if (!selectedCustomerId) return null;
     return blacklist.find((item) => item.telegram_user_id === selectedCustomerId && item.is_active) || null;
@@ -4723,21 +4746,31 @@ export default function Home() {
   }
 
   async function openCustomerQuickLookup() {
-    if (savedSecret && !orders.length) {
-      await loadAll(savedSecret, { silent: true, resetPages: false, scope: "all" });
-    }
     setCustomerQuickLookupQuery(selectedCustomerId || "");
+    setCustomerQuickLookupResults([]);
+    setCustomerQuickLookupSearched(false);
     setCustomerQuickLookupOpen(true);
   }
 
   function lookupCustomerByTelegramId(rawId: string) {
     const telegramId = rawId.trim();
     if (!telegramId) return null;
-    return customerSummaries.find((item) => item.id === telegramId) || null;
+    return customerSummaries.find((item) => item.id === telegramId) || customerQuickLookupResults.find((item) => item.id === telegramId) || null;
   }
 
-  function openCustomerFromLookup(customerId: string) {
-    const customer = lookupCustomerByTelegramId(customerId);
+  async function ensureCustomerDataset(customerId: string) {
+    let customer = lookupCustomerByTelegramId(customerId);
+    if (!customer) return;
+    const lookupId = customer.id;
+    if (!customerSummaries.some((item) => item.id === lookupId) && savedSecret) {
+      await loadAll(savedSecret, { silent: true, resetPages: false, scope: "all" });
+      customer = lookupCustomerByTelegramId(customerId);
+    }
+    return customer;
+  }
+
+  async function openCustomerFromLookup(customerId: string) {
+    const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
     setSelectedCustomerId(customer.id);
     setCustomerOrderTab("all");
@@ -4746,8 +4779,8 @@ export default function Home() {
     setCustomerModalOpen(true);
   }
 
-  function openCustomerRenewFromLookup(customerId: string) {
-    const customer = lookupCustomerByTelegramId(customerId);
+  async function openCustomerRenewFromLookup(customerId: string) {
+    const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
     setSelectedCustomerId(customer.id);
     setCustomerOrderTab("all");
@@ -4759,16 +4792,17 @@ export default function Home() {
     });
   }
 
-  function openQuickLookupPrimaryAction(customerId: string) {
+  async function openQuickLookupPrimaryAction(customerId: string) {
     const customer = lookupCustomerByTelegramId(customerId);
     if (!customer) return;
-    const blacklistEntry = blacklist.find((item) => item.telegram_user_id === customer.id && item.is_active) || null;
+    const lookupBlacklistEntry = "blacklistEntry" in customer ? customer.blacklistEntry : null;
+    const blacklistEntry = lookupBlacklistEntry || blacklist.find((item) => item.telegram_user_id === customer.id && item.is_active) || null;
     if (blacklistEntry) {
       showNotice("error", `Khách ${customer.id} đang blacklist: ${blacklistEntry.reason || "không có lý do"}`);
       return;
     }
     if (customer.activeOrders.length > 0) {
-      openCustomerRenewFromLookup(customer.id);
+      await openCustomerRenewFromLookup(customer.id);
       return;
     }
     openManualOrderFromLookup(customer.id);
@@ -6575,16 +6609,16 @@ export default function Home() {
         ) : null}
 
         {customerQuickLookupOpen ? (
-          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Nhập Telegram ID để xem khách đã từng mua chưa, còn hạn hay không, rồi thao tác ngay." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
+          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Search lazy theo Telegram ID hoặc tên, không tải toàn bộ đơn hàng khi mở popup." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
             <Box sx={{ display: "grid", gap: 1.25 }}>
               <TextField
                 autoFocus
-                label="Telegram ID"
+                label="Telegram ID hoặc tên khách"
                 value={customerQuickLookupQuery}
-                onChange={(event) => setCustomerQuickLookupQuery(event.target.value.replace(/[^\d]/g, ""))}
-                placeholder="VD: 7344961485"
+                onChange={(event) => setCustomerQuickLookupQuery(event.target.value)}
+                placeholder="VD: 7344961485 hoặc Minh"
                 size="small"
-                helperText="Nhập đúng ID số Telegram của khách."
+                helperText="Nhập tối thiểu 2 ký tự. Nếu nhập số, backend ưu tiên tìm chính xác Telegram ID để nhanh nhất."
                 fullWidth
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return;
@@ -6592,12 +6626,33 @@ export default function Home() {
                   if (!lookupId) return;
                   event.preventDefault();
                   if (customerQuickLookupResult) {
-                    openQuickLookupPrimaryAction(customerQuickLookupResult.id);
+                    void openQuickLookupPrimaryAction(customerQuickLookupResult.id);
                     return;
                   }
-                  openManualOrderFromLookup(lookupId);
+                  if (/^\d+$/.test(lookupId)) openManualOrderFromLookup(lookupId);
                 }}
               />
+              {customerQuickLookupLoading ? (
+                <Alert severity="info" variant="outlined" icon={<Loader2 size={16} className="spin" />}>Đang tra cứu dữ liệu nhỏ từ backend...</Alert>
+              ) : null}
+              {customerQuickLookupResults.length > 1 ? (
+                <Box sx={{ display: "grid", gap: 0.75 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Tìm thấy {customerQuickLookupResults.length} khách, chọn một khách để xem nhanh:</Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                    {customerQuickLookupResults.slice(0, 8).map((item) => (
+                      <Button
+                        key={item.id}
+                        size="small"
+                        variant={customerQuickLookupResult?.id === item.id ? "contained" : "outlined"}
+                        onClick={() => setCustomerQuickLookupResults([item, ...customerQuickLookupResults.filter((candidate) => candidate.id !== item.id)])}
+                        sx={{ borderRadius: 999, textTransform: "none" }}
+                      >
+                        {item.name || item.id} · {item.id}
+                      </Button>
+                    ))}
+                  </Box>
+                </Box>
+              ) : null}
               {customerQuickLookupResult ? (
                 <>
                   {customerQuickLookupResult.isBlacklisted ? (
@@ -6671,17 +6726,17 @@ export default function Home() {
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
                     <Button
                       variant="contained"
-                      onClick={() => openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
+                      onClick={() => void openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
                       startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
                       disabled={customerQuickLookupResult.isBlacklisted}
                       sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
                     >
                       {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
                     </Button>
-                    <Button variant="text" onClick={() => openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                    <Button variant="text" onClick={() => void openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
                       Mở khách gần nhất
                     </Button>
-                    <Button variant="text" onClick={() => openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
+                    <Button variant="text" onClick={() => void openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
                       Gia hạn nhanh
                     </Button>
                     <Button variant="text" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
@@ -6694,22 +6749,22 @@ export default function Home() {
                     ) : null}
                   </Box>
                 </>
-              ) : customerQuickLookupQuery.trim() ? (
+              ) : customerQuickLookupSearched && customerQuickLookupQuery.trim().length >= 2 && !customerQuickLookupLoading ? (
                 <>
-                  <Alert severity="warning" variant="outlined">Không tìm thấy khách khớp Telegram ID này.</Alert>
+                  <Alert severity="warning" variant="outlined">Không tìm thấy khách khớp Telegram ID/tên này.</Alert>
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
-                    <Button
+                    {/^\d+$/.test(customerQuickLookupQuery.trim()) ? <Button
                       variant="contained"
                       onClick={() => openManualOrderFromLookup(customerQuickLookupQuery.trim())}
                       startIcon={<Plus size={16} />}
                       sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
                     >
                       Tạo đơn mới
-                    </Button>
+                    </Button> : null}
                   </Box>
                 </>
               ) : (
-                <Alert severity="info" variant="outlined">Nhập Telegram ID để xem nhanh trạng thái đơn và hạn dùng.</Alert>
+                <Alert severity="info" variant="outlined">Nhập Telegram ID hoặc tên, hệ thống chỉ search phần cần thiết thay vì load toàn bộ đơn hàng.</Alert>
               )}
             </Box>
           </MuiDialogShell>

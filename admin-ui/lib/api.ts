@@ -90,6 +90,25 @@ export type BlacklistEntry = {
   updated_at: string;
 };
 
+export type CustomerSearchResult = {
+  id: string;
+  name: string;
+  orders: Order[];
+  paidOrders: Order[];
+  activeOrders: Order[];
+  latestExpire: string;
+  blacklistEntry: BlacklistEntry | null;
+  isBlacklisted: boolean;
+  hasPaidOrder: boolean;
+  hasActiveOrder: boolean;
+  activeOrderCount: number;
+  paidOrderCount: number;
+  latestExpireText: string;
+  latestExpireOrder: Order | null;
+  status: string;
+  statusText: string;
+};
+
 export type SupportEvent = {
   id: string;
   event_type: string;
@@ -408,6 +427,11 @@ export async function getOrders(secret: string, limit = 5000) {
 
 export async function getUsers(secret: string) {
   return request<{ data: UserRow[] }>("/admin-api/users", secret);
+}
+
+export async function searchCustomers(secret: string, query: string, limit = 20) {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  return request<{ data: CustomerSearchResult[] }>(`/admin-api/customers/search?${params.toString()}`, secret);
 }
 
 export async function getConfig(secret: string) {

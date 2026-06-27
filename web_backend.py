@@ -130,6 +130,104 @@ def format_manual_expire_at(value: str | None):
     return parsed.strftime("%H:%M %d/%m/%Y")
 
 
+def order_datetime(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=backend_timezone())
+        return parsed.astimezone(backend_timezone())
+    except Exception:
+        try:
+            return parse_manual_expire_at(raw)
+        except Exception:
+            return None
+
+
+def order_is_lifetime(plan_name: str | None):
+    text = str(plan_name or "").lower()
+    return any(token in text for token in ("trọn đời", "tron doi", "lifetime", "life", "vĩnh viễn", "vinh vien"))
+
+
+def order_is_active(order):
+    if str(order.get("status") or "").upper() != "PAID":
+        return False
+    if order_is_lifetime(order.get("plan_name")):
+        return True
+    expire_at = order_datetime(order.get("expire_at"))
+    return bool(expire_at and expire_at >= now_local())
+
+
+def days_until_order_expire(order):
+    expire_at = order_datetime(order.get("expire_at"))
+    if not expire_at:
+        return 999999
+    delta = expire_at - now_local()
+    return int(delta.total_seconds() // 86400)
+
+
+def build_customer_search_summary(query: str, limit: int = 30):
+    rows = supabase_store.search_customer_orders(query, limit=limit)
+    grouped: dict[str, dict[str, object]] = {}
+    for order in rows:
+        telegram_id = str(order.get("telegram_user_id") or "").strip()
+        if not telegram_id:
+            continue
+        item = grouped.setdefault(telegram_id, {"id": telegram_id, "name": order.get("full_name") or telegram_id, "orders": []})
+        if order.get("full_name"):
+            item["name"] = order.get("full_name")
+        item["orders"].append(order)
+
+    try:
+        reminder_days = int(float(str(db.get_config("REMINDER_DAYS", "3") or 3)))
+    except (TypeError, ValueError):
+        reminder_days = 3
+    results = []
+    for item in grouped.values():
+        orders = sorted(item["orders"], key=lambda order: str(order.get("created_at") or ""), reverse=True)
+        paid_orders = [order for order in orders if str(order.get("status") or "").upper() == "PAID"]
+        active_orders = [order for order in paid_orders if order_is_active(order)]
+        latest_expire = sorted([str(order.get("expire_at") or "") for order in paid_orders if order.get("expire_at")], reverse=True)
+        expiring_within_window = any(
+            str(order.get("status") or "").upper() == "PAID"
+            and not order_is_lifetime(order.get("plan_name"))
+            and 0 <= days_until_order_expire(order) <= reminder_days
+            for order in orders
+        )
+        has_paid = bool(paid_orders)
+        status = "active" if active_orders else "expiring" if expiring_within_window else "expired" if has_paid else "no_paid"
+        blacklist_entry = None
+        try:
+            entry = supabase_store.get_blacklist_entry(str(item["id"]))
+            if entry and entry.get("is_active"):
+                blacklist_entry = entry
+        except Exception as exc:
+            if not is_missing_supabase_table_error(exc, "security_blacklist"):
+                print(f"⚠️ Không đọc được blacklist khi lookup khách {item['id']}: {exc}")
+        results.append({
+            "id": item["id"],
+            "name": item["name"],
+            "orders": orders,
+            "paidOrders": paid_orders,
+            "activeOrders": active_orders,
+            "latestExpire": latest_expire[0] if latest_expire else "",
+            "blacklistEntry": blacklist_entry,
+            "isBlacklisted": bool(blacklist_entry),
+            "hasPaidOrder": has_paid,
+            "hasActiveOrder": bool(active_orders),
+            "activeOrderCount": len(active_orders),
+            "paidOrderCount": len(paid_orders),
+            "latestExpireText": format_manual_expire_at(latest_expire[0]) if latest_expire else "-",
+            "latestExpireOrder": active_orders[0] if active_orders else paid_orders[0] if paid_orders else None,
+            "status": status,
+            "statusText": "Đang còn hạn" if status == "active" else "Sắp hết hạn" if status == "expiring" else "Hết hạn / chờ kick" if status == "expired" else "Chưa PAID",
+        })
+    results.sort(key=lambda item: str((item.get("orders") or [{}])[0].get("created_at") or ""), reverse=True)
+    return results
+
+
 def normalize_template_text(value: str | None):
     return str(value or "").replace("\\n", "\n").strip()
 
@@ -987,6 +1085,14 @@ async def admin_create_manual_order(request: Request):
 @app.get("/admin-api/users", dependencies=[Depends(require_admin)])
 async def admin_users(limit: int = 200):
     return {"data": supabase_store.list_users(limit=limit)}
+
+
+@app.get("/admin-api/customers/search", dependencies=[Depends(require_admin)])
+async def admin_customer_search(q: str = "", limit: int = 30):
+    query = str(q or "").strip()
+    if len(query) < 2:
+        return {"data": []}
+    return {"data": build_customer_search_summary(query, limit=limit)}
 
 
 @app.get("/admin-api/config", dependencies=[Depends(require_admin)])
