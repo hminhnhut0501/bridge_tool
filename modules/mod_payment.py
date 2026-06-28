@@ -118,7 +118,7 @@ def hidden_offer_for_action(action, user_id=None, provider=""):
     plan_name = build_hidden_plan_name(hidden_group, duration_key)
     return {
         "plan_name": plan_name,
-        "display_name": display_plan_name(plan_name),
+        "display_name": display_plan_name(plan_name, user_id),
         "plan_token": extract_plan_token(plan_name),
         "price_key": "",
         "amount": amount,
@@ -270,7 +270,7 @@ def sale_caption(sale_info, original_amount, amount, currency="VND"):
 
 
 async def send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption=""):
-    pretty_plan_name = display_plan_name(plan_name)
+    pretty_plan_name = display_plan_name(plan_name, callback.from_user.id)
     provider = str(pay_data.get("provider") or "PAYOS").upper()
     if provider == "TRON_USDT":
         caption = t(

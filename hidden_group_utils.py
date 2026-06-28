@@ -173,8 +173,95 @@ def strip_plan_token(plan_name):
     return name[:start].rstrip()
 
 
-def display_plan_name(plan_name):
-    return strip_plan_token(plan_name)
+def _display_language(user_id=None, language=None):
+    normalized = normalize_text(language).lower()
+    if normalized in {"vi", "en"}:
+        return normalized
+    try:
+        from i18n import get_user_language
+
+        return get_user_language(user_id)
+    except Exception:
+        return "vi"
+
+
+def _localized_plan_text(user_id, key, default="", language=None):
+    lang = _display_language(user_id, language)
+    if lang == "en":
+        localized = normalize_text(_db().get_config(f"{key}_EN", ""))
+        if localized:
+            return localized
+    base = normalize_text(_db().get_config(key, default))
+    return base or default
+
+
+def _group_count():
+    return max(1, parse_int(_db().get_config("GROUP_COUNT", "4"), 4))
+
+
+def _resolve_group_number_from_plan_name(plan_name):
+    clean_name = strip_plan_token(plan_name)
+    suffix = clean_name.rsplit(" - ", 1)[-1] if " - " in clean_name else clean_name
+    suffix_text = normalize_match_text(suffix)
+    plan_text = normalize_match_text(clean_name)
+    for group_no in range(1, _group_count() + 1):
+        vi_name = normalize_text(_db().get_config(f"BTN_G{group_no}", f"Nhóm {group_no}"))
+        en_name = normalize_text(_db().get_config(f"BTN_G{group_no}_EN", vi_name))
+        for candidate in {normalize_match_text(vi_name), normalize_match_text(en_name)}:
+            if candidate and (candidate == suffix_text or candidate in plan_text):
+                return str(group_no)
+    return ""
+
+
+def _translate_generic_plan_name(plan_name):
+    text = strip_plan_token(plan_name)
+    replacements = [
+        ("Trọn Đời", "Lifetime"),
+        ("TRỌN ĐỜI", "LIFETIME"),
+        ("trọn đời", "lifetime"),
+        ("30 Ngày", "30 Days"),
+        ("30 ngày", "30 days"),
+        ("1 Ngày", "1 Day"),
+        ("1 ngày", "1 day"),
+        ("Nhóm", "Group"),
+        ("nhóm", "group"),
+    ]
+    for source, target in replacements:
+        text = text.replace(source, target)
+    return text
+
+
+def display_plan_name(plan_name, user_id=None, language=None):
+    clean_name = strip_plan_token(plan_name)
+    if not clean_name:
+        return clean_name
+    if _display_language(user_id, language) != "en":
+        return clean_name
+
+    upper_name = normalize_key_text(clean_name)
+    is_lifetime = any(token in upper_name for token in {"TRỌN ĐỜI", "TRON DOI", "LIFETIME", " LIFE"})
+    is_svip = "SVIP" in upper_name or "FULL" in upper_name
+
+    if is_svip:
+        return _localized_plan_text(
+            user_id,
+            "PLAN_FULL_LIFE" if is_lifetime else "PLAN_FULL_1M",
+            "SVIP+ Lifetime (All 4 Groups)" if is_lifetime else "SVIP+ 30 Days (All 4 Groups)",
+            language="en",
+        )
+
+    group_no = _resolve_group_number_from_plan_name(clean_name)
+    if group_no:
+        group_label = _localized_plan_text(user_id, f"BTN_G{group_no}", clean_name.rsplit(" - ", 1)[-1] if " - " in clean_name else clean_name, language="en")
+        prefix = _localized_plan_text(
+            user_id,
+            "PLAN_G_LIFE" if is_lifetime else "PLAN_G_1M",
+            "VIP Lifetime" if is_lifetime else "VIP 30 Days",
+            language="en",
+        )
+        return f"{prefix} - {group_label}"
+
+    return _translate_generic_plan_name(clean_name)
 
 
 def hidden_plan_duration_key(plan_token):

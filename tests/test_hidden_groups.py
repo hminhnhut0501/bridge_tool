@@ -131,6 +131,27 @@ class HiddenGroupTests(unittest.TestCase):
         self.assertEqual(offer["metadata"]["hidden_group_id"], "prime_x")
         self.assertTrue(hidden_group_utils.extract_plan_token(offer["plan_name"]).startswith("HG:prime_x"))
 
+    def test_display_plan_name_localizes_english_plan_labels(self):
+        self.fake_db.config.update({
+            "PLAN_FULL_LIFE_EN": "SVIP+ Lifetime (All 4 Groups)",
+            "PLAN_G_LIFE_EN": "VIP Lifetime",
+            "BTN_G1_EN": "Prime Group",
+        })
+        original_language_getter = getattr(hidden_group_utils, "_display_language")
+
+        try:
+            hidden_group_utils._display_language = lambda user_id=None, language=None: "en"
+            self.assertEqual(
+                hidden_group_utils.display_plan_name("SVIP+ Trọn Đời (Full 4 Nhóm)", user_id="42"),
+                "SVIP+ Lifetime (All 4 Groups)",
+            )
+            self.assertEqual(
+                hidden_group_utils.display_plan_name("VIP Trọn Đời - Hang Cú Prime", user_id="42"),
+                "VIP Lifetime - Prime Group",
+            )
+        finally:
+            hidden_group_utils._display_language = original_language_getter
+
     def test_hidden_group_can_be_lifetime_only_when_monthly_price_is_zero(self):
         group = {
             "id": "life_only",

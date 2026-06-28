@@ -269,7 +269,7 @@ async def process_successful_payment(order_code: str):
 
         # Gửi tin nhắn thành công
         msg_template = t(user_id, "MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
-        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name))).replace("{date}", expire_date).replace("{links}", links_msg)
+        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name, user_id))).replace("{date}", expire_date).replace("{links}", links_msg)
         
         # Tạo nút điều hướng về UI chính bằng cơ chế mới
         kb = InlineKeyboardBuilder()

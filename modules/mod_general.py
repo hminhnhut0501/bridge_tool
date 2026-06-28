@@ -508,7 +508,7 @@ async def cmd_me(event):
                 expired_plans.append(p)
         for p in my_plans: 
             expire_text = format_membership_expire(p[7], event.from_user.id)
-            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", display_plan_name(str(p[3]))).replace("{date}", expire_text)
+            text += t(event.from_user.id, "MSG_ME_ITEM", "🎁 Gói: <b>{plan}</b>\n📅 Hạn: <code>{date}</code>\n\n").replace("\\n", "\n").replace("{plan}", display_plan_name(str(p[3]), event.from_user.id)).replace("{date}", expire_text)
             
     kb = InlineKeyboardBuilder()
     if my_plans:
