@@ -2294,6 +2294,7 @@ export default function Home() {
   const [renewalFocusFilter, setRenewalFocusFilter] = useState<RenewalFocusFilter>("all");
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
+  const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   const [orderSettingsOpen, setOrderSettingsOpen] = useState(false);
@@ -5530,6 +5531,7 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn dữ liệu VIP."
                 action={
                   <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
                     <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }
@@ -6507,6 +6509,10 @@ export default function Home() {
 
         {renewalSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt gia hạn" subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên." fields={RENEWAL_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setRenewalSettingsOpen(false)} />
+        ) : null}
+
+        {supportSettingsOpen ? (
+          <SettingsConfigModal title="Cài đặt group hỗ trợ" subtitle="Quản lý bật/tắt group hỗ trợ, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
