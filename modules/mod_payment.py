@@ -26,6 +26,14 @@ from i18n import get_user_language, t
 from modules.mod_engine import render_page
 from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
+from support_utils import (
+    create_support_ticket_for_user,
+    post_support_ticket_to_group,
+    record_support_event,
+    record_support_message,
+    support_group_enabled,
+    support_ticket_subject_from_action,
+)
 
 router = Router()
 
@@ -649,9 +657,79 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
         return True
     callback_action = action or getattr(callback, "data", "")
     keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider)
+    subject = support_ticket_subject_from_action(callback_action, provider, "auto_payment_off")
+    ticket, ticket_error = await create_support_ticket_for_user(
+        telegram_user_id=callback.from_user.id,
+        chat_id=callback.message.chat.id if callback.message else None,
+        username=callback.from_user.username or "",
+        full_name=callback.from_user.full_name or "",
+        subject=subject,
+        source="auto_payment_off",
+        raw_data={
+            "action": callback_action,
+            "provider": provider,
+            "language": get_user_language(callback.from_user.id),
+        },
+    )
+    if ticket:
+        message_text = (
+            f"🧾 <b>Yêu cầu thanh toán thủ công</b>\n"
+            f"Khách đã bấm mua khi auto-payment đang tắt.\n"
+            f"Ticket: <code>{ticket.get('ticket_no', '')}</code>\n"
+            f"Case đã được mở và chuyển sang {db.get_config('SUPPORT_GROUP_NAME', 'Nhóm hỗ trợ')}."
+        )
+        try:
+            sent = await post_support_ticket_to_group(ticket, message_text=message_text)
+            if sent:
+                try:
+                    supabase_store.update_support_ticket(
+                        ticket["id"],
+                        {
+                            "manager_group_message_id": sent.message_id,
+                            "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
+                        },
+                    )
+                except Exception as exc:
+                    print(f"⚠️ Không cập nhật ticket message id: {exc}")
+                await record_support_message(
+                    ticket.get("id"),
+                    "user_to_support",
+                    manager_group_message_id=sent.message_id,
+                    text=message_text,
+                    payload={
+                        "action": callback_action,
+                        "provider": provider,
+                        "source": "auto_payment_off",
+                    },
+                )
+        except Exception as exc:
+            print(f"⚠️ Không đẩy ticket support lên group: {exc}")
+        try:
+            record_support_event(
+                "support_ticket_created",
+                callback.from_user.id,
+                username=callback.from_user.username or "",
+                full_name=callback.from_user.full_name or "",
+                chat_id=str(callback.message.chat.id if callback.message else ""),
+                raw_data={
+                    "ticket_no": ticket.get("ticket_no", ""),
+                    "ticket_id": ticket.get("id", ""),
+                    "action": callback_action,
+                    "provider": provider,
+                },
+            )
+        except Exception:
+            pass
     if keyboard and callback.message:
         try:
-            await callback.message.answer(auto_payment_gate_message(callback.from_user.id), reply_markup=keyboard)
+            gate_text = auto_payment_gate_message(callback.from_user.id)
+            if ticket:
+                gate_text += f"\n\n🎫 Case hỗ trợ đã mở: <code>{ticket.get('ticket_no', '')}</code>"
+            elif ticket_error:
+                gate_text += f"\n\n⚠️ Không tạo được ticket hỗ trợ: {ticket_error}"
+            if support_group_enabled():
+                gate_text += "\nBot đã mở case hỗ trợ và đẩy sang nhóm xử lý."
+            await callback.message.answer(gate_text, reply_markup=keyboard)
         except Exception as exc:
             print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
     try:

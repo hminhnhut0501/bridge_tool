@@ -137,6 +137,7 @@ import {
   MenuPage,
   Order,
   SaleRule,
+  type SupportCase,
   SupportEvent,
   UserRow,
   WebhookInfo,
@@ -176,6 +177,7 @@ import {
   getOrders,
   getSaleRules,
   searchCustomers,
+  searchSupportCases,
   getSupportEvents,
   getUsers,
   getWebhookInfo,
@@ -1309,6 +1311,34 @@ const SUPPORT_FIELDS: ConfigField[] = [
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
+    key: "SUPPORT_TICKET_PREFIX",
+    label: "Tiền tố case support",
+    placeholder: "SUP",
+    help: "Chỉ là nhãn hiển thị cho case support, ví dụ SUP hoặc CS.",
+  },
+  {
+    key: "SUPPORT_INBOX_MODE",
+    label: "Chế độ inbox support",
+    placeholder: "group",
+    help: "group: support xử lý trong group. forum: chuẩn bị cho mode topic riêng.",
+    kind: "select",
+    options: [
+      { label: "Group", value: "group" },
+      { label: "Forum", value: "forum" },
+    ],
+  },
+  {
+    key: "SUPPORT_DELETE_ENABLED",
+    label: "Cho phép /delete",
+    placeholder: "ON",
+    help: "Bật ON để admin trong group có thể xoá message support đã gửi sang user bằng /delete.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "SUPPORT_GROUP_BUTTON_TEXT",
     label: "Text nút join support",
     placeholder: "💬 Join nhóm hỗ trợ",
@@ -2232,6 +2262,7 @@ export default function Home() {
   const [hiddenRedemptions, setHiddenRedemptions] = useState<HiddenRedemption[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
+  const [supportCases, setSupportCases] = useState<SupportCase[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
@@ -2298,6 +2329,10 @@ export default function Home() {
   const [renewalFocusFilter, setRenewalFocusFilter] = useState<RenewalFocusFilter>("all");
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
+  const [supportCaseQuery, setSupportCaseQuery] = useState("");
+  const [supportCaseLoading, setSupportCaseLoading] = useState(false);
+  const [supportCaseSearched, setSupportCaseSearched] = useState(false);
+  const [selectedSupportCaseUserId, setSelectedSupportCaseUserId] = useState("");
   const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
@@ -3070,6 +3105,28 @@ export default function Home() {
         showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
       }
     });
+  }
+
+  async function runSupportCaseSearch(query = supportCaseQuery.trim()) {
+    const search = query.trim();
+    if (!savedSecret || !search) {
+      setSupportCases([]);
+      setSupportCaseSearched(false);
+      return;
+    }
+    setSupportCaseLoading(true);
+    try {
+      const res = await searchSupportCases(savedSecret, search, 10);
+      setSupportCases(res.data || []);
+      setSelectedSupportCaseUserId((current) => current || String(res.data?.[0]?.ticket?.telegram_user_id || "").trim());
+      setSupportCaseSearched(true);
+    } catch (error) {
+      console.error(error);
+      setSupportCases([]);
+      setSupportCaseSearched(true);
+    } finally {
+      setSupportCaseLoading(false);
+    }
   }
 
   function escapeCsvCell(value: unknown) {
@@ -4289,6 +4346,11 @@ export default function Home() {
       </Tooltip>,
     ]);
   }, [supportGroupEvents, supportTab, supportCustomerName]);
+  const selectedSupportCase = useMemo(() => {
+    const target = String(selectedSupportCaseUserId || "").trim();
+    if (!target) return supportCases[0] || null;
+    return supportCases.find((item) => String(item.ticket?.telegram_user_id || "").trim() === target) || supportCases[0] || null;
+  }, [selectedSupportCaseUserId, supportCases]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
   const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
   const pagedSupportRows = useMemo(() => {
@@ -5609,6 +5671,70 @@ export default function Home() {
               ) : (
                 <div className="muted">Bấm kiểm tra sau khi lưu Support group ID.</div>
               )}
+            </section>
+            <section className="panel">
+              <PanelHead
+                title="Tra cứu case"
+                subtitle="Tìm case support theo user ID hoặc tên. User ID là khóa chính, ticket chỉ là nhãn hiển thị."
+                action={
+                  <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm</Button>
+                  </div>
+                }
+              />
+              <Box sx={{ display: "grid", gap: 1.25, p: 2 }}>
+                <TextField value={supportCaseQuery} onChange={(event) => setSupportCaseQuery(event.target.value)} placeholder="Nhập Telegram ID, tên, ticket..." size="small" fullWidth onKeyDown={(event) => { if (event.key === "Enter") void runSupportCaseSearch(); }} />
+                {supportCaseLoading ? <div className="muted">Đang tìm case...</div> : null}
+                {supportCaseSearched && !supportCases.length && !supportCaseLoading ? <div className="muted">Không tìm thấy case nào.</div> : null}
+                {supportCases.length ? (
+                  <SimpleTable
+                    headers={["Khách", "User ID", "Trạng thái", "Lần cập nhật", "Case"]}
+                    rows={supportCases.map((item) => [
+                      <span key={`${item.ticket.id}-name`}><strong>{item.ticket.full_name || item.ticket.username || item.ticket.telegram_user_id}</strong><div className="muted">{item.ticket.username ? `@${item.ticket.username}` : "-"}</div></span>,
+                      item.ticket.telegram_user_id,
+                      item.ticket.status,
+                      dateText(item.ticket.updated_at),
+                      item.ticket.ticket_no,
+                    ])}
+                  />
+                ) : null}
+              </Box>
+              {selectedSupportCase ? (
+                <Box sx={{ borderTop: 1, borderColor: "divider", p: 2, display: "grid", gap: 1.25 }}>
+                  <div><strong>Case hiện tại</strong></div>
+                  <SimpleTable
+                    headers={["Trường", "Giá trị"]}
+                    rows={[
+                      ["Khách", `${selectedSupportCase.ticket.full_name || "-"} ${selectedSupportCase.ticket.username ? `(@${selectedSupportCase.ticket.username})` : ""}`.trim()],
+                      ["Telegram ID", selectedSupportCase.ticket.telegram_user_id],
+                      ["Trạng thái", selectedSupportCase.ticket.status],
+                      ["Subject", selectedSupportCase.ticket.subject || "-"],
+                      ["Source", selectedSupportCase.ticket.source || "-"],
+                      ["Cập nhật", dateText(selectedSupportCase.ticket.updated_at)],
+                    ]}
+                  />
+                  <div className="stack" style={{ gap: 8 }}>
+                    <strong>Messages gần nhất</strong>
+                    {selectedSupportCase.messages.length ? selectedSupportCase.messages.slice(-10).map((msg) => (
+                      <Box key={msg.id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <strong>{String(msg.direction || "").replaceAll("_", " ")}</strong>
+                          <span className="muted">{dateText(msg.created_at)}</span>
+                        </div>
+                        <div className="muted" style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
+                          {msg.text || (() => {
+                            const payload = msg.payload;
+                            if (payload && typeof payload === "object" && "message" in payload && typeof (payload as { message?: unknown }).message === "string") {
+                              return (payload as { message: string }).message;
+                            }
+                            return "";
+                          })() || "-"}
+                        </div>
+                      </Box>
+                    )) : <div className="muted">Chưa có message nào.</div>}
+                  </div>
+                </Box>
+              ) : null}
             </section>
             <section className="panel">
               <PanelHead

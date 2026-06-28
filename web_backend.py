@@ -1351,6 +1351,23 @@ async def admin_support_events(limit: int = 5000):
         return {"data": []}
 
 
+@app.get("/admin-api/support-cases", dependencies=[Depends(require_admin)])
+async def admin_support_cases(query: str = "", limit: int = 20):
+    try:
+        rows = supabase_store.search_support_tickets(query, limit=limit)
+        data = []
+        for row in rows:
+            messages = supabase_store.list_support_messages(row.get("id"), limit=20)
+            data.append({"ticket": row, "messages": messages})
+        return {"data": data}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "support_tickets"):
+            warn_missing_table_once("support_tickets", exc)
+        else:
+            print(f"⚠️ Không đọc được support cases: {exc}")
+        return {"data": []}
+
+
 @app.get("/admin-api/kick-audit", dependencies=[Depends(require_admin)])
 async def admin_kick_audit(live: bool = False):
     try:

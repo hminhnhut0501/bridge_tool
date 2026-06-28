@@ -969,6 +969,160 @@ class SupabaseStore:
         }
         return self._request("POST", "support_events", json=payload, prefer="return=representation")
 
+    def create_support_ticket(self, payload):
+        return self._request("POST", "support_tickets", json=payload, prefer="return=representation")
+
+    def update_support_ticket(self, ticket_id, payload):
+        return self._request(
+            "PATCH",
+            "support_tickets",
+            params={"id": f"eq.{_clean_text(ticket_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def get_support_ticket_by_id(self, ticket_id):
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={"select": "*", "id": f"eq.{_clean_text(ticket_id)}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    def get_open_support_ticket_by_user(self, telegram_user_id):
+        user_id = _clean_text(telegram_user_id)
+        if not user_id:
+            return None
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{user_id}",
+                "status": "eq.open",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def get_support_ticket_by_user(self, telegram_user_id):
+        user_id = _clean_text(telegram_user_id)
+        if not user_id:
+            return None
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def get_support_ticket_by_manager_group_message_id(self, message_id):
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={
+                "select": "*",
+                "manager_group_message_id": f"eq.{_clean_text(message_id)}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def get_support_ticket_by_topic_thread_id(self, thread_id):
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={
+                "select": "*",
+                "manager_topic_thread_id": f"eq.{_clean_text(thread_id)}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def list_support_tickets(self, limit=100, status=None):
+        params = {"select": "*", "order": "created_at.desc", "limit": str(limit)}
+        if status:
+            params["status"] = f"eq.{_clean_text(status)}"
+        return self._request("GET", "support_tickets", params=params)
+
+    def search_support_tickets(self, query, limit=20):
+        raw = _clean_text(query)
+        if not raw:
+            return []
+        safe_limit = max(1, min(int(limit or 20), 50))
+        if raw.isdigit():
+            rows = self._request(
+                "GET",
+                "support_tickets",
+                params={
+                    "select": "*",
+                    "telegram_user_id": f"eq.{raw}",
+                    "order": "updated_at.desc",
+                    "limit": str(safe_limit),
+                },
+            )
+            return rows
+        rows = self._request(
+            "GET",
+            "support_tickets",
+            params={
+                "select": "*",
+                "or": f"(ticket_no.ilike.*{raw}*,username.ilike.*{raw}*,full_name.ilike.*{raw}*,subject.ilike.*{raw}*)",
+                "order": "updated_at.desc",
+                "limit": str(safe_limit),
+            },
+        )
+        return rows
+
+    def create_support_message(self, payload):
+        return self._request("POST", "support_messages", json=payload, prefer="return=representation")
+
+    def get_support_message_by_manager_group_message_id(self, message_id):
+        rows = self._request(
+            "GET",
+            "support_messages",
+            params={
+                "select": "*",
+                "manager_group_message_id": f"eq.{_clean_text(message_id)}",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def get_support_message_by_reply_to_manager_message_id(self, message_id):
+        rows = self._request(
+            "GET",
+            "support_messages",
+            params={
+                "select": "*",
+                "reply_to_manager_message_id": f"eq.{_clean_text(message_id)}",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def list_support_messages(self, ticket_id, limit=50):
+        rows = self._request(
+            "GET",
+            "support_messages",
+            params={
+                "select": "*",
+                "ticket_id": f"eq.{_clean_text(ticket_id)}",
+                "order": "created_at.asc",
+                "limit": str(limit),
+            },
+        )
+        return rows
+
     def get_user_identity(self, telegram_user_id):
         user_id = _clean_text(telegram_user_id)
         if not user_id:
