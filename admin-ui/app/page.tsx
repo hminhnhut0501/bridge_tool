@@ -547,7 +547,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -2444,6 +2444,21 @@ export default function Home() {
   const [blacklistQuery, setBlacklistQuery] = useState("");
   const [blacklistStatusFilter, setBlacklistStatusFilter] = useState<"all" | "active" | "inactive" | "reason">("all");
   const [demoDataInjected, setDemoDataInjected] = useState(false);
+  const supportStaffRows = useMemo(() => {
+    const raw = getConfigValue(config, "ADMIN_IDS", "");
+    const ids = uniqueValues(raw.split(",").map((item) => item.trim()).filter(Boolean));
+    if (!ids.length) {
+      return [{ id: "-", alias: "Chưa cấu hình", status: "Offline", tone: "muted" as const, note: "Thiếu ADMIN_IDS", avatar: "?" }];
+    }
+    return ids.map((id, index) => ({
+      id,
+      alias: `Staff ${index + 1}`,
+      status: botScheduleStatusApi?.active ? "Online" : "Offline",
+      tone: botScheduleStatusApi?.active ? ("good" as const) : ("bad" as const),
+      note: botScheduleStatusApi?.active ? "Bot đang hoạt động" : "Bot runtime chưa hoạt động",
+      avatar: `S${index + 1}`,
+    }));
+  }, [botScheduleStatusApi?.active, config]);
 
   useEffect(() => {
     const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -5077,6 +5092,7 @@ export default function Home() {
               sx={sidebarTabSx}
             >
               <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Bot inbox")} />
+              <Tab value="supportInboxSettings" icon={<Settings size={16} />} iconPosition="start" label={ui("Cài đặt bot", "Bot settings")} />
             </Tabs>
           </Box>
           <Box>
@@ -5740,27 +5756,82 @@ export default function Home() {
               <PanelHead
                 title="Tin nhắn bot"
                 subtitle="Khối riêng cho user ↔ admin. Không liên quan đến group VIP thành viên."
+                action={
+                  <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Cài đặt bot nhận tin/trả lời</Button>
+                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Nhân viên hỗ trợ</Button>
+                    <Button variant="contained" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
+                  </div>
+                }
               />
               <Stack spacing={1.25} sx={{ p: 2 }}>
                 <Box className="overview-health-card warning">
-                  <strong>Vai trò</strong>
-                  <span>Nhận case từ user khi bấm mua, nhắn /support hoặc auto payment bị tắt.</span>
+                  <strong>Bot nhận tin</strong>
+                  <span>Luồng user nhắn bot, bấm mua hoặc auto payment tắt sẽ đẩy case về inbox admin.</span>
                 </Box>
                 <Box className="overview-health-card good">
-                  <strong>Trung tâm xử lý</strong>
-                  <span>Tìm theo Telegram ID là chính, ticket chỉ là mã phụ để tra cứu nhanh.</span>
+                  <strong>Trả lời & xử lý</strong>
+                  <span>Admin reply trong thread để bot gửi ngược cho user. Có /close, /reopen, /delete.</span>
+                </Box>
+                <Box className="overview-health-card">
+                  <strong>Nhân sự hỗ trợ</strong>
+                  <span>Danh sách staff lấy từ Cấu hình bot → Admin ID. Chỉ ID trong danh sách mới xử lý được case.</span>
                 </Box>
               </Stack>
+            </Card>
+            <Card variant="outlined" sx={sectionCardSx}>
+              <PanelHead
+                title="Cài đặt bot nhận tin/trả lời"
+                subtitle="Các cấu hình dùng cho luồng nhận tin từ user, nhắn trả lời, và tin nhắn auto payment khi cần chuyển case."
+                action={
+                  <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình</Button>
+                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
+                  </div>
+                }
+              />
+              <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+                <div className="two-col">
+                  <ConfigEditor
+                    title="Bot hỗ trợ"
+                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách Việt."
+                    fields={AUTO_PAYMENT_SUPPORT_FIELDS}
+                    values={fieldValues}
+                    setValues={setFieldValues}
+                    onSave={saveFields}
+                  />
+                  <ConfigEditor
+                    title="Bot hỗ trợ tiếng Anh"
+                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách nước ngoài."
+                    fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
+                    values={fieldValues}
+                    setValues={setFieldValues}
+                    onSave={saveFields}
+                  />
+                </div>
+                <SimpleTable
+                  headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
+                  rows={supportStaffRows.map((item) => [
+                    <Box key={`${item.id}-avatar`} sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: item.tone === "good" ? "rgba(34,197,94,0.12)" : item.tone === "bad" ? "rgba(239,68,68,0.12)" : "rgba(148,163,184,0.12)", color: item.tone === "good" ? "success.main" : item.tone === "bad" ? "error.main" : "text.secondary", border: "1px solid rgba(148,163,184,0.16)", fontWeight: 800 }}>
+                        {item.avatar}
+                      </Box>
+                      <Box>
+                        <strong>{item.alias}</strong>
+                        <div className="muted">{item.id === "-" ? "Chưa có staff" : "Support staff"}</div>
+                      </Box>
+                    </Box>,
+                    item.id,
+                    <span key={`${item.id}-status`} className={`overview-pill ${item.tone}`}>{item.status}</span>,
+                    item.note,
+                  ])}
+                />
+              </Box>
             </Card>
             <section className="panel">
               <PanelHead
                 title="Tra cứu case"
                 subtitle="Kênh user ↔ admin qua bot. Tìm theo user ID là chính, ticket chỉ là mã phụ."
-                action={
-                  <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
-                  </div>
-                }
               />
               <Box sx={{ display: "grid", gap: 1.25, p: 2 }}>
                 <TextField value={supportCaseQuery} onChange={(event) => setSupportCaseQuery(event.target.value)} placeholder="Nhập Telegram ID, tên, ticket..." size="small" fullWidth onKeyDown={(event) => { if (event.key === "Enter") void runSupportCaseSearch(); }} />
@@ -5816,6 +5887,60 @@ export default function Home() {
                 </Box>
               ) : null}
             </section>
+          </div>
+        ) : null}
+
+        {tab === "supportInboxSettings" ? (
+          <div className="stack">
+            <Card variant="outlined" sx={sectionCardSx}>
+              <PanelHead
+                title="Cài đặt bot nhận tin/trả lời"
+                subtitle="Tất cả cấu hình cho luồng hỗ trợ qua bot, gồm bot URL, nút bấm và tin nhắn chuyển case."
+                action={
+                  <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
+                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
+                  </div>
+                }
+              />
+              <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+                <div className="two-col">
+                  <ConfigEditor
+                    title="Bot hỗ trợ"
+                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách Việt."
+                    fields={AUTO_PAYMENT_SUPPORT_FIELDS}
+                    values={fieldValues}
+                    setValues={setFieldValues}
+                    onSave={saveFields}
+                  />
+                  <ConfigEditor
+                    title="Bot hỗ trợ tiếng Anh"
+                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách nước ngoài."
+                    fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
+                    values={fieldValues}
+                    setValues={setFieldValues}
+                    onSave={saveFields}
+                  />
+                </div>
+                <SimpleTable
+                  headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
+                  rows={supportStaffRows.map((item) => [
+                    <Box key={`${item.id}-avatar`} sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
+                      <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: item.tone === "good" ? "rgba(34,197,94,0.12)" : item.tone === "bad" ? "rgba(239,68,68,0.12)" : "rgba(148,163,184,0.12)", color: item.tone === "good" ? "success.main" : item.tone === "bad" ? "error.main" : "text.secondary", border: "1px solid rgba(148,163,184,0.16)", fontWeight: 800 }}>
+                        {item.avatar}
+                      </Box>
+                      <Box>
+                        <strong>{item.alias}</strong>
+                        <div className="muted">{item.id === "-" ? "Chưa có staff" : "Support staff"}</div>
+                      </Box>
+                    </Box>,
+                    item.id,
+                    <span key={`${item.id}-status`} className={`overview-pill ${item.tone}`}>{item.status}</span>,
+                    item.note,
+                  ])}
+                />
+              </Box>
+            </Card>
           </div>
         ) : null}
 
