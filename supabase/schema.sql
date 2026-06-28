@@ -23,6 +23,7 @@ create table if not exists public.orders (
   payment_provider_order_id text,
   payment_approval_url text,
   payment_currency text not null default 'VND',
+  note text,
   plan_token text,
   plan_category text,
   source_type text,

@@ -630,7 +630,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
     <Table size="small">
       <TableHead>
         <TableRow>
-          <TableCell>Mã đơn</TableCell><TableCell>Khách</TableCell><TableCell>Gói</TableCell><TableCell>Tiền</TableCell><TableCell>Coupon</TableCell><TableCell>Trạng thái</TableCell><TableCell>Tạo lúc</TableCell><TableCell>Đổi trạng thái</TableCell><TableCell>Xóa</TableCell>
+          <TableCell>Mã đơn</TableCell><TableCell>Khách</TableCell><TableCell>Gói</TableCell><TableCell>Ghi chú</TableCell><TableCell>Tiền</TableCell><TableCell>Coupon</TableCell><TableCell>Trạng thái</TableCell><TableCell>Tạo lúc</TableCell><TableCell>Đổi trạng thái</TableCell><TableCell>Xóa</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -639,6 +639,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
             <TableCell>{order.order_id}</TableCell>
             <TableCell><Typography sx={{ fontWeight: 700 }}>{order.full_name || "-"}</Typography><Typography variant="caption" color="text.secondary">{order.telegram_user_id}</Typography></TableCell>
             <TableCell>{order.plan_name}</TableCell>
+            <TableCell>{order.note || "-"}</TableCell>
             <TableCell>{orderMoney(order)}</TableCell>
             <TableCell>{order.coupon_code || "-"}</TableCell>
             <TableCell>{statusChip(order.status)}</TableCell>

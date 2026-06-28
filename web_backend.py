@@ -869,6 +869,7 @@ async def admin_delete_order(order_id: str):
             raw_data={
                 "amount": order.get("amount"),
                 "status": order.get("status"),
+                "note": order.get("note"),
                 "payment_provider": order.get("payment_provider"),
                 "payment_currency": order.get("payment_currency"),
                 "deleted_at": datetime.now(tz=backend_timezone()).isoformat(timespec="seconds"),
@@ -886,6 +887,7 @@ async def admin_create_manual_order(request: Request):
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
     full_name = str(body.get("full_name", "")).strip()
     plan_name = str(body.get("plan_name", "")).strip()
+    note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     activation_code = str(body.get("activation_code", "")).strip().upper() or generate_activation_code()
     activation_url = build_manual_activation_url(activation_code)
@@ -944,6 +946,7 @@ async def admin_create_manual_order(request: Request):
         full_name=full_name or telegram_user_id,
         plan_name=plan_name,
         amount=amount,
+        note=note,
         sale_id=sale_id,
         original_amount=body.get("original_amount", amount),
         coupon_code=coupon_code,
@@ -953,6 +956,7 @@ async def admin_create_manual_order(request: Request):
             "manual_order": True,
             "payment_currency": payment_currency,
             "payment_provider": payment_provider,
+            "note": note,
         },
     )
     order_data = supabase_store.mark_order_paid(
@@ -1025,6 +1029,7 @@ async def admin_create_manual_order(request: Request):
             raw_data={
                 "amount": amount,
                 "coupon_code": coupon_code,
+                "note": note,
                 "activation_code": activation_code,
                 "activation_url": activation_url,
                 "support_link_created": bool(support_link),
@@ -1043,6 +1048,7 @@ async def admin_create_manual_order(request: Request):
             "full_name": full_name,
             "plan_name": plan_name,
             "amount": amount,
+            "note": note,
             "payment_currency": payment_currency,
             "payment_provider": payment_provider,
             "paid_at": paid_at.isoformat(timespec="seconds"),

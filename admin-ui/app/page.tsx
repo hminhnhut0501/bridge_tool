@@ -1907,6 +1907,7 @@ const EMPTY_MANUAL_ORDER_FORM = {
   full_name: "",
   plan_key: "FULL_1M",
   plan_name: "",
+  note: "",
   amount: "0",
   expiry_mode: "days",
   duration_days: "30",
@@ -2262,6 +2263,7 @@ export default function Home() {
   const [customerRenewForm, setCustomerRenewForm] = useState({
     order_id: "",
     plan_name: "",
+    note: "",
     amount: "",
     duration_days: "30",
     payment_currency: "VND",
@@ -3578,6 +3580,13 @@ export default function Home() {
     });
   }
 
+  async function changeOrderNote(orderId: string, note: string) {
+    await runAction(`order-note-${orderId}`, async () => {
+      await updateOrder(savedSecret, orderId, { note });
+      await loadAll();
+    });
+  }
+
   function openCustomerRenewModal() {
     if (!selectedCustomer) return;
     const defaultOrder = selectedCustomerRenewTargetOrder || selectedCustomer.paidOrders[0] || null;
@@ -3586,6 +3595,7 @@ export default function Home() {
     setCustomerRenewForm({
       order_id: defaultOrder?.order_id || "",
       plan_name: defaultPlanName,
+      note: String(defaultOrder?.note || ""),
       amount: defaultOrder ? String(defaultOrder.amount || "") : "",
       duration_days: defaultDuration,
       payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
@@ -3617,6 +3627,7 @@ export default function Home() {
         telegram_user_id: selectedCustomer.id,
         full_name: selectedCustomer.name || selectedCustomer.id,
         plan_name: planName,
+        note: customerRenewForm.note.trim(),
         amount: String(amount),
         duration_days: isLifetimeText(planName) ? "0" : String(days),
         sale_id: `RENEWAL_${customerRenewForm.order_id || "MANUAL"}`,
@@ -4648,6 +4659,7 @@ export default function Home() {
       ...current,
       order_id: matchedOrder?.order_id || "",
       plan_name: nextPlan,
+      note: String(matchedOrder?.note || current.note || ""),
       amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
       duration_days: lifetime ? "0" : "30",
       payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
@@ -4666,6 +4678,7 @@ export default function Home() {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
         plan_name: planName,
+        note: manualOrderForm.note.trim(),
         amount: manualOrderForm.amount,
         duration_days: durationDays,
         expire_at: expireAt,
@@ -5059,7 +5072,7 @@ export default function Home() {
                       dateText(order.created_at),
                       <strong key={order.order_id}>{order.order_id}</strong>,
                       <Fragment key={`${order.order_id}-customer`}><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></Fragment>,
-                      order.plan_name,
+                      <Fragment key={`${order.order_id}-plan`}><strong>{order.plan_name}</strong><div className="muted">{order.note || "Không có ghi chú"}</div></Fragment>,
                       <span key={`${order.order_id}-status`} className={`overview-pill ${order.status === "PAID" ? "good" : order.status === "PENDING" ? "warning" : "bad"}`}>{orderLifecycleLabel(order)}</span>,
                     ])}
                   />
@@ -6710,6 +6723,7 @@ export default function Home() {
                   <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview()} />
                 )}
                 <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
+                <TextField label="Ghi chú nội bộ cho đơn" value={manualOrderForm.note} onChange={(event) => setManualOrderForm({ ...manualOrderForm, note: event.target.value })} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công theo trao đổi, cần follow riêng..." size="small" multiline minRows={3} sx={{ gridColumn: "1 / -1" }} />
               </Box>
               <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
@@ -6730,6 +6744,15 @@ export default function Home() {
                     <TextField
                       label={manualOrderResult.bot_link_title || "Link kích hoạt"}
                       value={manualOrderResult.activation_url || ""}
+                      slotProps={{ input: { readOnly: true } }}
+                      fullWidth
+                      multiline
+                      minRows={4}
+                      sx={popupFieldSx}
+                    />
+                    <TextField
+                      label="Ghi chú đã lưu"
+                      value={manualOrderResult.note || ""}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
@@ -6879,6 +6902,7 @@ export default function Home() {
                       saving={saving}
                       onExpireChange={changeOrderExpire}
                       onPlanChange={changeOrderPlan}
+                      onNoteChange={changeOrderNote}
                       onStatusChange={changeOrderStatus}
                     />
                   </>
@@ -7019,6 +7043,16 @@ export default function Home() {
                 helperText={isLifetimeText(customerRenewForm.plan_name) ? "Gói trọn đời không cần nhập số ngày." : "Nhập số ngày cộng thêm cho đơn gia hạn."}
                 fullWidth
                 size="small"
+              />
+              <TextField
+                label="Ghi chú nội bộ"
+                value={customerRenewForm.note}
+                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, note: event.target.value }))}
+                placeholder="Ví dụ: gia hạn theo yêu cầu khách, đã chốt ngoài bot, cần follow sau..."
+                fullWidth
+                size="small"
+                multiline
+                minRows={3}
               />
               <Stack direction="row" spacing={1}>
                 <TextField
@@ -7273,7 +7307,7 @@ function SettingsConfigModal({ title, subtitle, fields, values, setValues, onSav
   );
 }
 
-function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
+function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onNoteChange, onStatusChange }: { orders: Order[]; saving: string; onExpireChange: (orderId: string, expireAt: string) => void; onPlanChange: (orderId: string, planName: string) => void; onNoteChange: (orderId: string, note: string) => void; onStatusChange: (orderId: string, status: string) => void }) {
   const sorted = [...orders].sort((a, b) => {
     const rank = (order: Order) => {
       const status = String(order.status || "").toUpperCase();
@@ -7360,6 +7394,11 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
               </Box>
               <Box sx={customerInnerCardSx}>
+                <Typography variant="body2" color="text.secondary">Ghi chú</Typography>
+                <Typography sx={{ fontWeight: 700, mt: 0.5, whiteSpace: "pre-wrap" }}>{String(order.note || "-")}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Ghi chú nội bộ để theo dõi case của đơn.</Typography>
+              </Box>
+              <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
@@ -7406,6 +7445,17 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onS
                     const input = document.getElementById(`expire-${order.order_id}`) as HTMLInputElement | null;
                     onExpireChange(order.order_id, input?.value || "");
                   }} sx={{ borderRadius: 4, minWidth: 84 }}>Lưu hạn</Button>
+                </Stack>
+              </Box>
+
+              <Box sx={{ ...customerInnerCardSx, gridColumn: { xs: "1 / -1", md: "1 / -1" } }}>
+                <Typography variant="body2" color="text.secondary">Ghi chú nội bộ</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "flex-start" }}>
+                  <TextField defaultValue={String(order.note || "")} id={`note-${order.order_id}`} size="small" fullWidth multiline minRows={2} sx={customerPopupInputSx} placeholder="Ví dụ: khách quen, cần follow riêng, đổi gói theo yêu cầu..." />
+                  <Button variant="contained" size="small" disabled={saving === `order-note-${order.order_id}`} onClick={() => {
+                    const input = document.getElementById(`note-${order.order_id}`) as HTMLInputElement | HTMLTextAreaElement | null;
+                    onNoteChange(order.order_id, input?.value || "");
+                  }} sx={{ borderRadius: 4, minWidth: 84 }}>Lưu note</Button>
                 </Stack>
               </Box>
 

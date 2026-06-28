@@ -530,6 +530,7 @@ class SupabaseStore:
         source_type="",
         source_ref="",
         metadata=None,
+        note="",
     ):
         payload = {
             "order_id": str(order_id),
@@ -538,6 +539,7 @@ class SupabaseStore:
             "plan_name": _clean_text(plan_name),
             "amount": _parse_number(amount),
             "status": "PENDING",
+            "note": _clean_text(note),
             "sale_id": _clean_text(sale_id),
             "original_amount": _parse_number(original_amount if original_amount is not None else amount),
         }
@@ -579,6 +581,7 @@ class SupabaseStore:
                 for column in (
                     "payment_provider",
                     "payment_currency",
+                    "note",
                     "plan_token",
                     "plan_category",
                     "source_type",
@@ -607,6 +610,8 @@ class SupabaseStore:
             for optional_column in ("plan_token", "plan_category", "source_type", "source_ref", "metadata"):
                 if optional_column in str(exc):
                     legacy_payload.pop(optional_column, None)
+            if "note" in str(exc):
+                legacy_payload.pop("note", None)
             return self._request(
                 "POST",
                 "orders",
@@ -706,6 +711,8 @@ class SupabaseStore:
             payload["activation_url"] = _clean_text(raw.get("activation_url"))
         if "plan_name" in raw:
             payload["plan_name"] = _clean_text(raw.get("plan_name"))
+        if "note" in raw:
+            payload["note"] = _clean_text(raw.get("note"))
         if "telegram_user_id" in raw:
             payload["telegram_user_id"] = _clean_text(raw.get("telegram_user_id"))
         if "full_name" in raw:

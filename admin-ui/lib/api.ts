@@ -3,6 +3,7 @@ export type Order = {
   telegram_user_id: string;
   full_name: string | null;
   plan_name: string;
+  note?: string | null;
   amount: number;
   status: string;
   paid_at: string | null;
@@ -300,6 +301,7 @@ export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
   plan_name: string;
+  note?: string;
   amount?: string;
   duration_days?: string;
   expire_at?: string;
@@ -314,6 +316,7 @@ export type ManualOrderResult = {
   telegram_user_id: string;
   full_name: string;
   plan_name: string;
+  note?: string;
   amount: number;
   payment_currency?: string;
   payment_provider?: string;
@@ -465,7 +468,7 @@ export async function updateOrderStatus(secret: string, orderId: string, status:
   });
 }
 
-export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code">>) {
+export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code" | "note">>) {
   return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
     method: "PATCH",
     body: JSON.stringify(payload),
