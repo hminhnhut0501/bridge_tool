@@ -1380,6 +1380,28 @@ const SUPPORT_FIELDS: ConfigField[] = [
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
+    key: "SUPPORT_INBOX_MODE",
+    label: "Chế độ inbox bot",
+    placeholder: "group",
+    help: "group: xử lý trong group. forum: chuẩn bị cho topic riêng.",
+    kind: "select",
+    options: [
+      { label: "Group", value: "group" },
+      { label: "Forum", value: "forum" },
+    ],
+  },
+  {
+    key: "SUPPORT_DELETE_ENABLED",
+    label: "Cho phép /delete inbox",
+    placeholder: "ON",
+    help: "Bật ON để admin có thể xoá message đã gửi sang user bằng /delete.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "SUPPORT_TICKET_PREFIX",
     label: "Tiền tố case inbox",
     placeholder: "SUP",
@@ -1414,6 +1436,18 @@ const SUPPORT_FIELDS: ConfigField[] = [
     help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
   },
   {
+    key: "SUPPORT_ADMIN_ONLINE_TEXT",
+    label: "Tin admin online",
+    placeholder: "🟢 Admin đang online",
+    help: "Chỉ là text hiển thị trong inbox/support card.",
+  },
+  {
+    key: "SUPPORT_ADMIN_OFFLINE_TEXT",
+    label: "Tin admin offline",
+    placeholder: "⚪ Admin đang offline",
+    help: "Chỉ là text hiển thị trong inbox/support card.",
+  },
+  {
     key: "SUPPORT_GROUP_MUTE_ENABLED",
     label: "Mute khi hết hạn",
     placeholder: "ON",
@@ -1429,6 +1463,23 @@ const SUPPORT_FIELDS: ConfigField[] = [
     label: "Số ngày mute trước khi kick",
     placeholder: "14",
     help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm trả phí.",
+  },
+];
+
+const SUPPORT_INBOX_TEMPLATE_FIELDS: ConfigField[] = [
+  {
+    key: "SUPPORT_INBOX_GROUP_TEMPLATE",
+    label: "Template gửi group",
+    placeholder: "📩 <b>Tin nhắn từ khách</b>\\nTicket: <code>{ticket_no}</code>\\nKhách: <b>{full_name}</b>\\nID: <code>{telegram_user_id}</code>\\n\\n{message}",
+    help: "Biến: {ticket_no}, {full_name}, {telegram_user_id}, {username}, {subject}, {status}, {message}.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_REPLY_TEMPLATE",
+    label: "Template reply user",
+    placeholder: "💬 <b>Phản hồi từ hỗ trợ</b>\\nTicket: <code>{ticket_no}</code>\\n{admin_name}{admin_username}\\n\\n{message}",
+    help: "Biến: {ticket_no}, {full_name}, {telegram_user_id}, {subject}, {status}, {admin_name}, {admin_username}, {message}.",
+    kind: "textarea",
   },
 ];
 
@@ -5794,7 +5845,7 @@ export default function Home() {
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Cài đặt bot nhận tin/trả lời"
-                subtitle="Các cấu hình dùng cho luồng nhận tin từ user, nhắn trả lời, và tin nhắn auto payment khi cần chuyển case."
+                subtitle="Các cấu hình cho inbox user ↔ admin. Không bao gồm khối deep link auto payment."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình</Button>
@@ -5803,23 +5854,9 @@ export default function Home() {
                 }
               />
               <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                <div className="two-col">
-                  <ConfigEditor
-                    title="Bot hỗ trợ"
-                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách Việt."
-                    fields={AUTO_PAYMENT_SUPPORT_FIELDS}
-                    values={fieldValues}
-                    setValues={setFieldValues}
-                    onSave={saveFields}
-                  />
-                  <ConfigEditor
-                    title="Bot hỗ trợ tiếng Anh"
-                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách nước ngoài."
-                    fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
-                    values={fieldValues}
-                    setValues={setFieldValues}
-                    onSave={saveFields}
-                  />
+                <div className="overview-health-card warning">
+                  <strong>Bot nhận tin</strong>
+                  <span>Chỉ quản lý luồng inbox, trả lời khách và case admin. Deep link auto payment nằm ở tab Auto payment.</span>
                 </div>
                 <SimpleTable
                   headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
@@ -5907,33 +5944,62 @@ export default function Home() {
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Cài đặt bot nhận tin/trả lời"
-                subtitle="Tất cả cấu hình cho luồng hỗ trợ qua bot, gồm bot URL, nút bấm và tin nhắn chuyển case."
+                subtitle="Cài đặt inbox riêng: group ID, trạng thái kết nối, quyền bot và template gửi/nhận tin."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
+                    <Button variant="contained" size="small" onClick={() => void runSupportGroupCheck()} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
                   </div>
                 }
               />
               <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                <div className="two-col">
-                  <ConfigEditor
-                    title="Bot hỗ trợ"
-                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách Việt."
-                    fields={AUTO_PAYMENT_SUPPORT_FIELDS}
-                    values={fieldValues}
-                    setValues={setFieldValues}
-                    onSave={saveFields}
-                  />
-                  <ConfigEditor
-                    title="Bot hỗ trợ tiếng Anh"
-                    subtitle="Link bot và toàn bộ tin nhắn auto payment cho khách nước ngoài."
-                    fields={AUTO_PAYMENT_SUPPORT_EN_FIELDS}
-                    values={fieldValues}
-                    setValues={setFieldValues}
-                    onSave={saveFields}
-                  />
+                <div className="status-grid">
+                  <div className={`health-item ${supportCheck?.enabled ? "good" : "bad"}`}>
+                    <ShieldCheck size={18} />
+                    <div>
+                      <strong>{supportCheck ? (supportCheck.enabled ? "Support group đang bật" : "Support group đang tắt") : "Chưa kiểm tra group"}</strong>
+                      <span>{supportCheck?.group_name || "Chưa có dữ liệu group"}</span>
+                    </div>
+                  </div>
+                  <div className={`health-item ${supportCheck?.get_chat?.ok ? "good" : "bad"}`}>
+                    <Users size={18} />
+                    <div>
+                      <strong>Group ID</strong>
+                      <span>{supportCheck?.group_id || getConfigValue(config, "SUPPORT_GROUP_ID", "-") || "-"}</span>
+                    </div>
+                  </div>
+                  <div className={`health-item ${supportCheck?.bot_member?.ok ? "good" : "bad"}`}>
+                    <CheckCircle2 size={18} />
+                    <div>
+                      <strong>Bot quyền</strong>
+                      <span>{supportCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"}</span>
+                    </div>
+                  </div>
+                  <div className={`health-item ${supportCheck?.invite_link?.ok ? "good" : "bad"}`}>
+                    <RefreshCw size={18} />
+                    <div>
+                      <strong>Tạo link mời</strong>
+                      <span>{supportCheck?.invite_link?.message || "Chưa kiểm tra invite"}</span>
+                    </div>
+                  </div>
                 </div>
+                <ConfigEditor
+                  title="Cấu hình group inbox"
+                  subtitle="Kết nối group support, trạng thái vận hành và quyền bot."
+                  fields={SUPPORT_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+                <ConfigEditor
+                  title="Template inbox support"
+                  subtitle="Tin bot gửi group và tin bot trả lời user."
+                  fields={SUPPORT_INBOX_TEMPLATE_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
                 <SimpleTable
                   headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
                   rows={supportStaffRows.map((item) => [

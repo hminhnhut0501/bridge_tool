@@ -10,6 +10,8 @@ from support_utils import (
     is_support_group,
     record_support_event,
     record_support_message,
+    render_support_group_message,
+    render_support_reply_message,
     support_delete_enabled,
     support_group_enabled,
     support_group_name,
@@ -132,13 +134,7 @@ async def _forward_private_message_to_group(message: Message):
         print(f"⚠️ Không tạo được ticket cho user {message.from_user.id}: {ticket_error}")
         return
 
-    ticket_text = (
-        f"📩 <b>Tin nhắn từ khách</b>\n"
-        f"Ticket: <code>{ticket.get('ticket_no', '')}</code>\n"
-        f"Khách: <b>{message.from_user.full_name}</b>\n"
-        f"ID: <code>{message.from_user.id}</code>\n\n"
-        f"{_message_text(message)}"
-    )
+    ticket_text = render_support_group_message(ticket, _message_text(message))
     try:
         sent = await post_support_ticket_to_group(ticket, message_text=ticket_text)
     except Exception as exc:
@@ -227,10 +223,7 @@ async def support_group_reply(message: Message):
     body = _message_text(message)
     admin_name = message.from_user.full_name if message.from_user else "Admin"
     admin_username = f"@{message.from_user.username}" if message.from_user and message.from_user.username else ""
-    outgoing = f"💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket.get('ticket_no', '')}</code>\n{admin_name}"
-    if admin_username:
-        outgoing += f" ({admin_username})"
-    outgoing += f"\n\n{body}"
+    outgoing = render_support_reply_message(ticket, body, admin_name, f" ({admin_username})" if admin_username else "")
 
     try:
         sent = await bot.send_message(

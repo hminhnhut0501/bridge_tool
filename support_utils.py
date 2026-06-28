@@ -154,6 +154,61 @@ def support_ticket_header(ticket):
     return "\n".join(lines)
 
 
+def _render_template(template: str, context: dict[str, object], default_text: str):
+    text = str(template or "").strip() or default_text
+    for key, value in context.items():
+        text = text.replace(f"{{{key}}}", str(value or ""))
+    return text
+
+
+def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE"):
+    context = {
+        "ticket_no": ticket.get("ticket_no", ""),
+        "full_name": ticket.get("full_name", ""),
+        "telegram_user_id": ticket.get("telegram_user_id", ""),
+        "username": ticket.get("username", ""),
+        "subject": ticket.get("subject", ""),
+        "status": ticket.get("status", ""),
+        "message": message_text,
+    }
+    default_text = (
+        "📩 <b>Tin nhắn từ khách</b>\n"
+        "Ticket: <code>{ticket_no}</code>\n"
+        "Khách: <b>{full_name}</b>\n"
+        "ID: <code>{telegram_user_id}</code>\n\n"
+        "{message}"
+    )
+    return _render_template(db.get_config(template_key, default_text), context, default_text)
+
+
+def render_support_reply_message(ticket, message_text="", admin_name="", admin_username=""):
+    context = {
+        "ticket_no": ticket.get("ticket_no", ""),
+        "full_name": ticket.get("full_name", ""),
+        "telegram_user_id": ticket.get("telegram_user_id", ""),
+        "subject": ticket.get("subject", ""),
+        "status": ticket.get("status", ""),
+        "admin_name": admin_name,
+        "admin_username": admin_username,
+        "message": message_text,
+    }
+    default_text = (
+        "💬 <b>Phản hồi từ hỗ trợ</b>\n"
+        "Ticket: <code>{ticket_no}</code>\n"
+        "{admin_name}{admin_username}\n\n"
+        "{message}"
+    )
+    return _render_template(db.get_config("SUPPORT_INBOX_REPLY_TEMPLATE", default_text), context, default_text)
+
+
+def support_admin_online_text():
+    return str(db.get_config("SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online") or "🟢 Admin đang online").strip()
+
+
+def support_admin_offline_text():
+    return str(db.get_config("SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline") or "⚪ Admin đang offline").strip()
+
+
 async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
     if not ticket or not support_group_enabled() or not is_support_group(ticket.get("manager_chat_id") or support_group_id()):
         return None
