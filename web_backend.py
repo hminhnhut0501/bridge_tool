@@ -25,6 +25,7 @@ from hidden_group_utils import (
 )
 from helpers import bot_schedule_status, bot_runtime_state_audit
 from helpers import create_background_task
+from i18n import get_user_language
 from supabase_store import supabase_store
 from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
 from vip_group_audit_utils import build_vip_group_audit_rows
@@ -305,7 +306,9 @@ def render_activation_text(template_key: str, default_text: str, context: dict[s
 def normalize_manual_order_link_template(value: str):
     template = str(value or "").strip()
     if not template:
-        return "t.me/hangcuprivebot?start=act_{code}"
+        return "https://t.me/hangcuprivebot?start=act_{code}"
+    if template.startswith("t.me/"):
+        template = f"https://{template}"
     if "start=act_{code}" in template:
         return template
     if "start={code}" in template:
@@ -920,8 +923,13 @@ async def admin_create_manual_order(request: Request):
     except (TypeError, ValueError):
         amount = 0.0
 
-    payment_currency = str(body.get("payment_currency") or "VND").strip().upper() or "VND"
-    payment_provider = str(body.get("payment_provider") or "MANUAL").strip().upper() or "MANUAL"
+    user_language = get_user_language(user_id)
+    default_currency = "USD" if user_language == "en" else "VND"
+    preferred_provider = payment_manager.preferred_provider(user_language) or ("PAYPAL" if user_language == "en" else "PAYOS")
+    payment_currency = str(body.get("payment_currency") or default_currency).strip().upper() or default_currency
+    payment_provider = str(body.get("payment_provider") or preferred_provider).strip().upper() or preferred_provider
+    if payment_provider == "MANUAL" and user_language == "en":
+        payment_provider = preferred_provider
 
     expire_at = parse_manual_expire_at(body.get("expire_at"))
     if expire_at is None:
@@ -956,6 +964,7 @@ async def admin_create_manual_order(request: Request):
             "manual_order": True,
             "payment_currency": payment_currency,
             "payment_provider": payment_provider,
+            "language": user_language,
             "note": note,
         },
     )

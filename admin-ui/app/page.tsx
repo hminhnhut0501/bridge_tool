@@ -1449,7 +1449,7 @@ const ORDER_FIELDS: ConfigField[] = [
   },
   { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề link bot", placeholder: "🔗 Link kích hoạt", help: "Biến: không cần placeholder. Đây là tiêu đề trước URL bot." },
   { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", help: "Biến: không cần placeholder. Dòng mô tả ngay dưới link bot.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "t.me/hangcuprivebot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
+  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/hangcuprivebot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
   { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy link", placeholder: "Copy link bot", help: "Biến: không cần placeholder. Text nút admin copy." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin bot báo hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
@@ -4585,16 +4585,24 @@ export default function Home() {
     const botEvents = supportEvents.map((event) => {
       const replyText = payloadText(event.raw_data || {}, "reply_text");
       const errorText = payloadText(event.raw_data || {}, "error");
+      const activationStatus = String(payloadText(event.raw_data || {}, "activation_status") || "").trim().toLowerCase();
+      const activationLabel = activationStatus === "ok" ? "OK" : activationStatus === "partial" ? "Partial" : activationStatus === "failed" ? "Failed" : "";
+      const failedGroups = payloadText(event.raw_data || {}, "failed_groups");
+      const inviteResults = payloadText(event.raw_data || {}, "invite_results");
+      const detailParts = [errorText, event.plan_name, event.chat_title, event.order_id].filter(Boolean);
+      if (activationLabel) detailParts.unshift(`Trạng thái: ${activationLabel}`);
+      if (failedGroups) detailParts.push(`Lỗi group: ${failedGroups}`);
+      if (inviteResults && !detailParts.includes(inviteResults)) detailParts.push(`Link: ${inviteResults}`);
       return {
         id: `s-${event.id}`,
         direction: "bot" as const,
         type: event.event_type,
-        typeLabel: supportEventLabel(event.event_type),
+        typeLabel: activationLabel ? `${supportEventLabel(event.event_type)} · ${activationLabel}` : supportEventLabel(event.event_type),
         userId: event.telegram_user_id || "",
         username: event.username || "",
         fullName: supportCustomerName(event),
         title: replyText ? `Admin trả lời: ${replyText}` : supportEventLabel(event.event_type),
-        detail: errorText || [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
+        detail: detailParts.join(" • ") || "-",
         createdAt: event.created_at,
       };
     });
@@ -4688,6 +4696,10 @@ export default function Home() {
     const botEvents = supportEvents
       .filter((event) => [
         "manual_order_created",
+        "manual_activation_link_generated",
+        "manual_activation_link_failed",
+        "activation_link_cleanup_done",
+        "activation_link_cleanup_failed",
         "expired_notice_sent",
         "renewal_reminder_sent",
         "member_kicked",

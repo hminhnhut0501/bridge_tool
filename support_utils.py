@@ -251,6 +251,19 @@ async def create_support_invite_link(user_id):
         return None, explain_support_invite_error(exc, gid)
 
 
+async def revoke_support_invite_link(chat_id, invite_link):
+    gid = normalize_chat_id(chat_id)
+    link = str(invite_link or "").strip()
+    if not gid or not link:
+        return False, "Thiếu chat_id hoặc invite_link."
+    try:
+        await bot.revoke_chat_invite_link(chat_id=gid, invite_link=link)
+        return True, ""
+    except Exception as exc:
+        print(f"⚠️ Không revoke được support invite link group={mask_chat_id(gid)}: {exc}")
+        return False, explain_support_invite_error(exc, gid)
+
+
 async def add_support_join_button(keyboard_builder, user_id):
     link, error = await create_support_invite_link(user_id)
     if link:

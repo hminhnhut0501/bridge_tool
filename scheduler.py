@@ -13,7 +13,7 @@ from hidden_group_utils import is_lifetime_order, resolve_plan_groups
 from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
-from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
+from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, revoke_support_invite_link, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -34,6 +34,12 @@ def now_local():
 
 def config_enabled(key, default="ON"):
     return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
+
+def parse_int_config(key, default=0, minimum=0):
+    try:
+        return max(minimum, int(float(str(db.get_config(key, default) or default).strip())))
+    except (TypeError, ValueError):
+        return max(minimum, int(default))
 
 def parse_expire_datetime(value):
     raw = str(value or "").strip()
@@ -519,6 +525,7 @@ async def check_expirations_professional():
         days_notice = config_int("REMINDER_DAYS", 3, minimum=0)
         now = now_local()
         today_str = now.strftime("%Y-%m-%d")
+        await cleanup_used_activation_links(now)
 
         if use_supabase:
             order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
@@ -712,6 +719,75 @@ async def check_expirations_professional():
 
     except Exception as e:
         logging.error(f"❌ Lỗi hệ thống quét định kỳ: {e}")
+
+
+async def cleanup_used_activation_links(now=None):
+    if not supabase_store.enabled:
+        return
+    now = now or now_local()
+    cleanup_days = parse_int_config("ACTIVATION_LINK_CLEANUP_DAYS", 7, minimum=1)
+    cutoff = now - timedelta(days=cleanup_days)
+    try:
+        rows = supabase_store.list_order_activation_codes(limit=config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100))
+    except Exception as exc:
+        logging.warning("⚠️ Không đọc được order_activation_codes để dọn link: %s", exc)
+        return
+
+    for row in rows:
+        if str(row.get("activation_status") or "").strip().upper() != "USED":
+            continue
+        used_at = parse_expire_datetime(row.get("used_at") or row.get("activated_at"))
+        if not used_at or used_at > cutoff:
+            continue
+
+        raw_data = row.get("raw_data") or {}
+        if not isinstance(raw_data, dict):
+            continue
+        if raw_data.get("invite_cleanup_done_at"):
+            continue
+
+        invite_results = raw_data.get("invite_results") or []
+        cleanup_results = []
+        any_success = False
+        for item in invite_results:
+            if not isinstance(item, dict):
+                continue
+            if not item.get("ok") or not item.get("invite_link") or not item.get("group_id"):
+                continue
+            ok, error = await revoke_support_invite_link(item.get("group_id"), item.get("invite_link"))
+            cleanup_results.append({
+                "group_id": str(item.get("group_id") or ""),
+                "group_name": str(item.get("group_name") or ""),
+                "ok": ok,
+                "error": error,
+            })
+            any_success = any_success or ok
+
+        updated_raw = dict(raw_data)
+        updated_raw["invite_cleanup_done_at"] = now.isoformat(timespec="seconds")
+        updated_raw["invite_cleanup_results"] = cleanup_results
+        try:
+            supabase_store.update_order_activation_code(row.get("code"), {"raw_data": updated_raw})
+        except Exception as exc:
+            logging.warning("⚠️ Không update raw_data cleanup cho %s: %s", row.get("code"), exc)
+            continue
+
+        try:
+            record_support_event(
+                "activation_link_cleanup_done" if any_success else "activation_link_cleanup_failed",
+                row.get("telegram_user_id"),
+                full_name=row.get("full_name"),
+                order_id=row.get("order_id"),
+                plan_name=row.get("plan_name"),
+                raw_data={
+                    "activation_code": row.get("code"),
+                    "used_at": row.get("used_at") or row.get("activated_at"),
+                    "cleanup_days": cleanup_days,
+                    "cleanup_results": cleanup_results,
+                },
+            )
+        except Exception as exc:
+            logging.warning("⚠️ Không ghi được cleanup event cho %s: %s", row.get("code"), exc)
 
 # Worker chạy ngầm vĩnh viễn
 async def main():

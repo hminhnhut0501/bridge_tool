@@ -415,12 +415,38 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
     return sent
 
 
+def _payment_provider_fallbacks(user_id, provider=""):
+    language = get_user_language(user_id)
+    primary = str(provider or "").strip().upper()
+    candidates = []
+    if primary:
+        candidates.append(primary)
+    for item in payment_manager.providers_for_language(language):
+        if item and item not in candidates:
+            candidates.append(item)
+    for item in payment_manager.enabled_providers():
+        if item and item not in candidates:
+            candidates.append(item)
+    return candidates
+
+
 def create_payment_for_user(user_id, order_id, amount, description, provider=""):
     if not should_allow_auto_payment(user_id):
         print(f"⛔ Chặn tạo QR cho user {user_id}: {auto_payment_gate_message(user_id)}")
         return None
-    provider = provider or payment_manager.preferred_provider(get_user_language(user_id))
-    return payment_manager.create_payment_link(order_id, amount, description, provider=provider)
+    attempts = _payment_provider_fallbacks(user_id, provider or payment_manager.preferred_provider(get_user_language(user_id)))
+    last_error = ""
+    for candidate in attempts:
+        pay_data = payment_manager.create_payment_link(order_id, amount, description, provider=candidate)
+        if pay_data:
+            if candidate != str(provider or "").strip().upper():
+                print(f"ℹ️ Payment fallback for user {user_id}, order {order_id}: {provider or 'AUTO'} -> {candidate}")
+            return pay_data
+        last_error = candidate
+        print(f"⚠️ Payment provider failed for user {user_id}, order {order_id}: {candidate}")
+    if last_error:
+        print(f"❌ Không tạo được payment link cho user {user_id}, order {order_id}. Candidates={attempts}")
+    return None
 
 
 def payment_meta(pay_data):

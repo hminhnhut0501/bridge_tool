@@ -200,6 +200,10 @@ export function supportEventLabel(type: string) {
     vip_kicked: "Đã xóa khỏi group VIP",
     admin_reply_sent: "Admin đã trả lời",
     admin_reply_failed: "Trả lời lỗi",
+    manual_activation_link_generated: "Kích hoạt đơn",
+    manual_activation_link_failed: "Kích hoạt đơn lỗi",
+    activation_link_cleanup_done: "Dọn link kích hoạt",
+    activation_link_cleanup_failed: "Dọn link kích hoạt lỗi",
   };
   return labels[type] || type;
 }

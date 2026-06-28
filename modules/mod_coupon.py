@@ -587,6 +587,7 @@ async def build_invite_links(user_id, plan_name):
     links_msg = ""
     group_names = []
     failed_groups = []
+    invite_results = []
 
     for gid, group_name in resolve_groups(plan_name):
         try:
@@ -602,6 +603,13 @@ async def build_invite_links(user_id, plan_name):
                 creates_join_request=False,
             )
             group_names.append(group_name)
+            invite_results.append({
+                "group_id": str(gid),
+                "group_name": group_name,
+                "ok": True,
+                "error": "",
+                "invite_link": invite.invite_link,
+            })
             links_msg += f"👉 <b>{escape_html(group_name)}</b>:\n{invite.invite_link}\n\n"
             try:
                 if not is_support_group(gid):
@@ -610,10 +618,17 @@ async def build_invite_links(user_id, plan_name):
                 log.warning("Cannot unmute coupon user %s in %s: %s", user_id, gid, unmute_err)
         except Exception as err:
             failed_groups.append(group_name)
+            invite_results.append({
+                "group_id": str(gid),
+                "group_name": group_name,
+                "ok": False,
+                "error": str(err),
+                "invite_link": "",
+            })
             template = t(user_id, "MSG_INVITE_LINK_ERROR", "👉 <b>{group}</b>: <i>Không tạo được link ({error})</i>\\n\\n").replace("\\n", "\n")
             links_msg += template.replace("{group}", escape_html(group_name)).replace("{error}", escape_html(err))
 
-    return links_msg, ", ".join(group_names), failed_groups
+    return links_msg, ", ".join(group_names), failed_groups, invite_results
 
 
 def hidden_buy_buttons(user_id, code, groups):
@@ -745,7 +760,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
     expire_at = base_date + timedelta(days=duration_days)
     expire_text = expire_at.strftime(TIME_FMT)
 
-    links_msg, group_names, failed_groups = await build_invite_links(user.id, plan_name)
+    links_msg, group_names, failed_groups, invite_results = await build_invite_links(user.id, plan_name)
     if not group_names or failed_groups:
         await message.answer(t(message.from_user.id, "MSG_COUPON_PLAN_NOT_CONFIGURED", "❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link. Vui lòng báo admin kiểm tra Plan_Name/ID_G."), parse_mode="HTML")
         return

@@ -462,7 +462,9 @@ class SupabaseStore:
         text = str(value or "").strip()
         if key == "MANUAL_ORDER_LINK_TEMPLATE":
             if not text:
-                return "t.me/hangcuprivebot?start=act_{code}"
+                return "https://t.me/hangcuprivebot?start=act_{code}"
+            if text.startswith("t.me/"):
+                text = f"https://{text}"
             if "start=act_{code}" in text:
                 return text
             if "start={code}" in text:
