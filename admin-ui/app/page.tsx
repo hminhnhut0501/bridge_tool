@@ -17,6 +17,7 @@ import {
   Coins,
   Loader2,
   Megaphone,
+  MessageSquare,
   Pencil,
   Search,
   Plus,
@@ -478,7 +479,75 @@ const sectionCardSx = {
   },
 } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
+const sidebarTabSx = {
+  mt: 0.5,
+  minHeight: 0,
+  pr: 0.5,
+  overflow: "visible",
+  bgcolor: "transparent",
+  backgroundColor: "transparent",
+  border: 0,
+  borderRadius: 0,
+  boxShadow: "none",
+  p: 0,
+  "& .MuiTabs-flexContainer": {
+    gap: 0.35,
+    alignItems: "stretch",
+    width: "100%",
+  },
+  "& .MuiTab-root": {
+    justifyContent: "flex-start",
+    minHeight: 40,
+    px: 1.4,
+    py: 0.82,
+    borderRadius: 1.5,
+    border: "1px solid rgba(148,163,184,0.08)",
+    bgcolor: "rgba(255,255,255,0.03)",
+    width: "100%",
+    boxSizing: "border-box",
+    textTransform: "none",
+    fontWeight: 600,
+    color: "#94a3b8",
+    boxShadow: "none",
+    transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+    borderLeft: "3px solid transparent",
+    overflow: "hidden",
+    "& .MuiTab-iconWrapper": {
+      marginRight: 7,
+      minWidth: 0,
+    },
+    "& .MuiTab-iconWrapper > *": {
+      display: "block",
+    },
+    "& .MuiChip-root": {
+      bgcolor: "rgba(255,255,255,0.06)",
+      color: "#cbd5e1",
+      borderColor: "rgba(255,255,255,0.08)",
+    },
+  },
+  "& .MuiTab-root:hover": {
+    bgcolor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(96,165,250,0.12)",
+    color: "#fff",
+  },
+  "& .MuiTab-root.Mui-selected": {
+    backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
+    color: "#fff",
+    borderColor: "rgba(96,165,250,0.22)",
+    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
+    borderLeftColor: "rgba(255,255,255,0.72)",
+  },
+  "& .MuiTab-root.Mui-selected:hover": {
+    backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
+    borderColor: "rgba(96,165,250,0.5)",
+  },
+  "& .MuiTabs-indicator": { display: "none" },
+} as const;
+
+const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
+const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
+
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -1273,7 +1342,7 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_START", label: "Mô tả /start", placeholder: "Trang chủ / Mua gói", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_ME", label: "Mô tả /me", placeholder: "Kiểm tra gói & Hạn dùng", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
-  { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Liên hệ hỗ trợ Admin", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Nhắn admin trợ giúp", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
 ];
 
@@ -1289,9 +1358,9 @@ const ADMIN_FIELDS: ConfigField[] = [
 const SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_GROUP_ENABLED",
-    label: "Bật nhóm support",
+    label: "Bật group VIP",
     placeholder: "OFF",
-    help: "Bật ON để gửi nút join nhóm hỗ trợ kèm link tham gia sau thanh toán/coupon.",
+    help: "Bật ON để gửi nút join group VIP kèm link tham gia sau thanh toán/coupon.",
     kind: "select",
     options: [
       { label: "Tắt", value: "OFF" },
@@ -1300,27 +1369,27 @@ const SUPPORT_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_GROUP_ID",
-    label: "Support group ID",
+    label: "VIP group ID",
     placeholder: "-1001234567890",
-    help: "ID nhóm support. Nhóm này không bị kick khi gói hết hạn.",
+    help: "ID nhóm VIP. Nhóm này không bị kick khi gói hết hạn.",
   },
   {
     key: "SUPPORT_GROUP_NAME",
-    label: "Tên nhóm support",
-    placeholder: "Nhóm hỗ trợ Privé+",
+    label: "Tên group VIP",
+    placeholder: "Nhóm VIP Privé+",
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
     key: "SUPPORT_TICKET_PREFIX",
-    label: "Tiền tố case support",
+    label: "Tiền tố case inbox",
     placeholder: "SUP",
-    help: "Chỉ là nhãn hiển thị cho case support, ví dụ SUP hoặc CS.",
+    help: "Chỉ là nhãn hiển thị cho case inbox, ví dụ SUP hoặc CS.",
   },
   {
     key: "SUPPORT_INBOX_MODE",
-    label: "Chế độ inbox support",
+    label: "Chế độ inbox bot",
     placeholder: "group",
-    help: "group: support xử lý trong group. forum: chuẩn bị cho mode topic riêng.",
+    help: "group: inbox xử lý trong group. forum: chuẩn bị cho mode topic riêng.",
     kind: "select",
     options: [
       { label: "Group", value: "group" },
@@ -1329,9 +1398,9 @@ const SUPPORT_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_DELETE_ENABLED",
-    label: "Cho phép /delete",
+    label: "Cho phép /delete inbox",
     placeholder: "ON",
-    help: "Bật ON để admin trong group có thể xoá message support đã gửi sang user bằng /delete.",
+    help: "Bật ON để admin trong group tin nhắn có thể xoá message đã gửi sang user bằng /delete.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1340,8 +1409,8 @@ const SUPPORT_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_GROUP_BUTTON_TEXT",
-    label: "Text nút join support",
-    placeholder: "💬 Join nhóm hỗ trợ",
+    label: "Text nút join group VIP",
+    placeholder: "💬 Join group VIP",
     help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
   },
   {
@@ -1389,9 +1458,9 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_LINK_WRONG_USER_TEXT", label: "Tin sai Telegram ID", placeholder: "❌ Mã này không dành cho tài khoản Telegram hiện tại.", help: "Biến: không cần placeholder." },
   { key: "MANUAL_ORDER_LINK_EXPIRED_TEXT", label: "Tin mã hết hạn", placeholder: "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.", help: "Biến: không cần placeholder." },
   { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link nhóm. Vui lòng thử lại sau.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Tin bot trả khi xác minh xong", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{support_text}", help: "Biến: {success_text}, {order_text}, {links_text}, {support_text}. Đây là tin bot gửi cho khách.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối support trong bot", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Chỉ hiển thị ở bot.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Khối lỗi support", placeholder: "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})", help: "Biến: {support_group_name}, {support_error}. Chỉ hiển thị ở bot.", kind: "textarea" },
+  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Tin bot trả khi xác minh xong", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{help_text}", help: "Biến: {success_text}, {order_text}, {links_text}, {help_text}. Đây là tin bot gửi cho khách.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối trợ giúp trong bot", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Chỉ hiển thị ở bot.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE", label: "Khối lỗi trợ giúp", placeholder: "💬 {support_group_name}: Không tạo được link trợ giúp ({support_error})", help: "Biến: {support_group_name}, {support_error}. Chỉ hiển thị ở bot.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -1569,7 +1638,7 @@ const MESSAGE_FIELDS: ConfigField[] = [
     key: "MSG_SUPPORT",
     label: "Nội dung hỗ trợ fallback",
     placeholder: "Hỗ trợ đang cập nhật...",
-    help: "Dùng khi chưa có menu page support_page.",
+    help: "Dùng khi chưa có menu page trợ giúp.",
     kind: "textarea",
   },
   {
@@ -1764,9 +1833,9 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "IMG_SUPPORT",
-    label: "Ảnh trang support",
+    label: "Ảnh trang trợ giúp",
     placeholder: "File ID Telegram hoặc URL ảnh",
-    help: "Ảnh fallback cho trang support.",
+    help: "Ảnh fallback cho trang trợ giúp.",
   },
   {
     key: "IMG_ME",
@@ -1817,7 +1886,7 @@ const ALERT_FIELDS: ConfigField[] = [
   { key: "ALERT_CANCELLED", label: "Cảnh báo hủy đơn", placeholder: "🚫 Đã hủy đơn.", help: "Khi khách bấm hủy QR." },
   { key: "ALERT_EARLY_RENEW_OFF", label: "Cảnh báo gia hạn sớm tắt", placeholder: "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường.", help: "Khi khách bấm offer đã tắt." },
   { key: "ALERT_POLICY_UNAVAILABLE", label: "Không mở được policy", placeholder: "Không thể mở trang quy định lúc này.", help: "Alert khi trang policy lỗi." },
-  { key: "ALERT_SUPPORT_UNAVAILABLE", label: "Không mở được support", placeholder: "Không thể mở trang hỗ trợ lúc này.", help: "Alert khi trang support lỗi." },
+  { key: "ALERT_SUPPORT_UNAVAILABLE", label: "Không mở được trang trợ giúp", placeholder: "Không thể mở trang trợ giúp lúc này.", help: "Alert khi trang trợ giúp lỗi." },
   { key: "ALERT_COUPON_MENU_DISABLED", label: "Coupon menu đang ẩn", placeholder: "Chức năng nhập mã trên menu đang được ẩn.", help: "Khi khách bấm nút coupon đã ẩn." },
   { key: "ALERT_COUPON_PRIVATE_ONLY", label: "Coupon chỉ private", placeholder: "Vui lòng nhắn riêng với bot để nhập mã.", help: "Alert khi bấm coupon trong group." },
   { key: "ALERT_COUPON_SELECTION_INVALID", label: "Coupon chọn group lỗi", placeholder: "Lựa chọn coupon không hợp lệ.", help: "Callback chọn group coupon sai format." },
@@ -3100,9 +3169,9 @@ export default function Home() {
       const res = await checkSupportGroup(savedSecret);
       setSupportCheck(res.data);
       if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
-        showNotice("ok", "Group hỗ trợ tạo link OK.");
+        showNotice("ok", "Group VIP tạo link OK.");
       } else {
-        showNotice("error", "Group hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
+        showNotice("error", "Group VIP chưa tạo được link. Xem chi tiết trong tab.");
       }
     });
   }
@@ -4652,7 +4721,7 @@ export default function Home() {
     if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
     if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
     if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
-    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Support group", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
+    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Group VIP", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
   const visibleChannelPosts = useMemo(() => {
@@ -4969,101 +5038,76 @@ export default function Home() {
         }}
       >
         <Box sx={{ px: 1.5, pt: 0.75, pb: 2, display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <Tabs
-          orientation="vertical"
-          value={tab}
-          onChange={(_, next) => selectTab(next)}
-          variant="scrollable"
-          scrollButtons={false}
-          textColor="inherit"
-          sx={{
-            mt: 1,
-            minHeight: 0,
-            pr: 0.5,
-            overflow: "visible",
-            bgcolor: "transparent",
-            backgroundColor: "transparent",
-            border: 0,
-            borderRadius: 0,
-            boxShadow: "none",
-            p: 0,
-            "& .MuiTabs-flexContainer": {
-              gap: 0.35,
-              alignItems: "stretch",
-              width: "100%",
-            },
-            "& .MuiTab-root": {
-              justifyContent: "flex-start",
-              minHeight: 40,
-              px: 1.4,
-              py: 0.82,
-              borderRadius: 1.5,
-              border: "1px solid rgba(148,163,184,0.08)",
-              bgcolor: "rgba(255,255,255,0.03)",
-              width: "100%",
-              boxSizing: "border-box",
-              textTransform: "none",
-              fontWeight: 600,
-              color: "#94a3b8",
-              boxShadow: "none",
-              transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
-              borderLeft: "3px solid transparent",
-              overflow: "hidden",
-              "& .MuiTab-iconWrapper": {
-                marginRight: 7,
-                minWidth: 0,
-              },
-              "& .MuiTab-iconWrapper > *": {
-                display: "block",
-              },
-              "& .MuiChip-root": {
-                bgcolor: "rgba(255,255,255,0.06)",
-                color: "#cbd5e1",
-                borderColor: "rgba(255,255,255,0.08)",
-              },
-            },
-            "& .MuiTab-root:hover": {
-              bgcolor: "rgba(255,255,255,0.06)",
-              borderColor: "rgba(96,165,250,0.12)",
-              color: "#fff",
-            },
-            "& .MuiTab-root.Mui-selected": {
-              backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
-              color: "#fff",
-              borderColor: "rgba(96,165,250,0.22)",
-              boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
-              borderLeftColor: "rgba(255,255,255,0.72)",
-            },
-            "& .MuiTab-root.Mui-selected:hover": {
-              backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
-              borderColor: "rgba(96,165,250,0.5)",
-            },
-            "& .MuiTabs-indicator": { display: "none" },
-          }}
-        >
-          <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
-          <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
-          <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="activityLog" icon={<ClipboardList size={16} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
-          <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
-          <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group hỗ trợ", "Support group")} />
-          <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
-          <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
-          <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
-          <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
-          <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
-          <Tab value="hiddenMessages" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Hidden text</span><Chip size="small" label={String(hiddenGroups.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
-          <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={{ height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" }} variant="outlined" /></Box>} />
-          <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
-          <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
-          <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
-        </Tabs>
+        <Box sx={{ mt: 1, pr: 0.5, display: "grid", gap: 1.25, overflow: "visible" }}>
+          <Box>
+            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+              Vận hành
+            </Typography>
+            <Tabs
+              orientation="vertical"
+              value={tab}
+              onChange={(_, next) => selectTab(next)}
+              variant="scrollable"
+              scrollButtons={false}
+              textColor="inherit"
+              sx={sidebarTabSx}
+            >
+              <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
+              <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
+              <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="activityLog" icon={<ClipboardList size={16} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
+              <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
+            </Tabs>
+          </Box>
+          <Box>
+            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+              Tin nhắn bot
+            </Typography>
+            <Tabs
+              orientation="vertical"
+              value={tab}
+              onChange={(_, next) => selectTab(next)}
+              variant="scrollable"
+              scrollButtons={false}
+              textColor="inherit"
+              sx={sidebarTabSx}
+            >
+              <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Bot inbox")} />
+            </Tabs>
+          </Box>
+          <Box>
+            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+              Cấu hình
+            </Typography>
+            <Tabs
+              orientation="vertical"
+              value={tab}
+              onChange={(_, next) => selectTab(next)}
+              variant="scrollable"
+              scrollButtons={false}
+              textColor="inherit"
+              sx={sidebarTabSx}
+            >
+              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group VIP", "VIP group")} />
+              <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
+              <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
+              <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
+              <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
+              <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
+              <Tab value="hiddenMessages" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Hidden text</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
+              <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
+              <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
+              <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
+            </Tabs>
+          </Box>
+        </Box>
         </Box>
       </Drawer>
 
@@ -5644,13 +5688,13 @@ export default function Home() {
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} icon={<TrendingUp size={16} />} />
               <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} icon={<XCircle size={16} />} />
               <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} icon={<ShieldCheck size={16} />} />
-              <Metric label="Sự kiện group hỗ trợ" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
-              <Metric label="Group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} icon={<Users size={16} />} />
+              <Metric label="Sự kiện nhóm VIP" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
+              <Metric label="Group VIP" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm VIP")} icon={<Users size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
-                title="Group hỗ trợ"
-                subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn dữ liệu VIP."
+                title="Group VIP"
+                subtitle="Chỉ hiển thị sự kiện của nhóm thành viên VIP theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
@@ -5669,16 +5713,52 @@ export default function Home() {
                   ]}
                 />
               ) : (
-                <div className="muted">Bấm kiểm tra sau khi lưu Support group ID.</div>
+                <div className="muted">Bấm kiểm tra sau khi lưu ID nhóm VIP.</div>
               )}
             </section>
             <section className="panel">
               <PanelHead
+                title="Sự kiện nhóm VIP"
+                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group thành viên VIP."
+              />
+              <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
+                <Tab value="joined" label={`Join (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
+                <Tab value="left" label={`Left (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
+                <Tab value="muted" label={`Đã mute (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
+                <Tab value="kicked" label={`Đã kick (${supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})`} />
+              </Tabs>
+              <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
+              <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "supportInbox" ? (
+          <div className="stack">
+            <Card variant="outlined" sx={sectionCardSx}>
+              <PanelHead
+                title="Tin nhắn bot"
+                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến group VIP thành viên."
+              />
+              <Stack spacing={1.25} sx={{ p: 2 }}>
+                <Box className="overview-health-card warning">
+                  <strong>Vai trò</strong>
+                  <span>Nhận case từ user khi bấm mua, nhắn /support hoặc auto payment bị tắt.</span>
+                </Box>
+                <Box className="overview-health-card good">
+                  <strong>Trung tâm xử lý</strong>
+                  <span>Tìm theo Telegram ID là chính, ticket chỉ là mã phụ để tra cứu nhanh.</span>
+                </Box>
+              </Stack>
+            </Card>
+            <section className="panel">
+              <PanelHead
                 title="Tra cứu case"
-                subtitle="Tìm case support theo user ID hoặc tên. User ID là khóa chính, ticket chỉ là nhãn hiển thị."
+                subtitle="Kênh user ↔ admin qua bot. Tìm theo user ID là chính, ticket chỉ là mã phụ."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm</Button>
+                    <Button variant="outlined" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
                   </div>
                 }
               />
@@ -5735,21 +5815,6 @@ export default function Home() {
                   </div>
                 </Box>
               ) : null}
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Sự kiện support"
-                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu support group và không lẫn thông tin VIP."
-              />
-              <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
-                <Tab value="joined" label={`Join (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
-                <Tab value="left" label={`Left (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
-                <Tab value="muted" label={`Đã mute (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
-                <Tab value="kicked" label={`Đã kick (${supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})`} />
-              </Tabs>
-              <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
-              <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
             </section>
           </div>
         ) : null}
@@ -6698,7 +6763,7 @@ export default function Home() {
         ) : null}
 
         {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt group hỗ trợ" subtitle="Quản lý bật/tắt group hỗ trợ, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt group VIP" subtitle="Quản lý bật/tắt group VIP, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
@@ -6993,7 +7058,7 @@ export default function Home() {
                           Copy toàn bộ nội dung
                         </Button>
                       </Stack>
-                      {manualOrderResult.support_error ? <small className="danger-text">Group hỗ trợ chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
+                      {manualOrderResult.support_error ? <small className="danger-text">Group VIP chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
                     </Box>
                   </Box>
                 ) : null}
