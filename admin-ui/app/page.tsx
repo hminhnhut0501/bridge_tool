@@ -4375,18 +4375,21 @@ export default function Home() {
     });
     const userEvents = privateActivityEvents.map((event) => {
       const payload = event.payload || {};
-      const detail = payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type");
+      const messageText = payloadText(payload, "message_text");
+      const messageKind = payloadText(payload, "message_kind");
+      const detail = messageText || payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type");
       const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || describeActivityEvent(event);
+      const eventType = payloadText(payload, "event_type") || event.event_name || "event";
       return {
         id: `a-${event.id}`,
         direction: "user" as const,
-        type: payloadText(payload, "event_type") || event.event_name || "event",
-        typeLabel: activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event"),
+        type: eventType,
+        typeLabel: activityEventLabel(eventType),
         userId: event.telegram_user_id || payloadText(payload, "user_id"),
         username: payloadText(payload, "username"),
         fullName: payloadText(payload, "full_name"),
-        title: activityEventDetailLabel(payloadText(payload, "event_type") || event.event_name || "event", title, detail),
-        detail,
+        title: messageText ? `Khách nhắn: ${messageText}` : activityEventDetailLabel(eventType, title, detail),
+        detail: messageText ? [messageKind, payloadText(payload, "chat_type"), payloadText(payload, "message_id") ? `#${payloadText(payload, "message_id")}` : ""].filter(Boolean).join(" • ") : detail,
         createdAt: event.created_at,
       };
     });
@@ -4477,8 +4480,9 @@ export default function Home() {
       })
       .map((event) => {
         const payload = event.payload || {};
-        const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event");
-        const detail = payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || "-";
+        const messageText = payloadText(payload, "message_text");
+        const title = messageText ? `Khách nhắn: ${messageText}` : payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || activityEventLabel(payloadText(payload, "event_type") || event.event_name || "event");
+        const detail = messageText ? [payloadText(payload, "message_kind"), payloadText(payload, "chat_type")].filter(Boolean).join(" • ") : payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || "-";
         return {
           key: `activity-${event.id}`,
           kind: "user" as const,
@@ -5052,8 +5056,8 @@ export default function Home() {
                       dateText(event.created_at),
                       <Fragment key={`${event.id}-customer`}><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></Fragment>,
                       <span key={`${event.id}-type`} className={`overview-pill ${activityEventBadgeTone(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}`}>{activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}</span>,
-                      payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
-                      payloadText(event.payload || {}, "chat_type") || "-",
+                      payloadText(event.payload || {}, "message_text") || payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
+                      [payloadText(event.payload || {}, "message_kind"), payloadText(event.payload || {}, "chat_type")].filter(Boolean).join(" • ") || "-",
                     ])}
                   />
                 ) : (

@@ -76,6 +76,22 @@ def _now():
     return datetime.now()
 
 
+def _safe_message_text(value, limit=700):
+    text = str(value or "").replace("\x00", "").strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}…"
+
+
+def _message_kind(message: Message):
+    if message.text:
+        return "text"
+    if message.caption:
+        return "caption"
+    content_type = getattr(message, "content_type", None)
+    return str(content_type or "message")
+
+
 def _extract_event(event):
     now = _now()
     base = {
@@ -110,6 +126,9 @@ def _extract_event(event):
                 "chat_type": chat_type,
                 "event_type": "message",
                 "command": command,
+                "message_id": str(event.message_id or ""),
+                "message_text": _safe_message_text(text),
+                "message_kind": _message_kind(event),
             }
         )
         return base
