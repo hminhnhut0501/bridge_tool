@@ -198,6 +198,8 @@ export function supportEventLabel(type: string) {
     vip_muted: "Đã tắt tiếng VIP",
     vip_unmuted: "Đã bật tiếng VIP",
     vip_kicked: "Đã xóa khỏi group VIP",
+    admin_reply_sent: "Admin đã trả lời",
+    admin_reply_failed: "Trả lời lỗi",
   };
   return labels[type] || type;
 }

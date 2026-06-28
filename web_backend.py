@@ -1433,6 +1433,60 @@ async def admin_activity_events(limit: int = 500):
         return {"data": []}
 
 
+@app.post("/admin-api/admin-replies", dependencies=[Depends(require_admin)])
+async def admin_reply_to_customer(request: Request):
+    body = await request.json()
+    telegram_user_id = str(body.get("telegram_user_id") or "").strip()
+    text = str(body.get("text") or "").strip()
+    source_log_id = str(body.get("source_log_id") or "").strip()
+    source_text = str(body.get("source_text") or "").strip()
+    full_name = str(body.get("full_name") or "").strip()
+
+    if not telegram_user_id.isdigit():
+        raise HTTPException(status_code=400, detail="Telegram ID không hợp lệ.")
+    if not text:
+        raise HTTPException(status_code=400, detail="Nội dung trả lời đang trống.")
+    if len(text) > 3500:
+        raise HTTPException(status_code=400, detail="Nội dung trả lời quá dài, tối đa 3500 ký tự.")
+
+    try:
+        sent = await bot.send_message(chat_id=int(telegram_user_id), text=text, disable_web_page_preview=True)
+    except Exception as exc:
+        try:
+            supabase_store.record_support_event(
+                "admin_reply_failed",
+                telegram_user_id,
+                full_name=full_name,
+                raw_data={
+                    "reply_text": text,
+                    "source_log_id": source_log_id,
+                    "source_text": source_text,
+                    "error": str(exc),
+                },
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Không gửi được tin nhắn cho khách: {exc}")
+
+    try:
+        supabase_store.record_support_event(
+            "admin_reply_sent",
+            telegram_user_id,
+            full_name=full_name,
+            raw_data={
+                "reply_text": text,
+                "source_log_id": source_log_id,
+                "source_text": source_text,
+                "sent_message_id": getattr(sent, "message_id", ""),
+            },
+        )
+    except Exception as exc:
+        if not is_missing_supabase_table_error(exc, "support_events"):
+            print(f"⚠️ Không ghi được admin_reply_sent: {exc}")
+
+    return {"data": {"ok": True, "message_id": getattr(sent, "message_id", None)}}
+
+
 def is_missing_campaign_table_error(exc: Exception) -> bool:
     text = str(exc)
     return any(

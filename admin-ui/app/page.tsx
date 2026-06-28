@@ -184,6 +184,7 @@ import {
   previewCampaign,
   regenerateActivationCode,
   resetWebhook,
+  sendAdminReply,
   startCampaign,
   updateChannelPost,
   updateConfigs,
@@ -2278,6 +2279,9 @@ export default function Home() {
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
+  const [adminReplyOpen, setAdminReplyOpen] = useState(false);
+  const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string } | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState("");
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
@@ -3183,6 +3187,45 @@ export default function Home() {
         return next;
       });
       await loadAll(savedSecret, { silent: true, resetPages: false });
+    });
+  }
+
+  function openAdminReply(entry: { id: string; userId: string; fullName: string; username: string; title: string; detail: string }) {
+    if (!entry.userId) {
+      showNotice("error", "Không có Telegram ID để trả lời khách.");
+      return;
+    }
+    setAdminReplyTarget({
+      id: entry.id,
+      userId: entry.userId,
+      fullName: entry.fullName,
+      username: entry.username,
+      sourceText: entry.title || entry.detail || "",
+    });
+    setAdminReplyText("");
+    setAdminReplyOpen(true);
+  }
+
+  async function submitAdminReply() {
+    if (!adminReplyTarget || !savedSecret) return;
+    const text = adminReplyText.trim();
+    if (!text) {
+      showNotice("error", "Nội dung trả lời đang trống.");
+      return;
+    }
+    await runAction("admin-reply", async () => {
+      await sendAdminReply(savedSecret, {
+        telegram_user_id: adminReplyTarget.userId,
+        text,
+        source_log_id: adminReplyTarget.id,
+        source_text: adminReplyTarget.sourceText,
+        full_name: adminReplyTarget.fullName,
+      });
+      setAdminReplyOpen(false);
+      setAdminReplyTarget(null);
+      setAdminReplyText("");
+      const supportRes = await getSupportEvents(savedSecret);
+      setSupportEvents(supportRes.data || []);
     });
   }
 
@@ -4393,18 +4436,22 @@ export default function Home() {
         createdAt: event.created_at,
       };
     });
-    const botEvents = supportEvents.map((event) => ({
-      id: `s-${event.id}`,
-      direction: "bot" as const,
-      type: event.event_type,
-      typeLabel: supportEventLabel(event.event_type),
-      userId: event.telegram_user_id || "",
-      username: event.username || "",
-      fullName: supportCustomerName(event),
-      title: supportEventLabel(event.event_type),
-      detail: [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
-      createdAt: event.created_at,
-    }));
+    const botEvents = supportEvents.map((event) => {
+      const replyText = payloadText(event.raw_data || {}, "reply_text");
+      const errorText = payloadText(event.raw_data || {}, "error");
+      return {
+        id: `s-${event.id}`,
+        direction: "bot" as const,
+        type: event.event_type,
+        typeLabel: supportEventLabel(event.event_type),
+        userId: event.telegram_user_id || "",
+        username: event.username || "",
+        fullName: supportCustomerName(event),
+        title: replyText ? `Admin trả lời: ${replyText}` : supportEventLabel(event.event_type),
+        detail: errorText || [event.plan_name, event.chat_title, event.order_id].filter(Boolean).join(" • "),
+        createdAt: event.created_at,
+      };
+    });
     return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [activityEvents, supportEvents, supportCustomerName]);
   const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
@@ -5409,6 +5456,15 @@ export default function Home() {
                   item.title,
                   item.detail || "-",
                 ])}
+                actions={(idx) => {
+                  const item = pagedLogEntries[idx];
+                  if (!item || item.direction !== "user" || !item.userId) return null;
+                  return (
+                    <Button variant="text" size="small" onClick={() => openAdminReply(item)} startIcon={<Send size={14} />}>
+                      Trả lời
+                    </Button>
+                  );
+                }}
               />
               <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredLogEntries.length} onPage={setLogPage} label="event" />
             </section>
@@ -6537,6 +6593,34 @@ export default function Home() {
             onSave={saveFields}
             onClose={() => setOrderSettingsOpen(false)}
           />
+        ) : null}
+
+        {adminReplyOpen && adminReplyTarget ? (
+          <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="sm">
+            <Box sx={{ display: "grid", gap: 1.25 }}>
+              <Alert severity="info" variant="outlined">
+                Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
+              </Alert>
+              <TextField
+                autoFocus
+                label="Nội dung trả lời"
+                value={adminReplyText}
+                onChange={(event) => setAdminReplyText(event.target.value)}
+                placeholder="Nhập tin nhắn sẽ gửi trực tiếp cho khách..."
+                fullWidth
+                multiline
+                minRows={5}
+                helperText={`${adminReplyText.trim().length}/3500 ký tự. Tin sẽ gửi bằng bot qua Telegram.`}
+                sx={popupFieldSx}
+              />
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+                <Button variant="outlined" onClick={() => setAdminReplyOpen(false)}>Đóng</Button>
+                <Button variant="contained" onClick={submitAdminReply} disabled={saving === "admin-reply" || !adminReplyText.trim()} startIcon={saving === "admin-reply" ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>
+                  Gửi trả lời
+                </Button>
+              </Stack>
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {customerQuickLookupOpen ? (

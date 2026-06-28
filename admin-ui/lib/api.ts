@@ -607,6 +607,13 @@ export async function regenerateActivationCode(secret: string, code: string) {
   });
 }
 
+export async function sendAdminReply(secret: string, payload: { telegram_user_id: string; text: string; source_log_id?: string; source_text?: string; full_name?: string }) {
+  return request<{ data: { ok: boolean; message_id?: number | null } }>("/admin-api/admin-replies", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getBlacklist(secret: string) {
   return request<{ data: BlacklistEntry[] }>("/admin-api/blacklist", secret);
 }
