@@ -26,6 +26,18 @@ def cfg(key, default=""):
     return str(db.get_config(key, default) or default).strip()
 
 
+def language_from_start_payload(payload: str) -> str | None:
+    normalized = str(payload or "").strip().lower()
+    if not normalized:
+        return None
+    for part in normalized.split("_"):
+        if part == "len":
+            return "en"
+        if part == "lvi":
+            return "vi"
+    return None
+
+
 def render_cfg(key, default, values=None):
     text = cfg(key, default)
     for item_key, item_value in (values or {}).items():
@@ -321,6 +333,9 @@ async def cmd_start(message: Message):
     payload = parts[1].strip() if len(parts) > 1 else ""
     if payload:
         normalized = payload.strip()
+        inferred_language = language_from_start_payload(normalized)
+        if inferred_language:
+            set_user_language(message.from_user.id, inferred_language)
         if normalized.lower().startswith("src_"):
             await record_start_event(
                 message,

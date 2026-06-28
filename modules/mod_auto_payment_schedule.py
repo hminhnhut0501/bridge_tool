@@ -33,10 +33,13 @@ def tier_prefix(tier: str):
     return "RETURNING" if tier_key(tier) == "returning" else "NEW"
 
 
-def customer_segment_key(user_id=None):
+def customer_segment_key(user_id=None, preferred_language=None):
     try:
         from i18n import get_user_language
 
+        language = str(preferred_language or "").strip().lower()
+        if language in {"vi", "en"}:
+            return "en" if language == "en" else "vi"
         return "en" if get_user_language(user_id) == "en" else "vi"
     except Exception:
         return "vi"
@@ -171,11 +174,11 @@ def auto_payment_schedule_active(now=None):
     return auto_payment_schedule_active_for_tier("new", now)
 
 
-def auto_payment_allowed_for_user(user_id, now=None):
+def auto_payment_allowed_for_user(user_id, now=None, preferred_language=None):
     from modules.mod_payment import has_prior_paid_vip_order
 
     tier = "returning" if str(user_id).strip() and has_prior_paid_vip_order(user_id) else "new"
-    segment = customer_segment_key(user_id)
+    segment = customer_segment_key(user_id, preferred_language=preferred_language)
     return auto_payment_schedule_active_for_tier(tier, now, segment=segment)
 
 

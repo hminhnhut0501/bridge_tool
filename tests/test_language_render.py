@@ -57,3 +57,23 @@ def test_change_language_sends_fallback_when_menu_render_fails(monkeypatch):
 
     callback.message.answer.assert_awaited_once()
     assert "/start" in callback.message.answer.await_args.args[0]
+
+
+def test_start_activation_payload_sets_english_language_from_deep_link(monkeypatch):
+    message = SimpleNamespace(
+        text="/start act_apgen_pSVIP30_a9USD_len",
+        from_user=SimpleNamespace(id=456),
+        chat=SimpleNamespace(id=456),
+    )
+    saved_languages = []
+    monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=True))
+    monkeypatch.setattr(mod_general.db, "reload_config", lambda force=False: None)
+    monkeypatch.setattr(mod_general, "cleanup_welcome", AsyncMock())
+    monkeypatch.setattr(mod_general, "record_start_event", AsyncMock())
+    monkeypatch.setattr(mod_general, "deliver_activation_order", AsyncMock())
+    monkeypatch.setattr(mod_general, "set_user_language", lambda user_id, language: saved_languages.append((user_id, language)) or language)
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    assert saved_languages == [(456, "en")]
+    mod_general.deliver_activation_order.assert_awaited_once_with(message, "apgen_pSVIP30_a9USD_len")

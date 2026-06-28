@@ -248,7 +248,7 @@ def test_new_customer_is_blocked_from_auto_payment_by_default():
     ):
         assert has_prior_paid_vip_order("42") is False
         assert should_allow_auto_payment("42") is False
-        assert "khách mới" in auto_payment_gate_message("42").lower()
+        assert "thanh toán tự động" in auto_payment_gate_message("42").lower()
 
 
 def test_returning_customer_can_use_auto_payment_when_enabled():
@@ -308,6 +308,31 @@ def test_english_customer_uses_separate_auto_payment_flow():
     ):
         assert has_prior_paid_vip_order("42") is True
         assert should_allow_auto_payment("42") is True
+
+
+def test_auto_payment_gate_can_use_explicit_language_override():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return [{"order_id": "1", "plan_name": "VIP 30 Ngày"}]
+
+    config = {
+        "AUTO_PAYMENT_VI_RETURNING_ENABLED": "OFF",
+        "AUTO_PAYMENT_EN_RETURNING_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_RETURNING_WINDOWS": "00:00-23:59",
+    }
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ):
+        assert should_allow_auto_payment("42", preferred_language="en") is True
 
 
 def test_create_payment_for_user_blocks_new_customer_when_auto_payment_is_off():
@@ -374,7 +399,7 @@ def test_manual_support_bot_url_uses_deep_link_payload():
     with patch("modules.mod_payment.db.get_config", return_value="https://t.me/cuhotro_bot?start={payload}"):
         from modules.mod_payment import manual_support_bot_url
 
-        assert manual_support_bot_url(42) == "https://t.me/cuhotro_bot?start=auto_payment_gate_42"
+        assert manual_support_bot_url(42) == "https://t.me/cuhotro_bot?start=act_apg_aVND_lvi"
 
 
 def test_auto_payment_schedule_is_active_during_night_window():

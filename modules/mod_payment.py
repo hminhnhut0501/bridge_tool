@@ -570,10 +570,10 @@ def has_prior_paid_vip_order(user_id):
     return False
 
 
-def should_allow_auto_payment(user_id):
+def should_allow_auto_payment(user_id, preferred_language=None):
     from modules.mod_auto_payment_schedule import auto_payment_allowed_for_user
 
-    return auto_payment_allowed_for_user(user_id)
+    return auto_payment_allowed_for_user(user_id, preferred_language=preferred_language)
 
 
 def auto_payment_gate_message(user_id):
@@ -642,9 +642,13 @@ def manual_support_keyboard(user_id=None, action="", provider=""):
 
 
 async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider=""):
-    if should_allow_auto_payment(callback.from_user.id):
+    if should_allow_auto_payment(
+        callback.from_user.id,
+        preferred_language=get_user_language(callback.from_user.id),
+    ):
         return True
-    keyboard = manual_support_keyboard(callback.from_user.id, action or callback.data, provider)
+    callback_action = action or getattr(callback, "data", "")
+    keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider)
     if keyboard and callback.message:
         try:
             await callback.message.answer(auto_payment_gate_message(callback.from_user.id), reply_markup=keyboard)
