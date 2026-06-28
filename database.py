@@ -160,7 +160,11 @@ class Database:
             print(f"❌ Lỗi tải Dữ liệu: {e}")
 
     def get_config(self, key, default=""):
-        if not self.cache_config: self.reload_config(force=True)
+        current_time = time.time()
+        if not self.cache_config:
+            self.reload_config(force=True)
+        elif current_time - self.last_reload_time >= 60:
+            self.reload_config(force=False)
         normalized_key = normalize_key(key).upper()
         value = self.cache_config.get(normalized_key, str(default))
         if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
