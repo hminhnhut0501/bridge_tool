@@ -32,6 +32,7 @@ from support_utils import (
     support_delete_enabled,
     refresh_support_ticket_topic,
 )
+from modules.mod_coupon import code_has_auto_prefix, code_is_hidden_exact_match
 from supabase_store import supabase_store
 
 router = Router()
@@ -186,6 +187,9 @@ def _is_support_inbox_private_message(message: Message) -> bool:
     if not _is_private_user_message(message):
         return False
     if not supabase_store.enabled or not message.from_user:
+        return False
+    text = str(message.text or "").strip()
+    if text and (code_has_auto_prefix(text) or code_is_hidden_exact_match(text)):
         return False
     try:
         return bool(has_open_support_ticket(message.from_user.id))
