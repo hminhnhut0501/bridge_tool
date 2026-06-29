@@ -1358,9 +1358,9 @@ const ADMIN_FIELDS: ConfigField[] = [
 const SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_GROUP_ENABLED",
-    label: "Bật group VIP",
+    label: "Bật group Chăm sóc KH",
     placeholder: "OFF",
-    help: "Bật ON để gửi nút join group VIP kèm link tham gia sau thanh toán/coupon.",
+    help: "Bật ON để gửi nút join group Chăm sóc khách hàng kèm link tham gia sau thanh toán/coupon.",
     kind: "select",
     options: [
       { label: "Tắt", value: "OFF" },
@@ -1369,14 +1369,14 @@ const SUPPORT_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_GROUP_ID",
-    label: "VIP group ID",
+    label: "Group Chăm sóc KH ID",
     placeholder: "-1001234567890",
-    help: "ID nhóm VIP. Nhóm này không bị kick khi gói hết hạn.",
+    help: "ID nhóm chăm sóc khách hàng. Nhóm này không bị kick khi gói hết hạn.",
   },
   {
     key: "SUPPORT_GROUP_NAME",
-    label: "Tên group VIP",
-    placeholder: "Nhóm VIP Privé+",
+    label: "Tên group Chăm sóc KH",
+    placeholder: "Chăm sóc khách hàng Privé+",
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
@@ -1404,35 +1404,13 @@ const SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_TICKET_PREFIX",
     label: "Tiền tố case inbox",
-    placeholder: "SUP",
-    help: "Chỉ là nhãn hiển thị cho case inbox, ví dụ SUP hoặc CS.",
-  },
-  {
-    key: "SUPPORT_INBOX_MODE",
-    label: "Chế độ inbox bot",
-    placeholder: "group",
-    help: "group: inbox xử lý trong group. forum: chuẩn bị cho mode topic riêng.",
-    kind: "select",
-    options: [
-      { label: "Group", value: "group" },
-      { label: "Forum", value: "forum" },
-    ],
-  },
-  {
-    key: "SUPPORT_DELETE_ENABLED",
-    label: "Cho phép /delete inbox",
-    placeholder: "ON",
-    help: "Bật ON để admin trong group tin nhắn có thể xoá message đã gửi sang user bằng /delete.",
-    kind: "select",
-    options: [
-      { label: "Bật", value: "ON" },
-      { label: "Tắt", value: "OFF" },
-    ],
+    placeholder: "CS",
+    help: "Nhãn hiển thị cho case inbox, ví dụ CS hoặc SUP.",
   },
   {
     key: "SUPPORT_GROUP_BUTTON_TEXT",
-    label: "Text nút join group VIP",
-    placeholder: "💬 Join group VIP",
+    label: "Text nút join group CSKH",
+    placeholder: "💬 Join group CSKH",
     help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
   },
   {
@@ -1451,7 +1429,7 @@ const SUPPORT_FIELDS: ConfigField[] = [
     key: "SUPPORT_GROUP_MUTE_ENABLED",
     label: "Mute khi hết hạn",
     placeholder: "ON",
-    help: "Bật ON để user hết hạn bị mute trong các group trả phí trước khi kick.",
+    help: "Bật ON để user hết hạn bị mute trong group chăm sóc khách hàng trước khi kick.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1462,7 +1440,7 @@ const SUPPORT_FIELDS: ConfigField[] = [
     key: "SUPPORT_GROUP_GRACE_DAYS",
     label: "Số ngày mute trước khi kick",
     placeholder: "14",
-    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm trả phí.",
+    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi group chăm sóc khách hàng.",
   },
 ];
 
@@ -3226,7 +3204,7 @@ export default function Home() {
     await runAction(live ? "vip-audit-live" : "vip-audit-refresh", async () => {
       const res = await getVipGroupAudit(savedSecret, live);
       setVipGroupAudit(res.data);
-      if (live) showNotice("ok", "Đã kiểm tra live trạng thái VIP group.");
+      if (live) showNotice("ok", "Đã kiểm tra live trạng thái CSKH.");
     });
   }
 
@@ -3235,9 +3213,9 @@ export default function Home() {
       const res = await checkSupportGroup(savedSecret);
       setSupportCheck(res.data);
       if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
-        showNotice("ok", "Group VIP tạo link OK.");
+        showNotice("ok", "Group CSKH tạo link OK.");
       } else {
-        showNotice("error", "Group VIP chưa tạo được link. Xem chi tiết trong tab.");
+        showNotice("error", "Group CSKH chưa tạo được link. Xem chi tiết trong tab.");
       }
     });
   }
@@ -4799,7 +4777,7 @@ export default function Home() {
     if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
     if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
     if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
-    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Group VIP", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
+    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "CSKH", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
   const visibleChannelPosts = useMemo(() => {
@@ -5154,8 +5132,8 @@ export default function Home() {
               textColor="inherit"
               sx={sidebarTabSx}
             >
-              <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Bot inbox")} />
-              <Tab value="supportInboxSettings" icon={<Settings size={16} />} iconPosition="start" label={ui("Cài đặt bot", "Bot settings")} />
+              <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot CSKH", "Support inbox")} />
+              <Tab value="supportInboxSettings" icon={<Settings size={16} />} iconPosition="start" label={ui("Cài đặt CSKH", "Support settings")} />
             </Tabs>
           </Box>
           <Box>
@@ -5171,7 +5149,7 @@ export default function Home() {
               textColor="inherit"
               sx={sidebarTabSx}
             >
-              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group VIP", "VIP group")} />
+              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Chăm sóc KH", "Customer care")} />
               <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
               <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
               <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
@@ -5767,13 +5745,13 @@ export default function Home() {
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} icon={<TrendingUp size={16} />} />
               <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} icon={<XCircle size={16} />} />
               <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} icon={<ShieldCheck size={16} />} />
-              <Metric label="Sự kiện nhóm VIP" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
-              <Metric label="Group VIP" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm VIP")} icon={<Users size={16} />} />
+              <Metric label="Sự kiện CSKH" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
+              <Metric label="Chăm sóc KH" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Chăm sóc khách hàng")} icon={<Users size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
-                title="Group VIP"
-                subtitle="Chỉ hiển thị sự kiện của nhóm thành viên VIP theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
+                title="Chăm sóc khách hàng"
+                subtitle="Chỉ hiển thị sự kiện của group chăm sóc khách hàng theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
@@ -5792,13 +5770,13 @@ export default function Home() {
                   ]}
                 />
               ) : (
-                <div className="muted">Bấm kiểm tra sau khi lưu ID nhóm VIP.</div>
+                <div className="muted">Bấm kiểm tra sau khi lưu ID group chăm sóc khách hàng.</div>
               )}
             </section>
             <section className="panel">
               <PanelHead
-                title="Sự kiện nhóm VIP"
-                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group thành viên VIP."
+                title="Sự kiện chăm sóc KH"
+                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group chăm sóc khách hàng."
               />
               <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
@@ -5817,11 +5795,11 @@ export default function Home() {
           <div className="stack">
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
-                title="Tin nhắn bot"
-                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến group VIP thành viên."
+                title="Tin nhắn bot CSKH"
+                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến group chăm sóc khách hàng."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Cài đặt bot nhận tin/trả lời</Button>
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Cài đặt CSKH</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Nhân viên hỗ trợ</Button>
                     <Button variant="contained" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
                   </div>
@@ -5844,11 +5822,11 @@ export default function Home() {
             </Card>
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
-                title="Cài đặt bot nhận tin/trả lời"
+                title="Cài đặt CSKH"
                 subtitle="Các cấu hình cho inbox user ↔ admin. Không bao gồm khối deep link auto payment."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình</Button>
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình CSKH</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
                   </div>
                 }
@@ -5947,7 +5925,7 @@ export default function Home() {
                 subtitle="Cài đặt inbox riêng: group ID, trạng thái kết nối, quyền bot và template gửi/nhận tin."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
+                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot CSKH</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
                     <Button variant="contained" size="small" onClick={() => void runSupportGroupCheck()} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
                   </div>
@@ -6966,7 +6944,7 @@ export default function Home() {
         ) : null}
 
         {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt group VIP" subtitle="Quản lý bật/tắt group VIP, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt Chăm sóc khách hàng" subtitle="Quản lý bật/tắt group CSKH, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
@@ -7261,7 +7239,7 @@ export default function Home() {
                           Copy toàn bộ nội dung
                         </Button>
                       </Stack>
-                      {manualOrderResult.support_error ? <small className="danger-text">Group VIP chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
+                      {manualOrderResult.support_error ? <small className="danger-text">Group CSKH chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
                     </Box>
                   </Box>
                 ) : null}

@@ -989,7 +989,7 @@ async def admin_create_manual_order(request: Request):
     elif support_error:
         support_text = render_activation_text(
             "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
-            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+        "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
             {
                 "support_group_name": support_group_name(),
                 "support_error": support_error,
@@ -1391,8 +1391,8 @@ async def admin_vip_group_audit(live: bool = False):
     try:
         return {"data": await build_vip_group_audit_rows(live=live)}
     except Exception as exc:
-        print(f"⚠️ Không dựng được danh sách quét VIP group: {exc}")
-        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét VIP group: {exc}")
+        print(f"⚠️ Không dựng được danh sách quét CSKH: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét CSKH: {exc}")
 
 
 @app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])

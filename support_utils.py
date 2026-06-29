@@ -51,7 +51,7 @@ def support_group_id():
 
 
 def support_group_name():
-    return db.get_config("SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")
+    return db.get_config("SUPPORT_GROUP_NAME", "Chăm sóc khách hàng")
 
 
 def support_group_grace_days():
