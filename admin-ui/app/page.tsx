@@ -1501,7 +1501,7 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     key: "SUPPORT_INBOX_STATUS_STYLE",
     label: "Kiểu hiệu ứng",
     placeholder: "pulse",
-    help: "Chọn preset cho frame preview trạng thái kết nối.",
+    help: "Chọn preset gốc cho hiệu ứng. Nếu nhập custom frames thì preset này vẫn là nền fallback và style preview.",
     kind: "select",
     options: [
       { label: "Pulse - chớp điểm sáng", value: "pulse" },
@@ -1514,7 +1514,7 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     key: "SUPPORT_INBOX_STATUS_FRAMES",
     label: "Custom frames",
     placeholder: "{message} ✦ ✧ ✦\\n{message} ✧ ✦ ✧\\n{message} ✦ ✧ ✦",
-    help: "Mỗi dòng là một frame edit. Dùng {message} để chèn tin nhắn ban đầu.",
+    help: "Mỗi dòng là một frame edit. Dùng {message} để chèn tin nhắn ban đầu. Khi có dữ liệu ở đây, bot sẽ dùng custom frames của preset đang chọn.",
     kind: "textarea",
   },
   {
@@ -1569,6 +1569,10 @@ const SUPPORT_INBOX_PREVIEW_PRESETS = [
   { key: "blink", label: "Blink", badge: "Nhấp nháy", accent: "linear-gradient(135deg, rgba(249,115,22,0.16), rgba(255,255,255,0.98))" },
   { key: "wave", label: "Wave", badge: "Sóng", accent: "linear-gradient(135deg, rgba(139,92,246,0.16), rgba(255,255,255,0.98))" },
 ] as const;
+
+function supportInboxPresetMeta(style: string) {
+  return SUPPORT_INBOX_PREVIEW_PRESETS.find((preset) => preset.key === style) ?? SUPPORT_INBOX_PREVIEW_PRESETS[0];
+}
 
 function supportInboxPreviewFrames(style: string, message: string) {
   if (style === "dots") return [message, `${message}.`, `${message}..`, `${message}...`];
@@ -6247,11 +6251,12 @@ export default function Home() {
                 >
                   <PanelHead
                     title="Preview hiệu ứng kết nối"
-                    subtitle="Xem nhanh từng preset frame trước khi lưu. Mẫu preview bám theo nhịp tele_support nhưng giữ riêng cho Tin nhắn bot."
+                    subtitle="Chỉ preview cấu hình hiện tại: preset đã chọn và custom frames đang nhập, để dễ kiểm soát hơn."
                     accent="cyan"
                   />
                   {(() => {
                     const liveStyle = String(getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse") || "pulse").toLowerCase();
+                    const livePreset = supportInboxPresetMeta(liveStyle);
                     const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
                     const liveCustomFrames = getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAMES", "") || "";
                     const liveFrames = supportInboxPreviewFrameList(liveStyle, liveMessage, liveCustomFrames);
@@ -6290,11 +6295,12 @@ export default function Home() {
                             borderRadius: 3,
                             border: "1px solid",
                             borderColor: "rgba(59,130,246,0.14)",
-                            backgroundImage: "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0.98))",
+                            backgroundImage: livePreset.accent,
                           }}
                         >
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
-                            <Chip size="small" label={`Live: ${liveStyle}`} sx={statusChipSx("success")} />
+                            <Chip size="small" label={`Preset: ${livePreset.label}`} sx={statusChipSx("success")} />
+                            <Chip size="small" label={liveCustomFrames.trim() ? "Custom frames ON" : "Using preset frames"} variant="outlined" sx={statusChipSx(liveCustomFrames.trim() ? "warning" : "muted")} />
                             <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
                             <Chip size="small" label={`Delay ${Math.max(120, Number.isFinite(liveDelayMs) ? liveDelayMs : 420)}ms`} variant="outlined" sx={statusChipSx("muted")} />
                             <Chip size="small" label={`Hold ${Math.max(0, Number.isFinite(liveFinalHoldMs) ? liveFinalHoldMs : 800)}ms`} variant="outlined" sx={statusChipSx("muted")} />
@@ -6443,76 +6449,6 @@ export default function Home() {
                               </Box>
                             </Box>
                           </Box>
-                        </Box>
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" },
-                            gap: 1.5,
-                          }}
-                        >
-                          {SUPPORT_INBOX_PREVIEW_PRESETS.map((preset) => {
-                            const frames = supportInboxPreviewFrameList(preset.key, SUPPORT_INBOX_PREVIEW_MESSAGE);
-                            const previewState = supportInboxPreviewCurrentFrame({
-                              frames,
-                              delayMs: 420,
-                              finalHoldMs: 800,
-                              clockMs: supportInboxPreviewClock + SUPPORT_INBOX_PREVIEW_PRESETS.findIndex((item) => item.key === preset.key) * 240,
-                            });
-                            return (
-                              <Box
-                                key={preset.key}
-                                sx={{
-                                  p: 1.5,
-                                  borderRadius: 3,
-                                  border: "1px solid rgba(148,163,184,0.18)",
-                                  backgroundImage: preset.accent,
-                                  boxShadow: "0 10px 26px rgba(15,23,42,0.05)",
-                                }}
-                              >
-                                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 800, lineHeight: 1.1 }}>{preset.label}</Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25 }}>
-                                      {preset.badge}
-                                    </Typography>
-                                  </Box>
-                                  <Chip size="small" label={preset.key} variant="outlined" sx={{ fontWeight: 700 }} />
-                                </Stack>
-                                <Box sx={{ display: "grid", gap: 0.8 }}>
-                                  <Box
-                                    sx={{
-                                      px: 1.1,
-                                      py: 0.95,
-                                      borderRadius: 2,
-                                      bgcolor: previewState.isFinal ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.82)",
-                                      color: "text.primary",
-                                      fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
-                                      fontSize: "0.9rem",
-                                      fontWeight: previewState.isFinal ? 800 : 600,
-                                      border: "1px solid rgba(255,255,255,0.72)",
-                                      boxShadow: previewState.isFinal ? "0 10px 20px rgba(34,197,94,0.12)" : "0 8px 18px rgba(15,23,42,0.06)",
-                                      transition: "all 160ms ease",
-                                      whiteSpace: "pre-line",
-                                    }}
-                                  >
-                                    {previewState.isFinal ? "🟢 Admin đang online\nAdmin đã sẵn sàng hỗ trợ 🤗" : previewState.text}
-                                  </Box>
-                                  <Box sx={{ height: 5, borderRadius: 999, bgcolor: "rgba(15,23,42,0.08)", overflow: "hidden" }}>
-                                    <Box
-                                      sx={{
-                                        width: `${previewState.isFinal ? 100 : Math.max(10, Math.min(100, previewState.progress * 100))}%`,
-                                        height: "100%",
-                                        borderRadius: 999,
-                                        background: previewState.isFinal ? "linear-gradient(90deg, #34d399, #22c55e)" : "linear-gradient(90deg, #2563eb, #38bdf8)",
-                                        transition: "width 120ms linear, background 180ms ease",
-                                      }}
-                                    />
-                                  </Box>
-                                </Box>
-                              </Box>
-                            );
-                          })}
                         </Box>
                       </Box>
                     );
