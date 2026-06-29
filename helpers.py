@@ -14,6 +14,7 @@ from database import db
 from bot_instance import bot, is_spamming
 from i18n import t
 from supabase_store import supabase_store
+from aiogram.exceptions import TelegramBadRequest
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
@@ -333,22 +334,36 @@ async def check_protection(event):
     user_id = event.from_user.id
     unavailable_reason = bot_unavailable_reason()
 
+    async def _safe_reply_message(text, *, parse_mode=None, show_alert=False):
+        try:
+            if isinstance(event, Message):
+                await event.answer(text, parse_mode=parse_mode)
+            else:
+                await event.answer(text, show_alert=show_alert)
+            return True
+        except TelegramBadRequest as exc:
+            if "chat not found" in str(exc).lower():
+                print(f"⚠️ Không gửi được phản hồi bảo vệ tới user {user_id}: {exc}")
+                return False
+            raise
+
     if unavailable_reason and not is_admin_user(user_id):
         if unavailable_reason == "schedule":
             msg = t(user_id, "MSG_OUTSIDE_ACTIVE_HOURS", "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.").replace("\\n", "\n")
         else:
             msg = t(user_id, "MSG_MAINTENANCE", "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!").replace("\\n", "\n")
         alert_main = t(user_id, "ALERT_MAINTENANCE", "🛠 Bot đang bảo trì, vui lòng quay lại sau...")
-        if isinstance(event, Message): 
-            await event.answer(msg, parse_mode="HTML")
-        else: 
-            await event.answer(alert_main, show_alert=True)
+        await _safe_reply_message(msg if isinstance(event, Message) else alert_main, parse_mode="HTML" if isinstance(event, Message) else None, show_alert=not isinstance(event, Message))
         return False
         
     if is_spamming(user_id) and not is_admin_user(user_id):
         alert_spam = t(user_id, "ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
         if isinstance(event, CallbackQuery):
-            await event.answer(alert_spam, show_alert=False)
+            try:
+                await event.answer(alert_spam, show_alert=False)
+            except TelegramBadRequest as exc:
+                if "chat not found" not in str(exc).lower():
+                    raise
         return False
 
     blocked = await blacklist_entry_for_user(event.from_user)
@@ -360,9 +375,13 @@ async def check_protection(event):
         ).replace("\\n", "\n")
         alert = strip_html_tags(msg)[:180] or "Tài khoản của bạn đang bị chặn."
         if isinstance(event, CallbackQuery):
-            await event.answer(alert, show_alert=True)
+            try:
+                await event.answer(alert, show_alert=True)
+            except TelegramBadRequest as exc:
+                if "chat not found" not in str(exc).lower():
+                    raise
         elif config_enabled("BLACKLIST_NOTIFY_USER", "ON"):
-            await event.answer(msg, parse_mode="HTML")
+            await _safe_reply_message(msg, parse_mode="HTML")
         return False
         
     return True
