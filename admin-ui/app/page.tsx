@@ -1493,6 +1493,18 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     help: "Biến hỗ trợ: {staff_name}, {admin_name}, {admin_username}.",
     kind: "textarea",
   },
+  {
+    key: "SUPPORT_INBOX_STATUS_FRAME_DELAY_MS",
+    label: "Delay giữa frame (ms)",
+    placeholder: "420",
+    help: "Tăng/giảm tốc độ chạy frame khi đang kết nối.",
+  },
+  {
+    key: "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS",
+    label: "Giữ final trước khi chốt (ms)",
+    placeholder: "800",
+    help: "Tạo độ trễ nhẹ trước khi chốt trạng thái cuối.",
+  },
 ];
 
 const SUPPORT_INBOX_TEMPLATE_FIELDS: ConfigField[] = [
@@ -1511,6 +1523,21 @@ const SUPPORT_INBOX_TEMPLATE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
 ];
+
+const SUPPORT_INBOX_PREVIEW_MESSAGE = "Đang kết nối với admin...";
+const SUPPORT_INBOX_PREVIEW_PRESETS = [
+  { key: "pulse", label: "Pulse", badge: "Nhịp sáng", accent: "linear-gradient(135deg, rgba(59,130,246,0.16), rgba(255,255,255,0.98))" },
+  { key: "dots", label: "Dots", badge: "Chấm chờ", accent: "linear-gradient(135deg, rgba(16,185,129,0.16), rgba(255,255,255,0.98))" },
+  { key: "blink", label: "Blink", badge: "Nhấp nháy", accent: "linear-gradient(135deg, rgba(249,115,22,0.16), rgba(255,255,255,0.98))" },
+  { key: "wave", label: "Wave", badge: "Sóng", accent: "linear-gradient(135deg, rgba(139,92,246,0.16), rgba(255,255,255,0.98))" },
+] as const;
+
+function supportInboxPreviewFrames(style: string, message: string) {
+  if (style === "dots") return [message, `${message}.`, `${message}..`, `${message}...`];
+  if (style === "blink") return [`● ${message}`, `○ ${message}`, `● ${message}`];
+  if (style === "wave") return [message, `${message} ~`, `${message} ~~`, `${message} ~~~`];
+  return [`${message} ·`, `${message} ··`, `${message} ···`];
+}
 
 const ORDER_FIELDS: ConfigField[] = [
   {
@@ -6052,6 +6079,142 @@ export default function Home() {
                   setValues={setFieldValues}
                   onSave={saveFields}
                 />
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 4,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
+                    boxShadow: "0 16px 34px rgba(15,23,42,0.06)",
+                  }}
+                >
+                  <PanelHead
+                    title="Preview hiệu ứng kết nối"
+                    subtitle="Xem nhanh từng preset frame trước khi lưu. Mẫu preview bám theo nhịp tele_support nhưng giữ riêng cho Tin nhắn bot."
+                    accent="cyan"
+                  />
+                  {(() => {
+                    const liveStyle = String(getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse") || "pulse").toLowerCase();
+                    const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
+                    const liveFrames = supportInboxPreviewFrames(liveStyle, liveMessage);
+                    const liveFinal = getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗";
+                    return (
+                      <Box sx={{ display: "grid", gap: 2, p: 2 }}>
+                        <Box
+                          sx={{
+                            p: 2,
+                            borderRadius: 3,
+                            border: "1px solid",
+                            borderColor: "rgba(59,130,246,0.14)",
+                            backgroundImage: "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0.98))",
+                          }}
+                        >
+                          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+                            <Chip size="small" label={`Live: ${liveStyle}`} sx={statusChipSx("success")} />
+                            <Chip size="small" label={`${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "success" : "warning")} />
+                          </Stack>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+                            <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline")} variant="outlined" sx={statusChipSx("muted")} />
+                            <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")} variant="outlined" sx={statusChipSx("success")} />
+                          </Stack>
+                          <Box
+                            sx={{
+                              minHeight: 146,
+                              p: 2,
+                              borderRadius: 3,
+                              background: "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.98))",
+                              color: "#fff",
+                              display: "grid",
+                              alignItems: "center",
+                              gap: 1,
+                              position: "relative",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.16), transparent 28%), radial-gradient(circle at 82% 14%, rgba(96,165,250,0.28), transparent 26%), radial-gradient(circle at 80% 80%, rgba(16,185,129,0.18), transparent 24%)" }} />
+                            <Box sx={{ position: "relative", zIndex: 1, display: "grid", gap: 1 }}>
+                              {liveFrames.map((frame, index) => (
+                                <Box
+                                  key={`${liveStyle}-${index}`}
+                                  sx={{
+                                    px: 1.5,
+                                    py: 0.85,
+                                    borderRadius: 2,
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    bgcolor: index === liveFrames.length - 1 ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)",
+                                    color: index === liveFrames.length - 1 ? "#d1fae5" : "#e5eefc",
+                                    fontWeight: index === liveFrames.length - 1 ? 800 : 600,
+                                    letterSpacing: "-0.01em",
+                                    fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
+                                  }}
+                                >
+                                  {frame}
+                                </Box>
+                              ))}
+                              <Box sx={{ mt: 0.5, color: "rgba(255,255,255,0.78)", fontSize: "0.9rem", fontWeight: 600 }}>
+                                {liveFinal}
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Box>
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" },
+                            gap: 1.5,
+                          }}
+                        >
+                          {SUPPORT_INBOX_PREVIEW_PRESETS.map((preset) => {
+                            const frames = supportInboxPreviewFrames(preset.key, SUPPORT_INBOX_PREVIEW_MESSAGE);
+                            return (
+                              <Box
+                                key={preset.key}
+                                sx={{
+                                  p: 1.5,
+                                  borderRadius: 3,
+                                  border: "1px solid rgba(148,163,184,0.18)",
+                                  backgroundImage: preset.accent,
+                                  boxShadow: "0 10px 26px rgba(15,23,42,0.05)",
+                                }}
+                              >
+                                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 800, lineHeight: 1.1 }}>{preset.label}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25 }}>
+                                      {preset.badge}
+                                    </Typography>
+                                  </Box>
+                                  <Chip size="small" label={preset.key} variant="outlined" sx={{ fontWeight: 700 }} />
+                                </Stack>
+                                <Box sx={{ display: "grid", gap: 0.7 }}>
+                                  {frames.map((frame, index) => (
+                                    <Box
+                                      key={`${preset.key}-${index}`}
+                                      sx={{
+                                        px: 1.1,
+                                        py: 0.8,
+                                        borderRadius: 2,
+                                        bgcolor: index === frames.length - 1 ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.8)",
+                                        color: "text.primary",
+                                        fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
+                                        fontSize: "0.9rem",
+                                        fontWeight: index === frames.length - 1 ? 700 : 500,
+                                        border: "1px solid rgba(255,255,255,0.7)",
+                                      }}
+                                    >
+                                      {frame}
+                                    </Box>
+                                  ))}
+                                </Box>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    );
+                  })()}
+                </Box>
                 <ConfigEditor
                   title="Template inbox support"
                   subtitle="Tin bot gửi group và tin bot trả lời user."

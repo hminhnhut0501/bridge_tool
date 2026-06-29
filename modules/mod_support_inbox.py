@@ -12,8 +12,11 @@ from support_utils import (
     is_support_group,
     record_support_event,
     record_support_message,
+    support_admin_presence_text,
     render_support_inbox_ready_text,
     support_inbox_connecting_text,
+    support_inbox_status_frame_delay_ms,
+    support_inbox_status_final_hold_ms,
     support_inbox_status_enabled,
     support_inbox_status_frame_list,
     render_support_group_message,
@@ -121,7 +124,7 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
     if not frames:
         return
 
-    delay_seconds = 0.65
+    delay_seconds = support_inbox_status_frame_delay_ms() / 1000.0
     for frame in frames:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
@@ -129,7 +132,8 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
             return
         await asyncio.sleep(delay_seconds)
 
-    final_text = render_support_inbox_ready_text(staff_name="Admin", ticket_no=ticket_no)
+    await asyncio.sleep(support_inbox_status_final_hold_ms() / 1000.0)
+    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name='Admin', ticket_no=ticket_no)}"
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
     except Exception:
@@ -215,7 +219,9 @@ async def _forward_private_message_to_group(message: Message):
         pass
 
     try:
-        status_message = await message.answer(support_inbox_connecting_text())
+        status_message = await message.answer(
+            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
+        )
         if support_inbox_status_enabled():
             create_background_task(
                 _play_support_inbox_status_effect(
@@ -266,7 +272,13 @@ async def support_group_reply(message: Message):
     body = _message_text(message)
     admin_name = message.from_user.full_name if message.from_user else "Admin"
     admin_username = f"@{message.from_user.username}" if message.from_user and message.from_user.username else ""
-    outgoing = render_support_reply_message(ticket, body, admin_name, f" ({admin_username})" if admin_username else "")
+    outgoing = render_support_reply_message(
+        ticket,
+        body,
+        admin_name,
+        f" ({admin_username})" if admin_username else "",
+        admin_status_text=support_admin_presence_text(True),
+    )
 
     try:
         sent = await bot.send_message(

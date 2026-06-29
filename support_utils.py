@@ -84,6 +84,20 @@ def support_inbox_status_frames():
     return str(db.get_config("SUPPORT_INBOX_STATUS_FRAMES", "") or "").strip()
 
 
+def support_inbox_status_frame_delay_ms():
+    try:
+        return max(120, int(float(str(db.get_config("SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420")).strip())))
+    except (TypeError, ValueError):
+        return 420
+
+
+def support_inbox_status_final_hold_ms():
+    try:
+        return max(0, int(float(str(db.get_config("SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800")).strip())))
+    except (TypeError, ValueError):
+        return 800
+
+
 def support_inbox_connecting_text():
     return str(db.get_config("SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") or "Đang kết nối").strip()
 
@@ -103,6 +117,10 @@ def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_
     for key, value in replacements.items():
         text = text.replace(key, value)
     return text
+
+
+def support_admin_presence_text(online=True):
+    return support_admin_online_text() if online else support_admin_offline_text()
 
 
 def support_inbox_status_frame_list(base_message=""):
@@ -233,7 +251,7 @@ def render_support_group_message(ticket, message_text="", *, template_key="SUPPO
     return _render_template(db.get_config(template_key, default_text), context, default_text)
 
 
-def render_support_reply_message(ticket, message_text="", admin_name="", admin_username=""):
+def render_support_reply_message(ticket, message_text="", admin_name="", admin_username="", admin_status_text=""):
     context = {
         "ticket_no": ticket.get("ticket_no", ""),
         "full_name": ticket.get("full_name", ""),
@@ -242,11 +260,13 @@ def render_support_reply_message(ticket, message_text="", admin_name="", admin_u
         "status": ticket.get("status", ""),
         "admin_name": admin_name,
         "admin_username": admin_username,
+        "admin_status": admin_status_text or support_admin_online_text(),
         "message": message_text,
     }
     default_text = (
         "💬 <b>Phản hồi từ hỗ trợ</b>\n"
         "Ticket: <code>{ticket_no}</code>\n"
+        "{admin_status}\n"
         "{admin_name}{admin_username}\n\n"
         "{message}"
     )
