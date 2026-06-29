@@ -195,6 +195,18 @@ export type WebhookInfo = {
   allowed_updates?: string[];
 };
 
+export type WebhookInfoMeta = {
+  expected_url: string;
+  last_reset_reason: string;
+  failure_streak: number;
+  problem_reason: string;
+  maintenance_override?: {
+    active?: boolean;
+    reason?: string;
+    source?: string;
+  };
+};
+
 export type BotScheduleStatus = {
   source: "channel" | "fixed" | "maintenance" | "always";
   active: boolean;
@@ -777,7 +789,7 @@ export async function checkSupportInbox(secret: string) {
 }
 
 export async function getWebhookInfo(secret: string) {
-  return request<{ data: WebhookInfo }>("/admin-api/webhook-info", secret);
+  return request<{ data: WebhookInfo; meta: WebhookInfoMeta }>("/admin-api/webhook-info", secret);
 }
 
 export async function getBotScheduleStatus(secret: string) {
@@ -785,7 +797,7 @@ export async function getBotScheduleStatus(secret: string) {
 }
 
 export async function resetWebhook(secret: string) {
-  return request<{ data: WebhookInfo }>("/admin-api/webhook-reset", secret, {
+  return request<{ data: WebhookInfo; meta: WebhookInfoMeta }>("/admin-api/webhook-reset", secret, {
     method: "POST",
   });
 }

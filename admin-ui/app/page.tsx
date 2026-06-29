@@ -143,6 +143,7 @@ import {
   SupportEvent,
   UserRow,
   WebhookInfo,
+  WebhookInfoMeta,
   checkSupportGroup,
   checkSupportInbox,
   cancelCampaign,
@@ -2586,6 +2587,7 @@ export default function Home() {
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
   const [supportInboxCheck, setSupportInboxCheck] = useState<SupportInboxCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
+  const [webhookMeta, setWebhookMeta] = useState<WebhookInfoMeta | null>(null);
   const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -3059,7 +3061,14 @@ export default function Home() {
       addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
-      addTask(needsWebhook, () => getWebhookInfo(activeSecret), setWebhook);
+      if (needsWebhook) {
+        tasks.push(
+          getWebhookInfo(activeSecret).then((res) => {
+            setWebhook(res.data);
+            setWebhookMeta(res.meta);
+          })
+        );
+      }
       addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
 
       await Promise.all(tasks);
@@ -3082,6 +3091,15 @@ export default function Home() {
                 pending_update_count: 0,
                 allowed_updates: ["message", "callback_query", "chat_member"],
               }
+        );
+        setWebhookMeta((current) =>
+          current ?? {
+            expected_url: "http://127.0.0.1:8000/webhook",
+            last_reset_reason: "",
+            failure_streak: 0,
+            problem_reason: "",
+            maintenance_override: { active: false, reason: "", source: "" },
+          }
         );
         setDemoDataInjected(true);
       }
@@ -4105,6 +4123,7 @@ export default function Home() {
     await runAction("webhook", async () => {
       const res = await resetWebhook(savedSecret);
       setWebhook(res.data);
+      setWebhookMeta(res.meta);
     });
   }
 
@@ -4997,7 +5016,9 @@ export default function Home() {
   }, [customerSummaries, reminderNoticeDays]);
   const overviewHealthAlerts = useMemo(() => {
     const alerts: { title: string; detail: string; tone: "good" | "warning" | "bad" }[] = [];
-    if (!webhook?.url) alerts.push({ title: "Webhook", detail: "Chưa có URL webhook đang hoạt động", tone: "bad" });
+    if (webhookMeta?.maintenance_override?.active) alerts.push({ title: "Webhook", detail: webhookMeta.maintenance_override.reason || "Bot đang bảo trì do webhook lỗi", tone: "bad" });
+    else if (!webhook?.url) alerts.push({ title: "Webhook", detail: "Chưa có URL webhook đang hoạt động", tone: "bad" });
+    else if (webhookMeta?.problem_reason) alerts.push({ title: "Webhook", detail: `Webhook có lỗi: ${webhookMeta.problem_reason}`, tone: "warning" });
     else alerts.push({ title: "Webhook", detail: "Webhook đang hoạt động", tone: "good" });
     if (botScheduleStatus?.active) alerts.push({ title: "Bot", detail: botScheduleStatus.title || "Bot đang hoạt động", tone: "good" });
     else alerts.push({ title: "Bot", detail: botScheduleStatus?.title || "Bot đang tạm dừng", tone: "warning" });
@@ -5308,9 +5329,9 @@ export default function Home() {
               Tra cứu khách
             </Button>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap", px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
-              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
+              <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhookMeta?.maintenance_override?.active ? "#ef4444" : webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhookMeta?.maintenance_override?.active ? "0 0 0 5px rgba(239,68,68,0.12)" : webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
               <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
-                {webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
+                {webhookMeta?.maintenance_override?.active ? ui("Bảo trì do webhook", "Maintenance by webhook") : webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
               </Typography>
             </Box>
             <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
@@ -5491,7 +5512,7 @@ export default function Home() {
                   <Box className="overview-priority-card">
                     <div className="overview-section-head"><strong>Hệ thống</strong><span>Trạng thái nhanh</span></div>
                     <Stack spacing={1}>
-                      <HealthItem ok={Boolean(webhook?.url)} title="Webhook" detail={webhook?.url || "Chưa set webhook"} />
+                      <HealthItem ok={Boolean(webhook?.url) && !webhookMeta?.maintenance_override?.active && !webhookMeta?.problem_reason} title="Webhook" detail={webhookMeta?.maintenance_override?.active ? (webhookMeta.maintenance_override.reason || "Bot đang bảo trì do webhook") : webhookMeta?.problem_reason ? `Lỗi: ${webhookMeta.problem_reason}` : webhook?.url || "Chưa set webhook"} />
                       <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
                       <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
                       <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
@@ -6994,6 +7015,8 @@ export default function Home() {
                 <Info label="Webhook URL" value={webhook?.url || "Chưa cấu hình"} icon={<Activity size={16} />} />
                 <Info label="Update đang chờ" value={String(webhook?.pending_update_count ?? 0)} icon={<BadgePercent size={16} />} />
                 <Info label="Lỗi gần nhất" value={webhook?.last_error_message || "Không có"} icon={<XCircle size={16} />} />
+                <Info label="Webhook health" value={webhookMeta?.maintenance_override?.active ? `Bảo trì do webhook: ${webhookMeta.maintenance_override.reason || "Không rõ nguyên nhân"}` : webhookMeta?.problem_reason ? `Có lỗi: ${webhookMeta.problem_reason}` : "Healthy"} icon={<ShieldCheck size={16} />} />
+                <Info label="Failure streak" value={String(webhookMeta?.failure_streak ?? 0)} icon={<RefreshCw size={16} />} />
               </div>
             </section>
             <section className="panel">

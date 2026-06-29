@@ -544,7 +544,7 @@ async def view_policy(event):
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
     
-    # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
+    # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
         if not page_exists("policy_page"):
             db.reload_config(force=True)
@@ -573,7 +573,7 @@ async def view_support(event):
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
     
-    # Ưu tiên gọi giao diện mới từ Sheet. Nếu Sheet chưa tạo, lùi về dùng code cũ của bạn
+    # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
         if not page_exists("support_page"):
             db.reload_config(force=True)
