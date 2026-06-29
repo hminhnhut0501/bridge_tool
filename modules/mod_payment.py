@@ -430,11 +430,12 @@ def _payment_provider_fallbacks(user_id, provider=""):
     return candidates
 
 
-def create_payment_for_user(user_id, order_id, amount, description, provider=""):
-    if not should_allow_auto_payment(user_id):
-        print(f"⛔ Chặn tạo QR cho user {user_id}: {auto_payment_gate_message(user_id)}")
+def create_payment_for_user(user_id, order_id, amount, description, provider="", preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language)
+    if not should_allow_auto_payment(user_id, preferred_language=language):
+        print(f"⛔ Chặn tạo QR cho user {user_id}: {auto_payment_gate_message(user_id, preferred_language=language)}")
         return None
-    attempts = _payment_provider_fallbacks(user_id, provider or payment_manager.preferred_provider(get_user_language(user_id)))
+    attempts = _payment_provider_fallbacks(user_id, provider or payment_manager.preferred_provider(language))
     last_error = ""
     for candidate in attempts:
         pay_data = payment_manager.create_payment_link(order_id, amount, description, provider=candidate)
@@ -610,8 +611,15 @@ def should_allow_auto_payment(user_id, preferred_language=None):
     return auto_payment_allowed_for_user(user_id, preferred_language=preferred_language)
 
 
-def auto_payment_gate_message(user_id):
-    language = get_user_language(user_id)
+def resolve_user_language(user_id=None, preferred_language=None):
+    language = str(preferred_language or "").strip().lower()
+    if language in {"vi", "en"}:
+        return language
+    return get_user_language(user_id)
+
+
+def auto_payment_gate_message(user_id, preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language)
     if language == "en":
         return t(
             user_id,
@@ -631,8 +639,8 @@ def auto_payment_gate_message(user_id):
     )
 
 
-def manual_support_bot_url(user_id=None, action="", provider=""):
-    language = get_user_language(user_id) if user_id else "vi"
+def manual_support_bot_url(user_id=None, action="", provider="", preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language) if user_id else resolve_user_language(None, preferred_language)
     if language == "en":
         template = str(
             db.get_config(
@@ -665,24 +673,26 @@ def manual_support_bot_label_en():
     ).strip()
 
 
-def manual_support_keyboard(user_id=None, action="", provider=""):
-    url = manual_support_bot_url(user_id, action, provider)
+def manual_support_keyboard(user_id=None, action="", provider="", preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language)
+    url = manual_support_bot_url(user_id, action, provider, preferred_language=language)
     if not url:
         return None
     kb = InlineKeyboardBuilder()
-    label = manual_support_bot_label_en() if get_user_language(user_id) == "en" else manual_support_bot_label()
+    label = manual_support_bot_label_en() if language == "en" else manual_support_bot_label()
     kb.row(InlineKeyboardButton(text=label, url=url))
     return kb.as_markup()
 
 
 async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider=""):
+    language = resolve_user_language(callback.from_user.id)
     if should_allow_auto_payment(
         callback.from_user.id,
-        preferred_language=get_user_language(callback.from_user.id),
+        preferred_language=language,
     ):
         return True
     callback_action = action or getattr(callback, "data", "")
-    keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider)
+    keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language)
     subject = support_ticket_subject_from_action(callback_action, provider, "auto_payment_off")
     ticket, ticket_error = await create_support_ticket_for_user(
         telegram_user_id=callback.from_user.id,
@@ -694,7 +704,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
         raw_data={
             "action": callback_action,
             "provider": provider,
-            "language": get_user_language(callback.from_user.id),
+            "language": language,
         },
     )
     if ticket:
@@ -747,7 +757,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
             pass
     if keyboard and callback.message:
         try:
-            gate_text = auto_payment_gate_message(callback.from_user.id)
+            gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
             if ticket:
                 gate_text += f"\n\n🎫 Case hỗ trợ đã mở: <code>{ticket.get('ticket_no', '')}</code>"
             elif ticket_error:
@@ -841,7 +851,14 @@ async def process_early_renew(callback: CallbackQuery):
     description = f"PRIVE{order_id}"[-20:]
     amount = offer["renew_price"]
 
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
+    pay_data = create_payment_for_user(
+        callback.from_user.id,
+        order_id,
+        amount,
+        description,
+        provider,
+        preferred_language=resolve_user_language(callback.from_user.id),
+    )
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
@@ -970,7 +987,14 @@ async def process_buy_request(callback: CallbackQuery):
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
     
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
+    pay_data = create_payment_for_user(
+        callback.from_user.id,
+        order_id,
+        amount,
+        description,
+        provider,
+        preferred_language=resolve_user_language(callback.from_user.id),
+    )
     
     if pay_data:
         sale_id = sale_info["sale_id"] if sale_info else ""
@@ -1041,7 +1065,14 @@ async def process_hidden_buy_request(callback: CallbackQuery):
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
 
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
+    pay_data = create_payment_for_user(
+        callback.from_user.id,
+        order_id,
+        amount,
+        description,
+        provider,
+        preferred_language=resolve_user_language(callback.from_user.id),
+    )
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
         return
@@ -1142,7 +1173,14 @@ async def process_coupon_buy_request(callback: CallbackQuery):
     msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
     order_id = int(time.time())
     description = f"PRIVE{order_id}"[-20:]
-    pay_data = create_payment_for_user(callback.from_user.id, order_id, amount, description, provider)
+    pay_data = create_payment_for_user(
+        callback.from_user.id,
+        order_id,
+        amount,
+        description,
+        provider,
+        preferred_language=resolve_user_language(callback.from_user.id),
+    )
 
     if not pay_data:
         await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))

@@ -161,7 +161,7 @@ def auto_payment_schedule_active_for_tier(tier: str, now=None, segment="vi"):
     if not _payment_tier_enabled(segment, tier):
         return False
     if not _payment_tier_schedule_enabled(segment, tier):
-        return False
+        return True
     windows = parse_windows(_payment_tier_windows(segment, tier))
     if not windows:
         return False
@@ -174,12 +174,62 @@ def auto_payment_schedule_active(now=None):
     return auto_payment_schedule_active_for_tier("new", now)
 
 
-def auto_payment_allowed_for_user(user_id, now=None, preferred_language=None):
+def auto_payment_gate_snapshot_for_user(user_id, now=None, preferred_language=None):
     from modules.mod_payment import has_prior_paid_vip_order
 
     tier = "returning" if str(user_id).strip() and has_prior_paid_vip_order(user_id) else "new"
     segment = customer_segment_key(user_id, preferred_language=preferred_language)
-    return auto_payment_schedule_active_for_tier(tier, now, segment=segment)
+    enabled = _payment_tier_enabled(segment, tier)
+    schedule_enabled = _payment_tier_schedule_enabled(segment, tier)
+    windows_raw = str(_payment_tier_windows(segment, tier) or "").strip()
+    windows = parse_windows(windows_raw)
+    local_now = now or datetime.now(bot_timezone())
+    current_time = local_now.time().replace(tzinfo=None)
+    in_window = any(time_in_window(current_time, start, end) for start, end in windows) if windows else False
+
+    if not enabled:
+        allowed = False
+        reason = "tier_disabled"
+    elif not schedule_enabled:
+        allowed = True
+        reason = "schedule_bypassed"
+    elif not windows:
+        allowed = False
+        reason = "window_missing"
+    elif not in_window:
+        allowed = False
+        reason = "outside_window"
+    else:
+        allowed = True
+        reason = "inside_window"
+
+    return {
+        "allowed": allowed,
+        "reason": reason,
+        "segment": segment,
+        "tier": tier,
+        "enabled": enabled,
+        "schedule_enabled": schedule_enabled,
+        "windows": windows_raw,
+        "now": local_now.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def auto_payment_allowed_for_user(user_id, now=None, preferred_language=None):
+    snapshot = auto_payment_gate_snapshot_for_user(user_id, now=now, preferred_language=preferred_language)
+    if not snapshot["allowed"]:
+        logging.warning(
+            "AUTO_PAY gate block user=%s segment=%s tier=%s main=%s schedule=%s windows=%s reason=%s now=%s",
+            str(user_id),
+            snapshot["segment"],
+            snapshot["tier"],
+            "ON" if snapshot["enabled"] else "OFF",
+            "ON" if snapshot["schedule_enabled"] else "OFF",
+            snapshot["windows"] or "-",
+            snapshot["reason"],
+            snapshot["now"],
+        )
+    return snapshot["allowed"]
 
 
 def apply_auto_payment_schedule(now=None):

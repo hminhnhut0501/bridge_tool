@@ -242,7 +242,7 @@ def build_support_ticket_no():
 
 async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, username="", full_name="", subject="", source="auto_payment_off", raw_data=None):
     if not supabase_store.enabled:
-        return None, "SUPABASE chưa bật."
+        return None, ""
 
     try:
         existing = supabase_store.get_support_ticket_by_user(telegram_user_id)
@@ -282,7 +282,7 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
 
 async def create_support_case_from_private_message(message, *, source="private_user_message", subject=None):
     if not supabase_store.enabled or not message or not getattr(message, "from_user", None):
-        return None, "SUPABASE chưa bật."
+        return None, ""
 
     message_text = str(getattr(message, "text", "") or getattr(message, "caption", "") or "").strip()
     ticket_subject = str(subject or message_text or "").strip() or "Tin nhắn hỗ trợ"

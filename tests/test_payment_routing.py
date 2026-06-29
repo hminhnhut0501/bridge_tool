@@ -335,6 +335,30 @@ def test_auto_payment_gate_can_use_explicit_language_override():
         assert should_allow_auto_payment("42", preferred_language="en") is True
 
 
+def test_auto_payment_schedule_off_falls_back_to_main_toggle_for_en_returning():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return [{"order_id": "1", "plan_name": "SVIP+ 30 Ngày"}]
+
+    config = {
+        "AUTO_PAYMENT_EN_RETURNING_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED": "OFF",
+        "AUTO_PAYMENT_EN_RETURNING_WINDOWS": "22:00-06:00",
+    }
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ):
+        assert should_allow_auto_payment("42", preferred_language="en") is True
+
+
 def test_create_payment_for_user_blocks_new_customer_when_auto_payment_is_off():
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
         "modules.mod_payment.auto_payment_gate_message",
@@ -392,6 +416,49 @@ def test_enforce_auto_payment_gate_sends_redirect_message():
         ok = asyncio.run(enforce_auto_payment_gate(cb))
         assert ok is False
         assert cb.alerts == []
+        assert cb.message.sent == [("redirect text", "keyboard")]
+
+
+def test_enforce_auto_payment_gate_hides_supabase_disabled_ticket_error():
+    class Message:
+        def __init__(self):
+            self.chat = type("Chat", (), {"id": 99})()
+            self.sent = []
+
+        async def answer(self, text, reply_markup=None):
+            self.sent.append((text, reply_markup))
+
+    class User:
+        id = 42
+        username = "user42"
+        full_name = "User 42"
+
+    class Callback:
+        def __init__(self):
+            self.from_user = User()
+            self.message = Message()
+            self.alerts = []
+            self.data = "buy_full_1m"
+
+        async def answer(self, text=None, show_alert=False):
+            self.alerts.append((text, show_alert))
+
+    with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.manual_support_keyboard", return_value="keyboard"
+    ), patch(
+        "modules.mod_payment.auto_payment_gate_message",
+        return_value="redirect text",
+    ), patch(
+        "modules.mod_payment.create_support_ticket_for_user",
+        return_value=(None, ""),
+    ):
+        from modules.mod_payment import enforce_auto_payment_gate
+
+        cb = Callback()
+        import asyncio
+
+        ok = asyncio.run(enforce_auto_payment_gate(cb))
+        assert ok is False
         assert cb.message.sent == [("redirect text", "keyboard")]
 
 
