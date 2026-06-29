@@ -31,6 +31,7 @@ from support_utils import (
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
+    send_support_connecting_status,
     support_group_enabled,
     support_ticket_subject_from_action,
 )
@@ -755,12 +756,15 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
             )
         except Exception:
             pass
-    if keyboard and callback.message:
+    if ticket and callback.message:
+        try:
+            await send_support_connecting_status(callback.message, ticket, delete_source_message=True)
+        except Exception as exc:
+            print(f"⚠️ Không bật được support inbox status cho ticket {ticket.get('ticket_no', '')}: {exc}")
+    elif keyboard and callback.message:
         try:
             gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
-            if ticket:
-                gate_text += f"\n\n🎫 Case hỗ trợ đã mở: <code>{ticket.get('ticket_no', '')}</code>"
-            elif ticket_error:
+            if ticket_error:
                 gate_text += f"\n\n⚠️ Không tạo được ticket hỗ trợ: {ticket_error}"
             if support_group_enabled():
                 gate_text += "\nBot đã mở case hỗ trợ và đẩy sang nhóm xử lý."

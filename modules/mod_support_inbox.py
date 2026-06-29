@@ -10,6 +10,7 @@ from support_utils import (
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
+    send_support_connecting_status,
     support_admin_presence_text,
     render_support_inbox_ready_text,
     support_inbox_connecting_text,
@@ -209,32 +210,7 @@ async def _forward_private_message_to_group(message: Message, ticket):
     except Exception:
         pass
 
-    try:
-        status_message = await message.answer(
-            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
-        )
-        if support_inbox_status_enabled():
-            create_background_task(
-                _play_support_inbox_status_effect(
-                    chat_id=message.chat.id,
-                    message_id=status_message.message_id,
-                    ticket_no=str(ticket.get("ticket_no", "")),
-                ),
-                name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
-                context="support_inbox",
-            )
-        else:
-            await status_message.edit_text(
-                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
-            )
-    except Exception:
-        try:
-            await message.answer(
-                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
-                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
-            )
-        except Exception:
-            pass
+    await send_support_connecting_status(message, ticket, delete_source_message=True)
 
 
 @router.message(_is_support_inbox_private_message)
@@ -253,8 +229,6 @@ async def support_private_inbox(message: Message):
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def support_group_reply(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
-        return
-    if not message.reply_to_message:
         return
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
@@ -316,14 +290,15 @@ async def support_group_reply(message: Message):
             "support_to_user",
             telegram_message_id=sent.message_id,
             manager_group_message_id=message.message_id,
-            reply_to_manager_message_id=message.reply_to_message.message_id,
-                text=body,
-                payload={
-                    "admin_name": admin_name,
-                    "admin_username": message.from_user.username if message.from_user else "",
-                    "source_chat_id": str(message.chat.id),
-                },
-            )
+            manager_topic_message_id=getattr(message, "message_thread_id", None),
+            reply_to_manager_message_id=message.reply_to_message.message_id if message.reply_to_message else None,
+            text=body,
+            payload={
+                "admin_name": admin_name,
+                "admin_username": message.from_user.username if message.from_user else "",
+                "source_chat_id": str(message.chat.id),
+            },
+        )
     except Exception as exc:
         print(f"⚠️ Không ghi được support_message reply: {exc}")
 

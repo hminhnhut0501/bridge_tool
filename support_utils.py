@@ -7,6 +7,7 @@ from bot_instance import bot
 from database import db
 from i18n import t
 from supabase_store import supabase_store
+from helpers import safe_delete_private_message
 
 
 def escape_html(text):
@@ -372,45 +373,7 @@ async def create_support_case_from_private_message(message, *, source="private_u
     except Exception:
         pass
 
-    try:
-        status_message = await message.answer(
-            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
-        )
-        if support_inbox_status_enabled():
-            try:
-                from modules.mod_support_inbox import _play_support_inbox_status_effect
-            except Exception as exc:
-                print(f"⚠️ Không nạp được effect support inbox: {exc}")
-                _play_support_inbox_status_effect = None
-
-            if _play_support_inbox_status_effect:
-                from helpers import create_background_task
-
-                create_background_task(
-                    _play_support_inbox_status_effect(
-                        chat_id=message.chat.id,
-                        message_id=status_message.message_id,
-                        ticket_no=str(ticket.get("ticket_no", "")),
-                    ),
-                    name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
-                    context="support_inbox",
-                )
-            else:
-                await status_message.edit_text(
-                    render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
-                )
-        else:
-            await status_message.edit_text(
-                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
-            )
-    except Exception:
-        try:
-            await message.answer(
-                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
-                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
-            )
-        except Exception:
-            pass
+    await send_support_connecting_status(message, ticket, delete_source_message=True)
 
     return ticket, ""
 
@@ -509,6 +472,7 @@ async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
         return None
     if normalize_chat_id(ticket.get("manager_chat_id") or "") and normalize_chat_id(ticket.get("manager_chat_id") or "") != manager_chat_id:
         manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or "")
+    ticket = await ensure_support_ticket_topic(ticket)
 
     header = support_ticket_header(ticket)
     body = []
@@ -517,13 +481,103 @@ async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
     if join_link:
         body.append(f"🔗 {escape_html(join_link)}")
     text = "\n\n".join([header] + body)
-    sent = await bot.send_message(
-        chat_id=manager_chat_id,
-        text=text,
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-    )
+    send_kwargs = {
+        "chat_id": manager_chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    thread_id = ticket.get("manager_topic_thread_id")
+    if support_inbox_mode() == "forum" and thread_id:
+        send_kwargs["message_thread_id"] = int(thread_id)
+    sent = await bot.send_message(**send_kwargs)
     return sent
+
+
+def support_topic_title(ticket):
+    ticket_no = str(ticket.get("ticket_no") or "").strip()
+    full_name = str(ticket.get("full_name") or ticket.get("username") or ticket.get("telegram_user_id") or "Khách").strip()
+    title = f"{full_name} - {ticket_no}" if ticket_no else full_name
+    return title[:120]
+
+
+async def ensure_support_ticket_topic(ticket):
+    if not ticket or support_inbox_mode() != "forum":
+        return ticket
+
+    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
+    if not manager_chat_id:
+        return ticket
+
+    existing_thread_id = str(ticket.get("manager_topic_thread_id") or "").strip()
+    if existing_thread_id:
+        return ticket
+
+    try:
+        topic = await bot.create_forum_topic(
+            chat_id=manager_chat_id,
+            name=support_topic_title(ticket),
+        )
+        payload = {
+            "manager_chat_id": manager_chat_id,
+            "manager_topic_thread_id": getattr(topic, "message_thread_id", None),
+            "manager_topic_name": getattr(topic, "name", "") or support_topic_title(ticket),
+            "updated_at": datetime.now().isoformat(),
+        }
+        updated = supabase_store.update_support_ticket(ticket["id"], payload) if supabase_store.enabled else []
+        if updated:
+            return updated[0]
+        ticket.update(payload)
+        return ticket
+    except Exception as exc:
+        print(f"⚠️ Không tạo được topic support cho ticket {ticket.get('ticket_no', '')}: {exc}")
+        return ticket
+
+
+async def send_support_connecting_status(message, ticket, *, delete_source_message=False):
+    try:
+        status_message = await message.answer(
+            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
+        )
+        if delete_source_message:
+            await safe_delete_private_message(message)
+        if support_inbox_status_enabled():
+            try:
+                from modules.mod_support_inbox import _play_support_inbox_status_effect
+            except Exception as exc:
+                print(f"⚠️ Không nạp được effect support inbox: {exc}")
+                _play_support_inbox_status_effect = None
+
+            if _play_support_inbox_status_effect:
+                from helpers import create_background_task
+
+                create_background_task(
+                    _play_support_inbox_status_effect(
+                        chat_id=message.chat.id,
+                        message_id=status_message.message_id,
+                        ticket_no=str(ticket.get("ticket_no", "")),
+                    ),
+                    name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
+                    context="support_inbox",
+                )
+            else:
+                await status_message.edit_text(
+                    render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+                )
+        else:
+            await status_message.edit_text(
+                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+            )
+    except Exception:
+        try:
+            if delete_source_message:
+                await safe_delete_private_message(message)
+            await message.answer(
+                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
+                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
+            )
+        except Exception:
+            pass
 
 
 async def record_support_message(ticket_id, direction, *, telegram_message_id=None, manager_group_message_id=None, manager_topic_message_id=None, reply_to_manager_message_id=None, text="", payload=None):
