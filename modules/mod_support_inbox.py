@@ -30,6 +30,7 @@ from support_utils import (
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
+    refresh_support_ticket_topic,
 )
 from supabase_store import supabase_store
 
@@ -243,19 +244,40 @@ async def _forward_private_message_to_group(message: Message, ticket):
         media_copy = None
         if _is_media_like_message(message):
             if _supports_caption_embedding(message):
-                _, send_kwargs = await prepare_support_group_delivery(ticket)
-                sent = await bot.copy_message(
-                    **send_kwargs,
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id,
-                    caption="\n\n".join(
-                        part for part in [
-                            header_text,
-                            render_support_group_message(ticket, message_text, template_key=template_key),
-                        ] if part
-                    ),
-                    parse_mode="HTML",
-                )
+                ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+                if ticket and send_kwargs:
+                    try:
+                        sent = await bot.copy_message(
+                            **send_kwargs,
+                            from_chat_id=message.chat.id,
+                            message_id=message.message_id,
+                            caption="\n\n".join(
+                                part for part in [
+                                    header_text,
+                                    render_support_group_message(ticket, message_text, template_key=template_key),
+                                ] if part
+                            ),
+                            parse_mode="HTML",
+                        )
+                    except TelegramBadRequest as exc:
+                        if "thread not found" not in str(exc).lower() and "message thread" not in str(exc).lower():
+                            raise
+                        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
+                        if ticket:
+                            ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+                            if ticket and send_kwargs:
+                                sent = await bot.copy_message(
+                                    **send_kwargs,
+                                    from_chat_id=message.chat.id,
+                                    message_id=message.message_id,
+                                    caption="\n\n".join(
+                                        part for part in [
+                                            header_text,
+                                            render_support_group_message(ticket, message_text, template_key=template_key),
+                                        ] if part
+                                    ),
+                                    parse_mode="HTML",
+                                )
             else:
                 sent = await post_support_ticket_to_group(
                     ticket,

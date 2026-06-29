@@ -1,5 +1,6 @@
 from datetime import datetime
 from aiogram.types import ChatPermissions, InlineKeyboardButton
+from aiogram.exceptions import TelegramBadRequest
 
 from bot_instance import bot
 from database import db
@@ -497,8 +498,23 @@ async def post_support_ticket_to_group(ticket, message_text="", join_link="", *,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     })
-    sent = await bot.send_message(**send_kwargs)
-    return sent
+    try:
+        return await bot.send_message(**send_kwargs)
+    except TelegramBadRequest as exc:
+        if not _is_missing_forum_topic_error(exc) or support_inbox_mode() != "forum":
+            raise
+        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
+        if not ticket:
+            raise
+        ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+        if not ticket or not send_kwargs:
+            return None
+        send_kwargs.update({
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        })
+        return await bot.send_message(**send_kwargs)
 
 
 async def copy_support_message_to_group(ticket, source_chat_id, source_message_id, *, reply_to_message_id=None):
@@ -511,7 +527,24 @@ async def copy_support_message_to_group(ticket, source_chat_id, source_message_i
     })
     if reply_to_message_id:
         send_kwargs["reply_parameters"] = {"message_id": int(reply_to_message_id)}
-    return await bot.copy_message(**send_kwargs)
+    try:
+        return await bot.copy_message(**send_kwargs)
+    except TelegramBadRequest as exc:
+        if not _is_missing_forum_topic_error(exc) or support_inbox_mode() != "forum":
+            raise
+        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
+        if not ticket:
+            raise
+        ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+        if not ticket or not send_kwargs:
+            return None
+        send_kwargs.update({
+            "from_chat_id": int(source_chat_id),
+            "message_id": int(source_message_id),
+        })
+        if reply_to_message_id:
+            send_kwargs["reply_parameters"] = {"message_id": int(reply_to_message_id)}
+        return await bot.copy_message(**send_kwargs)
 
 
 def support_topic_title(ticket):
@@ -519,6 +552,45 @@ def support_topic_title(ticket):
     full_name = str(ticket.get("full_name") or ticket.get("username") or ticket.get("telegram_user_id") or "Khách").strip()
     title = f"{full_name} - {ticket_no}" if ticket_no else full_name
     return title[:120]
+
+
+def _is_missing_forum_topic_error(exc):
+    err = str(exc or "").lower()
+    return any(
+        marker in err
+        for marker in (
+            "message thread not found",
+            "thread not found",
+            "message thread is invalid",
+            "message thread invalid",
+            "forum topic not found",
+            "topic not found",
+        )
+    )
+
+
+async def refresh_support_ticket_topic(ticket, *, reason=""):
+    if not ticket or support_inbox_mode() != "forum":
+        return ticket
+
+    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
+    if not manager_chat_id:
+        return ticket
+
+    payload = {
+        "manager_chat_id": manager_chat_id,
+        "manager_topic_thread_id": None,
+        "manager_topic_name": None,
+        "updated_at": datetime.now().isoformat(),
+    }
+    updated = supabase_store.update_support_ticket(ticket["id"], payload) if supabase_store.enabled else []
+    if updated:
+        ticket = updated[0]
+    else:
+        ticket = {**ticket, **payload}
+    if reason:
+        print(f"ℹ️ Refresh support topic for ticket {ticket.get('ticket_no', '')}: {reason}")
+    return await ensure_support_ticket_topic(ticket)
 
 
 async def ensure_support_ticket_topic(ticket):
