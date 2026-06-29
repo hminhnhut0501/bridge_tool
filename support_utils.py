@@ -26,12 +26,12 @@ def mask_chat_id(value):
     return f"{raw[:5]}...{raw[-4:]}"
 
 
-def explain_support_invite_error(error, gid):
+def explain_support_invite_error(error, gid, config_key="SUPPORT_GROUP_ID"):
     err = str(error or "")
     lower = err.lower()
     if "chat not found" in lower:
         return (
-            f"{err}. Kiểm tra SUPPORT_GROUP_ID={mask_chat_id(gid)}: phải là chat_id thật của group/supergroup "
+            f"{err}. Kiểm tra {config_key}={mask_chat_id(gid)}: phải là chat_id thật của group/supergroup "
             "dạng -100..., bot phải đang ở trong đúng group hỗ trợ."
         )
     if "not enough rights" in lower or "administrator" in lower or "can't invite" in lower:
@@ -63,6 +63,14 @@ def support_group_grace_days():
 def support_group_mute_enabled():
     raw = str(db.get_config("SUPPORT_GROUP_MUTE_ENABLED", "ON") or "ON").strip()
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def support_inbox_group_id():
+    return normalize_chat_id(db.get_config("SUPPORT_INBOX_GROUP_ID", ""))
+
+
+def support_inbox_group_name():
+    return db.get_config("SUPPORT_INBOX_GROUP_NAME", "Nhóm hỗ trợ")
 
 
 def support_inbox_mode():
@@ -181,6 +189,14 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
         existing = supabase_store.get_support_ticket_by_user(telegram_user_id)
         if existing:
             ticket = existing
+            inbox_gid = support_inbox_group_id()
+            if inbox_gid and normalize_chat_id(ticket.get("manager_chat_id") or "") != inbox_gid:
+                try:
+                    updated_ticket = supabase_store.update_support_ticket(ticket["id"], {"manager_chat_id": inbox_gid, "updated_at": datetime.now().isoformat()})
+                    if updated_ticket:
+                        ticket = updated_ticket[0]
+                except Exception as exc:
+                    print(f"⚠️ Không cập nhật manager_chat_id cho support ticket cũ {telegram_user_id}: {exc}")
             if subject and not str(ticket.get("subject") or "").strip():
                 ticket = supabase_store.update_support_ticket(ticket["id"], {"subject": subject, "updated_at": datetime.now().isoformat()})[0]
             return ticket, ""
@@ -192,7 +208,7 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
             "chat_id": str(chat_id or ""),
             "username": str(username or ""),
             "full_name": str(full_name or ""),
-            "manager_chat_id": support_group_id(),
+            "manager_chat_id": support_inbox_group_id(),
             "status": "open",
             "subject": str(subject or ""),
             "source": str(source or "bot"),
@@ -282,8 +298,11 @@ def support_admin_offline_text():
 
 
 async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
-    if not ticket or not support_group_enabled() or not is_support_group(ticket.get("manager_chat_id") or support_group_id()):
+    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
+    if not ticket or not manager_chat_id:
         return None
+    if normalize_chat_id(ticket.get("manager_chat_id") or "") and normalize_chat_id(ticket.get("manager_chat_id") or "") != manager_chat_id:
+        manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or "")
 
     header = support_ticket_header(ticket)
     body = []
@@ -293,7 +312,7 @@ async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
         body.append(f"🔗 {escape_html(join_link)}")
     text = "\n\n".join([header] + body)
     sent = await bot.send_message(
-        chat_id=support_group_id(),
+        chat_id=manager_chat_id,
         text=text,
         parse_mode="HTML",
         disable_web_page_preview=True,

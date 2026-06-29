@@ -9,7 +9,6 @@ from helpers import create_background_task, is_admin_user
 from support_utils import (
     create_support_ticket_for_user,
     post_support_ticket_to_group,
-    is_support_group,
     record_support_event,
     record_support_message,
     support_admin_presence_text,
@@ -19,11 +18,11 @@ from support_utils import (
     support_inbox_status_final_hold_ms,
     support_inbox_status_enabled,
     support_inbox_status_frame_list,
+    support_inbox_group_id,
+    support_inbox_group_name,
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
-    support_group_enabled,
-    support_group_name,
 )
 from supabase_store import supabase_store
 
@@ -141,8 +140,6 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
 
 
 async def _forward_private_message_to_group(message: Message):
-    if not support_group_enabled():
-        return
     if not supabase_store.enabled:
         return
 
@@ -239,7 +236,7 @@ async def _forward_private_message_to_group(message: Message):
     except Exception:
         try:
             await message.answer(
-                f"✅ Đã chuyển tin nhắn của bạn sang {support_group_name()}.\n"
+                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
                 f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
             )
         except Exception:
@@ -255,7 +252,7 @@ async def support_private_inbox(message: Message):
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def support_group_reply(message: Message):
-    if not is_support_group(message.chat.id):
+    if str(message.chat.id).strip() != support_inbox_group_id():
         return
     if not message.reply_to_message:
         return
@@ -358,7 +355,7 @@ async def support_group_reply(message: Message):
 
 @router.message(Command("close"))
 async def support_close_ticket(message: Message):
-    if not is_support_group(message.chat.id):
+    if str(message.chat.id).strip() != support_inbox_group_id():
         return
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
@@ -421,7 +418,7 @@ async def support_close_ticket(message: Message):
 
 @router.message(Command("reopen"))
 async def support_reopen_ticket(message: Message):
-    if not is_support_group(message.chat.id):
+    if str(message.chat.id).strip() != support_inbox_group_id():
         return
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
@@ -484,7 +481,7 @@ async def support_reopen_ticket(message: Message):
 
 @router.message(Command("delete"))
 async def support_delete_message(message: Message):
-    if not is_support_group(message.chat.id):
+    if str(message.chat.id).strip() != support_inbox_group_id():
         return
     if not message.from_user or not is_admin_user(message.from_user.id):
         return

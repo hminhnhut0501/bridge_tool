@@ -178,6 +178,13 @@ export type SupportGroupCheck = {
   invite_link: { ok: boolean; message: string };
 };
 
+export type SupportInboxCheck = {
+  group_id: string;
+  group_name: string;
+  get_chat: { ok: boolean; message: string };
+  bot_member: { ok: boolean; message: string };
+};
+
 export type WebhookInfo = {
   url: string;
   has_custom_certificate: boolean;
@@ -763,6 +770,10 @@ export async function getChannelPostEvents(secret: string, postId: number | stri
 
 export async function checkSupportGroup(secret: string) {
   return request<{ data: SupportGroupCheck }>("/admin-api/support-group-check", secret);
+}
+
+export async function checkSupportInbox(secret: string) {
+  return request<{ data: SupportInboxCheck }>("/admin-api/support-inbox-check", secret);
 }
 
 export async function getWebhookInfo(secret: string) {

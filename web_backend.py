@@ -27,7 +27,17 @@ from helpers import bot_schedule_status, bot_runtime_state_audit
 from helpers import create_background_task
 from i18n import get_user_language
 from supabase_store import supabase_store
-from support_utils import create_support_invite_link, explain_support_invite_error, mask_chat_id, record_support_event, support_group_enabled, support_group_id, support_group_name
+from support_utils import (
+    create_support_invite_link,
+    explain_support_invite_error,
+    mask_chat_id,
+    record_support_event,
+    support_group_enabled,
+    support_group_id,
+    support_group_name,
+    support_inbox_group_id,
+    support_inbox_group_name,
+)
 from vip_group_audit_utils import build_vip_group_audit_rows
 from payment import payment_manager
 
@@ -1687,7 +1697,7 @@ async def admin_support_group_check():
             "message": f"{getattr(chat, 'type', '')}: {getattr(chat, 'title', '') or getattr(chat, 'username', '') or gid}",
         }
     except Exception as exc:
-        result["get_chat"]["message"] = explain_support_invite_error(exc, gid)
+        result["get_chat"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_INBOX_GROUP_ID")
         return {"data": result}
 
     try:
@@ -1695,7 +1705,7 @@ async def admin_support_group_check():
         member = await bot.get_chat_member(gid, me.id)
         result["bot_member"] = {"ok": True, "message": str(getattr(member, "status", ""))}
     except Exception as exc:
-        result["bot_member"]["message"] = explain_support_invite_error(exc, gid)
+        result["bot_member"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_INBOX_GROUP_ID")
 
     try:
         invite = await bot.create_chat_invite_link(
@@ -1711,4 +1721,38 @@ async def admin_support_group_check():
             print(f"⚠️ Không revoke được support diagnostic invite {mask_chat_id(gid)}: {revoke_exc}")
     except Exception as exc:
         result["invite_link"]["message"] = explain_support_invite_error(exc, gid)
+    return {"data": result}
+
+
+@app.get("/admin-api/support-inbox-check", dependencies=[Depends(require_admin)])
+async def admin_support_inbox_check():
+    db.reload_config(force=True)
+    gid = support_inbox_group_id()
+    result = {
+        "group_id": mask_chat_id(gid),
+        "group_name": support_inbox_group_name(),
+        "get_chat": {"ok": False, "message": ""},
+        "bot_member": {"ok": False, "message": ""},
+    }
+    if not gid:
+        result["get_chat"]["message"] = "SUPPORT_INBOX_GROUP_ID đang trống."
+        return {"data": result}
+
+    try:
+        chat = await bot.get_chat(gid)
+        result["get_chat"] = {
+            "ok": True,
+            "message": f"{getattr(chat, 'type', '')}: {getattr(chat, 'title', '') or getattr(chat, 'username', '') or gid}",
+        }
+    except Exception as exc:
+        result["get_chat"]["message"] = explain_support_invite_error(exc, gid)
+        return {"data": result}
+
+    try:
+        me = await bot.get_me()
+        member = await bot.get_chat_member(gid, me.id)
+        result["bot_member"] = {"ok": True, "message": str(getattr(member, "status", ""))}
+    except Exception as exc:
+        result["bot_member"]["message"] = explain_support_invite_error(exc, gid)
+
     return {"data": result}

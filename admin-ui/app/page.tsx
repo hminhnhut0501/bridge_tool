@@ -139,10 +139,12 @@ import {
   Order,
   SaleRule,
   type SupportCase,
+  type SupportInboxCheck,
   SupportEvent,
   UserRow,
   WebhookInfo,
   checkSupportGroup,
+  checkSupportInbox,
   cancelCampaign,
   channelPostAction,
   createChannelPost,
@@ -1417,6 +1419,18 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
     ],
   },
   {
+    key: "SUPPORT_INBOX_GROUP_ID",
+    label: "Inbox group ID",
+    placeholder: "-1001234567890",
+    help: "ID group riêng để bot nhận tin và admin reply. Không dùng chung với Group VIP.",
+  },
+  {
+    key: "SUPPORT_INBOX_GROUP_NAME",
+    label: "Tên group inbox",
+    placeholder: "Nhóm hỗ trợ",
+    help: "Tên hiển thị trong thông báo khi chuyển case sang group inbox.",
+  },
+  {
     key: "SUPPORT_DELETE_ENABLED",
     label: "Cho phép /delete inbox",
     placeholder: "ON",
@@ -2448,6 +2462,7 @@ export default function Home() {
   const [channelPosts, setChannelPosts] = useState<ChannelPost[]>([]);
   const [channelEvents, setChannelEvents] = useState<ChannelPostEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
+  const [supportInboxCheck, setSupportInboxCheck] = useState<SupportInboxCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -3294,6 +3309,18 @@ export default function Home() {
         showNotice("ok", "Group VIP tạo link OK.");
       } else {
         showNotice("error", "Group VIP chưa tạo được link. Xem chi tiết trong tab.");
+      }
+    });
+  }
+
+  async function runSupportInboxCheck() {
+    await runAction("support-inbox-check", async () => {
+      const res = await checkSupportInbox(savedSecret);
+      setSupportInboxCheck(res.data);
+      if (res.data.get_chat.ok && res.data.bot_member.ok) {
+        showNotice("ok", "Inbox bot kết nối OK.");
+      } else {
+        showNotice("error", "Inbox bot chưa kết nối được. Xem chi tiết trong tab.");
       }
     });
   }
@@ -4418,6 +4445,7 @@ export default function Home() {
     return map;
   }, [supportEvents]);
   const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
+  const supportInboxGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_INBOX_GROUP_ID")), [config]);
   const supportGroupEvents = useMemo(() => {
     if (!supportGroupId) return [];
     return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
@@ -6005,17 +6033,17 @@ export default function Home() {
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
-                    <Button variant="contained" size="small" onClick={() => void runSupportGroupCheck()} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
+                    <Button variant="contained" size="small" onClick={() => void runSupportInboxCheck()} disabled={saving === "support-inbox-check"} startIcon={saving === "support-inbox-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
                   </div>
                 }
               />
               <Box sx={{ p: 2, display: "grid", gap: 2 }}>
                 <div className="status-grid">
-                  <div className={`health-item ${supportCheck?.enabled ? "good" : "warning"}`}>
+                  <div className={`health-item ${supportInboxCheck?.get_chat?.ok ? "good" : "warning"}`}>
                     <ShieldCheck size={18} />
                     <div>
-                      <strong>{supportCheck ? (supportCheck.enabled ? "Bot nhận tin đang bật" : "Bot nhận tin đang chờ cấu hình") : "Chưa kiểm tra group"}</strong>
-                      <span>{supportCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
+                      <strong>{supportInboxCheck ? (supportInboxCheck.get_chat.ok ? "Bot nhận tin đang bật" : "Bot nhận tin đang chờ cấu hình") : "Chưa kiểm tra group"}</strong>
+                      <span>{supportInboxCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
                     </div>
                   </div>
                   <div className={`health-item ${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "good" : "warning"}`}>
@@ -6041,25 +6069,18 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="status-grid">
-                  <div className={`health-item ${supportCheck?.get_chat?.ok ? "good" : "bad"}`}>
+                  <div className={`health-item ${supportInboxCheck?.get_chat?.ok ? "good" : "bad"}`}>
                     <Users size={18} />
                     <div>
                       <strong>Group ID</strong>
-                      <span>{supportCheck?.group_id || getConfigValue(config, "SUPPORT_GROUP_ID", "-") || "-"}</span>
+                      <span>{supportInboxCheck?.group_id || supportInboxGroupId || "-"}</span>
                     </div>
                   </div>
-                  <div className={`health-item ${supportCheck?.bot_member?.ok ? "good" : "bad"}`}>
+                  <div className={`health-item ${supportInboxCheck?.bot_member?.ok ? "good" : "bad"}`}>
                     <CheckCircle2 size={18} />
                     <div>
                       <strong>Bot quyền</strong>
-                      <span>{supportCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"}</span>
-                    </div>
-                  </div>
-                  <div className={`health-item ${supportCheck?.invite_link?.ok ? "good" : "bad"}`}>
-                    <RefreshCw size={18} />
-                    <div>
-                      <strong>Tạo link mời</strong>
-                      <span>{supportCheck?.invite_link?.message || "Chưa kiểm tra invite"}</span>
+                      <span>{supportInboxCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"}</span>
                     </div>
                   </div>
                 </div>
