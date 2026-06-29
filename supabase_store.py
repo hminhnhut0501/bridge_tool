@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import requests
@@ -471,6 +471,24 @@ class SupabaseStore:
                 return text.replace("start={code}", "start=act_{code}")
         return text
 
+    def _normalize_order_activation_code_row(self, row):
+        data = dict(row or {})
+        status = _clean_text(data.get("activation_status") or "PENDING").upper() or "PENDING"
+        activated_at = _clean_text(data.get("activated_at"))
+        used_at = _clean_text(data.get("used_at"))
+        expire_at = _clean_text(data.get("expire_at"))
+        if status == "PENDING" and (used_at or activated_at):
+            status = "USED"
+        if status == "PENDING" and expire_at:
+            try:
+                expire_dt = _parse_datetime(expire_at)
+                if expire_dt and expire_dt < datetime.now(timezone.utc):
+                    status = "EXPIRED"
+            except Exception:
+                pass
+        data["activation_status"] = status
+        return data
+
     def get_user_preference(self, telegram_user_id):
         rows = self._request(
             "GET",
@@ -661,7 +679,7 @@ class SupabaseStore:
             "order_activation_codes",
             params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"},
         )
-        return rows[0] if rows else None
+        return self._normalize_order_activation_code_row(rows[0]) if rows else None
 
     def get_order_activation_code_by_order(self, order_id):
         rows = self._request(
@@ -669,7 +687,7 @@ class SupabaseStore:
             "order_activation_codes",
             params={"select": "*", "order_id": f"eq.{_clean_text(order_id)}", "limit": "1"},
         )
-        return rows[0] if rows else None
+        return self._normalize_order_activation_code_row(rows[0]) if rows else None
 
     def mark_order_activation_used(self, code, used_by_user_id, activated_at=None):
         payload = {
@@ -693,7 +711,7 @@ class SupabaseStore:
             "order_activation_codes",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
-        return rows
+        return [self._normalize_order_activation_code_row(row) for row in rows]
 
     def update_order_activation_code(self, code, raw):
         payload = {}
