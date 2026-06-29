@@ -1391,8 +1391,8 @@ async def admin_vip_group_audit(live: bool = False):
     try:
         return {"data": await build_vip_group_audit_rows(live=live)}
     except Exception as exc:
-        print(f"⚠️ Không dựng được danh sách quét CSKH: {exc}")
-        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét CSKH: {exc}")
+        print(f"⚠️ Không dựng được danh sách quét group VIP: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét group VIP: {exc}")
 
 
 @app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])
