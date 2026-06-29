@@ -1304,15 +1304,15 @@ const SYSTEM_FIELDS: ConfigField[] = [
   },
   {
     key: "SHEET_DELETE_DELAY_SECONDS",
-    label: "Delay xoá dòng Sheet",
+    label: "Delay xoá dòng Sheet (legacy)",
     placeholder: "2",
-    help: "Chỉ dùng khi chạy Google Sheet fallback.",
+    help: "Legacy cũ, runtime hiện tại không còn dùng Google Sheet.",
   },
   {
     key: "SHEET_APPEND_DELAY_SECONDS",
-    label: "Delay ghi dòng Sheet",
+    label: "Delay ghi dòng Sheet (legacy)",
     placeholder: "1",
-    help: "Chỉ dùng khi chạy Google Sheet fallback.",
+    help: "Legacy cũ, runtime hiện tại không còn dùng Google Sheet.",
   },
   {
     key: "COUPON_CLEANUP_INITIAL_DELAY_SECONDS",
@@ -1324,13 +1324,13 @@ const SYSTEM_FIELDS: ConfigField[] = [
     key: "COUPON_CLEANUP_INTERVAL_HOURS",
     label: "Chu kỳ cleanup coupon",
     placeholder: "12",
-    help: "Số giờ giữa các lần cleanup coupon khi dùng Sheet fallback.",
+    help: "Chu kỳ cleanup coupon runtime hiện tại.",
   },
   {
     key: "COUPON_CLEANUP_AFTER_DAYS",
     label: "Số ngày giữ coupon đã dùng",
     placeholder: "7",
-    help: "Dùng cho cleanup coupon ở Sheet fallback.",
+    help: "Số ngày giữ coupon/redemption đã dùng trước khi cleanup.",
   },
   {
     key: "ANALYTICS_DAILY_RETENTION_DAYS",
@@ -1890,7 +1890,7 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_RELOAD_DONE",
     label: "Tin admin reload xong",
-    placeholder: "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!",
+    placeholder: "🔄 Đã nạp lại toàn bộ dữ liệu & giao diện từ hệ thống!",
     help: "Tin trả về khi admin dùng /reload.",
   },
   {

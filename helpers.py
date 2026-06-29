@@ -20,12 +20,23 @@ from aiogram.exceptions import TelegramBadRequest
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
 _bio_link_cache = {}
+_runtime_maintenance_override = {"active": False, "reason": "", "source": ""}
 def invalidate_channel_schedule_cache():
     return None
 
 
 def invalidate_bot_runtime_state_cache():
     return None
+
+
+def set_runtime_maintenance_override(active: bool, *, reason: str = "", source: str = ""):
+    _runtime_maintenance_override["active"] = bool(active)
+    _runtime_maintenance_override["reason"] = str(reason or "").strip()
+    _runtime_maintenance_override["source"] = str(source or "").strip()
+
+
+def runtime_maintenance_override():
+    return dict(_runtime_maintenance_override)
 
 
 def create_background_task(coro, *, name: str, context: str = ""):
@@ -114,6 +125,25 @@ def bot_schedule_status(now=None):
     maintenance_mode = config_enabled("MAINTENANCE_MODE", "OFF")
     fixed_schedule_enabled = config_enabled("BOT_SCHEDULE_ENABLED", "OFF")
     active_hours_raw = db.get_config("BOT_ACTIVE_HOURS", "08:00-23:00") or "08:00-23:00"
+    maintenance_override = runtime_maintenance_override()
+    if maintenance_override.get("active"):
+        return {
+            "source": "maintenance",
+            "active": False,
+            "sourcePostId": "",
+            "sourcePostTitle": "Bảo trì tự động",
+            "title": "Bảo trì tự động",
+            "window": "Bot đang tạm khóa do lỗi webhook/runtime",
+            "windowStart": "",
+            "windowEnd": "",
+            "detail": maintenance_override.get("reason") or "Bot đang tạm khóa vì runtime phát hiện lỗi hệ thống.",
+            "timezone": timezone_name,
+            "linkedCount": 0,
+            "maintenanceMode": maintenance_mode,
+            "maintenanceOverride": True,
+            "fixedScheduleEnabled": fixed_schedule_enabled,
+            "activeHours": active_hours_raw,
+        }
     windows = parse_active_hours(active_hours_raw)
     current_time = local_now.time().replace(tzinfo=None)
     active_fixed_window = None

@@ -1,9 +1,6 @@
 import os
 import time
-import gspread
-import json
 import re
-from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 from supabase_store import supabase_store
 
@@ -26,77 +23,32 @@ class Database:
         self.pages_cache = {} # Thêm RAM Cache cho giao diện
         self.sales_cache = []
         self.last_reload_time = 0 
-        self.backend = "sheets"
+        self.backend = "supabase"
 
     def connect(self):
-        if supabase_store.enabled:
-            try:
-                print("⏳ Đang kết nối tới Supabase...")
-                supabase_store.connect()
-                self.backend = "supabase"
-                self.users_sheet = None
-                self.config_sheet = None
-                self.menu_sheet = None
-                self.sale_sheet = None
-                print("✅ Kết nối Supabase thành công!")
-                self.reload_config(force=True)
-                return
-            except Exception as e:
-                print(f"❌ Lỗi kết nối Supabase: {e}")
-                self.backend = "supabase"
-                self.users_sheet = None
-                self.config_sheet = None
-                self.menu_sheet = None
-                self.sale_sheet = None
-                self.cache_config = {}
-                self.pages_cache = {}
-                self.sales_cache = []
-                raise
-
-        self.connect_google()
-
-    def connect_google(self):
+        self.backend = "supabase"
+        self.client = None
+        self.sh = None
+        self.users_sheet = None
+        self.config_sheet = None
+        self.menu_sheet = None
+        self.sale_sheet = None
+        if not supabase_store.enabled:
+            self.cache_config = {}
+            self.pages_cache = {}
+            self.sales_cache = []
+            raise RuntimeError("Supabase runtime is required. Google Sheets runtime has been removed.")
         try:
-            print("⏳ Đang kết nối tới Google Sheets...")
-            self.backend = "sheets"
-            creds_json = os.getenv("GOOGLE_SHEETS_CREDS_JSON")
-            if creds_json:
-                creds_dict = json.loads(creds_json)
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, self.scope)
-            else:
-                creds = ServiceAccountCredentials.from_json_keyfile_name("google-key.json", self.scope)
-            
-            self.client = gspread.authorize(creds)
-            self.sh = self.client.open_by_key(os.getenv("SPREADSHEET_ID"))
-            self.users_sheet = self.sh.worksheet("Users")
-            self.config_sheet = self.sh.worksheet("Config")
-            
-            # Kết nối tab MenuBuilder
-            try:
-                self.menu_sheet = self.sh.worksheet("MenuBuilder")
-            except:
-                self.menu_sheet = next(
-                    (sheet for sheet in self.sh.worksheets() if normalize_key(sheet.title).lower() == "menubuilder"),
-                    None,
-                )
-                if not self.menu_sheet:
-                    print("⚠️ Chưa tìm thấy tab MenuBuilder, Bot sẽ chạy giao diện cũ.")
-
-            try:
-                self.sale_sheet = self.sh.worksheet("Sale")
-            except:
-                self.sale_sheet = next(
-                    (sheet for sheet in self.sh.worksheets() if normalize_key(sheet.title).lower() in ["sale", "sales"]),
-                    None,
-                )
-                if not self.sale_sheet:
-                    print("ℹ️ Chưa tìm thấy tab Sale, Bot sẽ dùng giá gốc.")
-
-            print("✅ Kết nối Google Sheets thành công!")
+            print("⏳ Đang kết nối tới Supabase...")
+            supabase_store.connect()
+            print("✅ Kết nối Supabase thành công!")
             self.reload_config(force=True)
-            
         except Exception as e:
-            print(f"❌ Lỗi kết nối Google Sheets: {e}")
+            print(f"❌ Lỗi kết nối Supabase: {e}")
+            self.cache_config = {}
+            self.pages_cache = {}
+            self.sales_cache = []
+            raise
 
     def reload_config(self, force=False):
         current_time = time.time()
@@ -131,40 +83,7 @@ class Database:
                 self.last_reload_time = current_time
                 return
 
-            # 1. Tải Config
-            all_rows = self.config_sheet.get_all_values()
-            temp_cache = {}
-            for row in all_rows:
-                if len(row) >= 2:
-                    key = normalize_key(row[0]).upper()
-                    if key:
-                        value = str(row[1]).strip()
-                        if key == "MANUAL_ORDER_LINK_TEMPLATE":
-                            value = self._normalize_manual_order_link_template(value)
-                        temp_cache[key] = value
-            self.cache_config = temp_cache
-            
-            # 2. TẢI GIAO DIỆN ĐỘNG TỪ MENU BUILDER VÀO RAM
-            if self.menu_sheet:
-                menu_rows = self.menu_sheet.get_all_values()
-                temp_pages = {}
-                for row in menu_rows[1:]: # Bỏ qua tiêu đề
-                    if len(row) >= 4:
-                        pid = normalize_key(row[0])
-                        if pid:
-                            temp_pages[pid] = {
-                                'img': str(row[1]).strip(),
-                                'text': str(row[2]).strip(),
-                                'layout': str(row[3]).strip()
-                            }
-                            temp_pages[pid.lower()] = temp_pages[pid]
-                self.pages_cache = temp_pages
-                print(f"🎨 Đã nạp thành công {len(self.pages_cache)} trang giao diện động!")
-
-            # 3. TẢI CẤU HÌNH SALE
-            self.sales_cache = self.load_sales()
-
-            self.last_reload_time = current_time
+            raise RuntimeError("Google Sheets runtime has been removed. Supabase is the only supported backend.")
         except Exception as e:
             print(f"❌ Lỗi tải Dữ liệu: {e}")
             if self.backend == "supabase" and supabase_store.enabled:
@@ -198,24 +117,7 @@ class Database:
                 pass
             return
 
-        if not self.config_sheet:
-            self.connect()
-
-        rows = self.config_sheet.get_all_values()
-        for idx, row in enumerate(rows, start=1):
-            if row and normalize_key(row[0]).upper() == normalized_key:
-                self.config_sheet.update_cell(idx, 2, str(normalized_value))
-                self.cache_config[normalized_key] = str(normalized_value)
-                return
-
-        self.config_sheet.append_row([normalized_key, str(normalized_value)])
-        self.cache_config[normalized_key] = str(normalized_value)
-        try:
-            from helpers import recompute_bot_runtime_state
-
-            recompute_bot_runtime_state()
-        except Exception:
-            pass
+        raise RuntimeError("Google Sheets runtime has been removed. Use Supabase config storage.")
 
     def _normalize_manual_order_link_template(self, value):
         text = str(value or "").strip()
@@ -252,29 +154,6 @@ class Database:
                 print(f"❌ Lỗi tải sale_rules từ Supabase: {e}")
                 return []
 
-        if not self.sale_sheet:
-            return []
-
-        try:
-            rows = self.sale_sheet.get_all_values()
-            if len(rows) < 2:
-                return []
-
-            headers = [normalize_key(h).lower().replace(" ", "_") for h in rows[0]]
-            sales = []
-            for row in rows[1:]:
-                if not any(str(cell).strip() for cell in row):
-                    continue
-                item = {}
-                for idx, header in enumerate(headers):
-                    if header:
-                        item[header] = str(row[idx]).strip() if idx < len(row) else ""
-                sales.append(item)
-
-            print(f"🏷 Đã nạp {len(sales)} dòng cấu hình Sale.")
-            return sales
-        except Exception as e:
-            print(f"❌ Lỗi tải tab Sale: {e}")
-            return []
+        return []
 
 db = Database()

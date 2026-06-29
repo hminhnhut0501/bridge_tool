@@ -153,7 +153,7 @@ async def send_welcome_messages(event):
 async def cmd_reload(message: Message):
     if is_admin_user(message.from_user.id):
         db.reload_config(force=True)
-        await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & Giao diện từ Sheet!"))
+        await message.reply(db.get_config("MSG_RELOAD_DONE", "🔄 Đã nạp lại toàn bộ dữ liệu & giao diện từ hệ thống!"))
     else:
         await message.reply(db.get_config("MSG_ADMIN_ONLY", "⚠️ Lệnh này chỉ dành cho Admin."))
 

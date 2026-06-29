@@ -23,7 +23,7 @@ from hidden_group_utils import (
     upsert_hidden_code,
     upsert_hidden_group,
 )
-from helpers import bot_schedule_status, bot_runtime_state_audit
+from helpers import bot_schedule_status, bot_runtime_state_audit, set_runtime_maintenance_override, runtime_maintenance_override
 from helpers import create_background_task
 from i18n import get_user_language
 from supabase_store import supabase_store
@@ -47,6 +47,7 @@ app = FastAPI(title="Prive Bot Backend")
 _booted = False
 _missing_table_warnings: set[str] = set()
 _last_webhook_reset_reason = ""
+_webhook_failure_streak = 0
 
 
 def _allowed_origins():
@@ -108,6 +109,8 @@ def webhook_problem_reason(info, expected_url: str):
         return "missing_url"
     if expected_url and actual_url != expected_url:
         return "url_mismatch"
+    if actual_url and not actual_url.startswith("https://"):
+        return "invalid_url_scheme"
     last_error_message = str(getattr(info, "last_error_message", "") or "").strip()
     pending_update_count = int(getattr(info, "pending_update_count", 0) or 0)
     if last_error_message and pending_update_count > 0:
@@ -116,28 +119,48 @@ def webhook_problem_reason(info, expected_url: str):
 
 
 async def ensure_telegram_webhook(*, force=False):
-    global _last_webhook_reset_reason
+    global _last_webhook_reset_reason, _webhook_failure_streak
     webhook_url = str(os.getenv("WEBHOOK_URL") or "").strip()
     webhook_secret = str(os.getenv("TELEGRAM_WEBHOOK_SECRET") or "").strip()
     if not webhook_url or telegram_startup_skipped():
+        set_runtime_maintenance_override(False, source="webhook")
         return {"ok": False, "reason": "disabled", "info": None}
 
-    info = await bot.get_webhook_info()
-    reason = webhook_problem_reason(info, webhook_url)
-    if not force and not reason:
-        return {"ok": True, "reason": "healthy", "info": info}
+    try:
+        info = await bot.get_webhook_info()
+        reason = webhook_problem_reason(info, webhook_url)
+        if not force and not reason:
+            _webhook_failure_streak = 0
+            set_runtime_maintenance_override(False, source="webhook")
+            return {"ok": True, "reason": "healthy", "info": info}
 
-    await bot.set_webhook(
-        webhook_url,
-        secret_token=webhook_secret or None,
-        drop_pending_updates=False,
-        allowed_updates=dp.resolve_used_update_types(),
-    )
-    refreshed = await bot.get_webhook_info()
-    reset_reason = reason or "forced"
-    _last_webhook_reset_reason = reset_reason
-    print(f"🔁 Telegram webhook reset reason={reset_reason} url={webhook_url}")
-    return {"ok": True, "reason": reset_reason, "info": refreshed}
+        await bot.delete_webhook(drop_pending_updates=False)
+        await bot.set_webhook(
+            webhook_url,
+            secret_token=webhook_secret or None,
+            drop_pending_updates=False,
+            allowed_updates=dp.resolve_used_update_types(),
+        )
+        refreshed = await bot.get_webhook_info()
+        refreshed_reason = webhook_problem_reason(refreshed, webhook_url)
+        if refreshed_reason:
+            _webhook_failure_streak += 1
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Webhook auto-heal failed ({refreshed_reason}). Bot moved to maintenance to protect pricing/menu flows.",
+                source="webhook",
+            )
+            return {"ok": False, "reason": refreshed_reason, "info": refreshed}
+        reset_reason = reason or "forced"
+        _last_webhook_reset_reason = reset_reason
+        _webhook_failure_streak = 0
+        set_runtime_maintenance_override(False, source="webhook")
+        print(f"🔁 Telegram webhook reset reason={reset_reason} url={webhook_url}")
+        return {"ok": True, "reason": reset_reason, "info": refreshed}
+    except Exception as exc:
+        _webhook_failure_streak += 1
+        set_runtime_maintenance_override(True, reason=f"Webhook runtime error: {exc}", source="webhook")
+        raise
 
 
 async def webhook_watch_worker():
@@ -796,6 +819,8 @@ async def health():
         "supabase": supabase_store.enabled,
         "webhook_url_configured": bool(os.getenv("WEBHOOK_URL")),
         "webhook_last_reset_reason": _last_webhook_reset_reason,
+        "webhook_failure_streak": _webhook_failure_streak,
+        "runtime_maintenance_override": runtime_maintenance_override(),
     }
 
 
@@ -812,7 +837,9 @@ async def admin_webhook_info():
         "meta": {
             "expected_url": str(os.getenv("WEBHOOK_URL") or "").strip(),
             "last_reset_reason": _last_webhook_reset_reason,
+            "failure_streak": _webhook_failure_streak,
             "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
+            "maintenance_override": runtime_maintenance_override(),
         },
     }
 
