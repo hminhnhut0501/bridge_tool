@@ -169,7 +169,6 @@ async def _forward_private_message_to_group(message: Message, ticket):
                 ticket["id"],
                 {
                     "manager_group_message_id": sent.message_id,
-                    "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                     "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                 },
             )
@@ -318,13 +317,13 @@ async def support_group_reply(message: Message):
             telegram_message_id=sent.message_id,
             manager_group_message_id=message.message_id,
             reply_to_manager_message_id=message.reply_to_message.message_id,
-            text=body,
-            payload={
-                "admin_name": admin_name,
-                "admin_username": message.from_user.username if message.from_user else "",
-                "source_chat_id": str(message.chat.id),
-            },
-        )
+                text=body,
+                payload={
+                    "admin_name": admin_name,
+                    "admin_username": message.from_user.username if message.from_user else "",
+                    "source_chat_id": str(message.chat.id),
+                },
+            )
     except Exception as exc:
         print(f"⚠️ Không ghi được support_message reply: {exc}")
 
@@ -332,7 +331,6 @@ async def support_group_reply(message: Message):
         supabase_store.update_support_ticket(
             ticket["id"],
             {
-                "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                 "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
             },
         )

@@ -712,7 +712,6 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
                         ticket["id"],
                         {
                             "manager_group_message_id": sent.message_id,
-                            "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                         },
                     )
                 except Exception as exc:

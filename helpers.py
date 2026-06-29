@@ -14,6 +14,7 @@ from database import db
 from bot_instance import bot, is_spamming
 from i18n import t
 from supabase_store import supabase_store
+from message_filter_utils import is_private_user_content_message
 from aiogram.exceptions import TelegramBadRequest
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
@@ -419,12 +420,29 @@ class BotAvailabilityMiddleware(BaseMiddleware):
                     f"user={user.id} text={text[:120]} reason={bot_unavailable_reason()}"
                 )
                 return await handler(event, data)
-            if isinstance(event, Message) and text and not text.startswith("/") and has_open_support_ticket(user.id):
+            if isinstance(event, Message) and is_private_user_content_message(event) and has_open_support_ticket(user.id):
                 print(
                     "🛡 middleware pass-through support inbox "
                     f"user={user.id} text={text[:120]} reason={bot_unavailable_reason()}"
                 )
                 return await handler(event, data)
+            if isinstance(event, Message) and is_private_user_content_message(event):
+                try:
+                    from support_utils import create_support_case_from_private_message
+
+                    ticket, ticket_error = await create_support_case_from_private_message(event, source="maintenance_private_message")
+                    if ticket:
+                        print(
+                            "🛡 middleware auto-opened support case "
+                            f"user={user.id} ticket={ticket.get('ticket_no', '')} reason={bot_unavailable_reason()}"
+                        )
+                        return None
+                    print(
+                        "🛡 middleware support case failed "
+                        f"user={user.id} error={ticket_error}"
+                    )
+                except Exception as exc:
+                    print(f"⚠️ middleware support case error user={user.id}: {exc}")
             print(f"🛡 middleware blocked user={user.id} text={text[:120]} reason={bot_unavailable_reason()}")
             await check_protection(event)
             return None

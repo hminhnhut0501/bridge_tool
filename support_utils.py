@@ -271,7 +271,6 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
             "status": "open",
             "subject": str(subject or ""),
             "source": str(source or "bot"),
-            "last_message_at": datetime.now().isoformat(),
             "raw_data": raw_data or {},
         }
         created = supabase_store.create_support_ticket(payload)
@@ -279,6 +278,130 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
     except Exception as exc:
         print(f"⚠️ Không tạo được support ticket cho user {telegram_user_id}: {exc}")
         return None, str(exc)
+
+
+async def create_support_case_from_private_message(message, *, source="private_user_message", subject=None):
+    if not supabase_store.enabled or not message or not getattr(message, "from_user", None):
+        return None, "SUPABASE chưa bật."
+
+    message_text = str(getattr(message, "text", "") or getattr(message, "caption", "") or "").strip()
+    ticket_subject = str(subject or message_text or "").strip() or "Tin nhắn hỗ trợ"
+    ticket, ticket_error = await create_support_ticket_for_user(
+        telegram_user_id=message.from_user.id,
+        chat_id=message.chat.id,
+        username=message.from_user.username or "",
+        full_name=message.from_user.full_name or "",
+        subject=ticket_subject,
+        source=source,
+        raw_data={
+            "message_id": getattr(message, "message_id", None),
+            "chat_type": getattr(message.chat, "type", ""),
+            "kind": "private_message",
+            "message_text": message_text,
+        },
+    )
+    if not ticket:
+        return None, ticket_error or "Không tạo được ticket hỗ trợ."
+
+    ticket_text = render_support_group_message(ticket, message_text)
+    try:
+        sent = await post_support_ticket_to_group(ticket, message_text=ticket_text)
+    except Exception as exc:
+        sent = None
+        print(f"⚠️ Không forward ticket lên group: {exc}")
+
+    if sent:
+        try:
+            supabase_store.update_support_ticket(
+                ticket["id"],
+                {
+                    "manager_group_message_id": sent.message_id,
+                    "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
+                },
+            )
+        except Exception as exc:
+            print(f"⚠️ Không cập nhật ticket group message id: {exc}")
+        try:
+            await record_support_message(
+                ticket["id"],
+                "user_to_support",
+                telegram_message_id=getattr(message, "message_id", None),
+                manager_group_message_id=sent.message_id,
+                text=message_text or "",
+                payload={
+                    "chat_id": str(getattr(message.chat, "id", "")),
+                    "chat_type": getattr(message.chat, "type", ""),
+                    "source": source,
+                },
+            )
+        except Exception as exc:
+            print(f"⚠️ Không lưu support message private->group: {exc}")
+    elif ticket:
+        try:
+            await record_support_message(
+                ticket["id"],
+                "user_to_support",
+                telegram_message_id=getattr(message, "message_id", None),
+                text=message_text or "",
+                payload={
+                    "chat_id": str(getattr(message.chat, "id", "")),
+                    "chat_type": getattr(message.chat, "type", ""),
+                    "source": source,
+                    "forward_status": "failed",
+                },
+            )
+        except Exception as exc:
+            print(f"⚠️ Không lưu support message fallback: {exc}")
+
+    try:
+        record_support_event(
+            "support_ticket_created",
+            message.from_user.id,
+            username=message.from_user.username or "",
+            full_name=message.from_user.full_name or "",
+            chat_id=str(getattr(message.chat, "id", "")),
+            chat_title="private",
+            order_id=str(ticket.get("subject") or ""),
+            plan_name=str(ticket.get("source") or ""),
+            raw_data={
+                "ticket_id": ticket.get("id", ""),
+                "ticket_no": ticket.get("ticket_no", ""),
+                "source": source,
+            },
+        )
+    except Exception:
+        pass
+
+    try:
+        status_message = await message.answer(
+            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
+        )
+        if support_inbox_status_enabled():
+            from helpers import create_background_task
+
+            create_background_task(
+                _play_support_inbox_status_effect(
+                    chat_id=message.chat.id,
+                    message_id=status_message.message_id,
+                    ticket_no=str(ticket.get("ticket_no", "")),
+                ),
+                name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
+                context="support_inbox",
+            )
+        else:
+            await status_message.edit_text(
+                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+            )
+    except Exception:
+        try:
+            await message.answer(
+                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
+                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
+            )
+        except Exception:
+            pass
+
+    return ticket, ""
 
 
 def support_ticket_header(ticket):
