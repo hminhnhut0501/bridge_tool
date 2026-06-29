@@ -246,7 +246,7 @@ async def _forward_private_message_to_group(message: Message):
             pass
 
 
-@router.message(F.chat.type == "private")
+@router.message(lambda message: message.chat.type == "private" and not str(message.text or "").strip().startswith("/"))
 async def support_private_inbox(message: Message):
     if not _is_private_user_message(message):
         return
