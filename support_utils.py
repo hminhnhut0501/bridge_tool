@@ -309,9 +309,8 @@ async def create_support_case_from_private_message(message, *, source="private_u
     if not ticket:
         return None, ticket_error or "Không tạo được ticket hỗ trợ."
 
-    ticket_text = render_support_group_message(ticket, message_text)
     try:
-        sent = await post_support_ticket_to_group(ticket, message_text=ticket_text)
+        sent = await post_support_ticket_to_group(ticket, message_text=message_text)
     except Exception as exc:
         sent = None
         print(f"⚠️ Không forward ticket lên group: {exc}")
@@ -410,13 +409,13 @@ def _render_template(template: str, context: dict[str, object], default_text: st
 
 def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE"):
     context = {
-        "ticket_no": ticket.get("ticket_no", ""),
-        "full_name": ticket.get("full_name", ""),
-        "telegram_user_id": ticket.get("telegram_user_id", ""),
-        "username": ticket.get("username", ""),
-        "subject": ticket.get("subject", ""),
-        "status": ticket.get("status", ""),
-        "message": message_text,
+        "ticket_no": escape_html(ticket.get("ticket_no", "")),
+        "full_name": escape_html(ticket.get("full_name", "")),
+        "telegram_user_id": escape_html(ticket.get("telegram_user_id", "")),
+        "username": escape_html(ticket.get("username", "")),
+        "subject": escape_html(ticket.get("subject", "")),
+        "status": escape_html(ticket.get("status", "")),
+        "message": escape_html(message_text),
     }
     default_text = (
         "📩 <b>Tin nhắn từ khách</b>\n"
@@ -443,15 +442,15 @@ def render_support_reply_message(ticket, message_text="", admin_name="", admin_u
             username_suffix = f" @{raw_username}"
 
     context = {
-        "ticket_no": ticket.get("ticket_no", ""),
-        "full_name": ticket.get("full_name", ""),
-        "telegram_user_id": ticket.get("telegram_user_id", ""),
-        "subject": ticket.get("subject", ""),
-        "status": ticket.get("status", ""),
-        "admin_name": display_name,
-        "admin_username": username_suffix,
-        "admin_status": admin_status_text or support_admin_online_text(),
-        "message": message_text,
+        "ticket_no": escape_html(ticket.get("ticket_no", "")),
+        "full_name": escape_html(ticket.get("full_name", "")),
+        "telegram_user_id": escape_html(ticket.get("telegram_user_id", "")),
+        "subject": escape_html(ticket.get("subject", "")),
+        "status": escape_html(ticket.get("status", "")),
+        "admin_name": escape_html(display_name),
+        "admin_username": escape_html(username_suffix),
+        "admin_status": escape_html(admin_status_text or support_admin_online_text()),
+        "message": escape_html(message_text),
     }
     default_text = (
         "💬 <b>Phản hồi từ hỗ trợ</b>\n"
@@ -480,9 +479,10 @@ async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
     ticket = await ensure_support_ticket_topic(ticket)
 
     header = support_ticket_header(ticket)
+    rendered_body = render_support_group_message(ticket, message_text) if message_text else ""
     body = []
-    if message_text:
-        body.append(escape_html(message_text.strip()))
+    if rendered_body:
+        body.append(rendered_body)
     if join_link:
         body.append(f"🔗 {escape_html(join_link)}")
     text = "\n\n".join([header] + body)
@@ -542,7 +542,7 @@ async def ensure_support_ticket_topic(ticket):
 async def send_support_connecting_status(message, ticket, *, delete_source_message=False):
     try:
         status_message = await message.answer(
-            f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
+            support_inbox_connecting_text(),
         )
         if delete_source_message:
             await safe_delete_private_message(message)

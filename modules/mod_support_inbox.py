@@ -166,9 +166,8 @@ async def _forward_private_message_to_group(message: Message, ticket):
     if not supabase_store.enabled or not ticket:
         return
 
-    ticket_text = render_support_group_message(ticket, _message_text(message))
     try:
-        sent = await post_support_ticket_to_group(ticket, message_text=ticket_text)
+        sent = await post_support_ticket_to_group(ticket, message_text=_message_text(message))
     except Exception as exc:
         print(f"⚠️ Không forward ticket lên group: {exc}")
         return
