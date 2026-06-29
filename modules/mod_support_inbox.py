@@ -10,6 +10,7 @@ from helpers import create_background_task, has_open_support_ticket, is_admin_us
 from support_utils import (
     copy_support_message_to_group,
     post_support_ticket_to_group,
+    prepare_support_group_delivery,
     record_support_event,
     record_support_message,
     support_admin_presence_text,
@@ -63,6 +64,16 @@ def _is_media_like_message(message: Message) -> bool:
         or message.sticker
         or message.animation
         or message.video_note
+    )
+
+
+def _supports_caption_embedding(message: Message) -> bool:
+    return bool(
+        message.photo
+        or message.video
+        or message.document
+        or message.animation
+        or message.audio
     )
 
 
@@ -224,13 +235,23 @@ async def _forward_private_message_to_group(message: Message, ticket):
         sent = None
         media_copy = None
         if _is_media_like_message(message):
-            sent = await post_support_ticket_to_group(
-                ticket,
-                message_text=render_support_group_message(ticket, message_text),
-                message_is_html=True,
-                wrap_message=False,
-            )
-            if sent:
+            if _supports_caption_embedding(message):
+                _, send_kwargs = await prepare_support_group_delivery(ticket)
+                sent = await bot.copy_message(
+                    **send_kwargs,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                    caption=render_support_group_message(ticket, message_text),
+                    parse_mode="HTML",
+                )
+            else:
+                sent = await post_support_ticket_to_group(
+                    ticket,
+                    message_text=render_support_group_message(ticket, message_text),
+                    message_is_html=True,
+                    wrap_message=False,
+                )
+            if sent and not _supports_caption_embedding(message):
                 media_copy = await copy_support_message_to_group(
                     ticket,
                     message.chat.id,
@@ -342,17 +363,26 @@ async def support_group_reply(message: Message):
         sent = None
         media_copy = None
         if _is_media_like_message(message):
-            sent = await bot.send_message(
-                chat_id=int(telegram_user_id),
-                text=outgoing,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-            media_copy = await bot.copy_message(
-                chat_id=int(telegram_user_id),
-                from_chat_id=message.chat.id,
-                message_id=message.message_id,
-            )
+            if _supports_caption_embedding(message):
+                sent = await bot.copy_message(
+                    chat_id=int(telegram_user_id),
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                    caption=outgoing,
+                    parse_mode="HTML",
+                )
+            else:
+                sent = await bot.send_message(
+                    chat_id=int(telegram_user_id),
+                    text=outgoing,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                media_copy = await bot.copy_message(
+                    chat_id=int(telegram_user_id),
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                )
         else:
             sent = await bot.send_message(
                 chat_id=int(telegram_user_id),
