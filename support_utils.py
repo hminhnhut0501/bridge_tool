@@ -366,15 +366,8 @@ def support_ticket_header(ticket):
     return "\n".join(lines)
 
 
-def _render_template(template: str, context: dict[str, object], default_text: str):
-    text = str(template or "").strip() or default_text
-    for key, value in context.items():
-        text = text.replace(f"{{{key}}}", str(value or ""))
-    return text
-
-
-def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE"):
-    context = {
+def support_ticket_context(ticket, message_text=""):
+    return {
         "ticket_no": escape_html(ticket.get("ticket_no", "")),
         "full_name": escape_html(ticket.get("full_name", "")),
         "telegram_user_id": escape_html(ticket.get("telegram_user_id", "")),
@@ -383,6 +376,37 @@ def render_support_group_message(ticket, message_text="", *, template_key="SUPPO
         "status": escape_html(ticket.get("status", "")),
         "message": escape_html(message_text),
     }
+
+
+def _render_template(template: str, context: dict[str, object], default_text: str):
+    text = str(template or "").strip() or default_text
+    for key, value in context.items():
+        text = text.replace(f"{{{key}}}", str(value or ""))
+    return text
+
+
+def render_support_group_header(ticket, *, compact=False, template_key=""):
+    context = support_ticket_context(ticket)
+    default_text = (
+        "👤 <b>{full_name}</b>"
+        if compact
+        else "🎫 <b>{ticket_no}</b> - {full_name}\n"
+        "ID: <code>{telegram_user_id}</code>\n"
+        "{subject_line}\n"
+        "Trạng thái: <b>{status}</b>"
+    )
+    if not compact:
+        context["subject_line"] = f"🔎 {context['subject']}" if context.get("subject") else ""
+        default_text = default_text.replace("\n\n", "\n").strip()
+    else:
+        context["subject_line"] = ""
+    active_key = template_key or ("SUPPORT_INBOX_GROUP_HEADER_COMPACT" if compact else "SUPPORT_INBOX_GROUP_HEADER_DETAILED")
+    rendered = _render_template(db.get_config(active_key, default_text), context, default_text)
+    return "\n".join([line for line in rendered.splitlines() if str(line).strip()])
+
+
+def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE_FIRST"):
+    context = support_ticket_context(ticket, message_text)
     default_text = (
         "📩 <b>Tin nhắn từ khách</b>\n"
         "Ticket: <code>{ticket_no}</code>\n"
@@ -450,11 +474,11 @@ def support_admin_offline_text():
     return str(db.get_config("SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline") or "⚪ Admin đang offline").strip()
 
 
-async def post_support_ticket_to_group(ticket, message_text="", join_link="", *, message_is_html=False, wrap_message=True):
+async def post_support_ticket_to_group(ticket, message_text="", join_link="", *, message_is_html=False, wrap_message=True, header_text=""):
     ticket, send_kwargs = await prepare_support_group_delivery(ticket)
     if not ticket or not send_kwargs:
         return None
-    header = support_ticket_header(ticket)
+    header = str(header_text or "").strip() or support_ticket_header(ticket)
     body = []
     if message_text:
         if message_is_html:

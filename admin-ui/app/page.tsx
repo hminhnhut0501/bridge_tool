@@ -1549,10 +1549,31 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
 
 const SUPPORT_INBOX_TEMPLATE_FIELDS: ConfigField[] = [
   {
-    key: "SUPPORT_INBOX_GROUP_TEMPLATE",
-    label: "Template gửi group",
+    key: "SUPPORT_INBOX_GROUP_HEADER_DETAILED",
+    label: "Header chi tiết cho ticket mới/bot action",
+    placeholder: "🎫 <b>{ticket_no}</b> - {full_name}\\nID: <code>{telegram_user_id}</code>\\n🔎 {subject}\\nTrạng thái: <b>{status}</b>",
+    help: "Dùng cho ticket mới hoặc bot action đẩy vào inbox. Biến: {ticket_no}, {full_name}, {telegram_user_id}, {username}, {subject}, {status}.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_GROUP_HEADER_COMPACT",
+    label: "Header gọn cho follow-up",
+    placeholder: "👤 <b>{full_name}</b>",
+    help: "Dùng cho các tin follow-up trong cùng case để group đỡ rối. Biến: {ticket_no}, {full_name}, {telegram_user_id}, {username}, {subject}, {status}.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_GROUP_TEMPLATE_FIRST",
+    label: "Body ticket mới",
     placeholder: "📩 <b>Tin nhắn từ khách</b>\\nTicket: <code>{ticket_no}</code>\\nKhách: <b>{full_name}</b>\\nID: <code>{telegram_user_id}</code>\\n\\n{message}",
     help: "Biến: {ticket_no}, {full_name}, {telegram_user_id}, {username}, {subject}, {status}, {message}.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_GROUP_TEMPLATE_FOLLOWUP",
+    label: "Body follow-up",
+    placeholder: "{message}",
+    help: "Dùng cho các tin về sau trong cùng case. Có thể để rất gọn để admin đọc nhanh. Biến: {ticket_no}, {full_name}, {telegram_user_id}, {username}, {subject}, {status}, {message}.",
     kind: "textarea",
   },
   {

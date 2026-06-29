@@ -31,6 +31,7 @@ from support_utils import (
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
+    render_support_group_header,
     send_support_connecting_status,
     support_group_enabled,
     support_ticket_subject_from_action,
@@ -721,6 +722,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
                 message_text=message_text,
                 message_is_html=True,
                 wrap_message=False,
+                header_text=render_support_group_header(ticket, compact=False),
             )
             if sent:
                 try:

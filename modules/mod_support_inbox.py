@@ -11,6 +11,7 @@ from support_utils import (
     copy_support_message_to_group,
     post_support_ticket_to_group,
     prepare_support_group_delivery,
+    render_support_group_header,
     record_support_event,
     record_support_message,
     support_admin_presence_text,
@@ -232,6 +233,12 @@ async def _forward_private_message_to_group(message: Message, ticket):
 
     message_text = _message_text(message)
     try:
+        has_history = bool(supabase_store.list_support_messages(ticket["id"], limit=1))
+    except Exception:
+        has_history = False
+    header_text = render_support_group_header(ticket, compact=has_history)
+    template_key = "SUPPORT_INBOX_GROUP_TEMPLATE_FOLLOWUP" if has_history else "SUPPORT_INBOX_GROUP_TEMPLATE_FIRST"
+    try:
         sent = None
         media_copy = None
         if _is_media_like_message(message):
@@ -241,15 +248,21 @@ async def _forward_private_message_to_group(message: Message, ticket):
                     **send_kwargs,
                     from_chat_id=message.chat.id,
                     message_id=message.message_id,
-                    caption=render_support_group_message(ticket, message_text),
+                    caption="\n\n".join(
+                        part for part in [
+                            header_text,
+                            render_support_group_message(ticket, message_text, template_key=template_key),
+                        ] if part
+                    ),
                     parse_mode="HTML",
                 )
             else:
                 sent = await post_support_ticket_to_group(
                     ticket,
-                    message_text=render_support_group_message(ticket, message_text),
+                    message_text=render_support_group_message(ticket, message_text, template_key=template_key),
                     message_is_html=True,
                     wrap_message=False,
+                    header_text=header_text,
                 )
             if sent and not _supports_caption_embedding(message):
                 media_copy = await copy_support_message_to_group(
@@ -259,7 +272,13 @@ async def _forward_private_message_to_group(message: Message, ticket):
                     reply_to_message_id=sent.message_id,
                 )
         else:
-            sent = await post_support_ticket_to_group(ticket, message_text=message_text)
+            sent = await post_support_ticket_to_group(
+                ticket,
+                message_text=render_support_group_message(ticket, message_text, template_key=template_key),
+                message_is_html=True,
+                wrap_message=False,
+                header_text=header_text,
+            )
     except Exception as exc:
         print(f"⚠️ Không forward ticket lên group: {exc}")
         return
