@@ -10,7 +10,6 @@ from support_utils import (
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
-    send_support_connecting_status,
     support_admin_presence_text,
     render_support_inbox_ready_text,
     support_inbox_connecting_text,
@@ -166,8 +165,9 @@ async def _forward_private_message_to_group(message: Message, ticket):
     if not supabase_store.enabled or not ticket:
         return
 
+    message_text = _message_text(message)
     try:
-        sent = await post_support_ticket_to_group(ticket, message_text=_message_text(message))
+        sent = await post_support_ticket_to_group(ticket, message_text=message_text)
     except Exception as exc:
         print(f"⚠️ Không forward ticket lên group: {exc}")
         return
@@ -178,6 +178,7 @@ async def _forward_private_message_to_group(message: Message, ticket):
                 ticket["id"],
                 {
                     "manager_group_message_id": sent.message_id,
+                    "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                     "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
                 },
             )
@@ -189,7 +190,8 @@ async def _forward_private_message_to_group(message: Message, ticket):
                 "user_to_support",
                 telegram_message_id=message.message_id,
                 manager_group_message_id=sent.message_id,
-                text=_message_text(message),
+                manager_topic_message_id=getattr(sent, "message_thread_id", None),
+                text=message_text,
                 payload={
                     "chat_id": str(message.chat.id),
                     "chat_type": message.chat.type,
@@ -201,7 +203,7 @@ async def _forward_private_message_to_group(message: Message, ticket):
 
     try:
         record_support_event(
-            "support_ticket_created",
+            "support_ticket_message_forwarded",
             message.from_user.id,
             username=message.from_user.username or "",
             full_name=message.from_user.full_name or "",
@@ -217,8 +219,6 @@ async def _forward_private_message_to_group(message: Message, ticket):
         )
     except Exception:
         pass
-
-    await send_support_connecting_status(message, ticket, delete_source_message=True)
 
 
 @router.message(_is_support_inbox_private_message)
