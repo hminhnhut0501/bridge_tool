@@ -137,22 +137,26 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
     if not frames:
         return
 
-    delay_seconds = support_inbox_status_frame_delay_ms() / 1000.0
+    delay_ms = support_inbox_status_frame_delay_ms()
+    delay_seconds = delay_ms / 1000.0
+    final_hold_ms = support_inbox_status_final_hold_ms()
+    total_visible_ms = support_inbox_status_min_visible_ms()
+    animation_window_ms = max(delay_ms, total_visible_ms - final_hold_ms)
     elapsed_ms = 0
-    for frame in frames:
+    frame_index = 0
+
+    while elapsed_ms < animation_window_ms:
+        frame = frames[frame_index % len(frames)]
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
         except Exception:
             return
-        await asyncio.sleep(delay_seconds)
-        elapsed_ms += int(delay_seconds * 1000)
+        sleep_ms = min(delay_ms, animation_window_ms - elapsed_ms)
+        await asyncio.sleep(sleep_ms / 1000.0)
+        elapsed_ms += sleep_ms
+        frame_index += 1
 
-    final_hold_ms = support_inbox_status_final_hold_ms()
     await asyncio.sleep(final_hold_ms / 1000.0)
-    elapsed_ms += final_hold_ms
-    remaining_ms = max(0, support_inbox_status_min_visible_ms() - elapsed_ms)
-    if remaining_ms:
-        await asyncio.sleep(remaining_ms / 1000.0)
 
     final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
     try:

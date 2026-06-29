@@ -1577,6 +1577,56 @@ function supportInboxPreviewFrames(style: string, message: string) {
   return [`${message} ·`, `${message} ··`, `${message} ···`];
 }
 
+function supportInboxPreviewFrameList(style: string, message: string, rawFrames = "") {
+  const customFrames = String(rawFrames || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replaceAll("{message}", message));
+  if (customFrames.length) return customFrames;
+  return supportInboxPreviewFrames(style, message);
+}
+
+function supportInboxPreviewMinVisibleMs(delayMs: number, finalHoldMs: number) {
+  return Math.max(1200, delayMs * 3 + finalHoldMs);
+}
+
+function supportInboxPreviewCurrentFrame(params: {
+  frames: string[];
+  delayMs: number;
+  finalHoldMs: number;
+  clockMs: number;
+}) {
+  const safeFrames = params.frames.length ? params.frames : [SUPPORT_INBOX_PREVIEW_MESSAGE];
+  const safeDelayMs = Math.max(120, params.delayMs || 420);
+  const safeFinalHoldMs = Math.max(0, params.finalHoldMs || 0);
+  const totalVisibleMs = supportInboxPreviewMinVisibleMs(safeDelayMs, safeFinalHoldMs);
+  const animationWindowMs = Math.max(safeDelayMs, totalVisibleMs - safeFinalHoldMs);
+  const cycleMs = animationWindowMs + safeFinalHoldMs;
+  const phaseMs = ((params.clockMs % cycleMs) + cycleMs) % cycleMs;
+
+  if (phaseMs >= animationWindowMs) {
+    return {
+      text: "",
+      isFinal: true,
+      progress: 1,
+      totalVisibleMs,
+      animationWindowMs,
+      cycleMs,
+    };
+  }
+
+  const frameIndex = Math.floor(phaseMs / safeDelayMs) % safeFrames.length;
+  return {
+    text: safeFrames[frameIndex] || safeFrames[0],
+    isFinal: false,
+    progress: animationWindowMs ? phaseMs / animationWindowMs : 0,
+    totalVisibleMs,
+    animationWindowMs,
+    cycleMs,
+  };
+}
+
 function parseInboxStaffMap(raw: string) {
   const entries = new Map<string, string[]>();
   String(raw || "")
@@ -4975,6 +5025,7 @@ export default function Home() {
   }, [visibleChannelPosts, channelPostPage, totalChannelPostPages]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
+  const [supportInboxPreviewClock, setSupportInboxPreviewClock] = useState(0);
 
   useEffect(() => {
     setOrderPage(1);
@@ -5003,6 +5054,14 @@ export default function Home() {
   useEffect(() => {
     setChannelPostPage(1);
   }, [channelPostTab]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSupportInboxPreviewClock(Date.now());
+    }, 120);
+    setSupportInboxPreviewClock(Date.now());
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -6194,7 +6253,16 @@ export default function Home() {
                   {(() => {
                     const liveStyle = String(getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse") || "pulse").toLowerCase();
                     const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
-                    const liveFrames = supportInboxPreviewFrames(liveStyle, liveMessage);
+                    const liveCustomFrames = getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAMES", "") || "";
+                    const liveFrames = supportInboxPreviewFrameList(liveStyle, liveMessage, liveCustomFrames);
+                    const liveDelayMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420") || 420);
+                    const liveFinalHoldMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800") || 800);
+                    const livePreviewState = supportInboxPreviewCurrentFrame({
+                      frames: liveFrames,
+                      delayMs: liveDelayMs,
+                      finalHoldMs: liveFinalHoldMs,
+                      clockMs: supportInboxPreviewClock,
+                    });
                     const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
                     const liveStaffMap = getConfigValue(config, "SUPPORT_INBOX_STAFF_MAP", "") || "";
                     const liveReplyShowUsername = configIsOn(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON");
@@ -6228,6 +6296,8 @@ export default function Home() {
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Live: ${liveStyle}`} sx={statusChipSx("success")} />
                             <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
+                            <Chip size="small" label={`Delay ${Math.max(120, Number.isFinite(liveDelayMs) ? liveDelayMs : 420)}ms`} variant="outlined" sx={statusChipSx("muted")} />
+                            <Chip size="small" label={`Hold ${Math.max(0, Number.isFinite(liveFinalHoldMs) ? liveFinalHoldMs : 800)}ms`} variant="outlined" sx={statusChipSx("muted")} />
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Staff: ${liveStaffName}`} variant="outlined" sx={statusChipSx("muted")} />
@@ -6250,26 +6320,39 @@ export default function Home() {
                           >
                             <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.16), transparent 28%), radial-gradient(circle at 82% 14%, rgba(96,165,250,0.28), transparent 26%), radial-gradient(circle at 80% 80%, rgba(16,185,129,0.18), transparent 24%)" }} />
                             <Box sx={{ position: "relative", zIndex: 1, display: "grid", gap: 1 }}>
-                              {liveFrames.map((frame, index) => (
+                              <Box
+                                sx={{
+                                  px: 1.5,
+                                  py: 1.1,
+                                  borderRadius: 2.4,
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  bgcolor: livePreviewState.isFinal ? "rgba(34,197,94,0.14)" : "rgba(255,255,255,0.06)",
+                                  color: livePreviewState.isFinal ? "#d1fae5" : "#e5eefc",
+                                  fontWeight: livePreviewState.isFinal ? 800 : 700,
+                                  letterSpacing: "-0.01em",
+                                  fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
+                                  boxShadow: livePreviewState.isFinal ? "0 10px 24px rgba(34,197,94,0.16)" : "0 10px 22px rgba(59,130,246,0.12)",
+                                  transform: livePreviewState.isFinal ? "translateY(0)" : `translateY(${Math.sin(supportInboxPreviewClock / 240) * -1.5}px)`,
+                                  transition: "background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
+                                  whiteSpace: "pre-line",
+                                }}
+                              >
+                                {livePreviewState.isFinal ? `${getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")}\n${liveFinal.replaceAll("{staff_name}", liveStaffName)}` : livePreviewState.text}
+                              </Box>
+                              <Box sx={{ mt: 0.25, height: 6, borderRadius: 999, bgcolor: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                                 <Box
-                                  key={`${liveStyle}-${index}`}
                                   sx={{
-                                    px: 1.5,
-                                    py: 0.85,
-                                    borderRadius: 2,
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    bgcolor: index === liveFrames.length - 1 ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)",
-                                    color: index === liveFrames.length - 1 ? "#d1fae5" : "#e5eefc",
-                                    fontWeight: index === liveFrames.length - 1 ? 800 : 600,
-                                    letterSpacing: "-0.01em",
-                                    fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
+                                    width: `${livePreviewState.isFinal ? 100 : Math.max(8, Math.min(100, livePreviewState.progress * 100))}%`,
+                                    height: "100%",
+                                    borderRadius: 999,
+                                    background: livePreviewState.isFinal ? "linear-gradient(90deg, #34d399, #22c55e)" : "linear-gradient(90deg, #60a5fa, #38bdf8)",
+                                    transition: "width 120ms linear, background 180ms ease",
                                   }}
-                                >
-                                  {frame}
-                                </Box>
-                              ))}
-                              <Box sx={{ mt: 0.5, color: "rgba(255,255,255,0.78)", fontSize: "0.9rem", fontWeight: 600 }}>
-                                {liveFinal.replaceAll("{staff_name}", liveStaffName)}
+                                />
+                              </Box>
+                              <Box sx={{ display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.72)", fontSize: "0.82rem", fontWeight: 600 }}>
+                                <span>{livePreviewState.isFinal ? "Final state" : "Looping frames"}</span>
+                                <span>Tong {livePreviewState.totalVisibleMs}ms</span>
                               </Box>
                             </Box>
                           </Box>
@@ -6369,7 +6452,13 @@ export default function Home() {
                           }}
                         >
                           {SUPPORT_INBOX_PREVIEW_PRESETS.map((preset) => {
-                            const frames = supportInboxPreviewFrames(preset.key, SUPPORT_INBOX_PREVIEW_MESSAGE);
+                            const frames = supportInboxPreviewFrameList(preset.key, SUPPORT_INBOX_PREVIEW_MESSAGE);
+                            const previewState = supportInboxPreviewCurrentFrame({
+                              frames,
+                              delayMs: 420,
+                              finalHoldMs: 800,
+                              clockMs: supportInboxPreviewClock + SUPPORT_INBOX_PREVIEW_PRESETS.findIndex((item) => item.key === preset.key) * 240,
+                            });
                             return (
                               <Box
                                 key={preset.key}
@@ -6390,25 +6479,36 @@ export default function Home() {
                                   </Box>
                                   <Chip size="small" label={preset.key} variant="outlined" sx={{ fontWeight: 700 }} />
                                 </Stack>
-                                <Box sx={{ display: "grid", gap: 0.7 }}>
-                                  {frames.map((frame, index) => (
+                                <Box sx={{ display: "grid", gap: 0.8 }}>
+                                  <Box
+                                    sx={{
+                                      px: 1.1,
+                                      py: 0.95,
+                                      borderRadius: 2,
+                                      bgcolor: previewState.isFinal ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.82)",
+                                      color: "text.primary",
+                                      fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
+                                      fontSize: "0.9rem",
+                                      fontWeight: previewState.isFinal ? 800 : 600,
+                                      border: "1px solid rgba(255,255,255,0.72)",
+                                      boxShadow: previewState.isFinal ? "0 10px 20px rgba(34,197,94,0.12)" : "0 8px 18px rgba(15,23,42,0.06)",
+                                      transition: "all 160ms ease",
+                                      whiteSpace: "pre-line",
+                                    }}
+                                  >
+                                    {previewState.isFinal ? "🟢 Admin đang online\nAdmin đã sẵn sàng hỗ trợ 🤗" : previewState.text}
+                                  </Box>
+                                  <Box sx={{ height: 5, borderRadius: 999, bgcolor: "rgba(15,23,42,0.08)", overflow: "hidden" }}>
                                     <Box
-                                      key={`${preset.key}-${index}`}
                                       sx={{
-                                        px: 1.1,
-                                        py: 0.8,
-                                        borderRadius: 2,
-                                        bgcolor: index === frames.length - 1 ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.8)",
-                                        color: "text.primary",
-                                        fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
-                                        fontSize: "0.9rem",
-                                        fontWeight: index === frames.length - 1 ? 700 : 500,
-                                        border: "1px solid rgba(255,255,255,0.7)",
+                                        width: `${previewState.isFinal ? 100 : Math.max(10, Math.min(100, previewState.progress * 100))}%`,
+                                        height: "100%",
+                                        borderRadius: 999,
+                                        background: previewState.isFinal ? "linear-gradient(90deg, #34d399, #22c55e)" : "linear-gradient(90deg, #2563eb, #38bdf8)",
+                                        transition: "width 120ms linear, background 180ms ease",
                                       }}
-                                    >
-                                      {frame}
-                                    </Box>
-                                  ))}
+                                    />
+                                  </Box>
                                 </Box>
                               </Box>
                             );
