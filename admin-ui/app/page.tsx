@@ -1355,7 +1355,7 @@ const ADMIN_FIELDS: ConfigField[] = [
   },
 ];
 
-const SUPPORT_FIELDS: ConfigField[] = [
+const SUPPORT_GROUP_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_GROUP_ENABLED",
     label: "Bật group VIP",
@@ -1379,6 +1379,32 @@ const SUPPORT_FIELDS: ConfigField[] = [
     placeholder: "Nhóm VIP Privé+",
     help: "Tên hiển thị trong log/lỗi.",
   },
+  {
+    key: "SUPPORT_GROUP_BUTTON_TEXT",
+    label: "Text nút join group VIP",
+    placeholder: "💬 Join group VIP",
+    help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
+  },
+  {
+    key: "SUPPORT_GROUP_MUTE_ENABLED",
+    label: "Mute khi hết hạn",
+    placeholder: "ON",
+    help: "Bật ON để user hết hạn bị mute trong group VIP trước khi kick.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "SUPPORT_GROUP_GRACE_DAYS",
+    label: "Số ngày mute trước khi kick",
+    placeholder: "14",
+    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi group VIP.",
+  },
+];
+
+const SUPPORT_INBOX_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_INBOX_MODE",
     label: "Chế độ inbox bot",
@@ -1408,28 +1434,25 @@ const SUPPORT_FIELDS: ConfigField[] = [
     help: "Nhãn hiển thị cho case inbox, ví dụ CS hoặc SUP.",
   },
   {
-    key: "SUPPORT_GROUP_BUTTON_TEXT",
-    label: "Text nút join group VIP",
-    placeholder: "💬 Join group VIP",
-    help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
-  },
-  {
     key: "SUPPORT_ADMIN_ONLINE_TEXT",
     label: "Tin admin online",
     placeholder: "🟢 Admin đang online",
-    help: "Chỉ là text hiển thị trong inbox/support card.",
+    help: "Hiển thị khi admin đang online trong thẻ trạng thái.",
   },
   {
     key: "SUPPORT_ADMIN_OFFLINE_TEXT",
     label: "Tin admin offline",
     placeholder: "⚪ Admin đang offline",
-    help: "Chỉ là text hiển thị trong inbox/support card.",
+    help: "Hiển thị khi admin đang offline trong thẻ trạng thái.",
   },
+];
+
+const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
   {
-    key: "SUPPORT_GROUP_MUTE_ENABLED",
-    label: "Mute khi hết hạn",
+    key: "SUPPORT_INBOX_STATUS_ENABLED",
+    label: "Bật hiệu ứng trạng thái kết nối",
     placeholder: "ON",
-    help: "Bật ON để user hết hạn bị mute trong group VIP trước khi kick.",
+    help: "Bật ON để hiển thị frame trạng thái kết nối khi bot chờ chốt admin online.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1437,10 +1460,38 @@ const SUPPORT_FIELDS: ConfigField[] = [
     ],
   },
   {
-    key: "SUPPORT_GROUP_GRACE_DAYS",
-    label: "Số ngày mute trước khi kick",
-    placeholder: "14",
-    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi group VIP.",
+    key: "SUPPORT_INBOX_STATUS_STYLE",
+    label: "Kiểu hiệu ứng",
+    placeholder: "pulse",
+    help: "Chọn preset cho frame preview trạng thái kết nối.",
+    kind: "select",
+    options: [
+      { label: "Pulse - chớp điểm sáng", value: "pulse" },
+      { label: "Dots - dấu chấm chờ", value: "dots" },
+      { label: "Blink - nhấp nháy", value: "blink" },
+      { label: "Wave - sóng", value: "wave" },
+    ],
+  },
+  {
+    key: "SUPPORT_INBOX_STATUS_FRAMES",
+    label: "Custom frames",
+    placeholder: "{message} ✦ ✧ ✦\\n{message} ✧ ✦ ✧\\n{message} ✦ ✧ ✦",
+    help: "Mỗi dòng là một frame edit. Dùng {message} để chèn tin nhắn ban đầu.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_CONNECTING_TEXT",
+    label: "Tin nhắn trạng thái ban đầu",
+    placeholder: "Đang kết nối",
+    help: "Gửi vào chat user ngay khi nhận /start hoặc case mới.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_READY_TEXT",
+    label: "Format final khi nhân viên sẵn sàng",
+    placeholder: "{staff_name} đã sẵn sàng hỗ trợ 🤗",
+    help: "Biến hỗ trợ: {staff_name}, {admin_name}, {admin_username}.",
+    kind: "textarea",
   },
 ];
 
@@ -2510,7 +2561,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     Object.keys(nextValues).forEach((key) => {
@@ -5933,13 +5984,36 @@ export default function Home() {
               />
               <Box sx={{ p: 2, display: "grid", gap: 2 }}>
                 <div className="status-grid">
-                  <div className={`health-item ${supportCheck?.enabled ? "good" : "bad"}`}>
+                  <div className={`health-item ${supportCheck?.enabled ? "good" : "warning"}`}>
                     <ShieldCheck size={18} />
                     <div>
-                      <strong>{supportCheck ? (supportCheck.enabled ? "Bot nhận tin đang bật" : "Bot nhận tin đang tắt") : "Chưa kiểm tra group"}</strong>
-                      <span>{supportCheck?.group_name || "Chưa có dữ liệu group"}</span>
+                      <strong>{supportCheck ? (supportCheck.enabled ? "Bot nhận tin đang bật" : "Bot nhận tin đang chờ cấu hình") : "Chưa kiểm tra group"}</strong>
+                      <span>{supportCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
                     </div>
                   </div>
+                  <div className={`health-item ${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "good" : "warning"}`}>
+                    <CheckCircle2 size={18} />
+                    <div>
+                      <strong>Trạng thái kết nối</strong>
+                      <span>{getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
+                    </div>
+                  </div>
+                  <div className="health-item">
+                    <Activity size={18} />
+                    <div>
+                      <strong>Tin trạng thái ban đầu</strong>
+                      <span>{getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối"}</span>
+                    </div>
+                  </div>
+                  <div className="health-item">
+                    <Users size={18} />
+                    <div>
+                      <strong>Tin final</strong>
+                      <span>{getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="status-grid">
                   <div className={`health-item ${supportCheck?.get_chat?.ok ? "good" : "bad"}`}>
                     <Users size={18} />
                     <div>
@@ -5963,9 +6037,17 @@ export default function Home() {
                   </div>
                 </div>
                 <ConfigEditor
-                  title="Cấu hình group inbox"
-                  subtitle="Kết nối group support, trạng thái vận hành và quyền bot."
-                  fields={SUPPORT_FIELDS}
+                  title="Cài đặt bot nhận tin"
+                  subtitle="Khối cấu hình riêng cho inbox bot: chế độ xử lý, /delete, ticket prefix và trạng thái online/offline."
+                  fields={SUPPORT_INBOX_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+                <ConfigEditor
+                  title="Hiệu ứng trạng thái kết nối"
+                  subtitle="Mô phỏng kiểu tele_support: bật hiệu ứng, chọn preset, và tùy biến frame/tin kết nối."
+                  fields={SUPPORT_INBOX_EFFECT_FIELDS}
                   values={fieldValues}
                   setValues={setFieldValues}
                   onSave={saveFields}
@@ -6944,7 +7026,7 @@ export default function Home() {
         ) : null}
 
         {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt Group VIP" subtitle="Quản lý bật/tắt group VIP, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt Group VIP" subtitle="Quản lý bật/tắt group VIP, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_GROUP_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (

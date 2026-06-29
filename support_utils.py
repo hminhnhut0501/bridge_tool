@@ -70,6 +70,58 @@ def support_inbox_mode():
     return raw if raw in {"group", "forum"} else "group"
 
 
+def support_inbox_status_enabled():
+    raw = str(db.get_config("SUPPORT_INBOX_STATUS_ENABLED", "OFF") or "OFF").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def support_inbox_status_style():
+    raw = str(db.get_config("SUPPORT_INBOX_STATUS_STYLE", "pulse") or "pulse").strip().lower()
+    return raw if raw in {"pulse", "dots", "blink", "wave"} else "pulse"
+
+
+def support_inbox_status_frames():
+    return str(db.get_config("SUPPORT_INBOX_STATUS_FRAMES", "") or "").strip()
+
+
+def support_inbox_connecting_text():
+    return str(db.get_config("SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") or "Đang kết nối").strip()
+
+
+def support_inbox_ready_text():
+    return str(db.get_config("SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") or "{staff_name} đã sẵn sàng hỗ trợ 🤗").strip()
+
+
+def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_username="", ticket_no=""):
+    text = support_inbox_ready_text()
+    replacements = {
+        "{staff_name}": str(staff_name or "Admin"),
+        "{admin_name}": str(admin_name or ""),
+        "{admin_username}": str(admin_username or ""),
+        "{ticket_no}": str(ticket_no or ""),
+    }
+    for key, value in replacements.items():
+        text = text.replace(key, value)
+    return text
+
+
+def support_inbox_status_frame_list(base_message=""):
+    message = str(base_message or support_inbox_connecting_text()).strip() or "Đang kết nối"
+    raw_frames = support_inbox_status_frames()
+    if raw_frames:
+        frames = [line.strip() for line in raw_frames.splitlines() if line.strip()]
+        return [frame.replace("{message}", message) for frame in frames] or [message]
+
+    style = support_inbox_status_style()
+    if style == "dots":
+        return [message, f"{message}.", f"{message}..", f"{message}..."]
+    if style == "blink":
+        return [f"● {message}", f"○ {message}", f"● {message}"]
+    if style == "wave":
+        return [message, f"{message} ~", f"{message} ~~", f"{message} ~~~"]
+    return [f"{message} ·", f"{message} ··", f"{message} ···"]
+
+
 def support_delete_enabled():
     raw = str(db.get_config("SUPPORT_DELETE_ENABLED", "ON") or "ON").strip()
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}

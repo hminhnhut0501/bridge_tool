@@ -1,15 +1,21 @@
+import asyncio
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot_instance import bot
-from helpers import is_admin_user
+from helpers import create_background_task, is_admin_user
 from support_utils import (
     create_support_ticket_for_user,
     post_support_ticket_to_group,
     is_support_group,
     record_support_event,
     record_support_message,
+    render_support_inbox_ready_text,
+    support_inbox_connecting_text,
+    support_inbox_status_enabled,
+    support_inbox_status_frame_list,
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
@@ -110,6 +116,26 @@ def _is_private_user_message(message: Message) -> bool:
     )
 
 
+async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ticket_no: str):
+    frames = support_inbox_status_frame_list(support_inbox_connecting_text())
+    if not frames:
+        return
+
+    delay_seconds = 0.65
+    for frame in frames:
+        try:
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
+        except Exception:
+            return
+        await asyncio.sleep(delay_seconds)
+
+    final_text = render_support_inbox_ready_text(staff_name="Admin", ticket_no=ticket_no)
+    try:
+        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
+    except Exception:
+        return
+
+
 async def _forward_private_message_to_group(message: Message):
     if not support_group_enabled():
         return
@@ -189,12 +215,29 @@ async def _forward_private_message_to_group(message: Message):
         pass
 
     try:
-        await message.answer(
-            f"✅ Đã chuyển tin nhắn của bạn sang {support_group_name()}.\n"
-            f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
-        )
+        status_message = await message.answer(support_inbox_connecting_text())
+        if support_inbox_status_enabled():
+            create_background_task(
+                _play_support_inbox_status_effect(
+                    chat_id=message.chat.id,
+                    message_id=status_message.message_id,
+                    ticket_no=str(ticket.get("ticket_no", "")),
+                ),
+                name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
+                context="support_inbox",
+            )
+        else:
+            await status_message.edit_text(
+                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+            )
     except Exception:
-        pass
+        try:
+            await message.answer(
+                f"✅ Đã chuyển tin nhắn của bạn sang {support_group_name()}.\n"
+                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
+            )
+        except Exception:
+            pass
 
 
 @router.message(F.chat.type == "private")
