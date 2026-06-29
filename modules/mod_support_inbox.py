@@ -21,6 +21,8 @@ from support_utils import (
     support_inbox_group_id,
     support_inbox_group_name,
     support_inbox_staff_name,
+    support_inbox_staff_name_for_admin,
+    support_inbox_reply_show_username,
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
@@ -268,14 +270,19 @@ async def support_group_reply(message: Message):
         return
 
     body = _message_text(message)
-    admin_name = support_inbox_staff_name() or (message.from_user.full_name if message.from_user else "Admin")
-    admin_username = f"@{message.from_user.username}" if message.from_user and message.from_user.username else ""
+    admin_name = support_inbox_staff_name_for_admin(
+        message.from_user.id if message.from_user else "",
+        fallback=message.from_user.full_name if message.from_user else "Admin",
+    )
+    admin_username = message.from_user.username if message.from_user and message.from_user.username else ""
     outgoing = render_support_reply_message(
         ticket,
         body,
         admin_name,
-        f" ({admin_username})" if admin_username else "",
+        admin_username,
         admin_status_text=support_admin_presence_text(True),
+        admin_id=message.from_user.id if message.from_user else None,
+        show_username=support_inbox_reply_show_username(),
     )
 
     try:

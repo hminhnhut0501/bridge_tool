@@ -1454,6 +1454,24 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
     help: "Tên hiển thị mặc định trong reply và preview. Để trống sẽ dùng tên Telegram thật của admin đang reply.",
   },
   {
+    key: "SUPPORT_INBOX_STAFF_MAP",
+    label: "Map staff theo admin ID",
+    placeholder: "123456789|Anh Hùng\n987654321|Chị Mai",
+    help: "Mỗi dòng là admin_id|tên hiển thị. Có thể lặp admin_id nhiều dòng để có nhiều alias, bot sẽ lấy tên khớp đầu tiên.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_REPLY_SHOW_USERNAME",
+    label: "Hiển thị username trong reply",
+    placeholder: "ON",
+    help: "Bật ON để thêm @username vào dòng tên admin khi bot trả lời user.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "SUPPORT_ADMIN_ONLINE_TEXT",
     label: "Tin admin online",
     placeholder: "🟢 Admin đang online",
@@ -1557,6 +1575,46 @@ function supportInboxPreviewFrames(style: string, message: string) {
   if (style === "blink") return [`● ${message}`, `○ ${message}`, `● ${message}`];
   if (style === "wave") return [message, `${message} ~`, `${message} ~~`, `${message} ~~~`];
   return [`${message} ·`, `${message} ··`, `${message} ···`];
+}
+
+function parseInboxStaffMap(raw: string) {
+  const entries = new Map<string, string[]>();
+  String(raw || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      if (line.startsWith("#")) return;
+      const separator = line.includes("|") ? "|" : line.includes(":") ? ":" : "";
+      if (!separator) return;
+      const [adminIdRaw, namesRaw] = line.split(separator, 2);
+      const adminId = String(adminIdRaw || "").trim();
+      const name = String(namesRaw || "")
+        .split(/[;,/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (!adminId || !name.length) return;
+      const current = entries.get(adminId) || [];
+      entries.set(adminId, [...current, ...name]);
+    });
+  return entries;
+}
+
+function resolveInboxStaffNamePreview(rawMap: string, defaultName: string, adminId: string, fallback = "Admin") {
+  const parsed = parseInboxStaffMap(rawMap);
+  const names = parsed.get(String(adminId || "").trim()) || [];
+  return names[0] || String(defaultName || "").trim() || fallback;
+}
+
+function renderInboxReplyPreview(template: string, context: Record<string, string>) {
+  let text = String(template || "").trim();
+  if (!text) {
+    text = "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}";
+  }
+  Object.entries(context).forEach(([key, value]) => {
+    text = text.replaceAll(`{${key}}`, String(value || ""));
+  });
+  return text;
 }
 
 const ORDER_FIELDS: ConfigField[] = [
@@ -6126,6 +6184,23 @@ export default function Home() {
                     const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
                     const liveFrames = supportInboxPreviewFrames(liveStyle, liveMessage);
                     const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
+                    const liveStaffMap = getConfigValue(config, "SUPPORT_INBOX_STAFF_MAP", "") || "";
+                    const liveReplyShowUsername = String(getConfigValue(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON") || "ON").toUpperCase() === "ON";
+                    const liveReplyTemplate = getConfigValue(config, "SUPPORT_INBOX_REPLY_TEMPLATE", "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}") || "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}";
+                    const liveAdminSeed = Array.from(parseInboxStaffMap(liveStaffMap).keys())[0] || "987654321";
+                    const liveReplyAdminName = resolveInboxStaffNamePreview(liveStaffMap, liveStaffName, liveAdminSeed, "Admin");
+                    const liveReplyAdminUsername = liveReplyShowUsername ? "reply_admin" : "";
+                    const liveReplyText = renderInboxReplyPreview(liveReplyTemplate, {
+                      ticket_no: "CS2026062901",
+                      full_name: "Khách VIP",
+                      telegram_user_id: "7487060105",
+                      subject: "Hỗ trợ mua gói VIP",
+                      status: "open",
+                      admin_name: liveReplyAdminName,
+                      admin_username: liveReplyAdminUsername ? ` @${liveReplyAdminUsername}` : "",
+                      admin_status: String(getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online") || "🟢 Admin đang online"),
+                      message: "Mình nhờ admin tư vấn gói phù hợp.",
+                    }).replace(/<[^>]*>/g, "");
                     const liveFinal = getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗";
                     return (
                       <Box sx={{ display: "grid", gap: 2, p: 2 }}>
@@ -6183,6 +6258,93 @@ export default function Home() {
                               ))}
                               <Box sx={{ mt: 0.5, color: "rgba(255,255,255,0.78)", fontSize: "0.9rem", fontWeight: 600 }}>
                                 {liveFinal.replaceAll("{staff_name}", liveStaffName)}
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Box>
+                        <Box
+                          sx={{
+                            p: 2,
+                            borderRadius: 3,
+                            border: "1px solid rgba(15,23,42,0.08)",
+                            background:
+                              "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))",
+                            boxShadow: "0 14px 32px rgba(15,23,42,0.06)",
+                          }}
+                        >
+                          <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
+                            <Box>
+                              <Typography sx={{ fontWeight: 900, lineHeight: 1.1 }}>Preview reply text</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Mô phỏng tin bot thật gửi cho user sau khi admin trả lời trong group inbox.
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                              <Chip size="small" label={`Staff: ${liveReplyAdminName}`} sx={statusChipSx("muted")} />
+                              <Chip size="small" label={liveReplyShowUsername ? "Username ON" : "Username OFF"} sx={statusChipSx(liveReplyShowUsername ? "success" : "warning")} />
+                            </Stack>
+                          </Stack>
+                          <Box
+                            sx={{
+                              maxWidth: 720,
+                              mx: "auto",
+                              borderRadius: 4,
+                              border: "1px solid rgba(148,163,184,0.16)",
+                              background:
+                                "linear-gradient(180deg, #e7f1ff 0%, #d8e9ff 12%, #f7fbff 12%, #f7fbff 100%)",
+                              overflow: "hidden",
+                              boxShadow: "0 18px 40px rgba(15,23,42,0.08)",
+                            }}
+                          >
+                            <Box sx={{ px: 2, py: 1.25, bgcolor: "rgba(37,99,235,0.12)", borderBottom: "1px solid rgba(37,99,235,0.10)" }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: "0.94rem" }}>Tin nhắn bot</Typography>
+                            </Box>
+                            <Box sx={{ p: 2, display: "grid", gap: 1.5 }}>
+                              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+                                <Box
+                                  sx={{
+                                    maxWidth: "82%",
+                                    px: 1.5,
+                                    py: 1,
+                                    borderRadius: "18px 18px 18px 6px",
+                                    bgcolor: "#ffffff",
+                                    border: "1px solid rgba(148,163,184,0.22)",
+                                    boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
+                                  }}
+                                >
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                    Khách
+                                  </Typography>
+                                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.55, mt: 0.4 }}>
+                                    Mình cần hỗ trợ mở gói VIP 30 ngày.
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                <Box
+                                  sx={{
+                                    maxWidth: "86%",
+                                    px: 1.5,
+                                    py: 1.1,
+                                    borderRadius: "18px 18px 6px 18px",
+                                    bgcolor: "#1d4ed8",
+                                    color: "#fff",
+                                    boxShadow: "0 10px 24px rgba(37,99,235,0.24)",
+                                  }}
+                                >
+                                  <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 0.5 }}>
+                                    <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{liveReplyAdminName}</Typography>
+                                    {liveReplyShowUsername ? (
+                                      <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)", fontWeight: 700 }}>
+                                        @{liveReplyAdminUsername || "reply_admin"}
+                                      </Typography>
+                                    ) : null}
+                                    <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")} sx={{ height: 22, bgcolor: "rgba(255,255,255,0.18)", color: "#fff", fontWeight: 700 }} />
+                                  </Stack>
+                                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "rgba(255,255,255,0.96)" }}>
+                                    {liveReplyText}
+                                  </Typography>
+                                </Box>
                               </Box>
                             </Box>
                           </Box>

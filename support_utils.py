@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from aiogram.types import ChatPermissions, InlineKeyboardButton
 
@@ -115,7 +116,61 @@ def support_inbox_ready_text():
 
 
 def support_inbox_staff_name():
-    return str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
+    configured = str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
+    if configured:
+        return configured
+    for names in support_inbox_staff_map().values():
+        if names:
+            return names[0]
+    return ""
+
+
+def support_inbox_reply_show_username():
+    raw = str(db.get_config("SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON") or "ON").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def support_inbox_staff_map():
+    raw = str(db.get_config("SUPPORT_INBOX_STAFF_MAP", "") or "").strip()
+    mapping = {}
+    if not raw:
+        return mapping
+
+    for line in raw.splitlines():
+        row = str(line or "").strip()
+        if not row or row.startswith("#"):
+            continue
+        if "|" in row:
+            admin_id, names_raw = row.split("|", 1)
+        elif ":" in row:
+            admin_id, names_raw = row.split(":", 1)
+        else:
+            continue
+        admin_key = normalize_chat_id(admin_id)
+        if not admin_key:
+            continue
+        names = [name.strip() for name in re.split(r"[;,/]+", names_raw) if name.strip()]
+        if not names:
+            continue
+        mapping.setdefault(admin_key, []).extend(names)
+    return mapping
+
+
+def support_inbox_staff_names_for_admin(admin_id):
+    admin_key = normalize_chat_id(admin_id)
+    if not admin_key:
+        return []
+    return list(support_inbox_staff_map().get(admin_key, []))
+
+
+def support_inbox_staff_name_for_admin(admin_id, fallback=""):
+    names = support_inbox_staff_names_for_admin(admin_id)
+    if names:
+        return names[0]
+    configured = str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
+    if configured:
+        return configured
+    return str(fallback or "").strip()
 
 
 def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_username="", ticket_no=""):
@@ -271,15 +326,28 @@ def render_support_group_message(ticket, message_text="", *, template_key="SUPPO
     return _render_template(db.get_config(template_key, default_text), context, default_text)
 
 
-def render_support_reply_message(ticket, message_text="", admin_name="", admin_username="", admin_status_text=""):
+def render_support_reply_message(ticket, message_text="", admin_name="", admin_username="", admin_status_text="", admin_id=None, show_username=None):
+    display_name = str(admin_name or "").strip()
+    if not display_name:
+        display_name = support_inbox_staff_name_for_admin(admin_id, fallback="")
+    if not display_name:
+        display_name = "Admin"
+
+    show_username = support_inbox_reply_show_username() if show_username is None else bool(show_username)
+    username_suffix = ""
+    if show_username:
+        raw_username = str(admin_username or "").strip().lstrip("@")
+        if raw_username:
+            username_suffix = f" @{raw_username}"
+
     context = {
         "ticket_no": ticket.get("ticket_no", ""),
         "full_name": ticket.get("full_name", ""),
         "telegram_user_id": ticket.get("telegram_user_id", ""),
         "subject": ticket.get("subject", ""),
         "status": ticket.get("status", ""),
-        "admin_name": admin_name,
-        "admin_username": admin_username,
+        "admin_name": display_name,
+        "admin_username": username_suffix,
         "admin_status": admin_status_text or support_admin_online_text(),
         "message": message_text,
     }
