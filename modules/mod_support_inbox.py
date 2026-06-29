@@ -18,7 +18,7 @@ from support_utils import (
     support_inbox_status_final_hold_ms,
     support_inbox_status_enabled,
     support_inbox_status_frame_list,
-    support_inbox_status_min_visible_ms,
+    support_inbox_status_total_ms,
     support_inbox_group_id,
     support_inbox_group_name,
     support_inbox_staff_name,
@@ -151,7 +151,7 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
 
     delay_ms = support_inbox_status_frame_delay_ms()
     final_hold_ms = support_inbox_status_final_hold_ms()
-    total_visible_ms = support_inbox_status_min_visible_ms(len(frames))
+    total_visible_ms = support_inbox_status_total_ms(len(frames))
     animation_window_ms = max(delay_ms, total_visible_ms - final_hold_ms)
     elapsed_ms = 0
     frame_index = 0

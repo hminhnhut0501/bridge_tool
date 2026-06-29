@@ -1533,6 +1533,12 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     help: "Tăng/giảm tốc độ chạy frame khi đang kết nối.",
   },
   {
+    key: "SUPPORT_INBOX_STATUS_TOTAL_MS",
+    label: "Thời gian kết nối trước khi chốt final (ms)",
+    placeholder: "3600",
+    help: "Hiệu ứng sẽ loop liên tục trong toàn bộ thời gian này. Hết thời gian mới chuyển sang tin final.",
+  },
+  {
     key: "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS",
     label: "Giữ final trước khi chốt (ms)",
     placeholder: "800",
@@ -1589,7 +1595,10 @@ function supportInboxPreviewFrameList(style: string, message: string, rawFrames 
   return supportInboxPreviewFrames(style, message);
 }
 
-function supportInboxPreviewMinVisibleMs(delayMs: number, finalHoldMs: number, frameCount: number) {
+function supportInboxPreviewTotalMs(delayMs: number, finalHoldMs: number, frameCount: number, configuredTotalMs?: number) {
+  if (Number.isFinite(configuredTotalMs) && Number(configuredTotalMs) > 0) {
+    return Math.max(1200, Number(configuredTotalMs));
+  }
   return Math.max(1200, delayMs * Math.max(1, frameCount || 1) * 2 + finalHoldMs);
 }
 
@@ -1597,12 +1606,13 @@ function supportInboxPreviewCurrentFrame(params: {
   frames: string[];
   delayMs: number;
   finalHoldMs: number;
+  totalMs?: number;
   clockMs: number;
 }) {
   const safeFrames = params.frames.length ? params.frames : [SUPPORT_INBOX_PREVIEW_MESSAGE];
   const safeDelayMs = Math.max(120, params.delayMs || 420);
   const safeFinalHoldMs = Math.max(0, params.finalHoldMs || 0);
-  const totalVisibleMs = supportInboxPreviewMinVisibleMs(safeDelayMs, safeFinalHoldMs, safeFrames.length);
+  const totalVisibleMs = supportInboxPreviewTotalMs(safeDelayMs, safeFinalHoldMs, safeFrames.length, params.totalMs);
   const animationWindowMs = Math.max(safeDelayMs, totalVisibleMs - safeFinalHoldMs);
   const cycleMs = animationWindowMs + safeFinalHoldMs;
   const phaseMs = ((params.clockMs % cycleMs) + cycleMs) % cycleMs;
@@ -6249,11 +6259,13 @@ export default function Home() {
                     const liveFrames = supportInboxPreviewFrameList(liveStyle, liveMessage, liveCustomFrames);
                     const liveUsesCustomFrames = liveStyle === "custom" && liveCustomFrames.trim().length > 0;
                     const liveDelayMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420") || 420);
+                    const liveTotalMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_TOTAL_MS", "") || 0);
                     const liveFinalHoldMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800") || 800);
                     const livePreviewState = supportInboxPreviewCurrentFrame({
                       frames: liveFrames,
                       delayMs: liveDelayMs,
                       finalHoldMs: liveFinalHoldMs,
+                      totalMs: liveTotalMs,
                       clockMs: supportInboxPreviewClock,
                     });
                     const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
@@ -6289,6 +6301,7 @@ export default function Home() {
                             <Chip size="small" label={liveUsesCustomFrames ? "Custom frames ON" : `Using preset: ${livePreset.label}`} variant="outlined" sx={statusChipSx(liveUsesCustomFrames ? "warning" : "muted")} />
                             <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
                             <Chip size="small" label={`Delay ${Math.max(120, Number.isFinite(liveDelayMs) ? liveDelayMs : 420)}ms`} variant="outlined" sx={statusChipSx("muted")} />
+                            <Chip size="small" label={`Total ${Math.max(1200, Number.isFinite(liveTotalMs) && liveTotalMs > 0 ? liveTotalMs : livePreviewState.totalVisibleMs)}ms`} variant="outlined" sx={statusChipSx("muted")} />
                             <Chip size="small" label={`Hold ${Math.max(0, Number.isFinite(liveFinalHoldMs) ? liveFinalHoldMs : 800)}ms`} variant="outlined" sx={statusChipSx("muted")} />
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
