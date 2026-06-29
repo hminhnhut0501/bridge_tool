@@ -858,7 +858,12 @@ async def telegram_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Telegram webhook update")
     update_type = getattr(update, "event_type", None) or "unknown"
-    print(f"📨 webhook update received: type={update_type}")
+    message = getattr(update, "message", None)
+    message_text = str(getattr(message, "text", "") or "").replace("\n", " ")[:120] if message else ""
+    entity_types = []
+    if message and getattr(message, "entities", None):
+        entity_types = [getattr(entity, "type", "") for entity in message.entities]
+    print(f"📨 webhook update received: type={update_type} text={message_text} entities={entity_types}")
     await dp.feed_update(bot, update)
     return {"ok": True}
 

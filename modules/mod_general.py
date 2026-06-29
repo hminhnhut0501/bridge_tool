@@ -390,7 +390,11 @@ async def deliver_activation_order(message: Message, code: str):
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     payload_preview = (message.text or "").replace("\n", " ")[:120]
-    print(f"🚀 cmd_start entered user={message.from_user.id} chat={message.chat.id} text={payload_preview}")
+    entity_types = [getattr(entity, "type", "") for entity in (message.entities or [])]
+    print(
+        "🚀 cmd_start entered "
+        f"user={message.from_user.id} chat={message.chat.id} text={payload_preview} entities={entity_types}"
+    )
 
     async def _send_start_fallback(reason: str = ""):
         fallback_text = db.get_config(

@@ -402,11 +402,14 @@ class BotAvailabilityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         user = getattr(event, "from_user", None)
         if user and is_private_interaction(event) and bot_unavailable_reason() and not is_admin_user(user.id):
-            text = str(getattr(event, "text", "") or "").strip().lower()
-            if isinstance(event, Message) and text.startswith("/start"):
-                print(f"🛡 middleware pass-through /start user={user.id} despite unavailable_reason={bot_unavailable_reason()}")
+            text = str(getattr(event, "text", "") or "").strip()
+            if isinstance(event, Message) and text.lower().startswith("/start"):
+                print(
+                    "🛡 middleware pass-through /start "
+                    f"user={user.id} text={text[:120]} reason={bot_unavailable_reason()}"
+                )
                 return await handler(event, data)
-            print(f"🛡 middleware blocked user={user.id} text={text[:40]} reason={bot_unavailable_reason()}")
+            print(f"🛡 middleware blocked user={user.id} text={text[:120]} reason={bot_unavailable_reason()}")
             await check_protection(event)
             return None
         return await handler(event, data)
