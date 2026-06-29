@@ -398,6 +398,9 @@ class BotAvailabilityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         user = getattr(event, "from_user", None)
         if user and is_private_interaction(event) and bot_unavailable_reason() and not is_admin_user(user.id):
+            text = str(getattr(event, "text", "") or "").strip().lower()
+            if isinstance(event, Message) and text.startswith("/start"):
+                return await handler(event, data)
             await check_protection(event)
             return None
         return await handler(event, data)

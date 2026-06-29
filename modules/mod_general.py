@@ -11,7 +11,7 @@ from database import db
 from bot_instance import bot
 from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
-from helpers import check_protection, cleanup_welcome, is_admin_user, smart_display
+from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
 from support_utils import create_support_invite_link
 from i18n import get_user_language, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
@@ -389,9 +389,6 @@ async def deliver_activation_order(message: Message, code: str):
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    if not await check_protection(message):
-        return
-
     async def _send_start_fallback(reason: str = ""):
         fallback_text = db.get_config(
             "MSG_START_FALLBACK",
@@ -407,6 +404,26 @@ async def cmd_start(message: Message):
     try:
         db.reload_config(force=True)
         await cleanup_welcome(message.from_user.id, message.chat.id)
+        unavailable_reason = bot_unavailable_reason()
+        if unavailable_reason and not is_admin_user(message.from_user.id):
+            if unavailable_reason == "schedule":
+                notice = db.get_config(
+                    "MSG_OUTSIDE_ACTIVE_HOURS",
+                    "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.",
+                ).replace("\\n", "\n")
+            else:
+                notice = db.get_config(
+                    "MSG_MAINTENANCE",
+                    "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!",
+                ).replace("\\n", "\n")
+            try:
+                await message.answer(notice, parse_mode="HTML")
+            except Exception as exc:
+                await _send_start_fallback(f"maintenance reply failed: {exc}")
+            return
+
+        if not await check_protection(message):
+            return
         parts = (message.text or "").split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
         if payload:
