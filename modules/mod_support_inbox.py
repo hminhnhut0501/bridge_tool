@@ -51,6 +51,17 @@ def _message_text(message: Message) -> str:
     return "[message]"
 
 
+def _is_support_staff_message(message: Message) -> bool:
+    if not message:
+        return False
+    if message.from_user and is_admin_user(message.from_user.id):
+        return True
+    sender_chat = getattr(message, "sender_chat", None)
+    if sender_chat and str(getattr(sender_chat, "id", "")).strip() == support_inbox_group_id():
+        return True
+    return False
+
+
 def _ticket_status_label(status: str) -> str:
     normalized = str(status or "").strip().lower()
     return {
@@ -242,7 +253,7 @@ async def support_private_inbox(message: Message):
 async def support_group_reply(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
-    if not message.from_user or not is_admin_user(message.from_user.id):
+    if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
     if not ticket:
@@ -255,7 +266,7 @@ async def support_group_reply(message: Message):
     body = _message_text(message)
     admin_name = support_inbox_staff_name_for_admin(
         message.from_user.id if message.from_user else "",
-        fallback=message.from_user.full_name if message.from_user else "Admin",
+        fallback=message.from_user.full_name if message.from_user else (getattr(message, "author_signature", None) or "Admin"),
     )
     admin_username = message.from_user.username if message.from_user and message.from_user.username else ""
     outgoing = render_support_reply_message(
@@ -348,7 +359,7 @@ async def support_group_reply(message: Message):
 async def support_close_ticket(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
-    if not message.from_user or not is_admin_user(message.from_user.id):
+    if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
     if not ticket:
@@ -411,7 +422,7 @@ async def support_close_ticket(message: Message):
 async def support_reopen_ticket(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
-    if not message.from_user or not is_admin_user(message.from_user.id):
+    if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
     if not ticket:
