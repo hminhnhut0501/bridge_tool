@@ -12,6 +12,7 @@ from bot_instance import bot
 from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
+from message_classifier_utils import classify_private_message
 from support_utils import create_support_invite_link
 from i18n import get_user_language, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
@@ -419,7 +420,8 @@ async def cmd_start(message: Message):
             inferred_language = language_from_start_payload(normalized)
             if inferred_language:
                 set_user_language(message.from_user.id, inferred_language)
-            if normalized.lower().startswith("src_"):
+            classified = classify_private_message(message)
+            if classified["kind"] == "other" and classified["reason"] == "start_source":
                 print(f"🚀 cmd_start source payload user={message.from_user.id} source_ref={normalized[4:].strip()}")
                 await record_start_event(
                     message,
@@ -434,8 +436,8 @@ async def cmd_start(message: Message):
                     return
                 await _send_start_fallback("render_page returned False for src_ payload")
                 return
-            if normalized.lower().startswith("act_"):
-                activation_code = normalized[4:].strip()
+            if classified["kind"] == "activation":
+                activation_code = classified["code"]
                 print(f"🚀 cmd_start activation payload user={message.from_user.id} activation_code={activation_code}")
                 await record_start_event(
                     message,

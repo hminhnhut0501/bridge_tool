@@ -7,6 +7,7 @@ from aiogram.types import Message
 
 from bot_instance import bot
 from helpers import create_background_task, has_open_support_ticket, is_admin_user
+from message_classifier_utils import classify_private_message
 from support_utils import (
     copy_support_message_to_group,
     post_support_ticket_to_group,
@@ -32,7 +33,6 @@ from support_utils import (
     support_delete_enabled,
     refresh_support_ticket_topic,
 )
-from modules.mod_coupon import code_has_auto_prefix, code_is_hidden_exact_match
 from supabase_store import supabase_store
 
 router = Router()
@@ -188,8 +188,11 @@ def _is_support_inbox_private_message(message: Message) -> bool:
         return False
     if not supabase_store.enabled or not message.from_user:
         return False
-    text = str(message.text or "").strip()
-    if text and (code_has_auto_prefix(text) or code_is_hidden_exact_match(text)):
+    classified = classify_private_message(message)
+    if classified["kind"] in {"coupon", "hidden", "activation"}:
+        print(
+            f"ℹ️ support inbox skip kind={classified['kind']} user={message.from_user.id} reason={classified['reason']}"
+        )
         return False
     try:
         return bool(has_open_support_ticket(message.from_user.id))

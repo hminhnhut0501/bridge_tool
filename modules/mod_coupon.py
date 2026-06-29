@@ -33,6 +33,7 @@ from i18n import get_user_language, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
+from message_classifier_utils import classify_private_message
 
 router = Router()
 log = logging.getLogger(__name__)
@@ -957,7 +958,8 @@ async def coupon_code_received(message: Message, state: FSMContext):
 async def coupon_auto_code_received(message: Message):
     if not message.text:
         return
-    if not code_has_auto_prefix(message.text) and not code_is_hidden_exact_match(message.text):
+    classified = classify_private_message(message, coupon_prefixes=coupon_auto_prefixes())
+    if classified["kind"] not in {"coupon", "hidden"}:
         return
     if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
         await message.answer(t(message.from_user.id, "MSG_COUPON_AUTO_DISABLED", "Tự nhận diện coupon đang tắt. Vui lòng bật lại trong dashboard hoặc dùng /coupon nếu admin cho phép."))
