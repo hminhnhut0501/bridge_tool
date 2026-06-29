@@ -1450,16 +1450,9 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_INBOX_STAFF_NAME",
-    label: "Tên nhân viên/admin hiển thị",
-    placeholder: "Admin",
-    help: "Tên hiển thị mặc định trong reply và preview. Để trống sẽ dùng tên Telegram thật của admin đang reply.",
-  },
-  {
-    key: "SUPPORT_INBOX_STAFF_MAP",
-    label: "Map staff theo admin ID",
-    placeholder: "123456789|Anh Hùng\n987654321|Chị Mai",
-    help: "Mỗi dòng là admin_id|tên hiển thị. Có thể lặp admin_id nhiều dòng để có nhiều alias, bot sẽ lấy tên khớp đầu tiên.",
-    kind: "textarea",
+    label: "Tên admin mặc định",
+    placeholder: "Cú hỗ trợ",
+    help: "Tên mặc định bot dùng trong reply, preview và trạng thái sẵn sàng. Không còn map theo admin ID nữa.",
   },
   {
     key: "SUPPORT_INBOX_REPLY_SHOW_USERNAME",
@@ -1630,35 +1623,6 @@ function supportInboxPreviewCurrentFrame(params: {
     animationWindowMs,
     cycleMs,
   };
-}
-
-function parseInboxStaffMap(raw: string) {
-  const entries = new Map<string, string[]>();
-  String(raw || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .forEach((line) => {
-      if (line.startsWith("#")) return;
-      const separator = line.includes("|") ? "|" : line.includes(":") ? ":" : "";
-      if (!separator) return;
-      const [adminIdRaw, namesRaw] = line.split(separator, 2);
-      const adminId = String(adminIdRaw || "").trim();
-      const name = String(namesRaw || "")
-        .split(/[;,/]+/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (!adminId || !name.length) return;
-      const current = entries.get(adminId) || [];
-      entries.set(adminId, [...current, ...name]);
-    });
-  return entries;
-}
-
-function resolveInboxStaffNamePreview(rawMap: string, defaultName: string, adminId: string, fallback = "Admin") {
-  const parsed = parseInboxStaffMap(rawMap);
-  const names = parsed.get(String(adminId || "").trim()) || [];
-  return names[0] || String(defaultName || "").trim() || fallback;
 }
 
 function renderInboxReplyPreview(template: string, context: Record<string, string>) {
@@ -6082,7 +6046,7 @@ export default function Home() {
                 </Box>
                 <Box className="overview-health-card">
                   <strong>Nhân sự hỗ trợ</strong>
-                  <span>Danh sách staff lấy từ Cấu hình bot → Admin ID. Chỉ ID trong danh sách mới xử lý được case.</span>
+                  <span>Quyền xử lý case vẫn theo danh sách admin hệ thống, nhưng tên hiển thị gửi cho khách chỉ dùng 1 tên mặc định ở cấu hình bot.</span>
                 </Box>
               </Stack>
             </Card>
@@ -6093,7 +6057,6 @@ export default function Home() {
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình bot</Button>
-                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
                   </div>
                 }
               />
@@ -6192,7 +6155,6 @@ export default function Home() {
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
-                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Xem Admin ID</Button>
                     <Button variant="contained" size="small" onClick={() => void runSupportInboxCheck()} disabled={saving === "support-inbox-check"} startIcon={saving === "support-inbox-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
                   </div>
                 }
@@ -6290,11 +6252,9 @@ export default function Home() {
                       clockMs: supportInboxPreviewClock,
                     });
                     const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
-                    const liveStaffMap = getConfigValue(config, "SUPPORT_INBOX_STAFF_MAP", "") || "";
                     const liveReplyShowUsername = configIsOn(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON");
                     const liveReplyTemplate = getConfigValue(config, "SUPPORT_INBOX_REPLY_TEMPLATE", "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}") || "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}";
-                    const liveAdminSeed = Array.from(parseInboxStaffMap(liveStaffMap).keys())[0] || "987654321";
-                    const liveReplyAdminName = resolveInboxStaffNamePreview(liveStaffMap, liveStaffName, liveAdminSeed, "Admin");
+                    const liveReplyAdminName = String(liveStaffName || "Admin").trim() || "Admin";
                     const liveReplyAdminUsername = liveReplyShowUsername ? "reply_admin" : "";
                     const liveReplyText = renderInboxReplyPreview(liveReplyTemplate, {
                       ticket_no: "CS2026062901",

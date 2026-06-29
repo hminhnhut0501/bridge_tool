@@ -1,4 +1,5 @@
 import asyncio
+from aiogram.exceptions import TelegramBadRequest
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -160,6 +161,9 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         frame = frames[frame_index % len(frames)]
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
+        except TelegramBadRequest as exc:
+            if "message is not modified" not in str(exc).lower():
+                return
         except Exception:
             return
         sleep_ms = min(delay_ms, animation_window_ms - elapsed_ms)
@@ -172,6 +176,9 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
     final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
+    except TelegramBadRequest as exc:
+        if "message is not modified" not in str(exc).lower():
+            return
     except Exception:
         return
 
