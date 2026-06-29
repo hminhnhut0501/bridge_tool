@@ -1448,6 +1448,12 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
     help: "Nhãn hiển thị cho case inbox, ví dụ CS hoặc SUP.",
   },
   {
+    key: "SUPPORT_INBOX_STAFF_NAME",
+    label: "Tên nhân viên/admin hiển thị",
+    placeholder: "Admin",
+    help: "Tên hiển thị mặc định trong reply và preview. Để trống sẽ dùng tên Telegram thật của admin đang reply.",
+  },
+  {
     key: "SUPPORT_ADMIN_ONLINE_TEXT",
     label: "Tin admin online",
     placeholder: "🟢 Admin đang online",
@@ -6119,6 +6125,7 @@ export default function Home() {
                     const liveStyle = String(getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse") || "pulse").toLowerCase();
                     const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
                     const liveFrames = supportInboxPreviewFrames(liveStyle, liveMessage);
+                    const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
                     const liveFinal = getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗";
                     return (
                       <Box sx={{ display: "grid", gap: 2, p: 2 }}>
@@ -6136,6 +6143,7 @@ export default function Home() {
                             <Chip size="small" label={`${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "success" : "warning")} />
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
+                            <Chip size="small" label={`Staff: ${liveStaffName}`} variant="outlined" sx={statusChipSx("muted")} />
                             <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline")} variant="outlined" sx={statusChipSx("muted")} />
                             <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")} variant="outlined" sx={statusChipSx("success")} />
                           </Stack>
@@ -6174,7 +6182,7 @@ export default function Home() {
                                 </Box>
                               ))}
                               <Box sx={{ mt: 0.5, color: "rgba(255,255,255,0.78)", fontSize: "0.9rem", fontWeight: 600 }}>
-                                {liveFinal}
+                                {liveFinal.replaceAll("{staff_name}", liveStaffName)}
                               </Box>
                             </Box>
                           </Box>

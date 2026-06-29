@@ -20,6 +20,7 @@ from support_utils import (
     support_inbox_status_frame_list,
     support_inbox_group_id,
     support_inbox_group_name,
+    support_inbox_staff_name,
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
@@ -132,7 +133,7 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         await asyncio.sleep(delay_seconds)
 
     await asyncio.sleep(support_inbox_status_final_hold_ms() / 1000.0)
-    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name='Admin', ticket_no=ticket_no)}"
+    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
     except Exception:
@@ -267,7 +268,7 @@ async def support_group_reply(message: Message):
         return
 
     body = _message_text(message)
-    admin_name = message.from_user.full_name if message.from_user else "Admin"
+    admin_name = support_inbox_staff_name() or (message.from_user.full_name if message.from_user else "Admin")
     admin_username = f"@{message.from_user.username}" if message.from_user and message.from_user.username else ""
     outgoing = render_support_reply_message(
         ticket,

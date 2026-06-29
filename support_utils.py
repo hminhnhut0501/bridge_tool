@@ -114,6 +114,10 @@ def support_inbox_ready_text():
     return str(db.get_config("SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") or "{staff_name} đã sẵn sàng hỗ trợ 🤗").strip()
 
 
+def support_inbox_staff_name():
+    return str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
+
+
 def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_username="", ticket_no=""):
     text = support_inbox_ready_text()
     replacements = {
