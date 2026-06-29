@@ -6,6 +6,7 @@ from aiogram.types import Message
 
 from bot_instance import bot
 from helpers import create_background_task, is_admin_user
+from message_filter_utils import is_private_non_command_message
 from support_utils import (
     create_support_ticket_for_user,
     post_support_ticket_to_group,
@@ -246,7 +247,7 @@ async def _forward_private_message_to_group(message: Message):
             pass
 
 
-@router.message(lambda message: message.chat.type == "private" and not str(message.text or "").strip().startswith("/"))
+@router.message(lambda message: is_private_non_command_message(message.chat.type, message.text))
 async def support_private_inbox(message: Message):
     if not _is_private_user_message(message):
         return
