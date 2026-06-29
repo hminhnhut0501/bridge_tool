@@ -1540,9 +1540,9 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS",
-    label: "Giữ final trước khi chốt (ms)",
+    label: "Giữ khung final trong preview (ms)",
     placeholder: "800",
-    help: "Tạo độ trễ nhẹ trước khi chốt trạng thái cuối.",
+    help: "Chỉ dùng cho preview trong CPAdmin để xem trạng thái final lâu hơn. Bot thật sẽ chốt final ngay sau thời gian kết nối.",
   },
 ];
 
@@ -1605,37 +1605,20 @@ function supportInboxPreviewTotalMs(delayMs: number, finalHoldMs: number, frameC
 function supportInboxPreviewCurrentFrame(params: {
   frames: string[];
   delayMs: number;
-  finalHoldMs: number;
   totalMs?: number;
   clockMs: number;
 }) {
   const safeFrames = params.frames.length ? params.frames : [SUPPORT_INBOX_PREVIEW_MESSAGE];
   const safeDelayMs = Math.max(120, params.delayMs || 420);
-  const safeFinalHoldMs = Math.max(0, params.finalHoldMs || 0);
-  const totalVisibleMs = supportInboxPreviewTotalMs(safeDelayMs, safeFinalHoldMs, safeFrames.length, params.totalMs);
-  const animationWindowMs = Math.max(safeDelayMs, totalVisibleMs - safeFinalHoldMs);
-  const cycleMs = animationWindowMs + safeFinalHoldMs;
-  const phaseMs = ((params.clockMs % cycleMs) + cycleMs) % cycleMs;
-
-  if (phaseMs >= animationWindowMs) {
-    return {
-      text: "",
-      isFinal: true,
-      progress: 1,
-      totalVisibleMs,
-      animationWindowMs,
-      cycleMs,
-    };
-  }
-
+  const totalVisibleMs = supportInboxPreviewTotalMs(safeDelayMs, 0, safeFrames.length, params.totalMs);
+  const animationWindowMs = Math.max(safeDelayMs, totalVisibleMs);
+  const phaseMs = ((params.clockMs % animationWindowMs) + animationWindowMs) % animationWindowMs;
   const frameIndex = Math.floor(phaseMs / safeDelayMs) % safeFrames.length;
   return {
     text: safeFrames[frameIndex] || safeFrames[0],
-    isFinal: false,
     progress: animationWindowMs ? phaseMs / animationWindowMs : 0,
     totalVisibleMs,
     animationWindowMs,
-    cycleMs,
   };
 }
 
@@ -6264,7 +6247,6 @@ export default function Home() {
                     const livePreviewState = supportInboxPreviewCurrentFrame({
                       frames: liveFrames,
                       delayMs: liveDelayMs,
-                      finalHoldMs: liveFinalHoldMs,
                       totalMs: liveTotalMs,
                       clockMs: supportInboxPreviewClock,
                     });
@@ -6331,35 +6313,51 @@ export default function Home() {
                                   py: 1.1,
                                   borderRadius: 2.4,
                                   border: "1px solid rgba(255,255,255,0.08)",
-                                  bgcolor: livePreviewState.isFinal ? "rgba(34,197,94,0.14)" : "rgba(255,255,255,0.06)",
-                                  color: livePreviewState.isFinal ? "#d1fae5" : "#e5eefc",
-                                  fontWeight: livePreviewState.isFinal ? 800 : 700,
+                                  bgcolor: "rgba(255,255,255,0.06)",
+                                  color: "#e5eefc",
+                                  fontWeight: 700,
                                   letterSpacing: "-0.01em",
                                   fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
-                                  boxShadow: livePreviewState.isFinal ? "0 10px 24px rgba(34,197,94,0.16)" : "0 10px 22px rgba(59,130,246,0.12)",
-                                  transform: livePreviewState.isFinal ? "translateY(0)" : `translateY(${Math.sin(supportInboxPreviewClock / 240) * -1.5}px)`,
+                                  boxShadow: "0 10px 22px rgba(59,130,246,0.12)",
+                                  transform: `translateY(${Math.sin(supportInboxPreviewClock / 240) * -1.5}px)`,
                                   transition: "background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
                                   whiteSpace: "pre-line",
                                 }}
                               >
-                                {livePreviewState.isFinal ? `${getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")}\n${liveFinal.replaceAll("{staff_name}", liveStaffName)}` : livePreviewState.text}
+                                {livePreviewState.text}
                               </Box>
                               <Box sx={{ mt: 0.25, height: 6, borderRadius: 999, bgcolor: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                                 <Box
                                   sx={{
-                                    width: `${livePreviewState.isFinal ? 100 : Math.max(8, Math.min(100, livePreviewState.progress * 100))}%`,
+                                    width: `${Math.max(8, Math.min(100, livePreviewState.progress * 100))}%`,
                                     height: "100%",
                                     borderRadius: 999,
-                                    background: livePreviewState.isFinal ? "linear-gradient(90deg, #34d399, #22c55e)" : "linear-gradient(90deg, #60a5fa, #38bdf8)",
+                                    background: "linear-gradient(90deg, #60a5fa, #38bdf8)",
                                     transition: "width 120ms linear, background 180ms ease",
                                   }}
                                 />
                               </Box>
                               <Box sx={{ display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.72)", fontSize: "0.82rem", fontWeight: 600 }}>
-                                <span>{livePreviewState.isFinal ? "Final state" : "Looping frames"}</span>
+                                <span>Looping frames</span>
                                 <span>Tong {livePreviewState.totalVisibleMs}ms</span>
                               </Box>
                             </Box>
+                          </Box>
+                          <Box
+                            sx={{
+                              mt: 1.25,
+                              px: 1.5,
+                              py: 1.1,
+                              borderRadius: 2.4,
+                              border: "1px solid rgba(52,211,153,0.16)",
+                              bgcolor: "rgba(34,197,94,0.12)",
+                              color: "#d1fae5",
+                              fontWeight: 800,
+                              whiteSpace: "pre-line",
+                              boxShadow: "0 10px 24px rgba(34,197,94,0.14)",
+                            }}
+                          >
+                            {`${getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")}\n${liveFinal.replaceAll("{staff_name}", liveStaffName)}`}
                           </Box>
                         </Box>
                         <Box

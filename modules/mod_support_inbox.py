@@ -150,9 +150,8 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         return
 
     delay_ms = support_inbox_status_frame_delay_ms()
-    final_hold_ms = support_inbox_status_final_hold_ms()
     total_visible_ms = support_inbox_status_total_ms(len(frames))
-    animation_window_ms = max(delay_ms, total_visible_ms - final_hold_ms)
+    animation_window_ms = max(delay_ms, total_visible_ms)
     elapsed_ms = 0
     frame_index = 0
 
@@ -169,8 +168,6 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         await asyncio.sleep(sleep_ms / 1000.0)
         elapsed_ms += sleep_ms
         frame_index += 1
-
-    await asyncio.sleep(final_hold_ms / 1000.0)
 
     final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
     try:
