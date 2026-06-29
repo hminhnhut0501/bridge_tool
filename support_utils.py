@@ -387,6 +387,10 @@ def _render_template(template: str, context: dict[str, object], default_text: st
 
 
 def render_support_group_header(ticket, *, compact=False, template_key=""):
+    try:
+        db.reload_config(force=True)
+    except Exception:
+        pass
     context = support_ticket_context(ticket)
     default_text = (
         "👤 <b>{full_name}</b>"
@@ -407,6 +411,10 @@ def render_support_group_header(ticket, *, compact=False, template_key=""):
 
 
 def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE_FIRST"):
+    try:
+        db.reload_config(force=True)
+    except Exception:
+        pass
     context = support_ticket_context(ticket, message_text)
     default_text = (
         "📩 <b>Tin nhắn từ khách</b>\n"

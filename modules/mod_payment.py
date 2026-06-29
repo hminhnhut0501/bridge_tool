@@ -711,17 +711,16 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
     )
     if ticket:
         message_text = (
-            f"🧾 <b>Yêu cầu thanh toán thủ công</b>\n"
-            f"Khách đã bấm mua khi auto-payment đang tắt.\n"
-            f"Ticket: <code>{ticket.get('ticket_no', '')}</code>\n"
+            "Khách đã bấm mua khi auto-payment đang tắt.\n"
+            f"Ticket: {ticket.get('ticket_no', '')}\n"
             f"Case đã được mở và chuyển sang {db.get_config('SUPPORT_GROUP_NAME', 'Nhóm hỗ trợ')}."
         )
         try:
             sent = await post_support_ticket_to_group(
                 ticket,
                 message_text=message_text,
-                message_is_html=True,
-                wrap_message=False,
+                message_is_html=False,
+                wrap_message=True,
                 header_text=render_support_group_header(ticket, compact=False),
             )
             if sent:
