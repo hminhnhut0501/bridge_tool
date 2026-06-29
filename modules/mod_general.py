@@ -389,49 +389,73 @@ async def deliver_activation_order(message: Message, code: str):
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    if not await check_protection(message): return
-    db.reload_config(force=True)
-    await cleanup_welcome(message.from_user.id, message.chat.id)
-    parts = (message.text or "").split(maxsplit=1)
-    payload = parts[1].strip() if len(parts) > 1 else ""
-    if payload:
-        normalized = payload.strip()
-        inferred_language = language_from_start_payload(normalized)
-        if inferred_language:
-            set_user_language(message.from_user.id, inferred_language)
-        if normalized.lower().startswith("src_"):
-            await record_start_event(
-                message,
-                normalized,
-                "start_source",
-                source_ref=normalized[4:].strip(),
-            )
-            if await send_sale_announcement(message):
+    if not await check_protection(message):
+        return
+
+    async def _send_start_fallback(reason: str = ""):
+        fallback_text = db.get_config(
+            "MSG_START_FALLBACK",
+            "👋 Chào mừng bạn quay lại bot.\nDùng /menu để mở trang chính hoặc /support nếu cần hỗ trợ.",
+        ).replace("\\n", "\n")
+        if reason:
+            print(f"⚠️ /start fallback for user {message.from_user.id}: {reason}")
+        try:
+            await message.answer(fallback_text)
+        except Exception as exc:
+            print(f"❌ Không gửi được fallback /start cho user {message.from_user.id}: {exc}")
+
+    try:
+        db.reload_config(force=True)
+        await cleanup_welcome(message.from_user.id, message.chat.id)
+        parts = (message.text or "").split(maxsplit=1)
+        payload = parts[1].strip() if len(parts) > 1 else ""
+        if payload:
+            normalized = payload.strip()
+            inferred_language = language_from_start_payload(normalized)
+            if inferred_language:
+                set_user_language(message.from_user.id, inferred_language)
+            if normalized.lower().startswith("src_"):
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_source",
+                    source_ref=normalized[4:].strip(),
+                )
+                if await send_sale_announcement(message):
+                    return
+                rendered = await render_page(message, "main_menu")
+                if rendered:
+                    return
+                await _send_start_fallback("render_page returned False for src_ payload")
                 return
-            await render_page(message, "main_menu")
-            return
-        if normalized.lower().startswith("act_"):
-            activation_code = normalized[4:].strip()
+            if normalized.lower().startswith("act_"):
+                activation_code = normalized[4:].strip()
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_activation",
+                    activation_code=activation_code,
+                )
+                await deliver_activation_order(message, activation_code)
+                return
             await record_start_event(
                 message,
                 normalized,
-                "start_activation",
-                activation_code=activation_code,
+                "start_activation_legacy",
+                activation_code=normalized,
+                legacy=True,
             )
-            await deliver_activation_order(message, activation_code)
+            await deliver_activation_order(message, normalized)
             return
-        await record_start_event(
-            message,
-            normalized,
-            "start_activation_legacy",
-            activation_code=normalized,
-            legacy=True,
-        )
-        await deliver_activation_order(message, normalized)
-        return
-    if await send_sale_announcement(message):
-        return
-    await render_page(message, "main_menu")
+        if await send_sale_announcement(message):
+            return
+        rendered = await render_page(message, "main_menu")
+        if rendered:
+            return
+        await _send_start_fallback("render_page returned False for main_menu")
+    except Exception as exc:
+        print(f"❌ /start error for user {message.from_user.id}: {exc}")
+        await _send_start_fallback(str(exc))
 
 @router.message(Command("menu"))
 @router.message(Command("home"))
