@@ -333,6 +333,7 @@ async def check_protection(event):
     """Lớp khiên bảo vệ: Chống Spam click và Khóa Bot khi Bảo trì"""
     user_id = event.from_user.id
     unavailable_reason = bot_unavailable_reason()
+    event_text = str(getattr(event, "text", "") or "").strip()
 
     async def _safe_reply_message(text, *, parse_mode=None, show_alert=False):
         try:
@@ -348,6 +349,7 @@ async def check_protection(event):
             raise
 
     if unavailable_reason and not is_admin_user(user_id):
+        print(f"🛡 protection_block user={user_id} reason={unavailable_reason} text={event_text[:40]}")
         if unavailable_reason == "schedule":
             msg = t(user_id, "MSG_OUTSIDE_ACTIVE_HOURS", "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.").replace("\\n", "\n")
         else:
@@ -357,6 +359,7 @@ async def check_protection(event):
         return False
         
     if is_spamming(user_id) and not is_admin_user(user_id):
+        print(f"🛡 protection_block user={user_id} reason=spam text={event_text[:40]}")
         alert_spam = t(user_id, "ALERT_SPAM", "⏳ Vui lòng thao tác chậm lại!")
         if isinstance(event, CallbackQuery):
             try:
@@ -368,6 +371,7 @@ async def check_protection(event):
 
     blocked = await blacklist_entry_for_user(event.from_user)
     if blocked:
+        print(f"🛡 protection_block user={user_id} reason=blacklist text={event_text[:40]}")
         msg = t(
             user_id,
             "MSG_BLACKLIST_BLOCKED",
@@ -400,7 +404,9 @@ class BotAvailabilityMiddleware(BaseMiddleware):
         if user and is_private_interaction(event) and bot_unavailable_reason() and not is_admin_user(user.id):
             text = str(getattr(event, "text", "") or "").strip().lower()
             if isinstance(event, Message) and text.startswith("/start"):
+                print(f"🛡 middleware pass-through /start user={user.id} despite unavailable_reason={bot_unavailable_reason()}")
                 return await handler(event, data)
+            print(f"🛡 middleware blocked user={user.id} text={text[:40]} reason={bot_unavailable_reason()}")
             await check_protection(event)
             return None
         return await handler(event, data)

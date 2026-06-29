@@ -389,6 +389,9 @@ async def deliver_activation_order(message: Message, code: str):
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
+    payload_preview = (message.text or "").replace("\n", " ")[:120]
+    print(f"🚀 cmd_start entered user={message.from_user.id} chat={message.chat.id} text={payload_preview}")
+
     async def _send_start_fallback(reason: str = ""):
         fallback_text = db.get_config(
             "MSG_START_FALLBACK",
@@ -406,6 +409,7 @@ async def cmd_start(message: Message):
         await cleanup_welcome(message.from_user.id, message.chat.id)
         unavailable_reason = bot_unavailable_reason()
         if unavailable_reason and not is_admin_user(message.from_user.id):
+            print(f"🚀 cmd_start maintenance branch user={message.from_user.id} reason={unavailable_reason}")
             if unavailable_reason == "schedule":
                 notice = db.get_config(
                     "MSG_OUTSIDE_ACTIVE_HOURS",
@@ -423,15 +427,18 @@ async def cmd_start(message: Message):
             return
 
         if not await check_protection(message):
+            print(f"🚀 cmd_start stopped by protection user={message.from_user.id}")
             return
         parts = (message.text or "").split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
+        print(f"🚀 cmd_start payload user={message.from_user.id} payload={payload[:120]}")
         if payload:
             normalized = payload.strip()
             inferred_language = language_from_start_payload(normalized)
             if inferred_language:
                 set_user_language(message.from_user.id, inferred_language)
             if normalized.lower().startswith("src_"):
+                print(f"🚀 cmd_start source payload user={message.from_user.id} source_ref={normalized[4:].strip()}")
                 await record_start_event(
                     message,
                     normalized,
@@ -447,6 +454,7 @@ async def cmd_start(message: Message):
                 return
             if normalized.lower().startswith("act_"):
                 activation_code = normalized[4:].strip()
+                print(f"🚀 cmd_start activation payload user={message.from_user.id} activation_code={activation_code}")
                 await record_start_event(
                     message,
                     normalized,
@@ -462,12 +470,15 @@ async def cmd_start(message: Message):
                 activation_code=normalized,
                 legacy=True,
             )
+            print(f"🚀 cmd_start legacy activation user={message.from_user.id} activation_code={normalized}")
             await deliver_activation_order(message, normalized)
             return
         if await send_sale_announcement(message):
+            print(f"🚀 cmd_start sale announcement sent user={message.from_user.id}")
             return
         rendered = await render_page(message, "main_menu")
         if rendered:
+            print(f"🚀 cmd_start main menu rendered user={message.from_user.id}")
             return
         await _send_start_fallback("render_page returned False for main_menu")
     except Exception as exc:

@@ -857,6 +857,8 @@ async def telegram_webhook(request: Request):
         update = Update.model_validate(payload, context={"bot": bot})
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Telegram webhook update")
+    update_type = getattr(update, "event_type", None) or "unknown"
+    print(f"📨 webhook update received: type={update_type}")
     await dp.feed_update(bot, update)
     return {"ok": True}
 
