@@ -55,3 +55,12 @@ def classify_private_message(message, *, coupon_prefixes=None):
         pass
 
     return {"kind": "support", "text": text, "code": code, "reason": "plain_text"}
+
+
+def classify_message_text(text: str, *, coupon_prefixes=None):
+    class _Message:
+        def __init__(self, text):
+            self.text = text
+            self.caption = ""
+
+    return classify_private_message(_Message(text), coupon_prefixes=coupon_prefixes)

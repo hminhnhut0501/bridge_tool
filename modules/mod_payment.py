@@ -26,6 +26,7 @@ from i18n import get_user_language, t
 from modules.mod_engine import render_page
 from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
+from message_classifier_utils import classify_message_text
 from support_utils import (
     create_support_ticket_for_user,
     post_support_ticket_to_group,
@@ -113,6 +114,9 @@ def hidden_offer_for_action(action, user_id=None, provider=""):
         _, code, hidden_group_id, duration_key = action.split("|", 3)
     except ValueError:
         return {}
+    classified = classify_message_text(code)
+    if classified["kind"] not in {"hidden", "other"}:
+        return {"error": "Mã hidden không hợp lệ."}
     hidden_code, reason = validate_hidden_code_for_user(code, user_id)
     if not hidden_code:
         return {"error": reason or "Mã hidden không hợp lệ."}
