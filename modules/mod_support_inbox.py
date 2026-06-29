@@ -8,6 +8,7 @@ from aiogram.types import Message
 from bot_instance import bot
 from helpers import create_background_task, has_open_support_ticket, is_admin_user
 from support_utils import (
+    copy_support_message_to_group,
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
@@ -50,6 +51,19 @@ def _message_text(message: Message) -> str:
     if message.sticker:
         return "[sticker]"
     return "[message]"
+
+
+def _is_media_like_message(message: Message) -> bool:
+    return bool(
+        message.photo
+        or message.video
+        or message.document
+        or message.voice
+        or message.audio
+        or message.sticker
+        or message.animation
+        or message.video_note
+    )
 
 
 def _is_support_staff_message(message: Message) -> bool:
@@ -185,7 +199,24 @@ async def _forward_private_message_to_group(message: Message, ticket):
 
     message_text = _message_text(message)
     try:
-        sent = await post_support_ticket_to_group(ticket, message_text=message_text)
+        sent = None
+        media_copy = None
+        if _is_media_like_message(message):
+            sent = await post_support_ticket_to_group(
+                ticket,
+                message_text=render_support_group_message(ticket, message_text),
+                message_is_html=True,
+                wrap_message=False,
+            )
+            if sent:
+                media_copy = await copy_support_message_to_group(
+                    ticket,
+                    message.chat.id,
+                    message.message_id,
+                    reply_to_message_id=sent.message_id,
+                )
+        else:
+            sent = await post_support_ticket_to_group(ticket, message_text=message_text)
     except Exception as exc:
         print(f"⚠️ Không forward ticket lên group: {exc}")
         return
@@ -207,13 +238,16 @@ async def _forward_private_message_to_group(message: Message, ticket):
                 ticket["id"],
                 "user_to_support",
                 telegram_message_id=message.message_id,
-                manager_group_message_id=sent.message_id,
-                manager_topic_message_id=getattr(sent, "message_thread_id", None),
+                manager_group_message_id=(media_copy.message_id if media_copy else sent.message_id),
+                manager_topic_message_id=getattr(media_copy or sent, "message_thread_id", None),
+                reply_to_manager_message_id=sent.message_id if media_copy else None,
                 text=message_text,
                 payload={
                     "chat_id": str(message.chat.id),
                     "chat_type": message.chat.type,
                     "source": "private_user_message",
+                    "content_type": "media" if _is_media_like_message(message) else "text",
+                    "header_message_id": sent.message_id,
                 },
             )
         except Exception as exc:
@@ -283,11 +317,27 @@ async def support_group_reply(message: Message):
     )
 
     try:
-        sent = await bot.send_message(
-            chat_id=int(telegram_user_id),
-            text=outgoing,
-            disable_web_page_preview=True,
-        )
+        sent = None
+        media_copy = None
+        if _is_media_like_message(message):
+            sent = await bot.send_message(
+                chat_id=int(telegram_user_id),
+                text=outgoing,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            media_copy = await bot.copy_message(
+                chat_id=int(telegram_user_id),
+                from_chat_id=message.chat.id,
+                message_id=message.message_id,
+            )
+        else:
+            sent = await bot.send_message(
+                chat_id=int(telegram_user_id),
+                text=outgoing,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
     except Exception as exc:
         print(f"⚠️ Không gửi được phản hồi support tới user {telegram_user_id}: {exc}")
         try:
@@ -314,7 +364,7 @@ async def support_group_reply(message: Message):
         await record_support_message(
             ticket.get("id"),
             "support_to_user",
-            telegram_message_id=sent.message_id,
+            telegram_message_id=(media_copy.message_id if media_copy else sent.message_id),
             manager_group_message_id=message.message_id,
             manager_topic_message_id=getattr(message, "message_thread_id", None),
             reply_to_manager_message_id=message.reply_to_message.message_id if message.reply_to_message else None,
@@ -323,6 +373,8 @@ async def support_group_reply(message: Message):
                 "admin_name": admin_name,
                 "admin_username": message.from_user.username if message.from_user else "",
                 "source_chat_id": str(message.chat.id),
+                "content_type": "media" if _is_media_like_message(message) else "text",
+                "header_message_id": sent.message_id if media_copy else None,
             },
         )
     except Exception as exc:

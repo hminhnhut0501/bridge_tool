@@ -393,6 +393,22 @@ def render_support_group_message(ticket, message_text="", *, template_key="SUPPO
     return _render_template(db.get_config(template_key, default_text), context, default_text)
 
 
+async def prepare_support_group_delivery(ticket):
+    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
+    if not ticket or not manager_chat_id:
+        return ticket, {}
+    if normalize_chat_id(ticket.get("manager_chat_id") or "") and normalize_chat_id(ticket.get("manager_chat_id") or "") != manager_chat_id:
+        manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or "")
+    ticket = await ensure_support_ticket_topic(ticket)
+    send_kwargs = {
+        "chat_id": manager_chat_id,
+    }
+    thread_id = ticket.get("manager_topic_thread_id")
+    if support_inbox_mode() == "forum" and thread_id:
+        send_kwargs["message_thread_id"] = int(thread_id)
+    return ticket, send_kwargs
+
+
 def render_support_reply_message(ticket, message_text="", admin_name="", admin_username="", admin_status_text="", admin_id=None, show_username=None):
     display_name = str(admin_name or "").strip()
     if not display_name:
@@ -434,33 +450,44 @@ def support_admin_offline_text():
     return str(db.get_config("SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline") or "⚪ Admin đang offline").strip()
 
 
-async def post_support_ticket_to_group(ticket, message_text="", join_link=""):
-    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
-    if not ticket or not manager_chat_id:
+async def post_support_ticket_to_group(ticket, message_text="", join_link="", *, message_is_html=False, wrap_message=True):
+    ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+    if not ticket or not send_kwargs:
         return None
-    if normalize_chat_id(ticket.get("manager_chat_id") or "") and normalize_chat_id(ticket.get("manager_chat_id") or "") != manager_chat_id:
-        manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or "")
-    ticket = await ensure_support_ticket_topic(ticket)
-
     header = support_ticket_header(ticket)
-    rendered_body = render_support_group_message(ticket, message_text) if message_text else ""
     body = []
-    if rendered_body:
-        body.append(rendered_body)
+    if message_text:
+        if message_is_html:
+            body.append(str(message_text or "").strip())
+        elif wrap_message:
+            rendered_body = render_support_group_message(ticket, message_text)
+            if rendered_body:
+                body.append(rendered_body)
+        else:
+            body.append(escape_html(message_text))
     if join_link:
         body.append(f"🔗 {escape_html(join_link)}")
     text = "\n\n".join([header] + body)
-    send_kwargs = {
-        "chat_id": manager_chat_id,
+    send_kwargs.update({
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
-    }
-    thread_id = ticket.get("manager_topic_thread_id")
-    if support_inbox_mode() == "forum" and thread_id:
-        send_kwargs["message_thread_id"] = int(thread_id)
+    })
     sent = await bot.send_message(**send_kwargs)
     return sent
+
+
+async def copy_support_message_to_group(ticket, source_chat_id, source_message_id, *, reply_to_message_id=None):
+    ticket, send_kwargs = await prepare_support_group_delivery(ticket)
+    if not ticket or not send_kwargs:
+        return None
+    send_kwargs.update({
+        "from_chat_id": int(source_chat_id),
+        "message_id": int(source_message_id),
+    })
+    if reply_to_message_id:
+        send_kwargs["reply_parameters"] = {"message_id": int(reply_to_message_id)}
+    return await bot.copy_message(**send_kwargs)
 
 
 def support_topic_title(ticket):

@@ -716,7 +716,12 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
             f"Case đã được mở và chuyển sang {db.get_config('SUPPORT_GROUP_NAME', 'Nhóm hỗ trợ')}."
         )
         try:
-            sent = await post_support_ticket_to_group(ticket, message_text=message_text)
+            sent = await post_support_ticket_to_group(
+                ticket,
+                message_text=message_text,
+                message_is_html=True,
+                wrap_message=False,
+            )
             if sent:
                 try:
                     supabase_store.update_support_ticket(
