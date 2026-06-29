@@ -177,6 +177,19 @@ create table if not exists public.support_tickets (
   updated_at timestamptz not null default now()
 );
 
+alter table public.support_tickets
+  add column if not exists manager_group_message_id bigint,
+  add column if not exists manager_topic_thread_id bigint,
+  add column if not exists manager_topic_name text,
+  add column if not exists status text default 'open',
+  add column if not exists subject text,
+  add column if not exists source text default 'bot',
+  add column if not exists last_message_at timestamptz,
+  add column if not exists closed_at timestamptz,
+  add column if not exists raw_data jsonb not null default '{}'::jsonb,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists idx_support_tickets_status_updated_at on public.support_tickets (status, updated_at desc);
 create index if not exists idx_support_tickets_telegram_user_id on public.support_tickets (telegram_user_id);
 create index if not exists idx_support_tickets_manager_topic_thread_id on public.support_tickets (manager_topic_thread_id);
@@ -199,6 +212,14 @@ create table if not exists public.support_messages (
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table public.support_messages
+  add column if not exists manager_group_message_id bigint,
+  add column if not exists manager_topic_message_id bigint,
+  add column if not exists reply_to_manager_message_id bigint,
+  add column if not exists text text,
+  add column if not exists payload jsonb not null default '{}'::jsonb,
+  add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_support_messages_ticket_created_at on public.support_messages (ticket_id, created_at desc);
 create index if not exists idx_support_messages_manager_group_message_id on public.support_messages (manager_group_message_id);
