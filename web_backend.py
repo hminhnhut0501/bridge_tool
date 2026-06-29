@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -48,6 +49,46 @@ _booted = False
 _missing_table_warnings: set[str] = set()
 _last_webhook_reset_reason = ""
 _webhook_failure_streak = 0
+_webhook_reset_block_until = None
+_webhook_reset_backoff_seconds = 0
+
+
+def webhook_auto_heal_reasons():
+    return {"missing_url", "url_mismatch", "invalid_url_scheme"}
+
+
+def webhook_reset_cooldown_seconds():
+    try:
+        value = int(str(os.getenv("WEBHOOK_RESET_COOLDOWN_SECONDS", "120") or "120").strip())
+        return max(30, value)
+    except Exception:
+        return 120
+
+
+def webhook_reset_backoff_cap_seconds():
+    try:
+        value = int(str(os.getenv("WEBHOOK_RESET_BACKOFF_CAP_SECONDS", "1800") or "1800").strip())
+        return max(120, value)
+    except Exception:
+        return 1800
+
+
+def _parse_retry_after_seconds(error_text: str) -> int:
+    text = str(error_text or "")
+    match = re.search(r"retry in (\d+) seconds?", text, re.IGNORECASE)
+    if not match:
+        return 0
+    try:
+        return max(1, int(match.group(1)))
+    except Exception:
+        return 0
+
+
+def webhook_reset_state_meta():
+    return {
+        "block_until": _webhook_reset_block_until.isoformat() if _webhook_reset_block_until else "",
+        "backoff_seconds": int(_webhook_reset_backoff_seconds or 0),
+    }
 
 
 def _allowed_origins():
@@ -119,7 +160,7 @@ def webhook_problem_reason(info, expected_url: str):
 
 
 async def ensure_telegram_webhook(*, force=False):
-    global _last_webhook_reset_reason, _webhook_failure_streak
+    global _last_webhook_reset_reason, _webhook_failure_streak, _webhook_reset_block_until, _webhook_reset_backoff_seconds
     webhook_url = str(os.getenv("WEBHOOK_URL") or "").strip()
     webhook_secret = str(os.getenv("TELEGRAM_WEBHOOK_SECRET") or "").strip()
     if not webhook_url or telegram_startup_skipped():
@@ -127,12 +168,33 @@ async def ensure_telegram_webhook(*, force=False):
         return {"ok": False, "reason": "disabled", "info": None}
 
     try:
+        now = datetime.now()
         info = await bot.get_webhook_info()
         reason = webhook_problem_reason(info, webhook_url)
         if not force and not reason:
             _webhook_failure_streak = 0
+            _webhook_reset_backoff_seconds = 0
+            _webhook_reset_block_until = None
             set_runtime_maintenance_override(False, source="webhook")
             return {"ok": True, "reason": "healthy", "info": info}
+
+        if reason and reason not in webhook_auto_heal_reasons():
+            _webhook_failure_streak += 1
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Webhook unhealthy ({reason}). Auto-reset skipped to avoid SetWebhook spam.",
+                source="webhook",
+            )
+            return {"ok": False, "reason": reason, "info": info}
+
+        if _webhook_reset_block_until and now < _webhook_reset_block_until:
+            wait_seconds = max(1, int((_webhook_reset_block_until - now).total_seconds()))
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Webhook reset cooldown active. Retry after {wait_seconds}s.",
+                source="webhook",
+            )
+            return {"ok": False, "reason": f"cooldown:{wait_seconds}", "info": info}
 
         await bot.delete_webhook(drop_pending_updates=False)
         await bot.set_webhook(
@@ -154,11 +216,20 @@ async def ensure_telegram_webhook(*, force=False):
         reset_reason = reason or "forced"
         _last_webhook_reset_reason = reset_reason
         _webhook_failure_streak = 0
+        _webhook_reset_backoff_seconds = 0
+        _webhook_reset_block_until = now + timedelta(seconds=webhook_reset_cooldown_seconds())
         set_runtime_maintenance_override(False, source="webhook")
         print(f"🔁 Telegram webhook reset reason={reset_reason} url={webhook_url}")
         return {"ok": True, "reason": reset_reason, "info": refreshed}
     except Exception as exc:
         _webhook_failure_streak += 1
+        retry_after = _parse_retry_after_seconds(str(exc))
+        base_backoff = retry_after or webhook_reset_cooldown_seconds()
+        _webhook_reset_backoff_seconds = min(
+            webhook_reset_backoff_cap_seconds(),
+            max(base_backoff, (_webhook_reset_backoff_seconds * 2) if _webhook_reset_backoff_seconds else base_backoff),
+        )
+        _webhook_reset_block_until = datetime.now() + timedelta(seconds=_webhook_reset_backoff_seconds)
         set_runtime_maintenance_override(True, reason=f"Webhook runtime error: {exc}", source="webhook")
         raise
 
@@ -821,6 +892,7 @@ async def health():
         "webhook_last_reset_reason": _last_webhook_reset_reason,
         "webhook_failure_streak": _webhook_failure_streak,
         "runtime_maintenance_override": runtime_maintenance_override(),
+        "webhook_reset_state": webhook_reset_state_meta(),
     }
 
 
@@ -840,6 +912,7 @@ async def admin_webhook_info():
             "failure_streak": _webhook_failure_streak,
             "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
             "maintenance_override": runtime_maintenance_override(),
+            "reset_state": webhook_reset_state_meta(),
         },
     }
 
@@ -871,6 +944,7 @@ async def admin_webhook_reset():
             "expected_url": str(webhook_url).strip(),
             "last_reset_reason": _last_webhook_reset_reason,
             "problem_reason": webhook_problem_reason(result.get("info"), str(webhook_url).strip()) if result.get("info") else "",
+            "reset_state": webhook_reset_state_meta(),
         },
     }
 
