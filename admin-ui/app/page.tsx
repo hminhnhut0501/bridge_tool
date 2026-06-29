@@ -2493,6 +2493,10 @@ function normalizeChatId(value: string | number | null | undefined) {
   return raw.endsWith(".0") ? raw.slice(0, -2) : raw;
 }
 
+function configIsOn(config: ConfigRow[], key: string, fallback = "OFF") {
+  return ["ON", "TRUE", "YES", "1", "BẬT", "BAT"].includes(String(getConfigValue(config, key, fallback) || fallback).trim().toUpperCase());
+}
+
 export default function Home() {
   const isDevPreview = process.env.NODE_ENV !== "production";
   const [secret, setSecret] = useState("");
@@ -2633,18 +2637,26 @@ export default function Home() {
   const supportStaffRows = useMemo(() => {
     const raw = getConfigValue(config, "ADMIN_IDS", "");
     const ids = uniqueValues(raw.split(",").map((item) => item.trim()).filter(Boolean));
+    const inboxConnected = Boolean(supportInboxCheck?.get_chat?.ok && supportInboxCheck?.bot_member?.ok);
+    const inboxDetail = supportInboxCheck
+      ? supportInboxCheck.get_chat.ok
+        ? supportInboxCheck.bot_member.ok
+          ? `Đã kết nối ${supportInboxCheck.group_name || "group inbox"}`
+          : supportInboxCheck.bot_member.message || "Bot chưa có quyền trong group inbox"
+        : supportInboxCheck.get_chat.message || "Chưa kết nối group inbox"
+      : "Chưa kiểm tra group inbox";
     if (!ids.length) {
-      return [{ id: "-", alias: "Chưa cấu hình", status: "Offline", tone: "muted" as const, note: "Thiếu ADMIN_IDS", avatar: "?" }];
+      return [{ id: "-", alias: "Chưa cấu hình", status: inboxConnected ? "Online" : "Offline", tone: inboxConnected ? ("good" as const) : ("bad" as const), note: inboxDetail, avatar: "?" }];
     }
     return ids.map((id, index) => ({
       id,
       alias: `Staff ${index + 1}`,
-      status: botScheduleStatusApi?.active ? "Online" : "Offline",
-      tone: botScheduleStatusApi?.active ? ("good" as const) : ("bad" as const),
-      note: botScheduleStatusApi?.active ? "Bot đang hoạt động" : "Bot runtime chưa hoạt động",
+      status: inboxConnected ? "Online" : "Offline",
+      tone: inboxConnected ? ("good" as const) : ("bad" as const),
+      note: inboxDetail,
       avatar: `S${index + 1}`,
     }));
-  }, [botScheduleStatusApi?.active, config]);
+  }, [config, supportInboxCheck]);
 
   useEffect(() => {
     const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -6110,11 +6122,11 @@ export default function Home() {
                       <span>{supportInboxCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
                     </div>
                   </div>
-                  <div className={`health-item ${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "good" : "warning"}`}>
+                  <div className={`health-item ${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "good" : "warning"}`}>
                     <CheckCircle2 size={18} />
                     <div>
                       <strong>Trạng thái kết nối</strong>
-                      <span>{getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
+                      <span>{configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
                     </div>
                   </div>
                   <div className="health-item">
@@ -6185,7 +6197,7 @@ export default function Home() {
                     const liveFrames = supportInboxPreviewFrames(liveStyle, liveMessage);
                     const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
                     const liveStaffMap = getConfigValue(config, "SUPPORT_INBOX_STAFF_MAP", "") || "";
-                    const liveReplyShowUsername = String(getConfigValue(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON") || "ON").toUpperCase() === "ON";
+                    const liveReplyShowUsername = configIsOn(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON");
                     const liveReplyTemplate = getConfigValue(config, "SUPPORT_INBOX_REPLY_TEMPLATE", "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}") || "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}";
                     const liveAdminSeed = Array.from(parseInboxStaffMap(liveStaffMap).keys())[0] || "987654321";
                     const liveReplyAdminName = resolveInboxStaffNamePreview(liveStaffMap, liveStaffName, liveAdminSeed, "Admin");
@@ -6215,7 +6227,7 @@ export default function Home() {
                         >
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Live: ${liveStyle}`} sx={statusChipSx("success")} />
-                            <Chip size="small" label={`${getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(getConfigValue(config, "SUPPORT_INBOX_STATUS_ENABLED", "OFF") === "ON" ? "success" : "warning")} />
+                            <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "success" : "warning")} />
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Staff: ${liveStaffName}`} variant="outlined" sx={statusChipSx("muted")} />

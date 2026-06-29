@@ -246,6 +246,16 @@ def bot_unavailable_reason(now=None):
         return "schedule"
     return ""
 
+
+def has_open_support_ticket(user_id):
+    if not supabase_store.enabled:
+        return False
+    try:
+        return bool(supabase_store.get_open_support_ticket_by_user(user_id))
+    except Exception as exc:
+        print(f"⚠️ Không đọc được support ticket đang mở cho user {user_id}: {exc}")
+        return False
+
 def bio_link_patterns():
     raw = db.get_config("SELLER_BIO_LINK_PATTERNS", "http://,https://,t.me/,telegram.me/,linktr.ee,beacons.ai")
     return [item.strip().lower() for item in str(raw or "").replace("\n", ",").split(",") if item.strip()]
@@ -406,6 +416,12 @@ class BotAvailabilityMiddleware(BaseMiddleware):
             if isinstance(event, Message) and text.lower().startswith("/start"):
                 print(
                     "🛡 middleware pass-through /start "
+                    f"user={user.id} text={text[:120]} reason={bot_unavailable_reason()}"
+                )
+                return await handler(event, data)
+            if isinstance(event, Message) and text and not text.startswith("/") and has_open_support_ticket(user.id):
+                print(
+                    "🛡 middleware pass-through support inbox "
                     f"user={user.id} text={text[:120]} reason={bot_unavailable_reason()}"
                 )
                 return await handler(event, data)

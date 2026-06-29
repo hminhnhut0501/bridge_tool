@@ -411,28 +411,6 @@ async def cmd_start(message: Message):
     try:
         db.reload_config(force=True)
         await cleanup_welcome(message.from_user.id, message.chat.id)
-        unavailable_reason = bot_unavailable_reason()
-        if unavailable_reason and not is_admin_user(message.from_user.id):
-            print(f"🚀 cmd_start maintenance branch user={message.from_user.id} reason={unavailable_reason}")
-            if unavailable_reason == "schedule":
-                notice = db.get_config(
-                    "MSG_OUTSIDE_ACTIVE_HOURS",
-                    "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.",
-                ).replace("\\n", "\n")
-            else:
-                notice = db.get_config(
-                    "MSG_MAINTENANCE",
-                    "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!",
-                ).replace("\\n", "\n")
-            try:
-                await message.answer(notice, parse_mode="HTML")
-            except Exception as exc:
-                await _send_start_fallback(f"maintenance reply failed: {exc}")
-            return
-
-        if not await check_protection(message):
-            print(f"🚀 cmd_start stopped by protection user={message.from_user.id}")
-            return
         parts = (message.text or "").split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
         print(f"🚀 cmd_start payload user={message.from_user.id} payload={payload[:120]}")
@@ -476,6 +454,28 @@ async def cmd_start(message: Message):
             )
             print(f"🚀 cmd_start legacy activation user={message.from_user.id} activation_code={normalized}")
             await deliver_activation_order(message, normalized)
+            return
+        unavailable_reason = bot_unavailable_reason()
+        if unavailable_reason and not is_admin_user(message.from_user.id):
+            print(f"🚀 cmd_start maintenance branch user={message.from_user.id} reason={unavailable_reason}")
+            if unavailable_reason == "schedule":
+                notice = db.get_config(
+                    "MSG_OUTSIDE_ACTIVE_HOURS",
+                    "🛠 <b>BOT ĐANG NGOÀI GIỜ HOẠT ĐỘNG</b>\n\nBot hiện ở chế độ bảo trì. Vui lòng quay lại trong khung giờ hoạt động.",
+                ).replace("\\n", "\n")
+            else:
+                notice = db.get_config(
+                    "MSG_MAINTENANCE",
+                    "🛠 <b>HỆ THỐNG ĐANG BẢO TRÌ</b>\n\nAdmin đang nâng cấp hệ thống. Bạn vui lòng quay lại sau ít phút nhé!",
+                ).replace("\\n", "\n")
+            try:
+                await message.answer(notice, parse_mode="HTML")
+            except Exception as exc:
+                await _send_start_fallback(f"maintenance reply failed: {exc}")
+            return
+
+        if not await check_protection(message):
+            print(f"🚀 cmd_start stopped by protection user={message.from_user.id}")
             return
         if await send_sale_announcement(message):
             print(f"🚀 cmd_start sale announcement sent user={message.from_user.id}")

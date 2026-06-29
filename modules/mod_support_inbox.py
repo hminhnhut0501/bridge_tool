@@ -5,10 +5,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot_instance import bot
-from helpers import create_background_task, is_admin_user
-from message_filter_utils import is_private_non_command_message
+from helpers import create_background_task, has_open_support_ticket, is_admin_user
 from support_utils import (
-    create_support_ticket_for_user,
     post_support_ticket_to_group,
     record_support_event,
     record_support_message,
@@ -122,6 +120,17 @@ def _is_private_user_message(message: Message) -> bool:
     )
 
 
+def _is_support_inbox_private_message(message: Message) -> bool:
+    if not _is_private_user_message(message):
+        return False
+    if not supabase_store.enabled or not message.from_user:
+        return False
+    try:
+        return bool(has_open_support_ticket(message.from_user.id))
+    except Exception:
+        return False
+
+
 async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ticket_no: str):
     frames = support_inbox_status_frame_list(support_inbox_connecting_text())
     if not frames:
@@ -143,26 +152,8 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         return
 
 
-async def _forward_private_message_to_group(message: Message):
-    if not supabase_store.enabled:
-        return
-
-    subject = _message_text(message)
-    ticket, ticket_error = await create_support_ticket_for_user(
-        telegram_user_id=message.from_user.id,
-        chat_id=message.chat.id,
-        username=message.from_user.username or "",
-        full_name=message.from_user.full_name or "",
-        subject=subject,
-        source="private_user_message",
-        raw_data={
-            "message_id": message.message_id,
-            "chat_type": message.chat.type,
-            "kind": "private_message",
-        },
-    )
-    if not ticket:
-        print(f"⚠️ Không tạo được ticket cho user {message.from_user.id}: {ticket_error}")
+async def _forward_private_message_to_group(message: Message, ticket):
+    if not supabase_store.enabled or not ticket:
         return
 
     ticket_text = render_support_group_message(ticket, _message_text(message))
@@ -247,11 +238,17 @@ async def _forward_private_message_to_group(message: Message):
             pass
 
 
-@router.message(lambda message: is_private_non_command_message(message.chat.type, message.text))
+@router.message(_is_support_inbox_private_message)
 async def support_private_inbox(message: Message):
-    if not _is_private_user_message(message):
+    ticket = None
+    try:
+        ticket = supabase_store.get_open_support_ticket_by_user(message.from_user.id)
+    except Exception as exc:
+        print(f"⚠️ Không đọc được ticket support đang mở cho user {message.from_user.id}: {exc}")
         return
-    await _forward_private_message_to_group(message)
+    if not ticket:
+        return
+    await _forward_private_message_to_group(message, ticket)
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))

@@ -77,3 +77,26 @@ def test_start_activation_payload_sets_english_language_from_deep_link(monkeypat
 
     assert saved_languages == [(456, "en")]
     mod_general.deliver_activation_order.assert_awaited_once_with(message, "apgen_pSVIP30_a9USD_len")
+
+
+def test_start_activation_payload_bypasses_maintenance_gate(monkeypatch):
+    message = SimpleNamespace(
+        text="/start act_manual_123",
+        from_user=SimpleNamespace(id=789),
+        chat=SimpleNamespace(id=789),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "maintenance")
+    monkeypatch.setattr(mod_general, "is_admin_user", lambda user_id: False)
+    monkeypatch.setattr(mod_general.db, "reload_config", lambda force=False: None)
+    monkeypatch.setattr(mod_general, "cleanup_welcome", AsyncMock())
+    monkeypatch.setattr(mod_general, "record_start_event", AsyncMock())
+    monkeypatch.setattr(mod_general, "deliver_activation_order", AsyncMock())
+    monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=True))
+    monkeypatch.setattr(mod_general, "send_sale_announcement", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "render_page", AsyncMock(return_value=False))
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    mod_general.deliver_activation_order.assert_awaited_once_with(message, "manual_123")
+    message.answer.assert_not_awaited()
