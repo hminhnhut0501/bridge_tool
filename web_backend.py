@@ -848,8 +848,15 @@ async def telegram_webhook(request: Request):
         if received != expected:
             raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
 
-    payload = await request.json()
-    update = Update.model_validate(payload, context={"bot": bot})
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Telegram webhook payload")
+
+    try:
+        update = Update.model_validate(payload, context={"bot": bot})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Telegram webhook update")
     await dp.feed_update(bot, update)
     return {"ok": True}
 
