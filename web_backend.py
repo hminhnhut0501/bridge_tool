@@ -46,6 +46,7 @@ load_dotenv()
 app = FastAPI(title="Prive Bot Backend")
 _booted = False
 _missing_table_warnings: set[str] = set()
+_last_webhook_reset_reason = ""
 
 
 def _allowed_origins():
@@ -87,6 +88,73 @@ def warn_missing_table_once(table_name: str, exc: Exception):
         return
     _missing_table_warnings.add(table_name)
     print(f"⚠️ Supabase thiếu bảng {table_name}. Hãy chạy migration SQL trong thư mục supabase. Chi tiết: {exc}")
+
+
+def telegram_startup_skipped():
+    return str(os.getenv("SKIP_TELEGRAM_STARTUP", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def webhook_watch_interval_seconds():
+    try:
+        value = int(str(os.getenv("WEBHOOK_WATCH_INTERVAL_SECONDS", "300") or "300").strip())
+        return max(60, value)
+    except Exception:
+        return 300
+
+
+def webhook_problem_reason(info, expected_url: str):
+    actual_url = str(getattr(info, "url", "") or "").strip()
+    if not actual_url:
+        return "missing_url"
+    if expected_url and actual_url != expected_url:
+        return "url_mismatch"
+    last_error_message = str(getattr(info, "last_error_message", "") or "").strip()
+    pending_update_count = int(getattr(info, "pending_update_count", 0) or 0)
+    if last_error_message and pending_update_count > 0:
+        return "telegram_error"
+    return ""
+
+
+async def ensure_telegram_webhook(*, force=False):
+    global _last_webhook_reset_reason
+    webhook_url = str(os.getenv("WEBHOOK_URL") or "").strip()
+    webhook_secret = str(os.getenv("TELEGRAM_WEBHOOK_SECRET") or "").strip()
+    if not webhook_url or telegram_startup_skipped():
+        return {"ok": False, "reason": "disabled", "info": None}
+
+    info = await bot.get_webhook_info()
+    reason = webhook_problem_reason(info, webhook_url)
+    if not force and not reason:
+        return {"ok": True, "reason": "healthy", "info": info}
+
+    await bot.set_webhook(
+        webhook_url,
+        secret_token=webhook_secret or None,
+        drop_pending_updates=False,
+        allowed_updates=dp.resolve_used_update_types(),
+    )
+    refreshed = await bot.get_webhook_info()
+    reset_reason = reason or "forced"
+    _last_webhook_reset_reason = reset_reason
+    print(f"🔁 Telegram webhook reset reason={reset_reason} url={webhook_url}")
+    return {"ok": True, "reason": reset_reason, "info": refreshed}
+
+
+async def webhook_watch_worker():
+    print("🪝 Webhook watch worker đã khởi động.")
+    while True:
+        try:
+            result = await ensure_telegram_webhook(force=False)
+            if result.get("reason") not in {"healthy", "disabled", ""}:
+                info = result.get("info")
+                print(
+                    f"🪝 Webhook auto-heal reason={result.get('reason')} "
+                    f"pending={getattr(info, 'pending_update_count', 0) if info else 0} "
+                    f"last_error={getattr(info, 'last_error_message', '') if info else ''}"
+                )
+        except Exception as exc:
+            print(f"⚠️ Webhook watch worker lỗi: {exc}")
+        await asyncio.sleep(webhook_watch_interval_seconds())
 
 
 def backend_timezone():
@@ -674,6 +742,7 @@ async def start_background_workers():
         create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="web_backend")
     if auto_payment_schedule_worker:
         create_background_task(auto_payment_schedule_worker(), name="auto_payment_schedule_worker", context="web_backend")
+    create_background_task(webhook_watch_worker(), name="webhook_watch_worker", context="web_backend")
 
 
 @app.on_event("startup")
@@ -706,10 +775,9 @@ async def startup():
     load_all_modules()
     await start_background_workers()
 
-    webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
     if webhook_url:
-        await bot.set_webhook(webhook_url, secret_token=webhook_secret or None, allowed_updates=dp.resolve_used_update_types())
-        print(f"✅ Telegram webhook set: {webhook_url}")
+        result = await ensure_telegram_webhook(force=True)
+        print(f"✅ Telegram webhook ready: {webhook_url} ({result.get('reason', 'forced')})")
     else:
         print("⚠️ WEBHOOK_URL chưa được cấu hình, backend chỉ chạy API/health.")
 
@@ -727,6 +795,7 @@ async def health():
         "ok": True,
         "supabase": supabase_store.enabled,
         "webhook_url_configured": bool(os.getenv("WEBHOOK_URL")),
+        "webhook_last_reset_reason": _last_webhook_reset_reason,
     }
 
 
@@ -737,7 +806,15 @@ async def root():
 
 @app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])
 async def admin_webhook_info():
-    return {"data": await bot.get_webhook_info()}
+    info = await bot.get_webhook_info()
+    return {
+        "data": info,
+        "meta": {
+            "expected_url": str(os.getenv("WEBHOOK_URL") or "").strip(),
+            "last_reset_reason": _last_webhook_reset_reason,
+            "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
+        },
+    }
 
 
 @app.get("/admin-api/bot-schedule-status", dependencies=[Depends(require_admin)])
@@ -758,16 +835,17 @@ async def admin_bot_runtime_state_audit():
 @app.post("/admin-api/webhook-reset", dependencies=[Depends(require_admin)])
 async def admin_webhook_reset():
     webhook_url = os.getenv("WEBHOOK_URL")
-    webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
     if not webhook_url:
         raise HTTPException(status_code=503, detail="WEBHOOK_URL is not configured")
-    await bot.set_webhook(
-        webhook_url,
-        secret_token=webhook_secret or None,
-        drop_pending_updates=False,
-        allowed_updates=dp.resolve_used_update_types(),
-    )
-    return {"data": await bot.get_webhook_info()}
+    result = await ensure_telegram_webhook(force=True)
+    return {
+        "data": result.get("info"),
+        "meta": {
+            "expected_url": str(webhook_url).strip(),
+            "last_reset_reason": _last_webhook_reset_reason,
+            "problem_reason": webhook_problem_reason(result.get("info"), str(webhook_url).strip()) if result.get("info") else "",
+        },
+    }
 
 
 @app.post("/payment-webhooks/nowpayments")

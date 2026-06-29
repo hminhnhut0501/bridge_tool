@@ -18,6 +18,7 @@ from support_utils import (
     support_inbox_status_final_hold_ms,
     support_inbox_status_enabled,
     support_inbox_status_frame_list,
+    support_inbox_status_min_visible_ms,
     support_inbox_group_id,
     support_inbox_group_name,
     support_inbox_staff_name,
@@ -138,14 +139,22 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         return
 
     delay_seconds = support_inbox_status_frame_delay_ms() / 1000.0
+    elapsed_ms = 0
     for frame in frames:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
         except Exception:
             return
         await asyncio.sleep(delay_seconds)
+        elapsed_ms += int(delay_seconds * 1000)
 
-    await asyncio.sleep(support_inbox_status_final_hold_ms() / 1000.0)
+    final_hold_ms = support_inbox_status_final_hold_ms()
+    await asyncio.sleep(final_hold_ms / 1000.0)
+    elapsed_ms += final_hold_ms
+    remaining_ms = max(0, support_inbox_status_min_visible_ms() - elapsed_ms)
+    if remaining_ms:
+        await asyncio.sleep(remaining_ms / 1000.0)
+
     final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)

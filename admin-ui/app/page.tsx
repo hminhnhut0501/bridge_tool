@@ -1490,7 +1490,7 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     key: "SUPPORT_INBOX_STATUS_ENABLED",
     label: "Bật hiệu ứng trạng thái kết nối",
     placeholder: "ON",
-    help: "Bật ON để hiển thị frame trạng thái kết nối khi bot chờ chốt admin online.",
+    help: "Mặc định nên để ON để khách thấy rõ trạng thái đang kết nối trước khi bot báo admin đã sẵn sàng.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -6122,11 +6122,11 @@ export default function Home() {
                       <span>{supportInboxCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
                     </div>
                   </div>
-                  <div className={`health-item ${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "good" : "warning"}`}>
+                  <div className={`health-item ${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "good" : "warning"}`}>
                     <CheckCircle2 size={18} />
                     <div>
                       <strong>Trạng thái kết nối</strong>
-                      <span>{configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
+                      <span>{configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
                     </div>
                   </div>
                   <div className="health-item">
@@ -6227,7 +6227,7 @@ export default function Home() {
                         >
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Live: ${liveStyle}`} sx={statusChipSx("success")} />
-                            <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED") ? "success" : "warning")} />
+                            <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
                           </Stack>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Staff: ${liveStaffName}`} variant="outlined" sx={statusChipSx("muted")} />

@@ -81,7 +81,7 @@ def support_inbox_mode():
 
 
 def support_inbox_status_enabled():
-    raw = str(db.get_config("SUPPORT_INBOX_STATUS_ENABLED", "OFF") or "OFF").strip()
+    raw = str(db.get_config("SUPPORT_INBOX_STATUS_ENABLED", "ON") or "ON").strip()
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
@@ -106,6 +106,11 @@ def support_inbox_status_final_hold_ms():
         return max(0, int(float(str(db.get_config("SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800")).strip())))
     except (TypeError, ValueError):
         return 800
+
+
+def support_inbox_status_min_visible_ms():
+    # Keep the transition visible long enough so users can perceive the handoff.
+    return max(1200, support_inbox_status_frame_delay_ms() * 3 + support_inbox_status_final_hold_ms())
 
 
 def support_inbox_connecting_text():
@@ -561,12 +566,36 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
                     context="support_inbox",
                 )
             else:
-                await status_message.edit_text(
-                    render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+                from helpers import create_background_task
+                import asyncio
+
+                async def _finalize_support_status():
+                    await asyncio.sleep(support_inbox_status_min_visible_ms() / 1000.0)
+                    await status_message.edit_text(
+                        f"{support_admin_presence_text(True)}\n"
+                        f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
+                    )
+
+                create_background_task(
+                    _finalize_support_status(),
+                    name=f"support_inbox_status_fallback_{ticket.get('ticket_no', '')}",
+                    context="support_inbox",
                 )
         else:
-            await status_message.edit_text(
-                render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+            from helpers import create_background_task
+            import asyncio
+
+            async def _finalize_support_status():
+                await asyncio.sleep(support_inbox_status_min_visible_ms() / 1000.0)
+                await status_message.edit_text(
+                    f"{support_admin_presence_text(True)}\n"
+                    f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
+                )
+
+            create_background_task(
+                _finalize_support_status(),
+                name=f"support_inbox_status_disabled_{ticket.get('ticket_no', '')}",
+                context="support_inbox",
             )
     except Exception:
         try:
