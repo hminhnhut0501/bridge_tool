@@ -106,9 +106,10 @@ def support_inbox_status_final_hold_ms():
         return 800
 
 
-def support_inbox_status_min_visible_ms():
-    # Keep the transition visible long enough so users can perceive the handoff.
-    return max(1200, support_inbox_status_frame_delay_ms() * 3 + support_inbox_status_final_hold_ms())
+def support_inbox_status_min_visible_ms(frame_count=None):
+    # Keep the transition visible long enough for at least two full frame cycles.
+    safe_frame_count = max(1, int(frame_count or 0) or 1)
+    return max(1200, support_inbox_status_frame_delay_ms() * safe_frame_count * 2 + support_inbox_status_final_hold_ms())
 
 
 def support_inbox_connecting_text():
@@ -529,7 +530,7 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
                 import asyncio
 
                 async def _finalize_support_status():
-                    await asyncio.sleep(support_inbox_status_min_visible_ms() / 1000.0)
+                    await asyncio.sleep(support_inbox_status_min_visible_ms(len(initial_frames)) / 1000.0)
                     await status_message.edit_text(
                         f"{support_admin_presence_text(True)}\n"
                         f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
@@ -545,7 +546,7 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
             import asyncio
 
             async def _finalize_support_status():
-                await asyncio.sleep(support_inbox_status_min_visible_ms() / 1000.0)
+                await asyncio.sleep(support_inbox_status_min_visible_ms(len(initial_frames)) / 1000.0)
                 await status_message.edit_text(
                     f"{support_admin_presence_text(True)}\n"
                     f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"

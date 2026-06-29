@@ -1589,8 +1589,8 @@ function supportInboxPreviewFrameList(style: string, message: string, rawFrames 
   return supportInboxPreviewFrames(style, message);
 }
 
-function supportInboxPreviewMinVisibleMs(delayMs: number, finalHoldMs: number) {
-  return Math.max(1200, delayMs * 3 + finalHoldMs);
+function supportInboxPreviewMinVisibleMs(delayMs: number, finalHoldMs: number, frameCount: number) {
+  return Math.max(1200, delayMs * Math.max(1, frameCount || 1) * 2 + finalHoldMs);
 }
 
 function supportInboxPreviewCurrentFrame(params: {
@@ -1602,7 +1602,7 @@ function supportInboxPreviewCurrentFrame(params: {
   const safeFrames = params.frames.length ? params.frames : [SUPPORT_INBOX_PREVIEW_MESSAGE];
   const safeDelayMs = Math.max(120, params.delayMs || 420);
   const safeFinalHoldMs = Math.max(0, params.finalHoldMs || 0);
-  const totalVisibleMs = supportInboxPreviewMinVisibleMs(safeDelayMs, safeFinalHoldMs);
+  const totalVisibleMs = supportInboxPreviewMinVisibleMs(safeDelayMs, safeFinalHoldMs, safeFrames.length);
   const animationWindowMs = Math.max(safeDelayMs, totalVisibleMs - safeFinalHoldMs);
   const cycleMs = animationWindowMs + safeFinalHoldMs;
   const phaseMs = ((params.clockMs % cycleMs) + cycleMs) % cycleMs;
