@@ -88,7 +88,14 @@ def webhook_reset_state_meta():
     return {
         "block_until": _webhook_reset_block_until.isoformat() if _webhook_reset_block_until else "",
         "backoff_seconds": int(_webhook_reset_backoff_seconds or 0),
+        "wait_seconds": webhook_reset_wait_seconds(),
     }
+
+
+def webhook_reset_wait_seconds() -> int:
+    if not _webhook_reset_block_until:
+        return 0
+    return max(0, int((_webhook_reset_block_until - datetime.now()).total_seconds()))
 
 
 def _allowed_origins():
@@ -944,6 +951,26 @@ async def admin_webhook_reset():
             "expected_url": str(webhook_url).strip(),
             "last_reset_reason": _last_webhook_reset_reason,
             "problem_reason": webhook_problem_reason(result.get("info"), str(webhook_url).strip()) if result.get("info") else "",
+            "reset_state": webhook_reset_state_meta(),
+        },
+    }
+
+
+@app.post("/admin-api/webhook-clear-maintenance", dependencies=[Depends(require_admin)])
+async def admin_webhook_clear_maintenance():
+    wait_seconds = webhook_reset_wait_seconds()
+    if wait_seconds > 0:
+        raise HTTPException(status_code=409, detail=f"Webhook cooldown still active. Retry after {wait_seconds}s.")
+    set_runtime_maintenance_override(False, reason="", source="webhook")
+    info = await bot.get_webhook_info()
+    return {
+        "data": info,
+        "meta": {
+            "expected_url": str(os.getenv("WEBHOOK_URL") or "").strip(),
+            "last_reset_reason": _last_webhook_reset_reason,
+            "failure_streak": _webhook_failure_streak,
+            "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
+            "maintenance_override": runtime_maintenance_override(),
             "reset_state": webhook_reset_state_meta(),
         },
     }

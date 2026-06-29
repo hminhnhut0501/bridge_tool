@@ -189,6 +189,7 @@ import {
   pauseCampaign,
   previewCampaign,
   regenerateActivationCode,
+  clearWebhookMaintenance,
   resetWebhook,
   sendAdminReply,
   startCampaign,
@@ -4088,6 +4089,14 @@ export default function Home() {
     });
   }
 
+  async function handleWebhookClearMaintenance() {
+    await runAction("webhook-clear-maintenance", async () => {
+      const res = await clearWebhookMaintenance(savedSecret);
+      setWebhook(res.data);
+      setWebhookMeta(res.meta);
+    });
+  }
+
   const metrics = useMemo(() => {
     const paid = orders.filter((item) => item.status === "PAID").length;
     const pending = orders.filter((item) => item.status === "PENDING").length;
@@ -4106,6 +4115,8 @@ export default function Home() {
       return sum;
     }, {} as Record<string, number>);
   }, [paidOrders]);
+  const webhookCooldownSeconds = Math.max(0, Number(webhookMeta?.reset_state?.wait_seconds ?? 0));
+  const webhookCooldownLabel = webhookCooldownSeconds > 0 ? `${webhookCooldownSeconds}s` : "Đã hết";
   const hasPayosOrders = useMemo(() => paidOrders.some((item) => inferOrderProvider(item) === "PAYOS"), [paidOrders]);
   const overviewTrendPoints = useMemo(() => {
     const sourceOrders = orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange));
@@ -6983,7 +6994,8 @@ export default function Home() {
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSystemSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
-                    <Button variant="contained" size="small" onClick={handleWebhookReset} startIcon={<RefreshCw size={16} />}>Reset webhook</Button>
+                    <Button variant="outlined" size="small" onClick={handleWebhookClearMaintenance} disabled={webhookCooldownSeconds > 0} startIcon={<ShieldCheck size={16} />}>Clear maintenance</Button>
+                    <Button variant="contained" size="small" onClick={handleWebhookReset} disabled={webhookCooldownSeconds > 0} startIcon={<RefreshCw size={16} />}>Reset webhook</Button>
                   </div>
                 }
               />
@@ -6993,7 +7005,14 @@ export default function Home() {
                 <Info label="Lỗi gần nhất" value={webhook?.last_error_message || "Không có"} icon={<XCircle size={16} />} />
                 <Info label="Webhook health" value={webhookMeta?.maintenance_override?.active ? `Bảo trì do webhook: ${webhookMeta.maintenance_override.reason || "Không rõ nguyên nhân"}` : webhookMeta?.problem_reason ? `Có lỗi: ${webhookMeta.problem_reason}` : "Healthy"} icon={<ShieldCheck size={16} />} />
                 <Info label="Failure streak" value={String(webhookMeta?.failure_streak ?? 0)} icon={<RefreshCw size={16} />} />
+                <Info label="Webhook cooldown" value={webhookCooldownLabel} icon={<Clock3 size={16} />} />
               </div>
+              {webhookCooldownSeconds > 0 ? (
+                <div className="overview-health-card warning" style={{ marginTop: 12 }}>
+                  <strong>Webhook đang cooldown</strong>
+                  <span>Backend đang chặn reset webhook thêm để tránh spam `SetWebhook`. Còn lại khoảng {webhookCooldownSeconds} giây trước khi có thể reset hoặc clear maintenance an toàn.</span>
+                </div>
+              ) : null}
             </section>
             <section className="panel">
               <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />

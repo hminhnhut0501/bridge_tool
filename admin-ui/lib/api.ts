@@ -200,6 +200,11 @@ export type WebhookInfoMeta = {
   last_reset_reason: string;
   failure_streak: number;
   problem_reason: string;
+  reset_state?: {
+    block_until?: string;
+    backoff_seconds?: number;
+    wait_seconds?: number;
+  };
   maintenance_override?: {
     active?: boolean;
     reason?: string;
@@ -798,6 +803,12 @@ export async function getBotScheduleStatus(secret: string) {
 
 export async function resetWebhook(secret: string) {
   return request<{ data: WebhookInfo; meta: WebhookInfoMeta }>("/admin-api/webhook-reset", secret, {
+    method: "POST",
+  });
+}
+
+export async function clearWebhookMaintenance(secret: string) {
+  return request<{ data: WebhookInfo; meta: WebhookInfoMeta }>("/admin-api/webhook-clear-maintenance", secret, {
     method: "POST",
   });
 }
