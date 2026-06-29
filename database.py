@@ -43,6 +43,15 @@ class Database:
                 return
             except Exception as e:
                 print(f"❌ Lỗi kết nối Supabase: {e}")
+                self.backend = "supabase"
+                self.users_sheet = None
+                self.config_sheet = None
+                self.menu_sheet = None
+                self.sale_sheet = None
+                self.cache_config = {}
+                self.pages_cache = {}
+                self.sales_cache = []
+                raise
 
         self.connect_google()
 
@@ -158,6 +167,8 @@ class Database:
             self.last_reload_time = current_time
         except Exception as e:
             print(f"❌ Lỗi tải Dữ liệu: {e}")
+            if self.backend == "supabase" and supabase_store.enabled:
+                raise
 
     def get_config(self, key, default=""):
         current_time = time.time()
