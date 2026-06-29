@@ -377,17 +377,28 @@ async def create_support_case_from_private_message(message, *, source="private_u
             f"{support_admin_presence_text(False)}\n{support_inbox_connecting_text()}",
         )
         if support_inbox_status_enabled():
-            from helpers import create_background_task
+            try:
+                from modules.mod_support_inbox import _play_support_inbox_status_effect
+            except Exception as exc:
+                print(f"⚠️ Không nạp được effect support inbox: {exc}")
+                _play_support_inbox_status_effect = None
 
-            create_background_task(
-                _play_support_inbox_status_effect(
-                    chat_id=message.chat.id,
-                    message_id=status_message.message_id,
-                    ticket_no=str(ticket.get("ticket_no", "")),
-                ),
-                name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
-                context="support_inbox",
-            )
+            if _play_support_inbox_status_effect:
+                from helpers import create_background_task
+
+                create_background_task(
+                    _play_support_inbox_status_effect(
+                        chat_id=message.chat.id,
+                        message_id=status_message.message_id,
+                        ticket_no=str(ticket.get("ticket_no", "")),
+                    ),
+                    name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
+                    context="support_inbox",
+                )
+            else:
+                await status_message.edit_text(
+                    render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
+                )
         else:
             await status_message.edit_text(
                 render_support_inbox_ready_text(staff_name="Admin", ticket_no=str(ticket.get("ticket_no", "")))
