@@ -93,6 +93,15 @@ def _resolve_ticket_from_group_message(message: Message):
     ticket = None
     try:
         if message.reply_to_message:
+            row = supabase_store.get_support_message_by_manager_group_message_id(message.reply_to_message.message_id)
+            if row and row.get("ticket_id"):
+                ticket = supabase_store.get_support_ticket_by_id(row.get("ticket_id"))
+            if ticket:
+                return ticket
+    except Exception as exc:
+        print(f"⚠️ Không đọc được ticket theo support message reply target: {exc}")
+    try:
+        if message.reply_to_message:
             ticket = supabase_store.get_support_ticket_by_manager_group_message_id(message.reply_to_message.message_id)
     except Exception as exc:
         print(f"⚠️ Không đọc được ticket theo group message id: {exc}")
@@ -101,6 +110,19 @@ def _resolve_ticket_from_group_message(message: Message):
             ticket = supabase_store.get_support_ticket_by_topic_thread_id(message.message_thread_id)
         except Exception as exc:
             print(f"⚠️ Không đọc được ticket theo thread id: {exc}")
+    if not ticket:
+        try:
+            print(
+                "⚠️ Không resolve được ticket support từ group message:",
+                {
+                    "message_id": getattr(message, "message_id", None),
+                    "reply_to_message_id": getattr(getattr(message, "reply_to_message", None), "message_id", None),
+                    "message_thread_id": getattr(message, "message_thread_id", None),
+                    "chat_id": getattr(getattr(message, "chat", None), "id", None),
+                },
+            )
+        except Exception:
+            pass
     return ticket
 
 
