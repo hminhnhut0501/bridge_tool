@@ -1495,20 +1495,21 @@ const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
     key: "SUPPORT_INBOX_STATUS_STYLE",
     label: "Kiểu hiệu ứng",
     placeholder: "pulse",
-    help: "Chọn preset gốc cho hiệu ứng. Nếu nhập custom frames thì preset này vẫn là nền fallback và style preview.",
+    help: "Chọn đúng preset muốn chạy. Chỉ khi chọn Custom frames thì bot mới đọc danh sách frame tự nhập bên dưới.",
     kind: "select",
     options: [
       { label: "Pulse - chớp điểm sáng", value: "pulse" },
       { label: "Dots - dấu chấm chờ", value: "dots" },
       { label: "Blink - nhấp nháy", value: "blink" },
       { label: "Wave - sóng", value: "wave" },
+      { label: "Custom frames - tự nhập", value: "custom" },
     ],
   },
   {
     key: "SUPPORT_INBOX_STATUS_FRAMES",
     label: "Custom frames",
     placeholder: "{message} ✦ ✧ ✦\\n{message} ✧ ✦ ✧\\n{message} ✦ ✧ ✦",
-    help: "Mỗi dòng là một frame edit. Dùng {message} để chèn tin nhắn ban đầu. Khi có dữ liệu ở đây, bot sẽ dùng custom frames của preset đang chọn.",
+    help: "Mỗi dòng là một frame edit. Dùng {message} để chèn tin nhắn ban đầu. Khối này chỉ hoạt động khi Kiểu hiệu ứng = Custom frames.",
     kind: "textarea",
   },
   {
@@ -1562,6 +1563,7 @@ const SUPPORT_INBOX_PREVIEW_PRESETS = [
   { key: "dots", label: "Dots", badge: "Chấm chờ", accent: "linear-gradient(135deg, rgba(16,185,129,0.16), rgba(255,255,255,0.98))" },
   { key: "blink", label: "Blink", badge: "Nhấp nháy", accent: "linear-gradient(135deg, rgba(249,115,22,0.16), rgba(255,255,255,0.98))" },
   { key: "wave", label: "Wave", badge: "Sóng", accent: "linear-gradient(135deg, rgba(139,92,246,0.16), rgba(255,255,255,0.98))" },
+  { key: "custom", label: "Custom", badge: "Tự nhập", accent: "linear-gradient(135deg, rgba(236,72,153,0.16), rgba(255,255,255,0.98))" },
 ] as const;
 
 function supportInboxPresetMeta(style: string) {
@@ -1576,12 +1578,14 @@ function supportInboxPreviewFrames(style: string, message: string) {
 }
 
 function supportInboxPreviewFrameList(style: string, message: string, rawFrames = "") {
-  const customFrames = String(rawFrames || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replaceAll("{message}", message));
-  if (customFrames.length) return customFrames;
+  if (style === "custom") {
+    const customFrames = String(rawFrames || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replaceAll("{message}", message));
+    if (customFrames.length) return customFrames;
+  }
   return supportInboxPreviewFrames(style, message);
 }
 
@@ -6243,6 +6247,7 @@ export default function Home() {
                     const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
                     const liveCustomFrames = getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAMES", "") || "";
                     const liveFrames = supportInboxPreviewFrameList(liveStyle, liveMessage, liveCustomFrames);
+                    const liveUsesCustomFrames = liveStyle === "custom" && liveCustomFrames.trim().length > 0;
                     const liveDelayMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420") || 420);
                     const liveFinalHoldMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800") || 800);
                     const livePreviewState = supportInboxPreviewCurrentFrame({
@@ -6281,7 +6286,7 @@ export default function Home() {
                         >
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                             <Chip size="small" label={`Preset: ${livePreset.label}`} sx={statusChipSx("success")} />
-                            <Chip size="small" label={liveCustomFrames.trim() ? "Custom frames ON" : "Using preset frames"} variant="outlined" sx={statusChipSx(liveCustomFrames.trim() ? "warning" : "muted")} />
+                            <Chip size="small" label={liveUsesCustomFrames ? "Custom frames ON" : `Using preset: ${livePreset.label}`} variant="outlined" sx={statusChipSx(liveUsesCustomFrames ? "warning" : "muted")} />
                             <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
                             <Chip size="small" label={`Delay ${Math.max(120, Number.isFinite(liveDelayMs) ? liveDelayMs : 420)}ms`} variant="outlined" sx={statusChipSx("muted")} />
                             <Chip size="small" label={`Hold ${Math.max(0, Number.isFinite(liveFinalHoldMs) ? liveFinalHoldMs : 800)}ms`} variant="outlined" sx={statusChipSx("muted")} />

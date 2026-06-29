@@ -85,7 +85,7 @@ def support_inbox_status_enabled():
 
 def support_inbox_status_style():
     raw = str(db.get_config("SUPPORT_INBOX_STATUS_STYLE", "pulse") or "pulse").strip().lower()
-    return raw if raw in {"pulse", "dots", "blink", "wave"} else "pulse"
+    return raw if raw in {"pulse", "dots", "blink", "wave", "custom"} else "pulse"
 
 
 def support_inbox_status_frames():
@@ -158,7 +158,7 @@ def support_admin_presence_text(online=True):
 def support_inbox_status_frame_list(base_message=""):
     message = str(base_message or support_inbox_connecting_text()).strip() or "Đang kết nối"
     raw_frames = support_inbox_status_frames()
-    if raw_frames:
+    if support_inbox_status_style() == "custom" and raw_frames:
         frames = [line.strip() for line in raw_frames.splitlines() if line.strip()]
         return [frame.replace("{message}", message) for frame in frames] or [message]
 
