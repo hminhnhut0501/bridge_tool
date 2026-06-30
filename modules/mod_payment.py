@@ -35,6 +35,7 @@ from support_utils import (
     render_support_group_header,
     send_support_connecting_status,
     support_group_enabled,
+    support_inbox_enabled,
     support_ticket_subject_from_action,
 )
 
@@ -651,13 +652,26 @@ def manual_support_bot_url(user_id=None, action="", provider="", preferred_langu
     if language == "en":
         template = str(
             db.get_config(
-                "MANUAL_SUPPORT_BOT_URL_EN",
-                db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}",
+                "MANUAL_SUPPORT_CONTACT_URL_EN",
+                db.get_config(
+                    "MANUAL_SUPPORT_BOT_URL_EN",
+                    db.get_config(
+                        "MANUAL_SUPPORT_CONTACT_URL",
+                        db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}",
+                    ),
+                )
+                or "https://t.me/cuhotro_bot?start={payload}",
             )
             or "https://t.me/cuhotro_bot?start={payload}"
         ).strip()
     else:
-        template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
+        template = str(
+            db.get_config(
+                "MANUAL_SUPPORT_CONTACT_URL",
+                db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}",
+            )
+            or "https://t.me/cuhotro_bot?start={payload}"
+        ).strip()
     payload = manual_support_payload(user_id, action, provider, preferred_language=language)
     if "{payload}" in template:
         return template.replace("{payload}", urllib.parse.quote(payload, safe="_"))
@@ -700,6 +714,33 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
         return True
     callback_action = action or getattr(callback, "data", "")
     keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language)
+    if not support_inbox_enabled():
+        try:
+            gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
+            await callback.message.answer(gate_text, reply_markup=keyboard)
+        except Exception as exc:
+            print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
+        try:
+            record_support_event(
+                "support_inbox_disabled_redirect",
+                callback.from_user.id,
+                username=callback.from_user.username or "",
+                full_name=callback.from_user.full_name or "",
+                chat_id=str(callback.message.chat.id if callback.message else ""),
+                raw_data={
+                    "action": callback_action,
+                    "provider": provider,
+                    "language": language,
+                },
+            )
+        except Exception:
+            pass
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+        return False
+
     subject = support_ticket_subject_from_action(callback_action, provider, "auto_payment_off")
     ticket, ticket_error = await create_support_ticket_for_user(
         telegram_user_id=callback.from_user.id,

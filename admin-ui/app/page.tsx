@@ -951,9 +951,15 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
 const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_URL",
-    label: "Deep link bot hỗ trợ",
+    label: "Link chuyển sang hỗ trợ",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
+    help: "Ưu tiên để link nick admin hoặc link hỗ trợ thủ công. Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
+  },
+  {
+    key: "MANUAL_SUPPORT_CONTACT_URL",
+    label: "Link admin hỗ trợ",
+    placeholder: "https://t.me/username",
+    help: "Khi auto payment tắt, bot sẽ chuyển người dùng sang link này trước. Nếu để trống sẽ dùng link hỗ trợ cũ.",
   },
   {
     key: "MANUAL_SUPPORT_PAYLOAD_INCLUDE_USER_ID",
@@ -981,9 +987,15 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
 const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_URL_EN",
-    label: "Deep link bot hỗ trợ (EN)",
+    label: "Support redirect link (EN)",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ EN. Có thể để ...?start={payload} hoặc ...?start=act_.",
+    help: "Prefer a direct admin contact link or manual support link. Use {payload}; backend will generate act_ payload with VIP plan, amount and EN language. Can be ...?start={payload} or ...?start=act_.",
+  },
+  {
+    key: "MANUAL_SUPPORT_CONTACT_URL_EN",
+    label: "Admin contact link (EN)",
+    placeholder: "https://t.me/username",
+    help: "When auto payment is off, the bot will send EN users here first. Falls back to the old support link if empty.",
   },
   {
     key: "MANUAL_SUPPORT_BOT_LABEL_EN",
@@ -1409,6 +1421,17 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
 ];
 
 const SUPPORT_INBOX_FIELDS: ConfigField[] = [
+  {
+    key: "SUPPORT_INBOX_ENABLED",
+    label: "Bật flow tin nhắn bot",
+    placeholder: "ON",
+    help: "Tắt ON để vô hiệu hoá luồng inbox user ↔ admin, nhưng vẫn giữ các cấu hình để bật lại nhanh.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
   {
     key: "SUPPORT_INBOX_MODE",
     label: "Chế độ inbox bot",

@@ -31,6 +31,7 @@ from support_utils import (
     render_support_group_message,
     render_support_reply_message,
     support_delete_enabled,
+    support_inbox_enabled,
     refresh_support_ticket_topic,
 )
 from supabase_store import supabase_store
@@ -185,6 +186,8 @@ def _is_private_user_message(message: Message) -> bool:
 
 def _is_support_inbox_private_message(message: Message) -> bool:
     if not _is_private_user_message(message):
+        return False
+    if not support_inbox_enabled():
         return False
     if not supabase_store.enabled or not message.from_user:
         return False
@@ -381,6 +384,8 @@ async def support_private_inbox(message: Message):
 async def support_group_reply(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
+    if not support_inbox_enabled():
+        return
     if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
@@ -514,6 +519,8 @@ async def support_group_reply(message: Message):
 async def support_close_ticket(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
+    if not support_inbox_enabled():
+        return
     if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
@@ -577,6 +584,8 @@ async def support_close_ticket(message: Message):
 async def support_reopen_ticket(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
         return
+    if not support_inbox_enabled():
+        return
     if not _is_support_staff_message(message):
         return
     ticket = _resolve_ticket_from_group_message(message)
@@ -639,6 +648,8 @@ async def support_reopen_ticket(message: Message):
 @router.message(Command("delete"))
 async def support_delete_message(message: Message):
     if str(message.chat.id).strip() != support_inbox_group_id():
+        return
+    if not support_inbox_enabled():
         return
     if not message.from_user or not is_admin_user(message.from_user.id):
         return

@@ -462,6 +462,54 @@ def test_enforce_auto_payment_gate_hides_supabase_disabled_ticket_error():
         assert cb.message.sent == [("redirect text", "keyboard")]
 
 
+def test_enforce_auto_payment_gate_uses_admin_redirect_when_support_inbox_disabled():
+    class Message:
+        def __init__(self):
+            self.chat = type("Chat", (), {"id": 99})()
+            self.sent = []
+
+        async def answer(self, text, reply_markup=None):
+            self.sent.append((text, reply_markup))
+
+    class User:
+        id = 42
+        username = "user42"
+        full_name = "User 42"
+
+    class Callback:
+        def __init__(self):
+            self.from_user = User()
+            self.message = Message()
+            self.alerts = []
+            self.data = "buy_full_1m"
+
+        async def answer(self, text=None, show_alert=False):
+            self.alerts.append((text, show_alert))
+
+    with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.support_inbox_enabled",
+        return_value=False,
+    ), patch(
+        "modules.mod_payment.manual_support_keyboard", return_value="keyboard"
+    ), patch(
+        "modules.mod_payment.auto_payment_gate_message",
+        return_value="redirect text",
+    ), patch(
+        "modules.mod_payment.create_support_ticket_for_user",
+    ) as create_ticket, patch(
+        "modules.mod_payment.record_support_event",
+    ):
+        from modules.mod_payment import enforce_auto_payment_gate
+
+        cb = Callback()
+        import asyncio
+
+        ok = asyncio.run(enforce_auto_payment_gate(cb))
+        assert ok is False
+        assert cb.message.sent == [("redirect text", "keyboard")]
+        create_ticket.assert_not_called()
+
+
 def test_manual_support_bot_url_uses_deep_link_payload():
     with patch("modules.mod_payment.db.get_config", return_value="https://t.me/cuhotro_bot?start={payload}"):
         from modules.mod_payment import manual_support_bot_url

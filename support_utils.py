@@ -79,6 +79,11 @@ def support_inbox_mode():
     return raw if raw in {"group", "forum"} else "group"
 
 
+def support_inbox_enabled():
+    raw = str(db.get_config("SUPPORT_INBOX_ENABLED", "ON") or "ON").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
 def support_inbox_status_enabled():
     raw = str(db.get_config("SUPPORT_INBOX_STATUS_ENABLED", "ON") or "ON").strip()
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
