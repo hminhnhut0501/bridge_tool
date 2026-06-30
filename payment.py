@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 from database import db
 from supabase_store import supabase_store
+from bot_links import bot_base_url
 
 load_dotenv()
 
@@ -22,7 +23,7 @@ PAYOS_CHECKSUM_KEY = os.getenv("PAYOS_CHECKSUM_KEY")
 PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")
 PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
 PAYPAL_BASE_URL = os.getenv("PAYPAL_BASE_URL", "https://api-m.paypal.com").rstrip("/")
-PAYPAL_RETURN_URL = os.getenv("PAYPAL_RETURN_URL", "https://t.me/hangcuprivebot")
+PAYPAL_RETURN_URL = os.getenv("PAYPAL_RETURN_URL", bot_base_url())
 PAYPAL_CANCEL_URL = os.getenv("PAYPAL_CANCEL_URL", PAYPAL_RETURN_URL)
 NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
 NOWPAYMENTS_BASE_URL = os.getenv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io/v1").rstrip("/")

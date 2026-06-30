@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
+from bot_links import normalize_bot_link_template
 
 load_dotenv()
 
@@ -461,14 +462,7 @@ class SupabaseStore:
     def _normalize_config_value(self, key, value):
         text = str(value or "").strip()
         if key == "MANUAL_ORDER_LINK_TEMPLATE":
-            if not text:
-                return "https://t.me/hangcuprivebot?start=act_{code}"
-            if text.startswith("t.me/"):
-                text = f"https://{text}"
-            if "start=act_{code}" in text:
-                return text
-            if "start={code}" in text:
-                return text.replace("start={code}", "start=act_{code}")
+            return normalize_bot_link_template(text, default_payload="act_{code}")
         return text
 
     def _normalize_order_activation_code_row(self, row):

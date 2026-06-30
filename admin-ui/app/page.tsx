@@ -1695,7 +1695,7 @@ const ORDER_FIELDS: ConfigField[] = [
   },
   { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề link bot", placeholder: "🔗 Link kích hoạt", help: "Biến: không cần placeholder. Đây là tiêu đề trước URL bot." },
   { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", help: "Biến: không cần placeholder. Dòng mô tả ngay dưới link bot.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/hangcuprivebot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
+  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/your_bot_username?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
   { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy link", placeholder: "Copy link bot", help: "Biến: không cần placeholder. Text nút admin copy." },
   { key: "MANUAL_ORDER_MESSAGE_LINK_TITLE", label: "Tiêu đề tin active code", placeholder: "💬 Tin nhắn active code", help: "Tiêu đề cho khối tin nhắn hoàn chỉnh có active code." },
   { key: "MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", label: "Mô tả tin active code", placeholder: "Dùng tin này để gửi khách kèm link active code.", help: "Mô tả dưới khối tin active code.", kind: "textarea" },

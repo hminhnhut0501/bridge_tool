@@ -7,11 +7,13 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import Update
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from bot_links import normalize_bot_link_template
 from bot_instance import bot, dp, set_commands
 from database import db
 from hidden_group_utils import (
@@ -52,6 +54,7 @@ _last_webhook_reset_reason = ""
 _webhook_failure_streak = 0
 _webhook_reset_block_until = None
 _webhook_reset_backoff_seconds = 0
+_webhook_startup_retry_task = None
 
 
 def webhook_auto_heal_reasons():
@@ -97,6 +100,56 @@ def webhook_reset_wait_seconds() -> int:
     if not _webhook_reset_block_until:
         return 0
     return max(0, int((_webhook_reset_block_until - datetime.now()).total_seconds()))
+
+
+def webhook_retry_wait_seconds() -> int:
+    base = int(_webhook_reset_backoff_seconds or 0)
+    if _webhook_reset_block_until:
+        base = max(base, webhook_reset_wait_seconds())
+    return max(5, base or webhook_reset_cooldown_seconds())
+
+
+async def retry_telegram_webhook_background(*, initial_delay=0):
+    if initial_delay:
+        await asyncio.sleep(max(0, int(initial_delay)))
+
+    while True:
+        try:
+            result = await ensure_telegram_webhook(force=True)
+            if result.get("ok"):
+                print(
+                    f"✅ Telegram webhook retry succeeded ({result.get('reason', 'forced')})"
+                )
+                return
+
+            reason = str(result.get("reason") or "").strip()
+            wait_seconds = webhook_retry_wait_seconds()
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Webhook retry pending ({reason}). Retry after {wait_seconds}s.",
+                source="webhook",
+            )
+            print(f"🕒 Telegram webhook retry pending reason={reason} retry_in={wait_seconds}s")
+            await asyncio.sleep(wait_seconds)
+        except TelegramRetryAfter as exc:
+            wait_seconds = max(1, int(getattr(exc, "retry_after", 1) or 1))
+            _backoff = max(wait_seconds, webhook_retry_wait_seconds())
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Telegram SetWebhook rate limited. Retry after {_backoff}s.",
+                source="webhook",
+            )
+            print(f"⚠️ Telegram webhook rate limited in background; retrying in {_backoff}s.")
+            await asyncio.sleep(_backoff)
+        except Exception as exc:
+            wait_seconds = webhook_retry_wait_seconds()
+            set_runtime_maintenance_override(
+                True,
+                reason=f"Webhook retry error: {exc}",
+                source="webhook",
+            )
+            print(f"⚠️ Telegram webhook retry error: {exc}. Retry in {wait_seconds}s.")
+            await asyncio.sleep(wait_seconds)
 
 
 def _allowed_origins():
@@ -484,16 +537,7 @@ def render_activation_text(template_key: str, default_text: str, context: dict[s
 
 
 def normalize_manual_order_link_template(value: str):
-    template = str(value or "").strip()
-    if not template:
-        return "https://t.me/hangcuprivebot?start=act_{code}"
-    if template.startswith("t.me/"):
-        template = f"https://{template}"
-    if "start=act_{code}" in template:
-        return template
-    if "start={code}" in template:
-        return template.replace("start={code}", "start=act_{code}")
-    return template
+    return normalize_bot_link_template(value, default_payload="act_{code}")
 
 
 def normalize_manual_order_join_template(value: str):
@@ -507,7 +551,7 @@ def normalize_manual_order_join_template(value: str):
 
 
 def build_manual_activation_url(code: str):
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "") or "")
     return template.replace("{code}", str(code or "").strip())
 
 
@@ -528,7 +572,7 @@ def refresh_auto_payment_schedule_if_needed(keys):
 
 
 def build_manual_order_message_url(code: str):
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "") or "")
     if "start=act_{code}" in template:
         template = template.replace("start=act_{code}", "start=act_{code}")
     elif "start={code}" in template:
@@ -940,8 +984,14 @@ async def startup():
     await start_background_workers()
 
     if webhook_url:
-        result = await ensure_telegram_webhook(force=True)
-        print(f"✅ Telegram webhook ready: {webhook_url} ({result.get('reason', 'forced')})")
+        global _webhook_startup_retry_task
+        if not _webhook_startup_retry_task or _webhook_startup_retry_task.done():
+            _webhook_startup_retry_task = create_background_task(
+                retry_telegram_webhook_background(initial_delay=0),
+                name="telegram_webhook_startup_retry",
+                context="webhook",
+            )
+            print("🕒 Telegram webhook startup queued in background.")
     else:
         print("⚠️ WEBHOOK_URL chưa được cấu hình, backend chỉ chạy API/health.")
 

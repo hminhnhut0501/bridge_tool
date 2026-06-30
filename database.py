@@ -3,6 +3,7 @@ import time
 import re
 from dotenv import load_dotenv
 from supabase_store import supabase_store
+from bot_links import normalize_bot_link_template
 
 load_dotenv()
 
@@ -120,14 +121,7 @@ class Database:
         raise RuntimeError("Google Sheets runtime has been removed. Use Supabase config storage.")
 
     def _normalize_manual_order_link_template(self, value):
-        text = str(value or "").strip()
-        if not text:
-            return "t.me/hangcuprivebot?start=act_{code}"
-        if "start=act_{code}" in text:
-            return text
-        if "start={code}" in text:
-            return text.replace("start={code}", "start=act_{code}")
-        return text
+        return normalize_bot_link_template(value, default_payload="act_{code}")
 
     def get_page(self, page_id):
         normalized = normalize_key(page_id)

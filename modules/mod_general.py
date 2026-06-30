@@ -9,6 +9,7 @@ from aiogram.filters import CommandStart, Command
 
 from database import db
 from bot_instance import bot
+from bot_links import normalize_bot_link_template
 from hidden_group_utils import display_plan_name
 from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
@@ -47,25 +48,16 @@ def render_cfg(key, default, values=None):
 
 
 def normalize_manual_order_link_template(template: str) -> str:
-    text = str(template or "").strip()
-    if not text:
-        return "https://t.me/hangcuprivebot?start=act_{code}"
-    if text.startswith("t.me/"):
-        text = f"https://{text}"
-    if "start=act_{code}" in text:
-        return text
-    if "start={code}" in text:
-        return text.replace("start={code}", "start=act_{code}")
-    return text
+    return normalize_bot_link_template(template, default_payload="act_{code}")
 
 
 def build_manual_order_link(code: str) -> str:
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "") or "")
     return template.replace("{code}", str(code or "").strip())
 
 
 def build_manual_order_message_link(code: str) -> str:
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=actmsg_{code}") or "")
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "") or "")
     if "start=act_{code}" in template:
         template = template.replace("start=act_{code}", "start=actmsg_{code}")
     elif "start={code}" in template:

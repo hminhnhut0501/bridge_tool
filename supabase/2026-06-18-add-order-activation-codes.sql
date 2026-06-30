@@ -36,7 +36,7 @@ insert into public.bot_config (key, value) values
   ('MANUAL_ORDER_LINK_PROCESSING_TEXT', '⏳ Bot đang xác minh đơn và tạo link nhóm...'),
   ('MANUAL_ORDER_LINK_FAIL_TEXT', '❌ Bot chưa tạo được link nhóm. Vui lòng thử lại sau.'),
   ('MANUAL_ORDER_LINK_SUCCESS_TEXT', '✅ Đơn của bạn đã được xác minh.'),
-  ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/hangcuprivebot?start={code}'),
+  ('MANUAL_ORDER_LINK_TEMPLATE', 't.me/your_bot_username?start={code}'),
   ('MANUAL_ORDER_INFO_TEMPLATE', '🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}'),
   ('MANUAL_ORDER_MESSAGE_TEMPLATE', '{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}'),
   ('MANUAL_ORDER_START_TEMPLATE', '{processing_text}'),
