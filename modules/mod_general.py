@@ -329,9 +329,6 @@ async def deliver_activation_order(message: Message, code: str):
     if telegram_user_id and telegram_user_id != now_user_id:
         await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
         return
-    if status == "USED":
-        await message.answer(render_cfg("MANUAL_ORDER_LINK_USED_TEXT", "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới."))
-        return
 
     if expire_at:
         try:
@@ -584,17 +581,6 @@ async def cmd_start(message: Message):
                     return
                 await _send_start_fallback("render_page returned False for src_ payload")
                 return
-            if classified["kind"] == "activation":
-                activation_code = classified["code"]
-                print(f"🚀 cmd_start activation payload user={message.from_user.id} activation_code={activation_code}")
-                await record_start_event(
-                    message,
-                    normalized,
-                    "start_activation",
-                    activation_code=activation_code,
-                )
-                await deliver_activation_order(message, activation_code)
-                return
             if normalized.lower().startswith("actmsg_"):
                 activation_code = normalized[7:].strip()
                 print(f"🚀 cmd_start manual message payload user={message.from_user.id} activation_code={activation_code}")
@@ -605,6 +591,17 @@ async def cmd_start(message: Message):
                     activation_code=activation_code,
                 )
                 await deliver_manual_order_message(message, activation_code)
+                return
+            if classified["kind"] == "activation":
+                activation_code = classified["code"]
+                print(f"🚀 cmd_start activation payload user={message.from_user.id} activation_code={activation_code}")
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_activation",
+                    activation_code=activation_code,
+                )
+                await deliver_activation_order(message, activation_code)
                 return
             await record_start_event(
                 message,

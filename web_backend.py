@@ -1326,12 +1326,16 @@ async def admin_create_manual_order(request: Request):
             "links_text": "",
             "activation_code": activation_code,
             "activation_url": activation_url,
+            "manual_order_message_url": build_manual_order_message_url(activation_code),
             "support_link": support_link,
             "support_error": support_error,
             "support_text": support_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt", {}),
+            "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Link đầy đủ gửi bot", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
+            "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung đã xác nhận.", {}),
             "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Copy link bot", {}),
+            "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Copy full message link", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {
@@ -1345,6 +1349,7 @@ async def admin_create_manual_order(request: Request):
                 "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt", {}),
                 "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
                 "activation_url": activation_url,
+                "message_url": build_manual_order_message_url(activation_code),
                 "links_text": "",
                 "support_text": support_text,
                 "support_group_name": support_group_name(),
@@ -1376,6 +1381,8 @@ async def admin_config():
     for row in rows or []:
         if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
+        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
+            row["value"] = normalize_manual_order_link_template(row.get("value"))
     return {"data": rows}
 
 
@@ -1385,6 +1392,8 @@ async def admin_set_config(key: str, request: Request):
     normalized_key = str(key).strip().upper()
     value = body.get("value", "")
     if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
+        value = normalize_manual_order_link_template(value)
+    if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
     data = supabase_store.set_config(key, value)
     db.cache_config[normalized_key] = str(value)
@@ -1402,6 +1411,8 @@ async def admin_set_config_batch(request: Request):
     for item in items:
         normalized_item = dict(item)
         if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
+            normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
+        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
         normalized_items.append(normalized_item)
     data = supabase_store.set_configs(normalized_items)

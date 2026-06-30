@@ -117,6 +117,33 @@ def test_start_activation_payload_routes_to_activation_delivery(monkeypatch):
     assert calls == ["manual_123"]
 
 
+def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
+    message = SimpleNamespace(
+        text="/start actmsg_manual_456",
+        from_user=SimpleNamespace(id=789, username="user789", full_name="User 789"),
+        chat=SimpleNamespace(id=789),
+        entities=[],
+        answer=AsyncMock(),
+    )
+    calls = []
+
+    async def fake_deliver(message_obj, code):
+        calls.append(code)
+
+    monkeypatch.setattr(mod_general, "cleanup_welcome", AsyncMock())
+    monkeypatch.setattr(mod_general.db, "reload_config", lambda force=False: None)
+    monkeypatch.setattr(mod_general, "record_start_event", AsyncMock())
+    monkeypatch.setattr(mod_general, "send_sale_announcement", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "render_page", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=True))
+    monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "")
+    monkeypatch.setattr(mod_general, "deliver_manual_order_message", fake_deliver)
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    assert calls == ["manual_456"]
+
+
 def test_hidden_offer_for_action_uses_shared_classifier(monkeypatch):
     monkeypatch.setattr(mod_payment, "classify_message_text", lambda text, coupon_prefixes=None: {"kind": "hidden", "code": "HIDEVIP", "reason": "hidden_match"})
     monkeypatch.setattr(mod_payment, "validate_hidden_code_for_user", lambda code, user_id: ({"code": code, "is_active": True}, ""))

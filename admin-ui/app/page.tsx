@@ -1674,6 +1674,10 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", help: "Biến: không cần placeholder. Dòng mô tả ngay dưới link bot.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/hangcuprivebot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
   { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy link", placeholder: "Copy link bot", help: "Biến: không cần placeholder. Text nút admin copy." },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_TITLE", label: "Tiêu đề link full message", placeholder: "💬 Link đầy đủ gửi bot", help: "Biến: không cần placeholder. Tiêu đề cho link mở bot gửi full message." },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", label: "Mô tả link full message", placeholder: "Dùng link này để mở bot và nhận toàn bộ nội dung đã xác nhận.", help: "Biến: không cần placeholder. Mô tả dưới link full message.", kind: "textarea" },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", label: "Deep link full message", placeholder: "https://t.me/hangcuprivebot?start=actmsg_{code}", help: "Biến: {code}. Prefix actmsg_ sẽ được tự chuẩn hoá.", },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", label: "Nút copy full message", placeholder: "Copy full message link", help: "Biến: không cần placeholder. Text nút admin copy full message." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin bot báo hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Biến: không cần placeholder." },
@@ -7740,6 +7744,15 @@ export default function Home() {
                       sx={popupFieldSx}
                     />
                     <TextField
+                      label={manualOrderResult.manual_order_message_title || "Link full message"}
+                      value={manualOrderResult.manual_order_message_url || ""}
+                      slotProps={{ input: { readOnly: true } }}
+                      fullWidth
+                      multiline
+                      minRows={4}
+                      sx={popupFieldSx}
+                    />
+                    <TextField
                       label="Ghi chú đã lưu"
                       value={manualOrderResult.note || ""}
                       slotProps={{ input: { readOnly: true } }}
@@ -7751,6 +7764,7 @@ export default function Home() {
                     <Box sx={{ gridColumn: "1 / -1" }}>
                       <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
                         <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.manual_order_message_url || "")}>{manualOrderResult.manual_order_message_button_label || "Copy full message link"}</Button>
                         <Button
                           variant="outlined"
                           onClick={() => {
