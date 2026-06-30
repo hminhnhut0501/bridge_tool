@@ -5223,7 +5223,7 @@ export default function Home() {
     const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
     setSelectedCustomerId(customer.id);
-    setCustomerOrderTab("all");
+    setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
     setCustomerTimelineSubTab("all");
     setCustomerModalOpen(true);
@@ -5233,7 +5233,7 @@ export default function Home() {
     const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
     setSelectedCustomerId(customer.id);
-    setCustomerOrderTab("all");
+    setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
     setCustomerTimelineSubTab("all");
     setCustomerModalOpen(true);
@@ -7878,7 +7878,7 @@ export default function Home() {
                 {customerDetailTab === "orders" ? (
                   <>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "day")).length)} icon={<CalendarClock size={16} />} />
+                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "today")).length)} icon={<CalendarClock size={16} />} />
                       <Metric label="Đơn tháng này" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "month")).length)} icon={<BarChart3 size={16} />} />
                       <Metric label="Đã thanh toán" value={String(selectedCustomerOrders.filter((item) => item.status === "PAID").length)} icon={<CheckCircle2 size={16} />} />
                       <Metric label="Trạng thái còn lại" value={String(selectedCustomerOrders.filter((item) => item.status !== "PAID").length)} icon={<Activity size={16} />} />
