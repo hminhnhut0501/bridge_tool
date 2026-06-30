@@ -496,6 +496,16 @@ def normalize_manual_order_link_template(value: str):
     return template
 
 
+def normalize_manual_order_join_template(value: str):
+    template = str(value or "").strip()
+    default_template = "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}"
+    if not template:
+        return default_template
+    if any(signal in template for signal in ("{success_text}", "actmsg_", "Đơn của bạn đã được xác minh")):
+        return default_template
+    return template
+
+
 def build_manual_activation_url(code: str):
     template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
     return template.replace("{code}", str(code or "").strip())
@@ -528,7 +538,7 @@ def build_manual_order_message_url(code: str):
 
 def build_manual_order_join_message_text(context: dict[str, object]):
     return render_manual_order_message_text(
-        str(db.get_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
+        normalize_manual_order_join_template(db.get_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
         {
             **context,
             "activation_url": context.get("activation_url", ""),
@@ -1238,6 +1248,10 @@ async def admin_create_manual_order(request: Request):
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
         "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
     ) or "").strip()
+    join_template = str(db.get_config(
+        "MANUAL_ORDER_JOIN_TEMPLATE",
+        "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
+    ) or "").strip()
     supabase_store.create_order(
         order_id=order_id,
         telegram_user_id=telegram_user_id,
@@ -1400,14 +1414,13 @@ async def admin_create_manual_order(request: Request):
                 "support_error": support_error,
                 "activation_code": activation_code,
             }),
-            "manual_order_join_text": build_manual_order_join_message_text({
+            "manual_order_join_text": render_manual_order_message_text(join_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
-                "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
                 "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link join group", {}),
                 "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link join group trong đơn.", {}),
                 "activation_url": activation_url,
@@ -1444,6 +1457,8 @@ async def admin_config():
     for row in rows or []:
         if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
+        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_JOIN_TEMPLATE":
+            row["value"] = normalize_manual_order_join_template(row.get("value"))
         if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
     return {"data": rows}
@@ -1456,6 +1471,8 @@ async def admin_set_config(key: str, request: Request):
     value = body.get("value", "")
     if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
+    if normalized_key == "MANUAL_ORDER_JOIN_TEMPLATE":
+        value = normalize_manual_order_join_template(value)
     if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
     data = supabase_store.set_config(key, value)
@@ -1476,6 +1493,8 @@ async def admin_set_config_batch(request: Request):
         normalized_item = dict(item)
         if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
+        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_JOIN_TEMPLATE":
+            normalized_item["value"] = normalize_manual_order_join_template(normalized_item.get("value", ""))
         if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
         normalized_items.append(normalized_item)
