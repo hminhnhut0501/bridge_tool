@@ -367,6 +367,7 @@ async def deliver_activation_order(message: Message, code: str):
                 await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau."))
                 return
 
+        activation_update_at = datetime.now().isoformat(timespec="seconds")
         try:
             raw_data = dict(activation.get("raw_data") or {})
             raw_data.update({
@@ -377,13 +378,18 @@ async def deliver_activation_order(message: Message, code: str):
                 "invite_cleanup_after_days": int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7),
                 "invite_cleanup_due_at": (datetime.now() + timedelta(days=max(1, int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7)))).isoformat(timespec="seconds"),
             })
-            supabase_store.update_order_activation_code(code, {
+            update_payload = {
                 "raw_data": raw_data,
                 "activation_status": "USED",
-                "activated_at": datetime.now().isoformat(timespec="seconds"),
+                "activated_at": activation_update_at,
                 "activated_by_user_id": message.from_user.id,
-            })
-            supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=datetime.now().isoformat(timespec="seconds"))
+                "used_at": activation_update_at,
+                "used_by_user_id": message.from_user.id,
+            }
+            supabase_store.update_order_activation_code(code, update_payload)
+            if activation.get("order_id"):
+                supabase_store.update_order_activation_code_by_order(activation.get("order_id"), update_payload)
+            supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=activation_update_at)
         except Exception as exc:
             print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
 
@@ -536,7 +542,7 @@ async def deliver_manual_order_message(message: Message, code: str):
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     payload_preview = (message.text or "").replace("\n", " ")[:120]
-    entity_types = [getattr(entity, "type", "") for entity in (message.entities or [])]
+    entity_types = [getattr(entity, "type", "") for entity in (getattr(message, "entities", None) or [])]
     print(
         "🚀 cmd_start entered "
         f"user={message.from_user.id} chat={message.chat.id} text={payload_preview} entities={entity_types}"

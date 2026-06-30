@@ -749,6 +749,42 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def update_order_activation_code_by_order(self, order_id, raw):
+        payload = {}
+        if "activation_status" in raw:
+            payload["activation_status"] = _clean_text(raw.get("activation_status")).upper() or "PENDING"
+        if "activated_at" in raw:
+            payload["activated_at"] = _parse_datetime(raw.get("activated_at")) or raw.get("activated_at")
+        if "activated_by_user_id" in raw:
+            payload["activated_by_user_id"] = _clean_text(raw.get("activated_by_user_id"))
+        if "used_at" in raw:
+            payload["used_at"] = _parse_datetime(raw.get("used_at")) or raw.get("used_at")
+        if "used_by_user_id" in raw:
+            payload["used_by_user_id"] = _clean_text(raw.get("used_by_user_id"))
+        if "expire_at" in raw:
+            payload["expire_at"] = _parse_datetime(raw.get("expire_at")) or raw.get("expire_at")
+        if "activation_url" in raw:
+            payload["activation_url"] = _clean_text(raw.get("activation_url"))
+        if "plan_name" in raw:
+            payload["plan_name"] = _clean_text(raw.get("plan_name"))
+        if "note" in raw:
+            payload["note"] = _clean_text(raw.get("note"))
+        if "telegram_user_id" in raw:
+            payload["telegram_user_id"] = _clean_text(raw.get("telegram_user_id"))
+        if "full_name" in raw:
+            payload["full_name"] = _clean_text(raw.get("full_name"))
+        if "raw_data" in raw:
+            payload["raw_data"] = raw.get("raw_data")
+        if not payload:
+            return []
+        return self._request(
+            "PATCH",
+            "order_activation_codes",
+            params={"order_id": f"eq.{_clean_text(order_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
     def delete_order_activation_code(self, code):
         return self._request(
             "DELETE",

@@ -397,6 +397,10 @@ export type ManualOrderResult = {
   bot_link_button_label?: string;
   manual_order_message_subtitle?: string;
   manual_order_message_button_label?: string;
+  manual_order_join_title?: string;
+  manual_order_join_subtitle?: string;
+  manual_order_join_button_label?: string;
+  manual_order_join_text?: string;
   bot_link_success_text?: string;
   bot_link_processing_text?: string;
   manual_order_text: string;

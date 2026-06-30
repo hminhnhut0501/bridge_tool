@@ -1697,10 +1697,13 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_LINK_SUBTITLE", label: "Mô tả link bot", placeholder: "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", help: "Biến: không cần placeholder. Dòng mô tả ngay dưới link bot.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/hangcuprivebot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
   { key: "MANUAL_ORDER_LINK_BUTTON_LABEL", label: "Nút copy link", placeholder: "Copy link bot", help: "Biến: không cần placeholder. Text nút admin copy." },
-  { key: "MANUAL_ORDER_MESSAGE_LINK_TITLE", label: "Tiêu đề link full message", placeholder: "💬 Link đầy đủ gửi bot", help: "Biến: không cần placeholder. Tiêu đề cho link mở bot gửi full message." },
-  { key: "MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", label: "Mô tả link full message", placeholder: "Dùng link này để mở bot và nhận toàn bộ nội dung đã xác nhận.", help: "Biến: không cần placeholder. Mô tả dưới link full message.", kind: "textarea" },
-  { key: "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", label: "Deep link full message", placeholder: "https://t.me/hangcuprivebot?start=actmsg_{code}", help: "Biến: {code}. Prefix actmsg_ sẽ được tự chuẩn hoá.", },
-  { key: "MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", label: "Nút copy full message", placeholder: "Copy full message link", help: "Biến: không cần placeholder. Text nút admin copy full message." },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_TITLE", label: "Tiêu đề tin active code", placeholder: "💬 Tin nhắn active code", help: "Tiêu đề cho khối tin nhắn hoàn chỉnh có active code." },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", label: "Mô tả tin active code", placeholder: "Dùng tin này để gửi khách kèm link active code.", help: "Mô tả dưới khối tin active code.", kind: "textarea" },
+  { key: "MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", label: "Nút copy tin active code", placeholder: "Copy tin active code", help: "Text nút admin copy tin active code." },
+  { key: "MANUAL_ORDER_JOIN_LINK_TITLE", label: "Tiêu đề tin join group", placeholder: "💬 Tin nhắn join group", help: "Tiêu đề cho khối tin nhắn hoàn chỉnh có link join group." },
+  { key: "MANUAL_ORDER_JOIN_LINK_SUBTITLE", label: "Mô tả tin join group", placeholder: "Dùng tin này để gửi khách khi cần có sẵn link join group.", help: "Mô tả dưới khối tin join group.", kind: "textarea" },
+  { key: "MANUAL_ORDER_JOIN_LINK_TEMPLATE", label: "Template tin join group", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{support_text}", help: "Biến: {success_text}, {order_text}, {links_text}, {support_text}. Dùng để xuất tin hoàn chỉnh có link join group.", kind: "textarea" },
+  { key: "MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", label: "Nút copy tin join group", placeholder: "Copy tin join group", help: "Text nút admin copy tin join group." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin bot báo hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Biến: không cần placeholder." },
@@ -7740,14 +7743,23 @@ export default function Home() {
               </Box>
               <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
-                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen 2 link</Button>
+                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen 2 tin</Button>
               </Stack>
                 {manualOrderResult ? (
                   <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                     <TextField
                       className="field wide"
-                      label="Tin nhắn hoàn chỉnh"
-                      value={stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || "")}
+                      label={manualOrderResult.manual_order_message_title || "Tin active code"}
+                      value={stripHtml(manualOrderResult.manual_order_text || "")}
+                      slotProps={{ input: { readOnly: true } }}
+                      fullWidth
+                      multiline
+                      minRows={10}
+                      sx={popupFieldSx}
+                    />
+                    <TextField
+                      label={manualOrderResult.manual_order_join_title || "Tin join group"}
+                      value={stripHtml(manualOrderResult.manual_order_join_text || manualOrderResult.links_text || "")}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
@@ -7757,15 +7769,6 @@ export default function Home() {
                     <TextField
                       label={manualOrderResult.bot_link_title || "Active code"}
                       value={manualOrderResult.activation_url || ""}
-                      slotProps={{ input: { readOnly: true } }}
-                      fullWidth
-                      multiline
-                      minRows={4}
-                      sx={popupFieldSx}
-                    />
-                    <TextField
-                      label={manualOrderResult.manual_order_message_title || "Link bot xác nhận"}
-                      value={manualOrderResult.manual_order_message_url || ""}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
@@ -7783,13 +7786,14 @@ export default function Home() {
                     />
                     <Box sx={{ gridColumn: "1 / -1" }}>
                       <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || ""))}>{manualOrderResult.manual_order_message_button_label || "Copy tin active code"}</Button>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_join_text || manualOrderResult.links_text || ""))}>{manualOrderResult.manual_order_join_button_label || "Copy tin join group"}</Button>
                         <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Gen active code"}</Button>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.manual_order_message_url || "")}>{manualOrderResult.manual_order_message_button_label || "Gen link xác nhận"}</Button>
                         <Button
                           variant="outlined"
                           onClick={() => {
                             if (!manualOrderResult) return;
-                            navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.links_text || ""));
+                            navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.manual_order_join_text || ""));
                             showNotice("ok", "Đã copy toàn bộ nội dung hiển thị.");
                           }}
                         >

@@ -526,6 +526,19 @@ def build_manual_order_message_url(code: str):
     return template.replace("{code}", str(code or "").strip())
 
 
+def build_manual_order_join_message_text(context: dict[str, object]):
+    return render_manual_order_message_text(
+        str(db.get_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
+        {
+            **context,
+            "activation_url": context.get("activation_url", ""),
+            "message_url": context.get("message_url", ""),
+            "links_text": context.get("links_text", ""),
+            "support_text": context.get("support_text", ""),
+        },
+    )
+
+
 def infer_language_from_payment_context(*, payment_currency="", payment_provider="", raw_data=None):
     raw = raw_data if isinstance(raw_data, dict) else {}
     raw_language = str(raw.get("language") or "").strip().lower()
@@ -1252,6 +1265,12 @@ async def admin_create_manual_order(request: Request):
     )
 
     support_link, support_error = await create_support_invite_link(user_id)
+    links_text = "\n".join([
+        render_manual_order_support_text("🔗 {support_group_name}: {support_link}", {
+            "support_group_name": support_group_name(),
+            "support_link": support_link,
+        }) if support_link else "",
+    ]).strip()
     if support_link:
         support_text = render_manual_order_support_text("💬 {support_group_name}:\n{support_link}", {
             "order_id": order_id,
@@ -1340,7 +1359,7 @@ async def admin_create_manual_order(request: Request):
             "paid_at": paid_at.isoformat(timespec="seconds"),
             "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
             "group_names": "",
-            "links_text": "",
+            "links_text": links_text,
             "activation_code": activation_code,
             "activation_url": activation_url,
             "manual_order_message_url": build_manual_order_message_url(activation_code),
@@ -1349,10 +1368,13 @@ async def admin_create_manual_order(request: Request):
             "support_text": support_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
             "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Link bot xác nhận", {}),
+            "manual_order_join_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link bot đầy đủ", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
             "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung xác nhận đơn.", {}),
+            "manual_order_join_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách khi cần có sẵn link join group.", {}),
             "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Gen active code", {}),
-            "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Gen link xác nhận", {}),
+            "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Gen tin active code", {}),
+            "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Gen tin join group", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {
@@ -1367,7 +1389,26 @@ async def admin_create_manual_order(request: Request):
                 "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
                 "activation_url": activation_url,
                 "message_url": build_manual_order_message_url(activation_code),
-                "links_text": "",
+                "links_text": links_text,
+                "support_text": support_text,
+                "support_group_name": support_group_name(),
+                "support_link": support_link,
+                "support_error": support_error,
+                "activation_code": activation_code,
+            }),
+            "manual_order_join_text": build_manual_order_join_message_text({
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "full_name": full_name or telegram_user_id,
+                "plan_name": plan_name,
+                "expire_at": expire_at.isoformat(timespec="seconds"),
+                "order_text": order_text,
+                "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
+                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link bot đầy đủ", {}),
+                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách khi cần có sẵn link join group.", {}),
+                "activation_url": activation_url,
+                "message_url": "",
+                "links_text": links_text,
                 "support_text": support_text,
                 "support_group_name": support_group_name(),
                 "support_link": support_link,
