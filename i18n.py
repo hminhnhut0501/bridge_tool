@@ -15,6 +15,30 @@ def default_language():
     return normalize_language(db.get_config("DEFAULT_LANGUAGE", DEFAULT_LANGUAGE))
 
 
+def _language_from_paid_orders(user_id):
+    if not supabase_store.enabled:
+        return ""
+    try:
+        orders = supabase_store.list_paid_orders_for_user(user_id, limit=20)
+    except Exception as exc:
+        print(f"⚠️ Không đọc được orders để suy ra ngôn ngữ user {user_id}: {exc}")
+        return ""
+    if not orders:
+        return ""
+    for order in orders:
+        metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+        language = str(metadata.get("language") or "").strip().lower()
+        if language in SUPPORTED_LANGUAGES:
+            return language
+        currency = str(order.get("payment_currency") or metadata.get("payment_currency") or "").strip().upper()
+        provider = str(order.get("payment_provider") or metadata.get("payment_provider") or "").strip().upper()
+        if currency == "USD" or provider in {"PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"}:
+            return "en"
+        if currency == "VND" or provider == "PAYOS":
+            return "vi"
+    return ""
+
+
 def get_user_language(user_id):
     key = str(user_id or "").strip()
     if not key:
@@ -28,6 +52,10 @@ def get_user_language(user_id):
             language = normalize_language((preference or {}).get("language"))
         except Exception as exc:
             print(f"⚠️ Không đọc được language preference user {key}: {exc}")
+    if language != "en":
+        order_language = _language_from_paid_orders(key)
+        if order_language == "en":
+            language = "en"
     _language_cache[key] = language
     return language
 
