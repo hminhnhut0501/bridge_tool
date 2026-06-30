@@ -557,7 +557,7 @@ type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
 type MenuLanguage = "vi" | "en";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
-type CustomerOrderTab = "all" | "active" | "expiring" | "lifetime" | "paid" | "expired";
+type CustomerOrderTab = "paid" | "other";
 type CustomerDetailTab = "orders" | "groups" | "timeline";
 type CustomerTimelineSubTab = "all" | "joinLeft" | "role" | "restricted" | "kickMute" | "orders";
 type CustomerTraceEvent = {
@@ -2592,7 +2592,7 @@ export default function Home() {
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
   const [customerTimelineSubTab, setCustomerTimelineSubTab] = useState<CustomerTimelineSubTab>("all");
-  const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("all");
+  const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("paid");
   const [customerRenewModalOpen, setCustomerRenewModalOpen] = useState(false);
   const [customerRenewForm, setCustomerRenewForm] = useState({
     order_id: "",
@@ -7877,6 +7877,12 @@ export default function Home() {
               <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.25 }}>
                 {customerDetailTab === "orders" ? (
                   <>
+                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
+                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "day")).length)} icon={<CalendarClock size={16} />} />
+                      <Metric label="Đơn tháng này" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "month")).length)} icon={<BarChart3 size={16} />} />
+                      <Metric label="Đã thanh toán" value={String(selectedCustomerOrders.filter((item) => item.status === "PAID").length)} icon={<CheckCircle2 size={16} />} />
+                      <Metric label="Trạng thái còn lại" value={String(selectedCustomerOrders.filter((item) => item.status !== "PAID").length)} icon={<Activity size={16} />} />
+                    </Box>
                     <Tabs
                       value={customerOrderTab}
                       onChange={(_, next) => setCustomerOrderTab(next)}
@@ -7886,21 +7892,14 @@ export default function Home() {
                       indicatorColor="primary"
                       sx={{ ...customerPopupTabSx, mb: 2 }}
                     >
-                      <Tab value="all" label={`Tất cả (${selectedCustomerOrders.length})`} />
-                      <Tab value="active" label={`Active (${selectedCustomerOrders.filter((item) => isOrderActive(item)).length})`} />
-                      <Tab value="expiring" label={`Sắp hết hạn (${selectedCustomerOrders.filter((item) => !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays).length})`} />
-                      <Tab value="lifetime" label={`Trọn đời (${selectedCustomerOrders.filter((item) => isLifetimeText(item.plan_name)).length})`} />
-                      <Tab value="paid" label={`PAID (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})`} />
-                      <Tab value="expired" label={`Expired (${selectedCustomerOrders.filter((item) => item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name))).length})`} />
+                      <Tab value="paid" label={`Đã thanh toán (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})`} />
+                      <Tab value="other" label={`Trạng thái còn lại (${selectedCustomerOrders.filter((item) => item.status !== "PAID").length})`} />
                     </Tabs>
                     <CustomerOrdersTable
                       orders={selectedCustomerOrders.filter((item) => {
-                        if (customerOrderTab === "active") return isOrderActive(item);
-                        if (customerOrderTab === "expiring") return !isOrderActive(item) && daysUntil(item.expire_at) >= 0 && daysUntil(item.expire_at) <= reminderNoticeDays;
-                        if (customerOrderTab === "lifetime") return isLifetimeText(item.plan_name);
                         if (customerOrderTab === "paid") return item.status === "PAID";
-                        if (customerOrderTab === "expired") return item.status === "EXPIRED" || (item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name));
-                        return true;
+                        if (customerOrderTab === "other") return item.status !== "PAID";
+                        return item.status === "PAID";
                       })}
                       saving={saving}
                       onExpireChange={changeOrderExpire}
