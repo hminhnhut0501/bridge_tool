@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Box, Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, Chip, MenuItem, Stack, Tab, Tabs, TextField, Typography } from "@mui/material";
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Coins, Megaphone } from "lucide-react";
 import { AppSection, AppToolbar, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 import { Metric } from "./metric-card";
@@ -108,26 +108,42 @@ export function AnalyticsSection(props: any) {
 }
 
 export function OrdersSection(props: any) {
-  const { filteredOrders, exportOrdersCsv, query, setQuery, orderStatus, setOrderStatus, orderPeriod, setOrderPeriod, orderGroupMode, setOrderGroupMode, groupedFilteredOrders, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, SummaryTable } = props;
+  const { filteredOrders, filteredOrdersBase, exportOrdersCsv, query, setQuery, orderTab, setOrderTab, orderPeriod, setOrderPeriod, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, isWithinPeriod } = props;
+  const paidCount = filteredOrdersBase.filter((item: any) => item.status === "PAID").length;
+  const remainingCount = filteredOrdersBase.length - paidCount;
+  const todayCount = filteredOrdersBase.filter((item: any) => isWithinPeriod(item.created_at, "today")).length;
+  const monthCount = filteredOrdersBase.filter((item: any) => isWithinPeriod(item.created_at, "month")).length;
   return (
     <Stack spacing={2}>
       <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact accent="amber">
         <Typography variant="body2" color="text.secondary">Form tạo đơn thủ công được đưa vào popup để tab Đơn hàng chỉ tập trung vào danh sách và bộ lọc.</Typography>
       </AppSection>
-      <AppSection title="Đơn hàng" subtitle="Đơn được giữ lại lâu dài. Dùng bộ lọc, nhóm và phân trang để xem nhẹ hơn." action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>} accent="blue">
-        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} sx={{ p: 2, bgcolor: "background.default", borderTop: 1, borderBottom: 1, borderColor: "divider" }}>
+      <AppSection
+        title="Đơn hàng"
+        subtitle="Quản lý danh sách đơn tổng. Ưu tiên xem theo PAID và phần trạng thái còn lại để bớt dày."
+        action={<AppToolbar><Button variant="outlined" size="small" onClick={exportOrdersCsv} disabled={!filteredOrders.length}><Download size={16} /> CSV</Button></AppToolbar>}
+        accent="blue"
+      >
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
+          <Metric label="Đơn hôm nay" value={String(todayCount)} accent="blue" icon={<CalendarClock size={16} />} />
+          <Metric label="Đơn tháng này" value={String(monthCount)} accent="cyan" icon={<TrendingUp size={16} />} />
+          <Metric label="Đã thanh toán" value={String(paidCount)} accent="emerald" icon={<CreditCard size={16} />} />
+          <Metric label="Trạng thái còn lại" value={String(remainingCount)} accent="amber" icon={<BadgeDollarSign size={16} />} />
+        </Box>
+        <Tabs
+          value={orderTab}
+          onChange={(_, value) => setOrderTab(value as "paid" | "other")}
+          sx={{ px: 0.5, minHeight: 42, "& .MuiTab-root": { minHeight: 42, fontWeight: 800, textTransform: "none" } }}
+        >
+          <Tab value="paid" label={<Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span>Đã thanh toán</span><Chip size="small" label={String(paidCount)} sx={{ height: 22 }} /></Box>} />
+          <Tab value="other" label={<Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span>Trạng thái còn lại</span><Chip size="small" label={String(remainingCount)} sx={{ height: 22 }} /></Box>} />
+        </Tabs>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} sx={{ py: 1.5 }}>
           <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
-          <TextField select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value)} size="small" fullWidth>
-            <MenuItem value="ALL">Tất cả trạng thái</MenuItem><MenuItem value="PENDING">Đang chờ</MenuItem><MenuItem value="PAID">Đã thanh toán</MenuItem><MenuItem value="CANCELLED">Đã hủy</MenuItem><MenuItem value="EXPIRED">Hết hạn</MenuItem>
-          </TextField>
           <TextField select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value)} size="small" fullWidth>
             <MenuItem value="today">Hôm nay</MenuItem><MenuItem value="7d">7 ngày gần đây</MenuItem><MenuItem value="month">Tháng này</MenuItem><MenuItem value="year">Năm nay</MenuItem><MenuItem value="all">Tất cả</MenuItem>
           </TextField>
-          <TextField select value={orderGroupMode} onChange={(event) => setOrderGroupMode(event.target.value)} size="small" fullWidth>
-            <MenuItem value="day">Nhóm theo ngày</MenuItem><MenuItem value="month">Nhóm theo tháng</MenuItem><MenuItem value="none">Không nhóm</MenuItem>
-          </TextField>
         </Stack>
-        {orderGroupMode !== "none" ? <SummaryTable groups={groupedFilteredOrders} /> : null}
         <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
         <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
       </AppSection>

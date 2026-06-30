@@ -2580,9 +2580,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
   const [query, setQuery] = useState("");
-  const [orderStatus, setOrderStatus] = useState("ALL");
+  const [orderTab, setOrderTab] = useState<"paid" | "other">("paid");
   const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("month");
-  const [orderGroupMode, setOrderGroupMode] = useState<GroupMode>("day");
   const [orderPage, setOrderPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
   const [customerStatus, setCustomerStatus] = useState<CustomerStatusFilter>("all");
@@ -4201,17 +4200,17 @@ export default function Home() {
     return items;
   }, [config, configuredGroups.length, webhook]);
 
-  const filteredOrders = useMemo(() => {
+  const filteredOrdersBase = useMemo(() => {
     return orders.filter((order) => {
       const text = `${order.order_id} ${order.full_name || ""} ${order.telegram_user_id} ${order.plan_name} ${orderCouponCode(order)}`.toLowerCase();
       const matchQuery = !query || text.includes(query.toLowerCase());
-      const matchStatus = orderStatus === "ALL" || order.status === orderStatus;
       const matchPeriod = isWithinPeriod(order.created_at, orderPeriod);
-      return matchQuery && matchStatus && matchPeriod;
+      return matchQuery && matchPeriod;
     });
-  }, [orders, query, orderStatus, orderPeriod]);
-  const filteredOrderStats = useMemo(() => orderStats(filteredOrders), [filteredOrders]);
-  const groupedFilteredOrders = useMemo(() => groupOrders(filteredOrders, orderGroupMode), [filteredOrders, orderGroupMode]);
+  }, [orders, query, orderPeriod]);
+  const filteredOrders = useMemo(() => {
+    return filteredOrdersBase.filter((order) => (orderTab === "paid" ? order.status === "PAID" : order.status !== "PAID"));
+  }, [filteredOrdersBase, orderTab]);
   const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDER_PAGE_SIZE));
   const reminderNoticeDays = useMemo(() => Number(getConfigValue(config, "REMINDER_DAYS", "3")) || 3, [config]);
   const pagedOrders = useMemo(() => {
@@ -5051,7 +5050,7 @@ export default function Home() {
 
   useEffect(() => {
     setOrderPage(1);
-  }, [query, orderStatus, orderPeriod, orderGroupMode]);
+  }, [query, orderTab, orderPeriod]);
 
   useEffect(() => {
     setCustomerPage(1);
@@ -5792,18 +5791,16 @@ export default function Home() {
 
         {tab === "orders" ? (
           <OrdersSection
+            orders={orders}
             filteredOrders={filteredOrders}
-            filteredOrderStats={filteredOrderStats}
+            filteredOrdersBase={filteredOrdersBase}
             exportOrdersCsv={exportOrdersCsv}
             query={query}
             setQuery={setQuery}
-            orderStatus={orderStatus}
-            setOrderStatus={setOrderStatus}
+            orderTab={orderTab}
+            setOrderTab={setOrderTab}
             orderPeriod={orderPeriod}
             setOrderPeriod={setOrderPeriod}
-            orderGroupMode={orderGroupMode}
-            setOrderGroupMode={setOrderGroupMode}
-            groupedFilteredOrders={groupedFilteredOrders}
             pagedOrders={pagedOrders}
             changeOrderStatus={changeOrderStatus}
             removeOrder={removeOrder}
@@ -5811,8 +5808,8 @@ export default function Home() {
             orderPage={orderPage}
             totalOrderPages={totalOrderPages}
             setOrderPage={setOrderPage}
-            SummaryTable={SummaryTable}
             ordersMoney={ordersMoney}
+            isWithinPeriod={isWithinPeriod}
             openOrderSettings={() => setOrderSettingsOpen(true)}
             openManualOrder={() => { setManualOrderResult(null); setManualOrderModalOpen(true); }}
           />
