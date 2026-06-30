@@ -419,7 +419,7 @@ const customerPopupInputSx = {
   "& .MuiOutlinedInput-root": {
     ...popupFieldSx["& .MuiOutlinedInput-root"],
     bgcolor: "#ffffff",
-    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.03)",
+    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.03)",
   },
   "& .MuiInputLabel-root": {
     fontWeight: 700,
@@ -427,12 +427,12 @@ const customerPopupInputSx = {
 } as const;
 
 const customerInnerCardSx = {
-  p: 1.5,
+  p: 1.1,
   border: 1,
   borderColor: "divider",
-  borderRadius: 2,
+  borderRadius: 1.75,
   bgcolor: "background.paper",
-  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)",
 } as const;
 
 const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon: boolean) => {
@@ -8334,7 +8334,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
     return <Chip size="small" label={orderLifecycleLabel(order)} variant="outlined" sx={customerOrderStateChipSx(normalized, active, expiringSoon)} />;
   };
   return (
-    <Stack spacing={1.5}>
+    <Stack spacing={1}>
       {sorted.map((order) => (
         (() => {
           const canEdit = String(order.status || "").toUpperCase() === "PAID";
@@ -8370,13 +8370,14 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
             ...cardSx,
           }}
         >
-          <CardContent sx={{ display: "grid", gap: 1.75, "&:last-child": { pb: 2 } }}>
+          <CardContent sx={{ display: "grid", gap: 1.1, p: 1.5, "&:last-child": { pb: 1.5 } }}>
             <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
               <Box>
                 <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{order.order_id}</Typography>
                 <Typography variant="body2" color="text.secondary">{dateText(order.created_at)}</Typography>
               </Box>
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
+                <Box sx={{ mr: 0.5 }}>{statusChip(order)}</Box>
                 <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={statusChipSx("purple")} />
                 <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={statusChipSx("warning")} />
                 <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 4, minWidth: 100 }}>
@@ -8385,7 +8386,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
               </Box>
             </Box>
 
-            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" } }}>
               <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
                 <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
@@ -8409,13 +8410,9 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
                   {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label={String(order.status || "").toUpperCase() === "PENDING" ? "Chưa thanh toán / quá hạn" : "VIP đã hết hạn"} variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
-                <Box sx={{ mt: 0.75 }}>{statusChip(order)}</Box>
-              </Box>
             </Box>
 
-            <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, pt: 0.5 }}>
+            <Box sx={{ display: expandedOrders[order.order_id] ? "grid" : "none", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, pt: 0.25 }}>
               <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Sửa tên gói</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
@@ -8461,7 +8458,6 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
                   }} sx={{ borderRadius: 4, minWidth: 84 }}>Lưu note</Button>
                 </Stack>
               </Box>
-
             </Box>
           </CardContent>
         </Card>
