@@ -26,7 +26,7 @@ from hidden_group_utils import (
 )
 from helpers import bot_schedule_status, bot_runtime_state_audit, set_runtime_maintenance_override, runtime_maintenance_override
 from helpers import create_background_task
-from i18n import get_user_language
+from i18n import get_user_language, set_user_language
 from supabase_store import supabase_store
 from support_utils import (
     create_support_invite_link,
@@ -498,6 +498,29 @@ def normalize_manual_order_link_template(value: str):
 def build_manual_activation_url(code: str):
     template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
     return template.replace("{code}", str(code or "").strip())
+
+
+def build_manual_order_message_url(code: str):
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=actmsg_{code}") or "")
+    if "start=act_{code}" in template:
+        template = template.replace("start=act_{code}", "start=actmsg_{code}")
+    elif "start={code}" in template:
+        template = template.replace("start={code}", "start=actmsg_{code}")
+    return template.replace("{code}", str(code or "").strip())
+
+
+def infer_language_from_payment_context(*, payment_currency="", payment_provider="", raw_data=None):
+    raw = raw_data if isinstance(raw_data, dict) else {}
+    raw_language = str(raw.get("language") or "").strip().lower()
+    if raw_language in {"vi", "en"}:
+        return raw_language
+    currency = str(payment_currency or raw.get("payment_currency") or "").strip().upper()
+    provider = str(payment_provider or raw.get("payment_provider") or "").strip().upper()
+    if currency == "USD" or provider in {"PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"}:
+        return "en"
+    if currency == "VND" or provider == "PAYOS":
+        return "vi"
+    return None
 
 
 def generate_activation_code(length: int = 6):
@@ -1160,6 +1183,13 @@ async def admin_create_manual_order(request: Request):
     payment_provider = str(body.get("payment_provider") or preferred_provider).strip().upper() or preferred_provider
     if payment_provider == "MANUAL" and user_language == "en":
         payment_provider = preferred_provider
+    inferred_language = infer_language_from_payment_context(
+        payment_currency=payment_currency,
+        payment_provider=payment_provider,
+        raw_data=body,
+    )
+    if inferred_language:
+        set_user_language(user_id, inferred_language)
 
     expire_at = parse_manual_expire_at(body.get("expire_at"))
     if expire_at is None:

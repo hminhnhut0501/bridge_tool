@@ -46,6 +46,69 @@ def render_cfg(key, default, values=None):
     return text.replace("\\n", "\n")
 
 
+def normalize_manual_order_link_template(template: str) -> str:
+    text = str(template or "").strip()
+    if not text:
+        return "https://t.me/hangcuprivebot?start=act_{code}"
+    if text.startswith("t.me/"):
+        text = f"https://{text}"
+    if "start=act_{code}" in text:
+        return text
+    if "start={code}" in text:
+        return text.replace("start={code}", "start=act_{code}")
+    return text
+
+
+def build_manual_order_link(code: str) -> str:
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
+    return template.replace("{code}", str(code or "").strip())
+
+
+def build_manual_order_message_link(code: str) -> str:
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=actmsg_{code}") or "")
+    if "start=act_{code}" in template:
+        template = template.replace("start=act_{code}", "start=actmsg_{code}")
+    elif "start={code}" in template:
+        template = template.replace("start={code}", "start=actmsg_{code}")
+    return template.replace("{code}", str(code or "").strip())
+
+
+def render_manual_order_info_text(context: dict[str, object]):
+    return (
+        render_cfg(
+            "MANUAL_ORDER_INFO_TEMPLATE",
+            "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+            context,
+        )
+    )
+
+
+def render_manual_order_support_text(context: dict[str, object]):
+    return render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", context)
+
+
+def render_manual_order_message_text(context: dict[str, object]):
+    return render_cfg(
+        "MANUAL_ORDER_MESSAGE_TEMPLATE",
+        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}",
+        context,
+    )
+
+
+def infer_language_from_payment_context(*, payment_currency="", payment_provider="", raw_data=None):
+    raw = raw_data if isinstance(raw_data, dict) else {}
+    raw_language = str(raw.get("language") or "").strip().lower()
+    if raw_language in {"vi", "en"}:
+        return raw_language
+    currency = str(payment_currency or raw.get("payment_currency") or "").strip().upper()
+    provider = str(payment_provider or raw.get("payment_provider") or "").strip().upper()
+    if currency == "USD" or provider in {"PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY"}:
+        return "en"
+    if currency == "VND" or provider == "PAYOS":
+        return "vi"
+    return None
+
+
 def language_switch_keyboard(current_language):
     kb = InlineKeyboardBuilder()
     if current_language == "en":
@@ -252,6 +315,16 @@ async def deliver_activation_order(message: Message, code: str):
     telegram_user_id = str(activation.get("telegram_user_id") or "").strip()
     expire_at = str(activation.get("expire_at") or "").strip()
     now_user_id = str(message.from_user.id)
+    raw_data = activation.get("raw_data") if isinstance(activation.get("raw_data"), dict) else {}
+    inferred_language = infer_language_from_payment_context(
+        payment_currency=activation.get("payment_currency", ""),
+        payment_provider=activation.get("payment_provider", ""),
+        raw_data=raw_data,
+    )
+    if inferred_language:
+        set_user_language(message.from_user.id, inferred_language)
+        if telegram_user_id:
+            set_user_language(telegram_user_id, inferred_language)
 
     if telegram_user_id and telegram_user_id != now_user_id:
         await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
@@ -387,6 +460,81 @@ async def deliver_activation_order(message: Message, code: str):
         except Exception:
             pass
 
+
+async def deliver_manual_order_message(message: Message, code: str):
+    activation = supabase_store.get_order_activation_code(code) if supabase_store.enabled else None
+    if not activation:
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_INVALID_TEXT", "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá."))
+        return
+
+    status = str(activation.get("activation_status") or "PENDING").upper()
+    telegram_user_id = str(activation.get("telegram_user_id") or "").strip()
+    expire_at = str(activation.get("expire_at") or "").strip()
+    now_user_id = str(message.from_user.id)
+
+    if telegram_user_id and telegram_user_id != now_user_id:
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
+        return
+    if status == "USED":
+        await message.answer(render_cfg("MANUAL_ORDER_LINK_USED_TEXT", "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới."))
+        return
+
+    if expire_at:
+        try:
+            parsed_expire = datetime.fromisoformat(expire_at.replace("Z", "+00:00"))
+            if parsed_expire.tzinfo:
+                parsed_expire = parsed_expire.astimezone(ZoneInfo(str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"))).replace(tzinfo=None)
+            if parsed_expire < datetime.now():
+                await message.answer(render_cfg("MANUAL_ORDER_LINK_EXPIRED_TEXT", "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin."))
+                return
+        except Exception:
+            pass
+
+    render_context = {
+        "order_id": activation.get("order_id", ""),
+        "telegram_user_id": telegram_user_id,
+        "full_name": activation.get("full_name", ""),
+        "plan_name": activation.get("plan_name", ""),
+        "expire_at": format_manual_expire(expire_at),
+        "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
+    }
+
+    try:
+        support_link, support_error = await create_support_invite_link(message.from_user.id)
+        render_context["support_link"] = support_link or ""
+        render_context["support_error"] = support_error or ""
+    except Exception as exc:
+        render_context["support_link"] = ""
+        render_context["support_error"] = str(exc)
+        print(f"⚠️ Không tạo được support link cho manual order message {code}: {exc}")
+
+    support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
+    if not support_text and render_context.get("support_error"):
+        support_text = render_cfg(
+            "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+            render_context,
+        )
+    render_context["support_text"] = support_text
+    render_context["activation_url"] = build_manual_order_link(code)
+    render_context["message_url"] = build_manual_order_message_link(code)
+    render_context["success_text"] = render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {})
+    render_context["bot_link_title"] = render_cfg("MANUAL_ORDER_LINK_TITLE", "🔗 Link kích hoạt", {})
+    render_context["bot_link_subtitle"] = render_cfg("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {})
+    render_context["order_text"] = render_manual_order_info_text(render_context)
+    render_context["links_text"] = render_cfg(
+        "MANUAL_ORDER_MESSAGE_LINK_TEXT",
+        "🔗 Link kích hoạt: {activation_url}\n💬 Link mở bot chi tiết: {message_url}",
+        render_context,
+    )
+    render_context["partial_text"] = ""
+    delivery_text = render_cfg(
+        "MANUAL_ORDER_MESSAGE_TEMPLATE",
+        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{message_url}\n\n{bot_link_subtitle}\n\n{support_text}",
+        render_context,
+    )
+    await message.answer(delivery_text, parse_mode="HTML")
+
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -446,6 +594,17 @@ async def cmd_start(message: Message):
                     activation_code=activation_code,
                 )
                 await deliver_activation_order(message, activation_code)
+                return
+            if normalized.lower().startswith("actmsg_"):
+                activation_code = normalized[7:].strip()
+                print(f"🚀 cmd_start manual message payload user={message.from_user.id} activation_code={activation_code}")
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_manual_message",
+                    activation_code=activation_code,
+                )
+                await deliver_manual_order_message(message, activation_code)
                 return
             await record_start_event(
                 message,
