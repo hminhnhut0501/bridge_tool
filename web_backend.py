@@ -518,11 +518,11 @@ def refresh_auto_payment_schedule_if_needed(keys):
 
 
 def build_manual_order_message_url(code: str):
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=actmsg_{code}") or "")
+    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
     if "start=act_{code}" in template:
-        template = template.replace("start=act_{code}", "start=actmsg_{code}")
+        template = template.replace("start=act_{code}", "start=act_{code}")
     elif "start={code}" in template:
-        template = template.replace("start={code}", "start=actmsg_{code}")
+        template = template.replace("start={code}", "start=act_{code}")
     return template.replace("{code}", str(code or "").strip())
 
 
@@ -1367,7 +1367,7 @@ async def admin_create_manual_order(request: Request):
             "support_error": support_error,
             "support_text": support_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
-            "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Link bot xác nhận", {}),
+            "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Tin nhắn active code", {}),
             "manual_order_join_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link bot đầy đủ", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
             "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung xác nhận đơn.", {}),
@@ -1404,7 +1404,7 @@ async def admin_create_manual_order(request: Request):
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
                 "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
-                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link bot đầy đủ", {}),
+                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Tin nhắn join group", {}),
                 "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách khi cần có sẵn link join group.", {}),
                 "activation_url": activation_url,
                 "message_url": "",
