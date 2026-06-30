@@ -7720,7 +7720,7 @@ export default function Home() {
               </Box>
               <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
-                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen link</Button>
+                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen 2 link</Button>
               </Stack>
                 {manualOrderResult ? (
                   <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
@@ -7735,7 +7735,7 @@ export default function Home() {
                       sx={popupFieldSx}
                     />
                     <TextField
-                      label={manualOrderResult.bot_link_title || "Link kích hoạt"}
+                      label={manualOrderResult.bot_link_title || "Active code"}
                       value={manualOrderResult.activation_url || ""}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
@@ -7744,7 +7744,7 @@ export default function Home() {
                       sx={popupFieldSx}
                     />
                     <TextField
-                      label={manualOrderResult.manual_order_message_title || "Link full message"}
+                      label={manualOrderResult.manual_order_message_title || "Link bot xác nhận"}
                       value={manualOrderResult.manual_order_message_url || ""}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
@@ -7763,8 +7763,8 @@ export default function Home() {
                     />
                     <Box sx={{ gridColumn: "1 / -1" }}>
                       <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Copy link bot"}</Button>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.manual_order_message_url || "")}>{manualOrderResult.manual_order_message_button_label || "Copy full message link"}</Button>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Gen active code"}</Button>
+                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.manual_order_message_url || "")}>{manualOrderResult.manual_order_message_button_label || "Gen link xác nhận"}</Button>
                         <Button
                           variant="outlined"
                           onClick={() => {
