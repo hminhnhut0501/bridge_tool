@@ -41,6 +41,7 @@ from support_utils import (
 )
 from vip_group_audit_utils import build_vip_group_audit_rows
 from payment import payment_manager
+from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 
 load_dotenv()
 
@@ -498,6 +499,22 @@ def normalize_manual_order_link_template(value: str):
 def build_manual_activation_url(code: str):
     template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "t.me/hangcuprivebot?start=act_{code}") or "")
     return template.replace("{code}", str(code or "").strip())
+
+
+def auto_payment_config_key(key: str):
+    normalized = str(key or "").strip().upper()
+    return normalized.startswith("AUTO_PAYMENT_")
+
+
+def refresh_auto_payment_schedule_if_needed(keys):
+    changed = any(auto_payment_config_key(key) for key in keys or [])
+    if not changed:
+        return None
+    try:
+        return apply_auto_payment_schedule()
+    except Exception as exc:
+        print(f"⚠️ Không refresh được auto payment schedule ngay sau khi lưu config: {exc}")
+        return None
 
 
 def build_manual_order_message_url(code: str):
@@ -1400,6 +1417,7 @@ async def admin_set_config(key: str, request: Request):
     normalized_key = str(key).strip().upper()
     if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
         await set_commands()
+    refresh_auto_payment_schedule_if_needed([normalized_key])
     return {"data": data}
 
 
@@ -1417,15 +1435,19 @@ async def admin_set_config_batch(request: Request):
         normalized_items.append(normalized_item)
     data = supabase_store.set_configs(normalized_items)
     command_changed = False
+    auto_payment_keys = []
     for item in normalized_items:
         normalized_key = str(item.get("key", "")).strip().upper()
         if not normalized_key:
             continue
         db.cache_config[normalized_key] = str(item.get("value", ""))
+        if auto_payment_config_key(normalized_key):
+            auto_payment_keys.append(normalized_key)
         if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
             command_changed = True
     if command_changed:
         await set_commands()
+    refresh_auto_payment_schedule_if_needed(auto_payment_keys)
     return {"data": data}
 
 
@@ -1433,6 +1455,7 @@ async def admin_set_config_batch(request: Request):
 async def admin_delete_config(key: str):
     data = supabase_store.delete_config(key)
     db.cache_config.pop(str(key).strip().upper(), None)
+    refresh_auto_payment_schedule_if_needed([key])
     return {"data": data}
 
 
