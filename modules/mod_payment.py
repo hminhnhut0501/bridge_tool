@@ -467,8 +467,9 @@ def payment_meta(pay_data):
     }
 
 
-def payment_choice_keyboard(user_id, action, prefix):
-    providers = payment_manager.providers_for_language(get_user_language(user_id))
+def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language)
+    providers = payment_manager.providers_for_language(language)
     if not providers:
         return None, "__NONE__"
     if len(providers) <= 1:
@@ -566,8 +567,8 @@ def support_offer_from_action(action, user_id=None, provider=""):
     return {}
 
 
-def manual_support_payload(user_id=None, action="", provider=""):
-    language = get_user_language(user_id) if user_id else "vi"
+def manual_support_payload(user_id=None, action="", provider="", preferred_language=None):
+    language = resolve_user_language(user_id, preferred_language) if user_id else resolve_user_language(None, preferred_language)
     prefix = "apgen" if language == "en" else "apg"
     if not user_id:
         return f"act_{prefix}"
@@ -657,7 +658,7 @@ def manual_support_bot_url(user_id=None, action="", provider="", preferred_langu
         ).strip()
     else:
         template = str(db.get_config("MANUAL_SUPPORT_BOT_URL", "https://t.me/cuhotro_bot?start={payload}") or "https://t.me/cuhotro_bot?start={payload}").strip()
-    payload = manual_support_payload(user_id, action, provider)
+    payload = manual_support_payload(user_id, action, provider, preferred_language=language)
     if "{payload}" in template:
         return template.replace("{payload}", urllib.parse.quote(payload, safe="_"))
     if template.endswith(("start=act_", "start=src_")):
@@ -801,7 +802,7 @@ async def process_early_renew(callback: CallbackQuery):
             await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
             return
     else:
-        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew")
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payrenew", preferred_language=resolve_user_language(callback.from_user.id))
         if keyboard:
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
@@ -966,7 +967,7 @@ async def process_buy_request(callback: CallbackQuery):
             await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
             return
     else:
-        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy")
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paybuy", preferred_language=resolve_user_language(callback.from_user.id))
         if keyboard:
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
@@ -1047,7 +1048,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
             return
     else:
-        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy")
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "payhgbuy", preferred_language=resolve_user_language(callback.from_user.id))
         if keyboard:
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
@@ -1126,7 +1127,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             await callback.answer("Phương thức thanh toán không hợp lệ.", show_alert=True)
             return
     else:
-        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paycoupon")
+        keyboard, provider = payment_choice_keyboard(callback.from_user.id, action, "paycoupon", preferred_language=resolve_user_language(callback.from_user.id))
         if keyboard:
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
