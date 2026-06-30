@@ -385,14 +385,18 @@ export type ManualOrderResult = {
   expire_at: string;
   activation_code: string;
   activation_url: string;
+  manual_order_message_url?: string;
   group_names: string;
   links_text: string;
   support_link: string | null;
   support_error: string;
   support_text: string;
   bot_link_title?: string;
+  manual_order_message_title?: string;
   bot_link_subtitle?: string;
   bot_link_button_label?: string;
+  manual_order_message_subtitle?: string;
+  manual_order_message_button_label?: string;
   bot_link_success_text?: string;
   bot_link_processing_text?: string;
   manual_order_text: string;
