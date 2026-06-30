@@ -289,9 +289,9 @@ export function orderStatusLabel(status: string | null | undefined) {
 export function orderLifecycleLabel(order: Order) {
   const status = String(order.status || "").toUpperCase();
   const active = isOrderActive(order);
-  if (status === "PAID" && active) return "Đang active";
+  if (status === "PAID" && active) return "PAID · Active";
   if (status === "PAID" && !active) {
-    return isLifetimeText(order.plan_name) ? "Trọn đời" : "VIP đã hết hạn";
+    return isLifetimeText(order.plan_name) ? "PAID · Trọn đời" : "PAID · Hết hạn";
   }
   if (status === "PENDING") {
     return order.expire_at && new Date(order.expire_at).getTime() < Date.now()

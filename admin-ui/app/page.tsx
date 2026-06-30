@@ -8386,28 +8386,40 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
               </Box>
             </Box>
 
-            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" } }}>
+            <Box sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
+              alignItems: "stretch",
+            }}>
               <Box sx={customerInnerCardSx}>
                 <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
-                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{order.plan_name}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
+                <Typography sx={{ fontWeight: 800, mt: 0.5, lineHeight: 1.25 }}>{order.plan_name}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
               </Box>
               <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Coupon</Typography>
-                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{orderCouponCode(order) || "-"}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{orderCouponCode(order) ? (Number(order.amount || 0) === 0 ? "Kích hoạt miễn phí" : money(order.coupon_discount_amount || 0)) : "Không có coupon"}</Typography>
+                <Typography variant="body2" color="text.secondary">Coupon / Note</Typography>
+                <Stack spacing={0.75} sx={{ mt: 0.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                    <Chip size="small" label={orderCouponCode(order) ? orderCouponCode(order) : "Không coupon"} variant="outlined" sx={orderCouponCode(order) ? statusChipSx("warning") : statusChipSx("muted")} />
+                    <Typography variant="caption" color="text.secondary">
+                      {orderCouponCode(order)
+                        ? (Number(order.amount || 0) === 0 ? "Miễn phí" : money(order.coupon_discount_amount || 0))
+                        : "Không có giảm giá"}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {String(order.note || "").trim() ? String(order.note || "") : "Không có ghi chú"}
+                  </Typography>
+                </Stack>
               </Box>
               <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Ghi chú</Typography>
-                <Typography sx={{ fontWeight: 700, mt: 0.5, whiteSpace: "pre-wrap" }}>{String(order.note || "-")}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Ghi chú nội bộ để theo dõi case của đơn.</Typography>
-              </Box>
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Hạn dùng</Typography>
-                <Typography sx={{ fontWeight: 800, mt: 0.5 }}>{dateText(order.expire_at)}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+                <Typography variant="body2" color="text.secondary">Hạn dùng / trạng thái hiệu lực</Typography>
+                <Typography sx={{ fontWeight: 800, mt: 0.5, lineHeight: 1.25 }}>{dateText(order.expire_at)}</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: "wrap" }}>
+                  <Chip size="small" label={String(order.status || "-").toUpperCase()} variant="outlined" sx={customerOrderStateChipSx(order.status, isOrderActive(order), daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3)} />
                   {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={statusChipSx("purple")} /> : null}
-                  {isOrderActive(order) ? <Chip size="small" label="Đang active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label={String(order.status || "").toUpperCase() === "PENDING" ? "Chưa thanh toán / quá hạn" : "VIP đã hết hạn"} variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
+                  {isOrderActive(order) ? <Chip size="small" label="Active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label={String(order.status || "").toUpperCase() === "PENDING" ? "Chưa thanh toán" : "Đã hết hạn"} variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
                 </Stack>
               </Box>
             </Box>
