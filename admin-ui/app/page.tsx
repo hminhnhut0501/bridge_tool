@@ -3355,10 +3355,13 @@ export default function Home() {
     });
   }
 
-  function resetGroupForm(nextGroupNo?: string) {
-    const used = new Set(config.filter((item) => /^BTN_G\d+$/.test(item.key)).map((item) => item.key.replace("BTN_G", "")));
-    const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
-    setGroupNo(nextGroupNo || firstEmpty);
+  function normalizeGroupNo(value: string) {
+    const normalized = String(value || "").trim().replace(/^G/i, "");
+    const match = normalized.match(/^\d+$/);
+    return match ? String(Number(match[0])) : "";
+  }
+
+  function clearGroupFields() {
     setGroupName("");
     setGroupNameEn("");
     setGroupId("");
@@ -3368,20 +3371,41 @@ export default function Home() {
     setGroupPriceLifeUsd("");
   }
 
+  function loadGroupForm(nextGroupNo: string, mode: "load" | "reset" = "load") {
+    const normalized = normalizeGroupNo(nextGroupNo);
+    if (!normalized) {
+      setGroupNo("");
+      clearGroupFields();
+      return;
+    }
+    setGroupNo(normalized);
+    const hasValues = hasAnyGroupConfig(config, Number(normalized));
+    if (mode === "reset" || !hasValues) {
+      clearGroupFields();
+      return;
+    }
+    setGroupName(getConfigValue(config, `BTN_G${normalized}`));
+    setGroupNameEn(getConfigValue(config, `BTN_G${normalized}_EN`));
+    setGroupId(getConfigValue(config, `ID_G${normalized}`));
+    setGroupPrice1m(getConfigValue(config, `PRICE_G${normalized}_1M`));
+    setGroupPriceLife(getConfigValue(config, `PRICE_G${normalized}_LIFE`));
+    setGroupPrice1mUsd(getConfigValue(config, `PRICE_G${normalized}_1M_USD`));
+    setGroupPriceLifeUsd(getConfigValue(config, `PRICE_G${normalized}_LIFE_USD`));
+  }
+
+  function resetGroupForm(nextGroupNo?: string) {
+    const used = new Set(config.filter((item) => /^BTN_G\d+$/.test(item.key)).map((item) => item.key.replace("BTN_G", "")));
+    const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
+    loadGroupForm(nextGroupNo || firstEmpty, "reset");
+  }
+
   function openNewGroupModal() {
     resetGroupForm();
     setGroupModalOpen(true);
   }
 
   function fillGroupForm(nextGroupNo: string) {
-    setGroupNo(nextGroupNo);
-    setGroupName(getConfigValue(config, `BTN_G${nextGroupNo}`));
-    setGroupNameEn(getConfigValue(config, `BTN_G${nextGroupNo}_EN`));
-    setGroupId(getConfigValue(config, `ID_G${nextGroupNo}`));
-    setGroupPrice1m(getConfigValue(config, `PRICE_G${nextGroupNo}_1M`));
-    setGroupPriceLife(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE`));
-    setGroupPrice1mUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_1M_USD`));
-    setGroupPriceLifeUsd(getConfigValue(config, `PRICE_G${nextGroupNo}_LIFE_USD`));
+    loadGroupForm(nextGroupNo);
   }
 
   function openEditGroupModal(nextGroupNo: string) {
@@ -3391,22 +3415,21 @@ export default function Home() {
 
   async function saveGroupConfig() {
     await runAction("group", async () => {
+      const normalizedGroupNo = normalizeGroupNo(groupNo);
+      if (!normalizedGroupNo) {
+        showNotice("error", "Vui lòng nhập số nhóm hợp lệ.");
+        return;
+      }
       await updateConfigs(savedSecret, [
-        { key: `BTN_G${groupNo}`, value: groupName },
-        { key: `BTN_G${groupNo}_EN`, value: groupNameEn },
-        { key: `ID_G${groupNo}`, value: groupId },
-        { key: `PRICE_G${groupNo}_1M`, value: groupPrice1m },
-        { key: `PRICE_G${groupNo}_LIFE`, value: groupPriceLife },
-        { key: `PRICE_G${groupNo}_1M_USD`, value: groupPrice1mUsd },
-        { key: `PRICE_G${groupNo}_LIFE_USD`, value: groupPriceLifeUsd },
+        { key: `BTN_G${normalizedGroupNo}`, value: groupName },
+        { key: `BTN_G${normalizedGroupNo}_EN`, value: groupNameEn },
+        { key: `ID_G${normalizedGroupNo}`, value: groupId },
+        { key: `PRICE_G${normalizedGroupNo}_1M`, value: groupPrice1m },
+        { key: `PRICE_G${normalizedGroupNo}_LIFE`, value: groupPriceLife },
+        { key: `PRICE_G${normalizedGroupNo}_1M_USD`, value: groupPrice1mUsd },
+        { key: `PRICE_G${normalizedGroupNo}_LIFE_USD`, value: groupPriceLifeUsd },
       ]);
-      setGroupName("");
-      setGroupNameEn("");
-      setGroupId("");
-      setGroupPrice1m("");
-      setGroupPriceLife("");
-      setGroupPrice1mUsd("");
-      setGroupPriceLifeUsd("");
+      clearGroupFields();
       setGroupModalOpen(false);
       await loadAll();
     });
@@ -4202,12 +4225,12 @@ export default function Home() {
   const maxGroups = useMemo(() => Math.max(Number(getConfigValue(config, "GROUP_COUNT", String(DEFAULT_GROUP_COUNT))) || DEFAULT_GROUP_COUNT, 1), [config]);
   const configuredGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => isGroupConfigured(config, item)), [config, maxGroups]);
   const visibleGroups = useMemo(() => Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter((item) => hasAnyGroupConfig(config, item)), [config, maxGroups]);
-  const groupSelectOptions = useMemo(() => {
-    const selected = Number(groupNo);
-    const values = new Set(visibleGroups);
-    if (selected >= 1 && selected <= maxGroups) values.add(selected);
-    return Array.from(values).sort((a, b) => a - b);
-  }, [groupNo, visibleGroups, maxGroups]);
+  const groupQuickOptions = useMemo(() => {
+    const values = new Set<string>(visibleGroups.map((item) => String(item)));
+    const selected = String(groupNo || "").trim();
+    if (selected) values.add(selected);
+    return Array.from(values).sort((a, b) => Number(a) - Number(b));
+  }, [groupNo, visibleGroups]);
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
@@ -7099,15 +7122,23 @@ export default function Home() {
                 action={<IconButton color="error" size="small" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
               />
               <div className="form-grid">
-                <FormControl className="field" fullWidth size="small">
-                  <InputLabel id="group-no-label">Nhóm cần cấu hình</InputLabel>
-                  <Select labelId="group-no-label" label="Nhóm cần cấu hình" value={groupNo} onChange={(event) => fillGroupForm(event.target.value)} sx={popupSelectSx}>
-                    {groupSelectOptions.map((item) => (
-                      <MenuItem key={item} value={item}>G{item}{visibleGroups.includes(item) ? "" : " - nhóm mới"}</MenuItem>
-                    ))}
-                  </Select>
-                  <Typography variant="caption" color="text.secondary">Coupon và sale sẽ hiện tên nhóm này trong dropdown.</Typography>
-                </FormControl>
+                <TextField
+                  className="field"
+                  label="Nhóm cần cấu hình"
+                  value={groupNo}
+                  onChange={(event) => loadGroupForm(event.target.value)}
+                  placeholder="Nhập số nhóm, ví dụ 5 hoặc 12"
+                  helperText="Nhập số nhóm để sửa hoặc tạo mới. Bấm chip bên dưới để chọn nhanh nhóm đã có."
+                  fullWidth
+                  size="small"
+                  sx={popupFieldSx}
+                  slotProps={{ htmlInput: { inputMode: "numeric", pattern: "[0-9]*" } }}
+                />
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, gridColumn: "1 / -1", mt: -0.5, mb: 0.5 }}>
+                  {groupQuickOptions.map((item) => (
+                    <Chip key={item} label={`G${item}${visibleGroups.map(String).includes(item) ? "" : " mới"}`} clickable variant={String(groupNo) === String(item) ? "filled" : "outlined"} color={String(groupNo) === String(item) ? "primary" : "default"} onClick={() => fillGroupForm(item)} />
+                  ))}
+                </Box>
                 <TextField className="field" label="Tên nhóm tiếng Việt" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Tên nhóm tiếng Anh" value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
