@@ -60,7 +60,7 @@ import {
   TextField,
   Grid,
 } from "@mui/material";
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   channelPostStatusClass,
@@ -123,6 +123,7 @@ import { ChannelPostsSection } from "./channel-posts-section";
 import { AppSection, AppToolbar } from "./dashboard-components";
 import {
   ActivityEvent,
+  ActivityLogResponse,
   BroadcastCampaign,
   BroadcastRecipient,
   type BotScheduleStatus,
@@ -164,6 +165,7 @@ import {
   deleteSaleRule,
   getConfig,
   getActivityEvents,
+  getActivityLog,
   getBlacklist,
   getBotScheduleStatus,
   getCampaignRecipients,
@@ -2592,6 +2594,8 @@ export default function Home() {
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
+  const [activityLogLoading, setActivityLogLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [campaignRecipients, setCampaignRecipients] = useState<BroadcastRecipient[]>([]);
   const [campaignPreview, setCampaignPreview] = useState<CampaignPreview | null>(null);
@@ -2637,6 +2641,9 @@ export default function Home() {
   const [logType, setLogType] = useState("ALL");
   const [logDate, setLogDate] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
+  const activityLogFilterRef = useRef({ query: "", direction: "all" as LogDirectionFilter, type: "ALL", date: "ALL" });
+  const activityLogSkipNextFetchRef = useRef(false);
+  const activityLogRequestIdRef = useRef(0);
   const [adminReplyOpen, setAdminReplyOpen] = useState(false);
   const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string } | null>(null);
   const [adminReplyText, setAdminReplyText] = useState("");
@@ -2809,6 +2816,34 @@ export default function Home() {
       loadAll(savedSecret, { scope: tab });
     }
   }, [savedSecret, tab]);
+
+  useEffect(() => {
+    if (!savedSecret || tab !== "activityLog") return;
+    const currentFilters = { query, direction: logDirection, type: logType, date: logDate };
+    const previousFilters = activityLogFilterRef.current;
+    const filtersChanged =
+      previousFilters.query !== currentFilters.query ||
+      previousFilters.direction !== currentFilters.direction ||
+      previousFilters.type !== currentFilters.type ||
+      previousFilters.date !== currentFilters.date;
+    const loadPage = filtersChanged ? 1 : logPage;
+    if (filtersChanged) {
+      activityLogFilterRef.current = currentFilters;
+      if (logPage !== 1) {
+        setLogPage(1);
+        activityLogSkipNextFetchRef.current = true;
+      } else {
+        activityLogSkipNextFetchRef.current = false;
+      }
+    } else if (activityLogSkipNextFetchRef.current && logPage === 1) {
+      activityLogSkipNextFetchRef.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void loadActivityLogPage(savedSecret, { page: loadPage, query, direction: logDirection, type: logType, date: logDate });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [savedSecret, tab, logPage, logDirection, logType, logDate, query]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
@@ -3047,10 +3082,10 @@ export default function Home() {
       const needsActivationCodes = !light && shouldLoad("activationCodes");
       const needsHidden = !light && shouldLoad("setup", "coupons");
       const needsBlacklist = !light && shouldLoad("security");
-      const needsSupportEvents = !light && shouldLoad("activityLog", "renewals", "supportGroup");
+      const needsSupportEvents = !light && shouldLoad("renewals", "supportGroup");
       const needsKickAudit = !light && shouldLoad("renewals");
       const needsVipGroupAudit = !light && shouldLoad("renewals");
-      const needsActivityEvents = !light && shouldLoad("activityLog", "analytics");
+      const needsActivityEvents = !light && shouldLoad("analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
       const needsWebhook = !light;
@@ -3128,6 +3163,37 @@ export default function Home() {
       if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
       if (!silent) setLoading(false);
+    }
+  }
+
+  async function loadActivityLogPage(activeSecret = savedSecret, options: { page?: number; limit?: number; query?: string; direction?: string; type?: string; date?: string; silent?: boolean } = {}) {
+    if (!activeSecret) return;
+    const requestId = ++activityLogRequestIdRef.current;
+    const page = Math.max(1, options.page || logPage || 1);
+    const limit = Math.max(1, options.limit || LOG_PAGE_SIZE);
+    const silent = Boolean(options.silent);
+    if (!silent) {
+      setActivityLogLoading(true);
+    }
+    try {
+      const response = await getActivityLog(activeSecret, {
+        page,
+        limit,
+        query: options.query ?? query,
+        direction: options.direction ?? logDirection,
+        type: options.type ?? logType,
+        date: options.date ?? logDate,
+      });
+      if (requestId !== activityLogRequestIdRef.current) return;
+      setActivityLogResponse(response);
+    } catch (err) {
+      if (requestId !== activityLogRequestIdRef.current) return;
+      if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được nhật ký.");
+    } finally {
+      if (requestId !== activityLogRequestIdRef.current) return;
+      if (!silent) {
+        setActivityLogLoading(false);
+      }
     }
   }
 
@@ -4903,82 +4969,26 @@ export default function Home() {
     const start = (safePage - 1) * RENEWAL_PAGE_SIZE;
     return currentRenewalOpsRows.map((item) => item.cells).slice(start, start + RENEWAL_PAGE_SIZE);
   }, [currentRenewalOpsRows, renewalPage, totalRenewalPages]);
-  const logEntries = useMemo(() => {
-    const privateActivityEvents = activityEvents.filter((event) => {
-      const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
-      return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
+  const activityLogRows = activityLogResponse?.data || [];
+  const activityLogSummary = activityLogResponse?.summary || { user: 0, bot: 0, today: 0 };
+  const activityLogTotal = activityLogResponse?.total || 0;
+  const logTypeOptions = useMemo(() => {
+    const values = uniqueValues(activityLogResponse?.facets?.types || []);
+    return values.sort((a, b) => a.localeCompare(b));
+  }, [activityLogResponse?.facets?.types]);
+  const logDateOptions = useMemo(() => {
+    const values = uniqueValues(activityLogResponse?.facets?.dates || []);
+    return values.sort((a, b) => {
+      if (a === "UNKNOWN") return 1;
+      if (b === "UNKNOWN") return -1;
+      return b.localeCompare(a);
     });
-    const userEvents = privateActivityEvents.map((event) => {
-      const payload = event.payload || {};
-      const messageText = payloadText(payload, "message_text");
-      const messageKind = payloadText(payload, "message_kind");
-      const detail = messageText || payloadText(payload, "start_payload") || payloadText(payload, "callback_data") || payloadText(payload, "command") || payloadText(payload, "chat_type");
-      const title = payloadText(payload, "source_ref") || payloadText(payload, "activation_code") || describeActivityEvent(event);
-      const eventType = payloadText(payload, "event_type") || event.event_name || "event";
-      return {
-        id: `a-${event.id}`,
-        direction: "user" as const,
-        type: eventType,
-        typeLabel: activityEventLabel(eventType),
-        userId: event.telegram_user_id || payloadText(payload, "user_id"),
-        username: payloadText(payload, "username"),
-        fullName: payloadText(payload, "full_name"),
-        title: messageText ? `Khách nhắn: ${messageText}` : activityEventDetailLabel(eventType, title, detail),
-        detail: messageText ? [messageKind, payloadText(payload, "chat_type"), payloadText(payload, "message_id") ? `#${payloadText(payload, "message_id")}` : ""].filter(Boolean).join(" • ") : detail,
-        createdAt: event.created_at,
-      };
-    });
-    const botEvents = supportEvents.map((event) => {
-      const replyText = payloadText(event.raw_data || {}, "reply_text");
-      const errorText = payloadText(event.raw_data || {}, "error");
-      const activationStatus = String(payloadText(event.raw_data || {}, "activation_status") || "").trim().toLowerCase();
-      const activationLabel = activationStatus === "ok" ? "OK" : activationStatus === "partial" ? "Partial" : activationStatus === "failed" ? "Failed" : "";
-      const failedGroups = payloadText(event.raw_data || {}, "failed_groups");
-      const inviteResults = payloadText(event.raw_data || {}, "invite_results");
-      const detailParts = [errorText, event.plan_name, event.chat_title, event.order_id].filter(Boolean);
-      if (activationLabel) detailParts.unshift(`Trạng thái: ${activationLabel}`);
-      if (failedGroups) detailParts.push(`Lỗi group: ${failedGroups}`);
-      if (inviteResults && !detailParts.includes(inviteResults)) detailParts.push(`Link: ${inviteResults}`);
-      return {
-        id: `s-${event.id}`,
-        direction: "bot" as const,
-        type: event.event_type,
-        typeLabel: activationLabel ? `${supportEventLabel(event.event_type)} · ${activationLabel}` : supportEventLabel(event.event_type),
-        userId: event.telegram_user_id || "",
-        username: event.username || "",
-        fullName: supportCustomerName(event),
-        title: replyText ? `Admin trả lời: ${replyText}` : supportEventLabel(event.event_type),
-        detail: detailParts.join(" • ") || "-",
-        createdAt: event.created_at,
-      };
-    });
-    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [activityEvents, supportEvents, supportCustomerName]);
-  const logTypeOptions = useMemo(() => uniqueValues(logEntries.map((item) => item.type)).sort(), [logEntries]);
-  const logDateOptions = useMemo(() => uniqueValues(logEntries.map((item) => isoDayKey(item.createdAt))).sort((a, b) => {
-    if (a === "UNKNOWN") return 1;
-    if (b === "UNKNOWN") return -1;
-    return b.localeCompare(a);
-  }), [logEntries]);
+  }, [activityLogResponse?.facets?.dates]);
   const campaignPlanOptions = useMemo(() => {
     return uniqueValues(orders.filter((item) => item.status === "PAID").map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
   }, [orders]);
-  const filteredLogEntries = useMemo(() => {
-    const q = query.toLowerCase();
-    return logEntries.filter((entry) => {
-      if (logDirection !== "all" && entry.direction !== logDirection) return false;
-      if (logType !== "ALL" && entry.type !== logType) return false;
-      if (logDate !== "ALL" && isoDayKey(entry.createdAt) !== logDate) return false;
-      const text = `${entry.type} ${entry.userId} ${entry.username} ${entry.fullName} ${entry.title} ${entry.detail}`.toLowerCase();
-      return !q || text.includes(q);
-    });
-  }, [logEntries, logDirection, logType, logDate, query]);
-  const totalLogPages = Math.max(1, Math.ceil(filteredLogEntries.length / LOG_PAGE_SIZE));
-  const pagedLogEntries = useMemo(() => {
-    const safePage = Math.min(logPage, totalLogPages);
-    const start = (safePage - 1) * LOG_PAGE_SIZE;
-    return filteredLogEntries.slice(start, start + LOG_PAGE_SIZE);
-  }, [filteredLogEntries, logPage, totalLogPages]);
+  const totalLogPages = Math.max(1, Math.ceil(activityLogTotal / LOG_PAGE_SIZE));
+  const pagedLogEntries = activityLogRows;
   const selectedCampaign = useMemo(() => campaigns.find((item) => item.id === selectedCampaignId) || campaigns[0] || null, [campaigns, selectedCampaignId]);
   const campaignRecipientCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -5396,7 +5406,18 @@ export default function Home() {
                 {webhookMeta?.maintenance_override?.active ? ui("Bảo trì do webhook", "Maintenance by webhook") : webhook?.url ? ui("Webhook đang bật", "Webhook active") : ui("Webhook cần kiểm tra", "Check webhook")}
               </Typography>
             </Box>
-            <Button variant="outlined" onClick={() => loadAll()} disabled={loading} startIcon={loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                if (tab === "activityLog") {
+                  void loadActivityLogPage(savedSecret, { page: logPage });
+                  return;
+                }
+                loadAll();
+              }}
+              disabled={loading || activityLogLoading}
+              startIcon={loading || activityLogLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+            >
               {ui("Tải lại", "Reload")}
             </Button>
           </Box>
@@ -5912,13 +5933,13 @@ export default function Home() {
         {tab === "activityLog" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Tổng event" value={String(filteredLogEntries.length)} />
-              <Metric label="User → Bot" value={String(logEntries.filter((item) => item.direction === "user").length)} />
-              <Metric label="Bot → User" value={String(logEntries.filter((item) => item.direction === "bot").length)} />
-              <Metric label="Hôm nay" value={String(logEntries.filter((item) => isTodayDate(item.createdAt)).length)} />
+              <Metric label="Tổng event" value={String(activityLogTotal)} />
+              <Metric label="User → Bot" value={String(activityLogSummary.user)} />
+              <Metric label="Bot → User" value={String(activityLogSummary.bot)} />
+              <Metric label="Hôm nay" value={String(activityLogSummary.today)} />
             </div>
             <section className="panel">
-              <PanelHead title="Nhật ký tương tác" subtitle="Tổng hợp user đã nhắn/bấm gì với bot và các hành động bot đã gửi hoặc xử lý cho user." />
+              <PanelHead title="Nhật ký tương tác" subtitle="Tải theo trang từ backend, không còn phụ thuộc vào mớ event đã nạp sẵn." />
               <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) repeat(3, 220px)" }, p: 2 }}>
                 <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, Telegram ID, event, callback, gói, đơn..." size="small" fullWidth />
                 <TextField select value={logDirection} onChange={(event) => setLogDirection(event.target.value as LogDirectionFilter)} size="small" fullWidth>
@@ -5955,7 +5976,8 @@ export default function Home() {
                   );
                 }}
               />
-              <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredLogEntries.length} onPage={setLogPage} label="event" />
+              <Pagination page={logPage} totalPages={totalLogPages} totalItems={activityLogTotal} onPage={setLogPage} label="event" />
+              {activityLogLoading ? <div className="hint compact">Đang tải trang nhật ký...</div> : null}
             </section>
           </div>
         ) : null}

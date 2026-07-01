@@ -1295,6 +1295,19 @@ class SupabaseStore:
         )
         return self._enrich_support_event_names(rows)
 
+    def list_support_events_page(self, limit=500, offset=0):
+        rows = self._request(
+            "GET",
+            "support_events",
+            params={
+                "select": "*",
+                "order": "created_at.desc",
+                "limit": str(limit),
+                "offset": str(max(0, int(offset or 0))),
+            },
+        )
+        return self._enrich_support_event_names(rows)
+
     def latest_support_event(self, event_type, telegram_user_id=None, order_id=None, chat_id=None):
         params = {
             "select": "*",
@@ -1571,6 +1584,19 @@ class SupabaseStore:
             if len(visible) >= int(limit):
                 break
         return visible
+
+    def list_analytics_events_page(self, limit=500, offset=0):
+        rows = self._request(
+            "GET",
+            "analytics_events",
+            params={
+                "select": "*",
+                "order": "created_at.desc",
+                "limit": str(limit),
+                "offset": str(max(0, int(offset or 0))),
+            },
+        )
+        return rows
 
     def _recent_interacted_users(self, limit=5000):
         rows = self._request(

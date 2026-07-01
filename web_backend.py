@@ -110,6 +110,61 @@ def webhook_retry_wait_seconds() -> int:
     return max(5, base or webhook_reset_cooldown_seconds())
 
 
+def _backend_timezone():
+    timezone_name = os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _backend_text(value):
+    return str(value or "").strip()
+
+
+def _backend_payload_text(payload, *keys):
+    if not isinstance(payload, dict):
+        return ""
+    for key in keys:
+        text = _backend_text(payload.get(key))
+        if text:
+            return text
+    return ""
+
+
+def _backend_day_key(value):
+    raw = _backend_text(value)
+    if not raw:
+        return "UNKNOWN"
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            local = parsed.astimezone(_backend_timezone())
+        else:
+            local = parsed.replace(tzinfo=_backend_timezone())
+        return local.strftime("%Y-%m-%d")
+    except Exception:
+        return "UNKNOWN"
+
+
+def _backend_parse_datetime(value):
+    raw = _backend_text(value)
+    if not raw:
+        return datetime.min.replace(tzinfo=_backend_timezone())
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            return parsed
+        return parsed.replace(tzinfo=_backend_timezone())
+    except Exception:
+        return datetime.min.replace(tzinfo=_backend_timezone())
+
+
+def _backend_humanize_event_type(value):
+    text = _backend_text(value).replace("_", " ").strip()
+    return text[:1].upper() + text[1:] if text else "event"
+
+
 async def retry_telegram_webhook_background(*, initial_delay=0):
     if initial_delay:
         await asyncio.sleep(max(0, int(initial_delay)))
@@ -1864,7 +1919,7 @@ async def admin_kick_audit_member(request: Request):
 
 
 @app.get("/admin-api/activity-events", dependencies=[Depends(require_admin)])
-async def admin_activity_events(limit: int = 500):
+async def admin_activity_events(limit: int = 5000):
     try:
         return {"data": supabase_store.list_analytics_events(limit=limit)}
     except Exception as exc:
@@ -1873,6 +1928,189 @@ async def admin_activity_events(limit: int = 500):
         else:
             print(f"⚠️ Không đọc được analytics_events: {exc}")
         return {"data": []}
+
+
+@app.get("/admin-api/activity-log", dependencies=[Depends(require_admin)])
+async def admin_activity_log(
+    page: int = 1,
+    limit: int = 80,
+    query: str = "",
+    direction: str = "all",
+    type: str = "ALL",
+    date: str = "ALL",
+):
+    try:
+        page = max(1, int(page or 1))
+        limit = max(1, min(int(limit or 80), 200))
+    except Exception:
+        page = 1
+        limit = 80
+
+    query_text = _backend_text(query).lower()
+    direction_value = _backend_text(direction).lower() or "all"
+    type_value = _backend_text(type) or "ALL"
+    date_value = _backend_text(date) or "ALL"
+    today_key = _backend_day_key(datetime.now(_backend_timezone()))
+    page_start = (page - 1) * limit
+    page_end = page_start + limit
+    chunk_size = max(100, min(limit * 4, 500))
+
+    def matches(entry: dict) -> bool:
+        if direction_value != "all" and entry["direction"] != direction_value:
+            return False
+        if type_value != "ALL" and entry["type"] != type_value:
+            return False
+        if date_value != "ALL" and _backend_day_key(entry["createdAt"]) != date_value:
+            return False
+        if query_text:
+            haystack = " ".join(
+                [
+                    entry.get("type") or "",
+                    entry.get("userId") or "",
+                    entry.get("username") or "",
+                    entry.get("fullName") or "",
+                    entry.get("title") or "",
+                    entry.get("detail") or "",
+                ]
+            ).lower()
+            if query_text not in haystack:
+                return False
+        return True
+
+    def normalize_activity(row: dict) -> dict | None:
+        payload = row.get("payload") or {}
+        chat_type = _backend_payload_text(payload, "chat_type").lower()
+        if chat_type in {"group", "supergroup", "channel"}:
+            return None
+        message_text = _backend_payload_text(payload, "message_text")
+        message_kind = _backend_payload_text(payload, "message_kind")
+        event_type = _backend_payload_text(payload, "event_type") or _backend_text(row.get("event_name")) or "event"
+        detail = message_text or _backend_payload_text(payload, "start_payload", "callback_data", "command", "chat_type")
+        title_source = _backend_payload_text(payload, "source_ref", "activation_code") or _backend_humanize_event_type(event_type)
+        detail_parts = [part for part in [message_kind, _backend_payload_text(payload, "chat_type"), f"#{_backend_payload_text(payload, 'message_id')}"] if part]
+        detail_text = " • ".join(detail_parts) if message_text else detail
+        return {
+            "id": f"a-{row.get('id')}",
+            "direction": "user",
+            "type": event_type,
+            "userId": _backend_text(row.get("telegram_user_id") or payload.get("user_id")),
+            "username": _backend_payload_text(payload, "username"),
+            "fullName": _backend_payload_text(payload, "full_name"),
+            "title": f"Khách nhắn: {message_text}" if message_text else title_source,
+            "detail": detail_text or "-",
+            "createdAt": _backend_text(row.get("created_at")),
+        }
+
+    def normalize_support(row: dict) -> dict:
+        raw_data = row.get("raw_data") if isinstance(row.get("raw_data"), dict) else {}
+        reply_text = _backend_payload_text(raw_data, "reply_text")
+        error_text = _backend_payload_text(raw_data, "error")
+        activation_status = _backend_payload_text(raw_data, "activation_status").lower()
+        activation_label = "OK" if activation_status == "ok" else "Partial" if activation_status == "partial" else "Failed" if activation_status == "failed" else ""
+        failed_groups = _backend_payload_text(raw_data, "failed_groups")
+        invite_results = _backend_payload_text(raw_data, "invite_results")
+        detail_parts = [part for part in [error_text, _backend_text(row.get("plan_name")), _backend_text(row.get("chat_title")), _backend_text(row.get("order_id"))] if part]
+        if activation_label:
+            detail_parts.insert(0, f"Trạng thái: {activation_label}")
+        if failed_groups:
+            detail_parts.append(f"Lỗi group: {failed_groups}")
+        if invite_results and invite_results not in detail_parts:
+            detail_parts.append(f"Link: {invite_results}")
+        return {
+            "id": f"s-{row.get('id')}",
+            "direction": "bot",
+            "type": _backend_text(row.get("event_type")) or "event",
+            "userId": _backend_text(row.get("telegram_user_id")),
+            "username": _backend_text(row.get("username")),
+            "fullName": _backend_text(row.get("full_name")) or _backend_text(row.get("chat_title")) or _backend_text(row.get("username")) or "-",
+            "title": f"Admin trả lời: {reply_text}" if reply_text else _backend_humanize_event_type(row.get("event_type")),
+            "detail": " • ".join(detail_parts) if detail_parts else "-",
+            "createdAt": _backend_text(row.get("created_at")),
+        }
+
+    def fetch_activity(offset: int):
+        return supabase_store.list_analytics_events_page(limit=chunk_size, offset=offset)
+
+    def fetch_support(offset: int):
+        return supabase_store.list_support_events_page(limit=chunk_size, offset=offset)
+
+    sources = {
+        "activity": {"offset": 0, "rows": [], "index": 0, "done": False, "fetch": fetch_activity},
+        "support": {"offset": 0, "rows": [], "index": 0, "done": False, "fetch": fetch_support},
+    }
+
+    def refill(source_name: str):
+        source = sources[source_name]
+        while not source["done"] and source["index"] >= len(source["rows"]):
+            batch = source["fetch"](source["offset"])
+            source["offset"] += len(batch)
+            source["rows"] = batch or []
+            source["index"] = 0
+            if not batch or len(batch) < chunk_size:
+                source["done"] = True
+            if not batch:
+                return None
+        if source["index"] < len(source["rows"]):
+            return source["rows"][source["index"]]
+        return None
+
+    def take(source_name: str):
+        source = sources[source_name]
+        row = refill(source_name)
+        if row is None:
+            return None
+        source["index"] += 1
+        return row
+
+    matched_total = 0
+    summary = {"user": 0, "bot": 0, "today": 0}
+    facet_types: set[str] = set()
+    facet_dates: set[str] = set()
+    page_rows: list[dict] = []
+
+    while True:
+        activity_head = refill("activity")
+        support_head = refill("support")
+        if activity_head is None and support_head is None:
+            break
+        if support_head is None:
+            chosen_source = "activity"
+        elif activity_head is None:
+            chosen_source = "support"
+        else:
+            chosen_source = "activity" if _backend_parse_datetime(activity_head.get("created_at")) >= _backend_parse_datetime(support_head.get("created_at")) else "support"
+
+        raw_row = take(chosen_source)
+        if raw_row is None:
+            continue
+        entry = normalize_activity(raw_row) if chosen_source == "activity" else normalize_support(raw_row)
+        if not entry:
+            continue
+        facet_types.add(entry["type"])
+        facet_dates.add(_backend_day_key(entry["createdAt"]))
+        if not matches(entry):
+            continue
+        matched_total += 1
+        if entry["direction"] == "user":
+            summary["user"] += 1
+        else:
+            summary["bot"] += 1
+        if _backend_day_key(entry["createdAt"]) == today_key:
+            summary["today"] += 1
+        if page_start <= matched_total - 1 < page_end:
+            page_rows.append(entry)
+
+    return {
+        "data": page_rows,
+        "total": matched_total,
+        "page": page,
+        "limit": limit,
+        "summary": summary,
+        "facets": {
+            "types": sorted(facet_types),
+            "dates": sorted([item for item in facet_dates if item != "UNKNOWN"], reverse=True) + (["UNKNOWN"] if "UNKNOWN" in facet_dates else []),
+        },
+    }
 
 
 @app.post("/admin-api/admin-replies", dependencies=[Depends(require_admin)])

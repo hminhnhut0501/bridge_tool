@@ -169,6 +169,33 @@ export type ActivityEvent = {
   created_at: string;
 };
 
+export type ActivityLogEntry = {
+  id: string;
+  direction: "user" | "bot";
+  type: string;
+  typeLabel?: string | null;
+  userId: string;
+  username: string;
+  fullName: string;
+  title: string;
+  detail: string;
+  createdAt: string;
+};
+
+export type ActivityLogFacetPayload = {
+  types: string[];
+  dates: string[];
+};
+
+export type ActivityLogResponse = {
+  data: ActivityLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  summary: { user: number; bot: number; today: number };
+  facets: ActivityLogFacetPayload;
+};
+
 export type SupportGroupCheck = {
   enabled: boolean;
   group_id: string;
@@ -725,7 +752,22 @@ export async function kickAuditMember(secret: string, payload: KickAuditPayload)
 }
 
 export async function getActivityEvents(secret: string) {
-  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events", secret);
+  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events?limit=5000", secret);
+}
+
+export async function getActivityLog(
+  secret: string,
+  params: { page: number; limit: number; query?: string; direction?: string; type?: string; date?: string },
+) {
+  const search = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+    query: params.query || "",
+    direction: params.direction || "all",
+    type: params.type || "ALL",
+    date: params.date || "ALL",
+  });
+  return request<ActivityLogResponse>(`/admin-api/activity-log?${search.toString()}`, secret);
 }
 
 export async function getCampaigns(secret: string) {
