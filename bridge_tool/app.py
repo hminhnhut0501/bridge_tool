@@ -25,6 +25,8 @@ REMINDER_INTERVAL_SECONDS = int(float(os.getenv("REMINDER_INTERVAL_SECONDS", "10
 REMINDER_DAYS_DEFAULT = int(float(os.getenv("REMINDER_DAYS", "3")))
 TIMEZONE_NAME = os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh")
 BOT_NEW_URL = os.getenv("BOT_NEW_URL", "").strip() or bot_base_url()
+WEBHOOK_DELETE_RETRIES = max(1, int(float(os.getenv("WEBHOOK_DELETE_RETRIES", "5"))))
+WEBHOOK_DELETE_BACKOFF_SECONDS = max(1.0, float(os.getenv("WEBHOOK_DELETE_BACKOFF_SECONDS", "1.5")))
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
@@ -107,6 +109,21 @@ async def reminder_worker():
         await asyncio.sleep(max(600, REMINDER_INTERVAL_SECONDS))
 
 
+async def ensure_webhook_deleted():
+    last_error = None
+    for attempt in range(1, WEBHOOK_DELETE_RETRIES + 1):
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            logging.info("Webhook cũ đã được xóa trước khi polling.")
+            return
+        except Exception as exc:
+            last_error = exc
+            logging.warning("Không xóa được webhook ở lần %s/%s: %s", attempt, WEBHOOK_DELETE_RETRIES, exc)
+            if attempt < WEBHOOK_DELETE_RETRIES:
+                await asyncio.sleep(WEBHOOK_DELETE_BACKOFF_SECONDS * attempt)
+    raise RuntimeError(f"Failed to delete webhook after {WEBHOOK_DELETE_RETRIES} retries: {last_error}")
+
+
 async def run_reminders_once():
     now = now_local()
     today_str = now.strftime("%Y-%m-%d")
@@ -154,6 +171,7 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("Missing BOT_TOKEN")
     bot_info = await bot.get_me()
     logging.info("Bridge bot ready: @%s", bot_info.username)
+    await ensure_webhook_deleted()
     task = asyncio.create_task(dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types()), name="bridge_polling")
     reminder_task = asyncio.create_task(reminder_worker(), name="bridge_reminder_worker")
     try:
@@ -170,3 +188,8 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/healthz")
 async def healthz():
     return {"ok": True, "supabase": supabase_store.enabled, "bot_new_url": BOT_NEW_URL}
+
+
+@app.get("/")
+async def root():
+    return {"ok": True}
