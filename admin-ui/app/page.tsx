@@ -4083,6 +4083,23 @@ export default function Home() {
     setCustomerRenewModalOpen(true);
   }
 
+  function openCustomerCreateOrderModal() {
+    if (!selectedCustomer) return;
+    const defaultOrder = selectedCustomerRenewTargetOrder || selectedCustomer.paidOrders[0] || null;
+    setManualOrderResult(null);
+    setManualOrderForm({
+      ...EMPTY_MANUAL_ORDER_FORM,
+      telegram_user_id: selectedCustomer.id,
+      full_name: selectedCustomer.name || selectedCustomer.id,
+      plan_key: defaultOrder ? "CUSTOM" : "FULL_1M",
+      plan_name: defaultOrder?.plan_name || manualPlanNameFromKey("FULL_1M"),
+      amount: defaultOrder ? String(defaultOrder.amount || "0") : (manualPriceFromKey("FULL_1M") || "0"),
+      payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
+      payment_provider: String(defaultOrder?.payment_provider || "MANUAL").toUpperCase(),
+    });
+    setManualOrderModalOpen(true);
+  }
+
   async function saveCustomerRenewal() {
     if (!selectedCustomer) return;
     const planName = customerRenewForm.plan_name.trim();
@@ -7846,35 +7863,33 @@ export default function Home() {
                     />
                       );
                     })()}
-                    <Stack spacing={1}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                        <Typography variant="body2" color="text.secondary">Đơn PAID</Typography>
-                        <Typography sx={{ fontWeight: 800 }}>{selectedCustomer.paidOrders.length}</Typography>
+                    <Box sx={{ mt: 1, display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography variant="caption" color="text.secondary">Đơn PAID</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedCustomer.paidOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                        <Typography variant="body2" color="text.secondary">Gói active</Typography>
-                        <Typography sx={{ fontWeight: 800 }}>{selectedCustomer.activeOrders.length}</Typography>
+                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography variant="caption" color="text.secondary">Đang active</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedCustomer.activeOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                        <Typography variant="body2" color="text.secondary">Hạn gần nhất</Typography>
-        <Typography sx={{ fontWeight: 800 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
+                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography variant="caption" color="text.secondary">Hạn gần nhất</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
                       </Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                        <Typography variant="body2" color="text.secondary">Tổng tiền</Typography>
-                        <Typography sx={{ fontWeight: 800 }}>{money(selectedCustomer.revenue)}</Typography>
+                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography variant="caption" color="text.secondary">Doanh thu</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{money(selectedCustomer.revenue)}</Typography>
                       </Box>
-                    </Stack>
+                    </Box>
                     <Box sx={{ mt: 1.25, p: 1.25, borderRadius: 3, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
-                      <Typography variant="body2" color="text.secondary">Gia hạn nhanh</Typography>
+                      <Typography variant="body2" color="text.secondary">Đơn gợi ý</Typography>
                       <Typography sx={{ fontWeight: 800, mt: 0.25, fontSize: 15 }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có đơn phù hợp"}</Typography>
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center" }}>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          onClick={openCustomerRenewModal}
-                          sx={{ borderRadius: 999, minWidth: 96, px: 1.5 }}
-                        >
+                      <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}>
+                        <Button variant="contained" size="small" onClick={openCustomerRenewModal} sx={{ borderRadius: 999, minWidth: 96, px: 1.5 }}>
                           Tạo gia hạn
+                        </Button>
+                        <Button variant="outlined" size="small" onClick={openCustomerCreateOrderModal} sx={{ borderRadius: 999, minWidth: 104, px: 1.5 }}>
+                          Tạo đơn mới
                         </Button>
                       </Stack>
                     </Box>
