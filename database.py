@@ -13,6 +13,10 @@ def normalize_key(value):
     return normalize_config_key_alias(value)
 
 class Database:
+    CONFIG_CACHE_TTL = 60
+    PAGE_CACHE_TTL = 300
+    SALE_CACHE_TTL = 300
+
     def __init__(self):
         self.scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         self.client = None
@@ -25,7 +29,9 @@ class Database:
         self.cache_config = {}
         self.pages_cache = {} # Thêm RAM Cache cho giao diện
         self.sales_cache = []
-        self.last_reload_time = 0 
+        self.last_config_reload_time = 0
+        self.last_pages_reload_time = 0
+        self.last_sales_reload_time = 0
         self.backend = "supabase"
 
     def connect(self):
@@ -40,6 +46,9 @@ class Database:
             self.cache_config = {}
             self.pages_cache = {}
             self.sales_cache = []
+            self.last_config_reload_time = 0
+            self.last_pages_reload_time = 0
+            self.last_sales_reload_time = 0
             raise RuntimeError("Supabase runtime is required. Google Sheets runtime has been removed.")
         try:
             print("⏳ Đang kết nối tới Supabase...")
@@ -51,39 +60,17 @@ class Database:
             self.cache_config = {}
             self.pages_cache = {}
             self.sales_cache = []
+            self.last_config_reload_time = 0
+            self.last_pages_reload_time = 0
+            self.last_sales_reload_time = 0
             raise
 
     def reload_config(self, force=False):
-        current_time = time.time()
-        if not force and (current_time - self.last_reload_time < 60): return
-
         try:
             if self.backend == "supabase" and supabase_store.enabled:
-                temp_cache = {}
-                for row in canonicalize_config_rows(supabase_store.list_config()):
-                    key = normalize_key(row.get("key")).upper()
-                    if key:
-                        value = str(row.get("value") or "").strip()
-                        if key == "MANUAL_ORDER_LINK_TEMPLATE":
-                            value = self._normalize_manual_order_link_template(value)
-                        temp_cache[key] = value
-                self.cache_config = temp_cache
-
-                temp_pages = {}
-                for row in supabase_store.list_menu_pages():
-                    pid = normalize_key(row.get("page_id"))
-                    if pid:
-                        temp_pages[pid] = {
-                            "img": str(row.get("image_url") or "").strip(),
-                            "text": str(row.get("body") or "").strip(),
-                            "layout": str(row.get("layout") or "").strip(),
-                        }
-                        temp_pages[pid.lower()] = temp_pages[pid]
-                self.pages_cache = temp_pages
-                print(f"🎨 Đã nạp thành công {len(self.pages_cache)} trang giao diện động từ Supabase!")
-
-                self.sales_cache = self.load_sales()
-                self.last_reload_time = current_time
+                self.reload_config_cache(force=force)
+                self.reload_pages_cache(force=force)
+                self.reload_sales_cache(force=force)
                 return
 
             raise RuntimeError("Google Sheets runtime has been removed. Supabase is the only supported backend.")
@@ -92,12 +79,60 @@ class Database:
             if self.backend == "supabase" and supabase_store.enabled:
                 raise
 
+    def _maybe_refresh(self, last_reload_time, ttl, force):
+        current_time = time.time()
+        if force:
+            return True, current_time
+        if current_time - last_reload_time < ttl:
+            return False, last_reload_time
+        return True, current_time
+
+    def reload_config_cache(self, force=False):
+        should_refresh, timestamp = self._maybe_refresh(self.last_config_reload_time, self.CONFIG_CACHE_TTL, force)
+        if not should_refresh:
+            return
+        temp_cache = {}
+        for row in canonicalize_config_rows(supabase_store.list_config()):
+            key = normalize_key(row.get("key")).upper()
+            if key:
+                value = str(row.get("value") or "").strip()
+                if key == "MANUAL_ORDER_LINK_TEMPLATE":
+                    value = self._normalize_manual_order_link_template(value)
+                temp_cache[key] = value
+        self.cache_config = temp_cache
+        self.last_config_reload_time = timestamp
+
+    def reload_pages_cache(self, force=False):
+        should_refresh, timestamp = self._maybe_refresh(self.last_pages_reload_time, self.PAGE_CACHE_TTL, force)
+        if not should_refresh:
+            return
+        temp_pages = {}
+        for row in supabase_store.list_menu_pages():
+            pid = normalize_key(row.get("page_id"))
+            if pid:
+                temp_pages[pid] = {
+                    "img": str(row.get("image_url") or "").strip(),
+                    "text": str(row.get("body") or "").strip(),
+                    "layout": str(row.get("layout") or "").strip(),
+                }
+                temp_pages[pid.lower()] = temp_pages[pid]
+        self.pages_cache = temp_pages
+        self.last_pages_reload_time = timestamp
+        print(f"🎨 Đã nạp thành công {len(self.pages_cache)} trang giao diện động từ Supabase!")
+
+    def reload_sales_cache(self, force=False):
+        should_refresh, timestamp = self._maybe_refresh(self.last_sales_reload_time, self.SALE_CACHE_TTL, force)
+        if not should_refresh:
+            return
+        self.sales_cache = self.load_sales()
+        self.last_sales_reload_time = timestamp
+
     def get_config(self, key, default=""):
         current_time = time.time()
         if not self.cache_config:
-            self.reload_config(force=True)
-        elif current_time - self.last_reload_time >= 60:
-            self.reload_config(force=False)
+            self.reload_config_cache(force=True)
+        elif current_time - self.last_config_reload_time >= self.CONFIG_CACHE_TTL:
+            self.reload_config_cache(force=False)
         normalized_key = canonical_config_key(key)
         value = str(default)
         for candidate in config_lookup_keys(normalized_key):
@@ -134,6 +169,11 @@ class Database:
         return normalize_bot_link_template(value, default_payload="act_{code}")
 
     def get_page(self, page_id):
+        current_time = time.time()
+        if not self.pages_cache:
+            self.reload_pages_cache(force=True)
+        elif current_time - self.last_pages_reload_time >= self.PAGE_CACHE_TTL:
+            self.reload_pages_cache(force=False)
         normalized = normalize_key(page_id)
         return self.pages_cache.get(normalized) or self.pages_cache.get(normalized.lower())
 
