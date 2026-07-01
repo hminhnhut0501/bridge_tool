@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: prive-bot-bridge
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn bridge_tool.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: BOT_NEW_URL
+        sync: false
+      - key: REMINDER_DAYS
+        sync: false
+      - key: REMINDER_INTERVAL_SECONDS
+        sync: false
+      - key: BOT_TIMEZONE
+        sync: false
+      - key: SCHEDULER_ORDER_LIMIT
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

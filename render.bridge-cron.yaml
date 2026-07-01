@@ -1,0 +1,27 @@
+services:
+  - type: cron
+    name: prive-bot-bridge-cron
+    runtime: python
+    plan: free
+    schedule: "*/15 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./venv/bin/python -m bridge_tool.cron
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: BOT_NEW_URL
+        sync: false
+      - key: REMINDER_DAYS
+        sync: false
+      - key: BOT_TIMEZONE
+        sync: false
+      - key: SCHEDULER_ORDER_LIMIT
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
