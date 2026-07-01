@@ -251,7 +251,7 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
 async def handle_navigation(callback: CallbackQuery):
     page_id = normalize_key(callback.data.split("nav:", 1)[1])
     if not page_exists(page_id):
-        db.reload_config(force=True)
+        db.reload_config(force=False)
     if not page_exists(page_id) and await render_static_fallback(callback, page_id):
         return
     await render_page(callback, page_id)

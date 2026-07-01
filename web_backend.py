@@ -700,7 +700,7 @@ def order_display_name(order, support_events):
 async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter=""):
     from scheduler import parse_expire_datetime, plan_group_ids, user_active_group_ids
 
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     now = now_local().replace(tzinfo=None)
     orders = supabase_store.list_scheduler_orders(limit=5000)
     users_data = [supabase_store.order_to_sheet_row(order) for order in orders]
@@ -1257,7 +1257,7 @@ async def admin_create_manual_order(request: Request):
         reason = str(blacklist_entry.get("reason") or "Không rõ lý do").strip()
         raise HTTPException(status_code=403, detail=f"Khách đang bị blacklist: {reason}")
 
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     groups = resolve_plan_groups(plan_name)
     if not groups:
         raise HTTPException(status_code=400, detail="Tên gói chưa khớp collection nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
@@ -1595,14 +1595,14 @@ async def admin_set_menu_page(page_id: str, request: Request):
         body=body.get("body", ""),
         layout=body.get("layout", ""),
     )
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     return {"data": data}
 
 
 @app.delete("/admin-api/menu-pages/{page_id}", dependencies=[Depends(require_admin)])
 async def admin_delete_menu_page(page_id: str):
     data = supabase_store.delete_menu_page(page_id)
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     return {"data": data}
 
 
@@ -1615,14 +1615,14 @@ async def admin_sale_rules():
 async def admin_upsert_sale_rule(request: Request):
     body = await request.json()
     data = supabase_store.upsert_sale_rule(body)
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     return {"data": data}
 
 
 @app.delete("/admin-api/sale-rules/{sale_id}", dependencies=[Depends(require_admin)])
 async def admin_delete_sale_rule(sale_id: str):
     data = supabase_store.delete_sale_rule(sale_id)
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     return {"data": data}
 
 
@@ -2082,7 +2082,7 @@ async def admin_channel_post_events(post_id: str, limit: int = 200):
 
 @app.get("/admin-api/support-group-check", dependencies=[Depends(require_admin)])
 async def admin_support_group_check():
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     gid = support_group_id()
     result = {
         "enabled": support_group_enabled(),
@@ -2132,7 +2132,7 @@ async def admin_support_group_check():
 
 @app.get("/admin-api/support-inbox-check", dependencies=[Depends(require_admin)])
 async def admin_support_inbox_check():
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     gid = support_inbox_group_id()
     result = {
         "group_id": mask_chat_id(gid),

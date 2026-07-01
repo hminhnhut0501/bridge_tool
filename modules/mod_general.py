@@ -553,7 +553,7 @@ async def cmd_start(message: Message):
             print(f"❌ Không gửi được fallback /start cho user {message.from_user.id}: {exc}")
 
     try:
-        db.reload_config(force=True)
+        db.reload_config(force=False)
         await cleanup_welcome(message.from_user.id, message.chat.id)
         parts = (message.text or "").split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
@@ -649,7 +649,7 @@ async def cmd_start(message: Message):
 @router.message(Command("home"))
 async def cmd_menu(message: Message):
     if not await check_protection(message): return
-    db.reload_config(force=True)
+    db.reload_config(force=False)
     await cleanup_welcome(message.from_user.id, message.chat.id)
     await render_page(message, "main_menu")
 
@@ -703,7 +703,7 @@ async def view_policy(event):
     # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
         if not page_exists("policy_page"):
-            db.reload_config(force=True)
+            db.reload_config(force=False)
         if page_exists("policy_page"):
             rendered = await render_page(event, "policy_page")
             if rendered:
@@ -732,7 +732,7 @@ async def view_support(event):
     # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
         if not page_exists("support_page"):
-            db.reload_config(force=True)
+            db.reload_config(force=False)
         if page_exists("support_page"):
             rendered = await render_page(event, "support_page")
             if rendered:
