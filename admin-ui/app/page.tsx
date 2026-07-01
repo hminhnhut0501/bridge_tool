@@ -7917,8 +7917,8 @@ export default function Home() {
                     sx={customerPopupTabSx}
                   >
                     <Tab value="orders" label="Đơn hàng" />
-                    <Tab value="groups" label="Nhóm" />
-                    <Tab value="timeline" label="Theo dõi" />
+                    <Tab value="groups" label="Nhóm active" />
+                    <Tab value="timeline" label="Dấu vết" />
                   </Tabs>
                 </Box>
 
@@ -8061,8 +8061,8 @@ export default function Home() {
                     >
                       <Tab value="all" label="Tất cả" />
                       <Tab value="joinLeft" label="Join/Left" />
-                      <Tab value="role" label="Role" />
-                      <Tab value="restricted" label="Restricted" />
+                      <Tab value="role" label="Quyền" />
+                      <Tab value="restricted" label="Hạn chế" />
                       <Tab value="kickMute" label="Kick/Mute" />
                       <Tab value="orders" label="Order timeline" />
                     </Tabs>
