@@ -42,6 +42,7 @@ from support_utils import (
     support_inbox_group_name,
 )
 from vip_group_audit_utils import build_vip_group_audit_rows
+from config_aliases import canonical_config_key, canonicalize_config_rows, config_write_items
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 
@@ -1259,7 +1260,7 @@ async def admin_create_manual_order(request: Request):
     db.reload_config(force=True)
     groups = resolve_plan_groups(plan_name)
     if not groups:
-        raise HTTPException(status_code=400, detail="Tên gói chưa khớp group nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
+        raise HTTPException(status_code=400, detail="Tên gói chưa khớp collection nào. Kiểm tra tên gói hoặc cấu hình BTN_G/ID_G.")
 
     try:
         amount = float(str(body.get("amount", "0") or 0))
@@ -1436,13 +1437,13 @@ async def admin_create_manual_order(request: Request):
             "support_text": support_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
             "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Tin nhắn active code", {}),
-            "manual_order_join_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link join group", {}),
+            "manual_order_join_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
             "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung xác nhận đơn.", {}),
-            "manual_order_join_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link join group trong đơn.", {}),
+            "manual_order_join_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
             "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Gen active code", {}),
             "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Copy tin active code", {}),
-            "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin join group", {}),
+            "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
             "manual_order_text": render_manual_order_message_text(message_template, {
@@ -1471,8 +1472,8 @@ async def admin_create_manual_order(request: Request):
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
-                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link join group", {}),
-                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link join group trong đơn.", {}),
+                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
+                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
                 "activation_url": activation_url,
                 "message_url": "",
                 "links_text": links_text,
@@ -1503,13 +1504,13 @@ async def admin_customer_search(q: str = "", limit: int = 30):
 
 @app.get("/admin-api/config", dependencies=[Depends(require_admin)])
 async def admin_config():
-    rows = supabase_store.get_config()
+    rows = canonicalize_config_rows(supabase_store.get_config())
     for row in rows or []:
-        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
+        if canonical_config_key(row.get("key")) == "MANUAL_ORDER_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
-        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_JOIN_TEMPLATE":
+        if canonical_config_key(row.get("key")) == "MANUAL_ORDER_JOIN_TEMPLATE":
             row["value"] = normalize_manual_order_join_template(row.get("value"))
-        if str(row.get("key") or "").strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
+        if canonical_config_key(row.get("key")) == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
     return {"data": rows}
 
@@ -1517,7 +1518,7 @@ async def admin_config():
 @app.patch("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
 async def admin_set_config(key: str, request: Request):
     body = await request.json()
-    normalized_key = str(key).strip().upper()
+    normalized_key = canonical_config_key(key)
     value = body.get("value", "")
     if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
@@ -1525,9 +1526,11 @@ async def admin_set_config(key: str, request: Request):
         value = normalize_manual_order_join_template(value)
     if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
-    data = supabase_store.set_config(key, value)
-    db.cache_config[normalized_key] = str(value)
-    normalized_key = str(key).strip().upper()
+    data = supabase_store.set_configs(config_write_items(normalized_key, value))
+    for row in data or []:
+        row_key = canonical_config_key(row.get("key"))
+        if row_key:
+            db.cache_config[row_key] = str(row.get("value") or "")
     if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
         await set_commands()
     refresh_auto_payment_schedule_if_needed([normalized_key])
@@ -1539,20 +1542,24 @@ async def admin_set_config_batch(request: Request):
     body = await request.json()
     items = body.get("items", body if isinstance(body, list) else [])
     normalized_items = []
+    expanded_items = []
     for item in items:
         normalized_item = dict(item)
-        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_LINK_TEMPLATE":
+        normalized_key = canonical_config_key(normalized_item.get("key"))
+        if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
-        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_JOIN_TEMPLATE":
+        if normalized_key == "MANUAL_ORDER_JOIN_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_join_template(normalized_item.get("value", ""))
-        if str(normalized_item.get("key", "")).strip().upper() == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
+        if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
         normalized_items.append(normalized_item)
-    data = supabase_store.set_configs(normalized_items)
+        expanded_items.extend(config_write_items(normalized_key, normalized_item.get("value", "")))
+    deduped_items = list({str(item.get("key") or "").strip().upper(): item for item in expanded_items if str(item.get("key") or "").strip()}.values())
+    data = supabase_store.set_configs(deduped_items)
     command_changed = False
     auto_payment_keys = []
     for item in normalized_items:
-        normalized_key = str(item.get("key", "")).strip().upper()
+        normalized_key = canonical_config_key(item.get("key"))
         if not normalized_key:
             continue
         db.cache_config[normalized_key] = str(item.get("value", ""))
@@ -1800,8 +1807,8 @@ async def admin_vip_group_audit(live: bool = False):
     try:
         return {"data": await build_vip_group_audit_rows(live=live)}
     except Exception as exc:
-        print(f"⚠️ Không dựng được danh sách quét group VIP: {exc}")
-        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét group VIP: {exc}")
+        print(f"⚠️ Không dựng được danh sách quét nhóm hỗ trợ: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét nhóm hỗ trợ: {exc}")
 
 
 @app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])

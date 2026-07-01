@@ -123,13 +123,13 @@ def hidden_offer_for_action(action, user_id=None, provider=""):
         return {"error": reason or "Mã hidden không hợp lệ."}
     hidden_group = get_hidden_group(hidden_group_id)
     if not hidden_group or not hidden_group.get("is_active"):
-        return {"error": "Hidden group không tồn tại hoặc đang tắt."}
+        return {"error": "Nhóm ẩn không tồn tại hoặc đang tắt."}
     if hidden_group_id not in {item.get("id") for item in hidden_code_available_groups(hidden_code)}:
-        return {"error": "Hidden group không thuộc phạm vi mã này."}
+        return {"error": "Nhóm ẩn không thuộc phạm vi mã này."}
     currency = currency_for_provider(provider) if provider else default_currency_for_user(user_id)
     amount = hidden_duration_price(hidden_group, duration_key, currency)
     if amount <= 0:
-        return {"error": "Hidden group chưa cấu hình giá cho phương thức này."}
+        return {"error": "Nhóm ẩn chưa cấu hình giá cho phương thức này."}
     plan_name = build_hidden_plan_name(hidden_group, duration_key)
     return {
         "plan_name": plan_name,
@@ -234,15 +234,15 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     data = data.replace("confirm_", "buy_")
 
     if "upsell_full" in data:
-        plan_name = config_text(user_id, "PLAN_UPSELL_FULL", "SVIP+ Trọn Đời (Nâng cấp)")
-        price_life, sale_life = get_price("PRICE_SVIP_LIFE", default_svip, currency)
-        price_1m, sale_1m = get_price("PRICE_SVIP_30D", default_svip, currency)
+        plan_name = config_text(user_id, "PLAN_UPSELL_ALL_ACCESS", "All Access Trọn Đời (Nâng cấp)")
+        price_life, sale_life = get_price("PRICE_ALL_ACCESS_LIFE", default_svip, currency)
+        price_1m, sale_1m = get_price("PRICE_ALL_ACCESS_30D", default_svip, currency)
         amount = max(0, price_life - price_1m)
         sale_info = sale_life or sale_1m
-        original_amount = max(0, parse_price(db.get_config(localized_price_key("PRICE_SVIP_LIFE", currency), default_svip), default_svip, currency) - parse_price(db.get_config(localized_price_key("PRICE_SVIP_30D", currency), default_svip), default_svip, currency))
+        original_amount = max(0, parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_LIFE", currency), default_svip), default_svip, currency) - parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_30D", currency), default_svip), default_svip, currency))
     elif "upsell_G" in data:
         num = data.split("_")[1][1:]
-        plan_name = f"{config_text(user_id, 'PLAN_UPSELL_G', 'VIP Trọn Đời (Nâng cấp)')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_UPSELL_COLLECTION', 'Collection Trọn Đời (Nâng cấp)')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
         price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", default_group, currency)
         price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", default_group, currency)
         amount = max(0, price_life - price_1m)
@@ -250,14 +250,14 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         original_amount = max(0, parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_LIFE", currency), default_group), default_group, currency) - parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_1M", currency), default_group), default_group, currency))
     elif "full" in data:
         is_1m = "1m" in data
-        plan_name = config_text(user_id, "PLAN_FULL_1M" if is_1m else "PLAN_FULL_LIFE", "SVIP+ All Groups")
-        price_key = "PRICE_SVIP_30D" if is_1m else "PRICE_SVIP_LIFE"
+        plan_name = config_text(user_id, "PLAN_ALL_ACCESS_30D" if is_1m else "PLAN_ALL_ACCESS_LIFE", "All Access")
+        price_key = "PRICE_ALL_ACCESS_30D" if is_1m else "PRICE_ALL_ACCESS_LIFE"
         amount, sale_info = get_price(price_key, default_svip, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_svip), default_svip, currency)
     else:
         parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
-        plan_name = f"{config_text(user_id, 'PLAN_G_1M' if type_p == '1M' else 'PLAN_G_LIFE', 'VIP')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_LIFE', 'Collection')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
         price_key = f"PRICE_G{num}_{type_p}"
         amount, sale_info = get_price(price_key, default_group, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_group), default_group, currency)
@@ -952,42 +952,42 @@ async def view_group_detail(callback: CallbackQuery):
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000", currency)
     
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_1M', '💎 VIP 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_LIFE', '👑 VIP TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
-    # Nút dẫn sang trang SVIP Page
-    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_SVIP_PAGE", "🌟 XEM GÓI SVIP+"), callback_data="view_svip_page"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_30D', '💎 COLLECTION 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_LIFE', '👑 COLLECTION TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
+    # Nút dẫn sang trang All Access Page
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_ALL_ACCESS_PAGE", "🌟 XEM ALL ACCESS"), callback_data="view_all_access_page"))
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
     
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
 # ==========================================
-# 🌟 TRANG CHI TIẾT GÓI SVIP (GIỮ NGUYÊN CODE CỦA BẠN - ĐÃ FIX LỖI VÒNG LẶP)
+# 🌟 TRANG CHI TIẾT ALL ACCESS (GIỮ NGUYÊN CODE CỦA BẠN - ĐÃ FIX LỖI VÒNG LẶP)
 # ==========================================
 # 🛠 FIX 1: Loại bỏ "buy_full_life" và "buy_full_1m" khỏi F.data.in_ để không tranh sóng với hàm tạo QR
-@router.callback_query(F.data.in_(["view_svip_page", "view_full_life", "view_full_1m"]))
-async def show_svip_page(callback: CallbackQuery):
-    """Hiển thị trang giới thiệu SVIP với ảnh cover và mô tả"""
+@router.callback_query(F.data.in_(["view_all_access_page", "view_svip_page", "view_full_life", "view_full_1m"]))
+async def show_all_access_page(callback: CallbackQuery):
+    """Hiển thị trang giới thiệu All Access với ảnh cover và mô tả"""
     if callback.data.startswith("confirm_"):
         return
 
     if not await check_protection(callback): return
     await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
     
-    img_url = db.get_config("IMG_SVIP_PAGE", "https://via.placeholder.com/800x450.png?text=SVIP+PRO")
-    description = t(callback.from_user.id, "TXT_SVIP_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\n\n✅ Truy cập toàn bộ 4 Group kín vĩnh viễn.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
+    img_url = db.get_config("IMG_ALL_ACCESS_PAGE", "https://via.placeholder.com/800x450.png?text=All+Access")
+    description = t(callback.from_user.id, "TXT_ALL_ACCESS_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\n\n✅ Truy cập toàn bộ các collection VIP.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
     currency = default_currency_for_user(callback.from_user.id)
-    description += sale_text_for_price("PRICE_SVIP_LIFE", "3000", currency)
-    description += sale_text_for_price("PRICE_SVIP_30D", "2000", currency)
+    description += sale_text_for_price("PRICE_ALL_ACCESS_LIFE", "3000", currency)
+    description += sale_text_for_price("PRICE_ALL_ACCESS_30D", "2000", currency)
     
-    btn_life_text = t(callback.from_user.id, "BTN_BUY_SVIP_LIFE", "🔥 MUA TRỌN ĐỜI")
-    btn_30d_text = t(callback.from_user.id, "BTN_BUY_SVIP_30D", "💎 MUA 30 NGÀY")
+    btn_life_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_LIFE", "🔥 MUA ALL ACCESS TRỌN ĐỜI")
+    btn_30d_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_30D", "💎 MUA ALL ACCESS 30 NGÀY")
     
     btn_back_text = t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại")
 
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
-    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {price_label_for_user(callback.from_user.id, 'PRICE_SVIP_LIFE', '3000')}", callback_data="buy_full_life"))
-    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {price_label_for_user(callback.from_user.id, 'PRICE_SVIP_30D', '2000')}", callback_data="buy_full_1m"))
+    kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_LIFE', '3000')}", callback_data="buy_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_30D', '2000')}", callback_data="buy_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 
     await smart_display(callback, description, kb.as_markup(), img=img_url)

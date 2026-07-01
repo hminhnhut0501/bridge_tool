@@ -439,21 +439,21 @@ def resolve_plan_name(plan_key, user_id=None):
     key = raw.upper()
 
     plan_map = {
-        "FULL_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 Ngày"),
-        "FULL_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
-        "SVIP_1M": localized_config(user_id, "PLAN_FULL_1M", "SVIP+ 30 Ngày"),
-        "SVIP_LIFE": localized_config(user_id, "PLAN_FULL_LIFE", "SVIP+ TRỌN ĐỜI"),
-        SELECT_GROUP_1M: "Khách tự chọn group lẻ - 30 ngày",
-        SELECT_GROUP_LIFE: "Khách tự chọn group lẻ - trọn đời",
+        "FULL_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
+        "FULL_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
+        "SVIP_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
+        "SVIP_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
+        SELECT_GROUP_1M: "Khách tự chọn collection lẻ - 30 ngày",
+        SELECT_GROUP_LIFE: "Khách tự chọn collection lẻ - trọn đời",
     }
     if key in plan_map:
         return plan_map[key]
 
     for group_no in group_numbers():
         if key == f"G{group_no}_1M":
-            return f"{localized_config(user_id, 'PLAN_G_1M', 'VIP 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_COLLECTION_30D', 'Collection 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
         if key == f"G{group_no}_LIFE":
-            return f"{localized_config(user_id, 'PLAN_G_LIFE', 'Gói trọn đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Nhóm {group_no}')}"
+            return f"{localized_config(user_id, 'PLAN_COLLECTION_LIFE', 'Collection Trọn Đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
 
     return raw.replace("_", " ")
 
@@ -491,12 +491,12 @@ def activation_coupon_plan_name(plan_key, coupon, user_id=None):
     template = (
         (coupon or {}).get("Plan_Name_Template")
         or (coupon or {}).get("Activation_Plan_Template")
-        or t(user_id, "COUPON_ACTIVATION_PLAN_TEMPLATE", "VIP {duration_label} - {group}")
+        or t(user_id, "COUPON_ACTIVATION_PLAN_TEMPLATE", "Collection {duration_label} - {group}")
     )
     template_text = str(template or "")
     label = duration_label(coupon, user_id, plan_key)
     if "{duration" not in template_text.lower() and "{days" not in template_text.lower() and label.lower() not in template_text.lower():
-        template = "VIP {duration_label} - {group}"
+        template = "Collection {duration_label} - {group}"
     return render_coupon_template(template, coupon=coupon, plan_key=plan_key, fallback_plan_name=purchase_plan_name, user_id=user_id) or purchase_plan_name
 
 
@@ -559,7 +559,7 @@ def build_activation_group_keyboard(code, coupon, user_id=None):
 
 async def send_activation_group_options(message: Message, code, coupon):
     if not selectable_group_plan_keys(coupon.get("Plan_Name")):
-        await message.answer(t(message.from_user.id, "MSG_COUPON_NO_SELECTABLE_GROUPS", "❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn. Vui lòng báo admin kiểm tra BTN_G/ID_G."), parse_mode="HTML")
+        await message.answer(t(message.from_user.id, "MSG_COUPON_NO_SELECTABLE_GROUPS", "❌ Mã hợp lệ nhưng chưa có collection lẻ nào được cấu hình để khách chọn. Vui lòng báo admin kiểm tra BTN_G/ID_G."), parse_mode="HTML")
         return
 
     text = t(
@@ -568,7 +568,7 @@ async def send_activation_group_options(message: Message, code, coupon):
         "<b>✅ Mã kích hoạt hợp lệ</b>\\n\\n"
         "Mã: <code>{code}</code>\\n"
         "Thời hạn: <b>{days} ngày</b>\\n\\n"
-        "Chọn group bạn muốn kích hoạt bên dưới.",
+        "Chọn collection bạn muốn kích hoạt bên dưới.",
     ).replace("\\n", "\n")
     duration = escape_html(duration_label(coupon, message.from_user.id))
     text = render_named_template(text, {
@@ -666,7 +666,7 @@ def hidden_group_display_lines(group):
 async def send_hidden_code_catalog(message: Message, code, hidden_code):
     groups = hidden_code_available_groups(hidden_code)
     if not groups:
-        await message.answer(t(message.from_user.id, "MSG_HIDDEN_NO_GROUPS", "❌ Mã hidden hợp lệ nhưng hiện chưa có hidden group nào đang mở."), parse_mode="HTML")
+        await message.answer(t(message.from_user.id, "MSG_HIDDEN_NO_GROUPS", "❌ Mã hidden hợp lệ nhưng hiện chưa có nhóm ẩn nào đang mở."), parse_mode="HTML")
         return
     user_id = message.from_user.id
     mark_hidden_code_used(code)
@@ -919,12 +919,12 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
             await callback.answer(reason, show_alert=True)
             return
         if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_NOT_GROUP_SELECT", "Mã này không phải coupon chọn group."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_NOT_GROUP_SELECT", "Mã này không phải coupon chọn collection."), show_alert=True)
             return
 
         selected_plan_key = normalize_plan_key(selected_plan_key)
         if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
-            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_GROUP_OUT_OF_SCOPE", "Group này không nằm trong phạm vi coupon."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_GROUP_OUT_OF_SCOPE", "Collection này không nằm trong phạm vi coupon."), show_alert=True)
             return
 
         await callback.answer()

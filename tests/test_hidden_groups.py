@@ -108,7 +108,7 @@ class HiddenGroupTests(unittest.TestCase):
 
         denied_code, denied_reason = hidden_group_utils.validate_hidden_code_for_user("HIDEVIP", "99")
         self.assertIsNone(denied_code)
-        self.assertIn("SVIP trọn đời", denied_reason)
+        self.assertIn("All Access trọn đời", denied_reason)
 
     def test_validate_hidden_code_respects_max_uses(self):
         hidden_code, reason = hidden_group_utils.validate_hidden_code_for_user("USEDUP", "42")
@@ -133,9 +133,9 @@ class HiddenGroupTests(unittest.TestCase):
 
     def test_display_plan_name_localizes_english_plan_labels(self):
         self.fake_db.config.update({
-            "PLAN_FULL_LIFE_EN": "SVIP+ Lifetime (All 4 Groups)",
-            "PLAN_G_LIFE_EN": "VIP Lifetime",
-            "BTN_G1_EN": "Prime Group",
+            "PLAN_ALL_ACCESS_LIFE_EN": "All Access Lifetime",
+            "PLAN_COLLECTION_LIFE_EN": "Collection Lifetime",
+            "BTN_COLLECTION_G1_EN": "Prime Group",
         })
         original_language_getter = getattr(hidden_group_utils, "_display_language")
 
@@ -143,11 +143,11 @@ class HiddenGroupTests(unittest.TestCase):
             hidden_group_utils._display_language = lambda user_id=None, language=None: "en"
             self.assertEqual(
                 hidden_group_utils.display_plan_name("SVIP+ Trọn Đời (Full 4 Nhóm)", user_id="42"),
-                "SVIP+ Lifetime (All 4 Groups)",
+                "All Access Lifetime",
             )
             self.assertEqual(
                 hidden_group_utils.display_plan_name("VIP Trọn Đời - Hang Cú Prime", user_id="42"),
-                "VIP Lifetime - Prime Group",
+                "Collection Lifetime - Prime Group",
             )
         finally:
             hidden_group_utils._display_language = original_language_getter

@@ -14,4 +14,4 @@ def test_usd_price_is_read_from_separate_config_key():
 
 def test_usd_label_does_not_use_vnd_format():
     with patch("sale_utils.db.get_config", return_value="12.50"), patch("sale_utils.get_active_sale", return_value=None):
-        assert sale_utils.format_price_label("PRICE_SVIP_LIFE", 0, "USD") == "$12.50 USD"
+        assert sale_utils.format_price_label("PRICE_ALL_ACCESS_LIFE", 0, "USD") == "$12.50 USD"

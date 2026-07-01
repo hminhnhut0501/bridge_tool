@@ -222,7 +222,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200012345",
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
-    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    plan_name: "Collection 30 Ngày - Hạng Cửu Black",
     amount: 48500,
     status: "PAID",
     paid_at: demoDate(-12, 9, 30),
@@ -242,7 +242,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200045678",
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
-    plan_name: "SVIP+ Trọn Đời (Full 4 Nhóm)",
+    plan_name: "All Access Trọn Đời (Full 4 Collection)",
     amount: 299000,
     status: "PAID",
     paid_at: demoDate(-45, 15, 0),
@@ -260,7 +260,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200078901",
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
-    plan_name: "VIP 30 Ngày - Hạng Cửu Boy",
+    plan_name: "Collection 30 Ngày - Hạng Cửu Boy",
     amount: 59000,
     status: "EXPIRED",
     paid_at: demoDate(-96, 11, 10),
@@ -278,7 +278,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200092222",
     telegram_user_id: "6845057360",
     full_name: "Jeon Jk",
-    plan_name: "SVIP+ 30 Ngày (Full 4 Nhóm)",
+    plan_name: "All Access 30 Ngày (Full 4 Collection)",
     amount: 97000,
     status: "PAID",
     paid_at: demoDate(-6, 8, 45),
@@ -298,7 +298,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200099999",
     telegram_user_id: "6845057360",
     full_name: "Jeon Jk",
-    plan_name: "VIP 30 Ngày - Hạng Cửu Prime",
+    plan_name: "Collection 30 Ngày - Hạng Cửu Prime",
     amount: 59000,
     status: "PENDING",
     paid_at: null,
@@ -316,7 +316,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200100001",
     telegram_user_id: "2085787503",
     full_name: "Taco",
-    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    plan_name: "Collection 30 Ngày - Hạng Cửu Black",
     amount: 49000,
     status: "CANCELLED",
     paid_at: null,
@@ -337,7 +337,7 @@ const DEMO_USERS: UserRow[] = [
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
     status: "ACTIVE",
-    plan_name: "SVIP+ Trọn Đời (Full 4 Nhóm)",
+    plan_name: "All Access Trọn Đời (Full 4 Collection)",
     expire_at: demoDate(3650, 15, 0),
     created_at: demoDate(-45, 14, 25),
   },
@@ -345,7 +345,7 @@ const DEMO_USERS: UserRow[] = [
     telegram_user_id: "6845057360",
     full_name: "Jeon Jk",
     status: "ACTIVE",
-    plan_name: "SVIP+ 30 Ngày (Full 4 Nhóm)",
+    plan_name: "All Access 30 Ngày (Full 4 Collection)",
     expire_at: demoDate(24, 8, 45),
     created_at: demoDate(-6, 8, 12),
   },
@@ -353,7 +353,7 @@ const DEMO_USERS: UserRow[] = [
     telegram_user_id: "2085787503",
     full_name: "Taco",
     status: "EXPIRED",
-    plan_name: "VIP 30 Ngày - Hạng Cửu Black",
+    plan_name: "Collection 30 Ngày - Hạng Cửu Black",
     expire_at: demoDate(-2, 11, 10),
     created_at: demoDate(-3, 10, 15),
   },
@@ -1108,15 +1108,15 @@ const RENEWAL_FIELDS: ConfigField[] = [
   },
   {
     key: "BTN_RENEW_FULL",
-    label: "Nút gia hạn SVIP",
-    placeholder: "🌟 Gia hạn / Lên Trọn Đời",
-    help: "Text nút gia hạn cho gói SVIP/full.",
+    label: "Nút gia hạn All Access",
+    placeholder: "🌟 Gia hạn / Lên All Access",
+    help: "Text nút gia hạn cho gói All Access/full.",
   },
   {
     key: "BTN_RENEW_GROUP",
-    label: "Nút gia hạn group",
-    placeholder: "🔄 Gia hạn / Mở rộng gói",
-    help: "Text nút gia hạn cho gói group lẻ.",
+    label: "Nút gia hạn collection",
+    placeholder: "🔄 Gia hạn / Mở rộng collection",
+    help: "Text nút gia hạn cho gói collection lẻ.",
   },
   {
     key: "MSG_EARLY_RENEW_OFFER",
@@ -1374,9 +1374,9 @@ const ADMIN_FIELDS: ConfigField[] = [
 const SUPPORT_GROUP_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_GROUP_ENABLED",
-    label: "Bật group VIP",
+    label: "Bật nhóm hỗ trợ",
     placeholder: "OFF",
-    help: "Bật ON để gửi nút join group VIP kèm link tham gia sau thanh toán/coupon.",
+    help: "Bật ON để gửi nút join nhóm hỗ trợ kèm link tham gia sau thanh toán/coupon.",
     kind: "select",
     options: [
       { label: "Tắt", value: "OFF" },
@@ -1385,27 +1385,27 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
   },
   {
     key: "SUPPORT_GROUP_ID",
-    label: "VIP group ID",
+    label: "Support group ID",
     placeholder: "-1001234567890",
-    help: "ID nhóm VIP. Nhóm này không bị kick khi gói hết hạn.",
+    help: "ID nhóm hỗ trợ. Nhóm này không bị kick khi gói hết hạn.",
   },
   {
     key: "SUPPORT_GROUP_NAME",
-    label: "Tên group VIP",
-    placeholder: "Nhóm VIP Hang Cú",
+    label: "Tên group hỗ trợ",
+    placeholder: "Nhóm hỗ trợ Hang Cú",
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
     key: "SUPPORT_GROUP_BUTTON_TEXT",
-    label: "Text nút join group VIP",
-    placeholder: "💬 Join group VIP",
+    label: "Text nút join nhóm hỗ trợ",
+    placeholder: "💬 Join nhóm hỗ trợ",
     help: "Nút URL riêng, mỗi link chỉ dùng được 1 lần.",
   },
   {
     key: "SUPPORT_GROUP_MUTE_ENABLED",
     label: "Mute khi hết hạn",
     placeholder: "ON",
-    help: "Bật ON để user hết hạn bị mute trong group VIP trước khi kick.",
+    help: "Bật ON để user hết hạn bị mute trong nhóm hỗ trợ trước khi kick.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1416,7 +1416,7 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
     key: "SUPPORT_GROUP_GRACE_DAYS",
     label: "Số ngày mute trước khi kick",
     placeholder: "14",
-    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi group VIP.",
+    help: "Gói ngày/coupon hết hạn sẽ bị mute, sau N ngày không gia hạn mới bị kick khỏi nhóm hỗ trợ.",
   },
 ];
 
@@ -1447,7 +1447,7 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
     key: "SUPPORT_INBOX_GROUP_ID",
     label: "Inbox group ID",
     placeholder: "-1001234567890",
-    help: "ID group riêng để bot nhận tin và admin reply. Không dùng chung với Group VIP.",
+    help: "ID group riêng để bot nhận tin và admin reply. Không dùng chung với khu vực All Access.",
   },
   {
     key: "SUPPORT_INBOX_GROUP_NAME",
@@ -1831,22 +1831,22 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_GROUP_OPTIONS",
-    label: "Tin coupon chọn group",
-    placeholder: "Mã: {code}\\nThời hạn: {duration_label}\\nChọn group bạn muốn kích hoạt bên dưới.",
-    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn group lẻ. Dùng biến {code}, {days}, {duration_label}.",
+    label: "Tin coupon chọn collection",
+    placeholder: "Mã: {code}\\nThời hạn: {duration_label}\\nChọn collection bạn muốn kích hoạt bên dưới.",
+    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn collection lẻ. Dùng biến {code}, {days}, {duration_label}.",
     kind: "textarea",
   },
   {
     key: "COUPON_ACTIVATION_PLAN_TEMPLATE",
     label: "Tên gói coupon kích hoạt",
-    placeholder: "VIP {duration_label} - {group}",
-    help: "Tên lưu vào đơn và hiển thị khi kích hoạt coupon chọn group. Dùng {duration_label}, {days}, {group}.",
+    placeholder: "Collection {duration_label} - {group}",
+    help: "Tên lưu vào đơn và hiển thị khi kích hoạt coupon chọn collection. Dùng {duration_label}, {days}, {group}.",
   },
   {
     key: "COUPON_ACTIVATION_BUTTON_TEMPLATE",
-    label: "Nút chọn group coupon",
+    label: "Nút chọn collection coupon",
     placeholder: "{plan_name}",
-    help: "Text nút chọn group sau khi nhập coupon. Dùng {plan_name}, {duration_label}, {days}, {group}.",
+    help: "Text nút chọn collection sau khi nhập coupon. Dùng {plan_name}, {duration_label}, {days}, {group}.",
   },
   {
     key: "MSG_WAIT_QR",
@@ -1952,15 +1952,15 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_NO_SELECTABLE_GROUPS",
-    label: "Tin coupon thiếu group chọn",
-    placeholder: "❌ Mã hợp lệ nhưng chưa có group lẻ nào được cấu hình để khách chọn.",
-    help: "Dùng khi coupon chọn group nhưng dashboard chưa cấu hình group.",
+    label: "Tin coupon thiếu collection chọn",
+    placeholder: "❌ Mã hợp lệ nhưng chưa có collection lẻ nào được cấu hình để khách chọn.",
+    help: "Dùng khi coupon chọn collection nhưng dashboard chưa cấu hình collection.",
   },
   {
     key: "MSG_COUPON_PLAN_NOT_CONFIGURED",
-    label: "Tin coupon thiếu group cấp link",
-    placeholder: "❌ Mã hợp lệ nhưng gói này chưa cấu hình nhóm nhận link.",
-    help: "Dùng khi coupon hợp lệ nhưng không tạo được link vì thiếu group.",
+    label: "Tin coupon thiếu collection cấp link",
+    placeholder: "❌ Mã hợp lệ nhưng gói này chưa cấu hình collection nhận link.",
+    help: "Dùng khi coupon hợp lệ nhưng không tạo được link vì thiếu collection.",
   },
   {
     key: "MSG_COUPON_PRIVATE_ONLY",
@@ -2037,15 +2037,15 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE",
-    label: "Hidden cần SVIP active",
-    placeholder: "Bạn cần có gói SVIP còn hạn để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu SVIP active.",
+    label: "Hidden cần All Access active",
+    placeholder: "Bạn cần có gói All Access còn hạn để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu All Access active.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME",
-    label: "Hidden cần SVIP lifetime",
-    placeholder: "Bạn cần có gói SVIP trọn đời để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu SVIP lifetime.",
+    label: "Hidden cần All Access lifetime",
+    placeholder: "Bạn cần có gói All Access trọn đời để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu All Access lifetime.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE",
@@ -2066,17 +2066,17 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Fallback nếu rule không khớp riêng.",
   },
   {
-    key: "TXT_SVIP_DESCRIPTION",
-    label: "Mô tả trang SVIP",
-    placeholder: "🔥 <b>ĐẶC QUYỀN SVIP+ TRỌN BỘ</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
-    help: "Nội dung trang gói SVIP fallback nếu chưa dùng Menu Builder.",
+    key: "TXT_ALL_ACCESS_DESCRIPTION",
+    label: "Mô tả trang All Access",
+    placeholder: "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
+    help: "Nội dung trang gói All Access fallback nếu chưa dùng Menu Builder.",
     kind: "textarea",
   },
   {
-    key: "IMG_SVIP_PAGE",
-    label: "Ảnh trang SVIP",
+    key: "IMG_ALL_ACCESS_PAGE",
+    label: "Ảnh trang All Access",
     placeholder: "File ID Telegram hoặc URL ảnh",
-    help: "Ảnh cover trang SVIP fallback.",
+    help: "Ảnh cover trang All Access fallback.",
   },
   {
     key: "IMG_POLICY",
@@ -2120,13 +2120,13 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_NOWPAYMENTS_CHECKOUT", label: "Nút thanh toán Crypto", placeholder: "₿ Thanh toán Crypto", help: "Nút mở trang checkout NOWPayments." },
   { key: "BTN_TRONSCAN_ADDRESS", label: "Nút xem ví Tronscan", placeholder: "🔎 Xem ví trên Tronscan", help: "Nút dưới bill USDT TRC20." },
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
-  { key: "BTN_BUY_1M", label: "Nút mua nhóm 30 ngày", placeholder: "💎 VIP 30 NGÀY", help: "Nút trên trang chi tiết nhóm." },
-  { key: "BTN_BUY_LIFE", label: "Nút mua nhóm trọn đời", placeholder: "👑 VIP TRỌN ĐỜI", help: "Nút trên trang chi tiết nhóm." },
-  { key: "BTN_VIEW_SVIP_PAGE", label: "Nút xem SVIP", placeholder: "🌟 XEM GÓI SVIP+", help: "Nút từ nhóm riêng sang trang SVIP." },
+  { key: "BTN_BUY_COLLECTION_30D", label: "Nút mua collection 30 ngày", placeholder: "💎 COLLECTION 30 NGÀY", help: "Nút trên trang chi tiết collection." },
+  { key: "BTN_BUY_COLLECTION_LIFE", label: "Nút mua collection trọn đời", placeholder: "👑 COLLECTION TRỌN ĐỜI", help: "Nút trên trang chi tiết collection." },
+  { key: "BTN_VIEW_ALL_ACCESS_PAGE", label: "Nút xem All Access", placeholder: "🌟 XEM ALL ACCESS", help: "Nút từ collection riêng sang trang All Access." },
   { key: "BTN_RENEW", label: "Nút gia hạn", placeholder: "🔄 Gia hạn ngay", help: "Nút khi gói hết hạn." },
   { key: "BTN_EARLY_RENEW", label: "Nút gia hạn sớm", placeholder: "🔥 Gia hạn sớm -{discount_percent}%", help: "Nút ưu đãi gia hạn sớm." },
-  { key: "BTN_RENEW_FULL", label: "Nút gia hạn/lên trọn đời", placeholder: "🌟 Gia hạn / Lên Trọn Đời", help: "Nút trong tin nhắc gia hạn." },
-  { key: "BTN_RENEW_GROUP", label: "Nút mở rộng gói", placeholder: "🔄 Gia hạn / Mở rộng gói", help: "Nút trong tin nhắc gia hạn." },
+  { key: "BTN_RENEW_FULL", label: "Nút gia hạn/lên All Access", placeholder: "🌟 Gia hạn / Lên All Access", help: "Nút trong tin nhắc gia hạn." },
+  { key: "BTN_RENEW_GROUP", label: "Nút mở rộng collection", placeholder: "🔄 Gia hạn / Mở rộng collection", help: "Nút trong tin nhắc gia hạn." },
 ];
 
 const ALERT_FIELDS: ConfigField[] = [
@@ -2142,9 +2142,9 @@ const ALERT_FIELDS: ConfigField[] = [
   { key: "ALERT_SUPPORT_UNAVAILABLE", label: "Không mở được trang trợ giúp", placeholder: "Không thể mở trang trợ giúp lúc này.", help: "Alert khi trang trợ giúp lỗi." },
   { key: "ALERT_COUPON_MENU_DISABLED", label: "Coupon menu đang ẩn", placeholder: "Chức năng nhập mã trên menu đang được ẩn.", help: "Khi khách bấm nút coupon đã ẩn." },
   { key: "ALERT_COUPON_PRIVATE_ONLY", label: "Coupon chỉ private", placeholder: "Vui lòng nhắn riêng với bot để nhập mã.", help: "Alert khi bấm coupon trong group." },
-  { key: "ALERT_COUPON_SELECTION_INVALID", label: "Coupon chọn group lỗi", placeholder: "Lựa chọn coupon không hợp lệ.", help: "Callback chọn group coupon sai format." },
-  { key: "ALERT_COUPON_NOT_GROUP_SELECT", label: "Không phải coupon chọn group", placeholder: "Mã này không phải coupon chọn group.", help: "Callback chọn group không hợp lệ." },
-  { key: "ALERT_COUPON_GROUP_OUT_OF_SCOPE", label: "Group ngoài phạm vi coupon", placeholder: "Group này không nằm trong phạm vi coupon.", help: "Khi coupon không áp dụng cho group đã chọn." },
+  { key: "ALERT_COUPON_SELECTION_INVALID", label: "Coupon chọn collection lỗi", placeholder: "Lựa chọn coupon không hợp lệ.", help: "Callback chọn collection coupon sai format." },
+  { key: "ALERT_COUPON_NOT_GROUP_SELECT", label: "Không phải coupon chọn collection", placeholder: "Mã này không phải coupon chọn collection.", help: "Callback chọn collection không hợp lệ." },
+  { key: "ALERT_COUPON_GROUP_OUT_OF_SCOPE", label: "Collection ngoài phạm vi coupon", placeholder: "Collection này không nằm trong phạm vi coupon.", help: "Khi coupon không áp dụng cho collection đã chọn." },
   { key: "ALERT_RENEW_CODE_INVALID", label: "Mã gia hạn không hợp lệ", placeholder: "Mã gia hạn không hợp lệ.", help: "Khi callback gia hạn sai format." },
   { key: "ALERT_RENEW_OFFER_INVALID", label: "Offer gia hạn không hợp lệ", placeholder: "Ưu đãi gia hạn không còn hợp lệ.", help: "Khi offer không còn dữ liệu." },
   { key: "ALERT_RENEW_NOT_OWNER", label: "Offer không thuộc user", placeholder: "Ưu đãi này không thuộc tài khoản của bạn.", help: "Khi user bấm offer của người khác." },
@@ -2185,23 +2185,23 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
   {
     key: "SALE_ANNOUNCE_BUTTONS",
     label: "Nút dưới thông báo flash sale",
-    placeholder: "🔥 Mua SVIP Trọn Đời => buy_full_life\\n💎 Mua SVIP 30 Ngày => buy_full_1m",
+    placeholder: "🔥 Mua All Access Trọn Đời => buy_full_life\\n💎 Mua All Access 30 Ngày => buy_full_1m",
     help: "Mỗi dòng là một nút. Dùng cú pháp Text => callback.",
     kind: "textarea",
   },
 ];
 
 const PLAN_FIELDS: ConfigField[] = [
-  { key: "PLAN_FULL_1M", label: "Tên gói SVIP 30 ngày", placeholder: "SVIP+ 30 Ngày", help: "Tên gói hiển thị khi khách mua SVIP 30 ngày." },
-  { key: "PLAN_FULL_LIFE", label: "Tên gói SVIP trọn đời", placeholder: "SVIP+ TRỌN ĐỜI", help: "Tên gói hiển thị khi khách mua SVIP trọn đời." },
-  { key: "PLAN_G_1M", label: "Tiền tố gói group lẻ 30 ngày", placeholder: "VIP 30 Ngày", help: "Ghép với tên group, ví dụ: VIP 30 Ngày - Hang Cú Prime." },
-  { key: "PLAN_G_LIFE", label: "Tiền tố gói group lẻ trọn đời", placeholder: "VIP Trọn Đời", help: "Ghép với tên group, ví dụ: VIP Trọn Đời - Hang Cú Prime." },
-  { key: "PRICE_SVIP_30D", label: "Giá SVIP 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
-  { key: "PRICE_SVIP_LIFE", label: "Giá SVIP trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
-  { key: "PRICE_SVIP_30D_USD", label: "Giá USD SVIP 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
-  { key: "PRICE_SVIP_LIFE_USD", label: "Giá USD SVIP trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
-  { key: "BTN_BUY_SVIP_30D", label: "Nút mua SVIP 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
-  { key: "BTN_BUY_SVIP_LIFE", label: "Nút mua SVIP trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
+  { key: "PLAN_ALL_ACCESS_30D", label: "Tên gói All Access 30 ngày", placeholder: "All Access 30 Ngày", help: "Tên gói hiển thị khi khách mua All Access 30 ngày." },
+  { key: "PLAN_ALL_ACCESS_LIFE", label: "Tên gói All Access trọn đời", placeholder: "All Access Trọn Đời", help: "Tên gói hiển thị khi khách mua All Access trọn đời." },
+  { key: "PLAN_COLLECTION_30D", label: "Tiền tố gói collection 30 ngày", placeholder: "Collection 30 Ngày", help: "Ghép với tên collection, ví dụ: Collection 30 Ngày - Hang Cú Prime." },
+  { key: "PLAN_COLLECTION_LIFE", label: "Tiền tố gói collection trọn đời", placeholder: "Collection Trọn Đời", help: "Ghép với tên collection, ví dụ: Collection Trọn Đời - Hang Cú Prime." },
+  { key: "PRICE_ALL_ACCESS_30D", label: "Giá All Access 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_ALL_ACCESS_LIFE", label: "Giá All Access trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_ALL_ACCESS_30D_USD", label: "Giá USD All Access 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "PRICE_ALL_ACCESS_LIFE_USD", label: "Giá USD All Access trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "BTN_BUY_ALL_ACCESS_30D", label: "Nút mua All Access 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
+  { key: "BTN_BUY_ALL_ACCESS_LIFE", label: "Nút mua All Access trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
 ];
 
 function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
@@ -2214,7 +2214,7 @@ function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
 }
 
 const PLAN_DISPLAY_FIELDS = PLAN_FIELDS.filter((field) => !field.key.startsWith("PRICE_"));
-const SVIP_PRICE_FIELDS = PLAN_FIELDS.filter((field) => field.key.startsWith("PRICE_"));
+const ALL_ACCESS_PRICE_FIELDS = PLAN_FIELDS.filter((field) => field.key.startsWith("PRICE_"));
 const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
 const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
@@ -2225,10 +2225,10 @@ const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN");
 const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");
 
 const PRICE_KEY_OPTIONS = [
-  "PRICE_SVIP_30D",
-  "PRICE_SVIP_LIFE",
-  "PRICE_SVIP_30D_USD",
-  "PRICE_SVIP_LIFE_USD",
+  "PRICE_ALL_ACCESS_30D",
+  "PRICE_ALL_ACCESS_LIFE",
+  "PRICE_ALL_ACCESS_30D_USD",
+  "PRICE_ALL_ACCESS_LIFE_USD",
 ];
 
 const PLAN_KEY_OPTIONS = [
@@ -2299,8 +2299,8 @@ const EMPTY_CHANNEL_POST_FORM = {
 
 const HIDDEN_REQUIREMENT_OPTIONS = [
   { value: "NONE", label: "Không yêu cầu thêm" },
-  { value: "SVIP_ACTIVE", label: "Phải có SVIP active" },
-  { value: "SVIP_LIFETIME", label: "Phải có SVIP lifetime" },
+  { value: "SVIP_ACTIVE", label: "Phải có All Access active" },
+  { value: "SVIP_LIFETIME", label: "Phải có All Access lifetime" },
   { value: "PLAN_TOKEN_ACTIVE", label: "Phải có plan token active" },
   { value: "PLAN_TOKEN_LIFETIME", label: "Phải có plan token lifetime" },
 ];
@@ -2677,7 +2677,7 @@ export default function Home() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [menuModalOpen, setMenuModalOpen] = useState(false);
-  const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+  const [saleForm, setSaleForm] = useState({ sale_id: "", price_key: "PRICE_ALL_ACCESS_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [couponForm, setCouponForm] = useState({ ...EMPTY_COUPON_FORM });
   const [couponBatchCount, setCouponBatchCount] = useState("10");
@@ -3457,7 +3457,7 @@ export default function Home() {
     await runAction(live ? "vip-audit-live" : "vip-audit-refresh", async () => {
       const res = await getVipGroupAudit(savedSecret, live);
       setVipGroupAudit(res.data);
-    if (live) showNotice("ok", "Đã kiểm tra live trạng thái VIP group.");
+    if (live) showNotice("ok", "Đã kiểm tra live trạng thái nhóm hỗ trợ.");
     });
   }
 
@@ -3466,9 +3466,9 @@ export default function Home() {
       const res = await checkSupportGroup(savedSecret);
       setSupportCheck(res.data);
       if (res.data.get_chat.ok && res.data.bot_member.ok && res.data.invite_link.ok) {
-        showNotice("ok", "Group VIP tạo link OK.");
+        showNotice("ok", "Nhóm hỗ trợ tạo link OK.");
       } else {
-        showNotice("error", "Group VIP chưa tạo được link. Xem chi tiết trong tab.");
+        showNotice("error", "Nhóm hỗ trợ chưa tạo được link. Xem chi tiết trong tab.");
       }
     });
   }
@@ -3687,7 +3687,7 @@ export default function Home() {
   }
 
   function resetSaleForm() {
-    setSaleForm({ sale_id: "", price_key: "PRICE_SVIP_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
+    setSaleForm({ sale_id: "", price_key: "PRICE_ALL_ACCESS_30D", discount_percent: "", sale_price: "", slot_limit: "", enabled: "ON", start_at: "", end_at: "" });
   }
 
   async function removeSaleRule(saleId = saleForm.sale_id) {
@@ -4708,7 +4708,7 @@ export default function Home() {
     const chips: ReactNode[] = [];
     if (flags.isImportant) chips.push(<Chip key="important" size="small" label="Ưu tiên" color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     if (flags.isNew) chips.push(<Chip key="new" size="small" label="Mới" color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
-    if (flags.isSvip) chips.push(<Chip key="svip" size="small" label="SVIP" color="secondary" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
+    if (flags.isSvip) chips.push(<Chip key="svip" size="small" label="All Access" color="secondary" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     if (options?.unreminded) chips.push(<Chip key="unreminded" size="small" label="Chưa nhắc" color="error" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     return chips;
   }
@@ -4861,7 +4861,7 @@ export default function Home() {
           <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           dateText(item.paid_at || item.created_at),
           [item.payment_provider || item.source_type || "PAID", inferOrderCurrency(item)].filter(Boolean).join(" / "),
-          groupNamesForOrder(item).join(", ") || "SVIP / lifetime",
+          groupNamesForOrder(item).join(", ") || "All Access / lifetime",
         ] as ReactNode[],
       })),
     } satisfies Record<RenewalSubTab, { key: string; telegramId: string; searchText: string; flags: { isImportant: boolean; isNew: boolean; isSvip: boolean; isUnreminded: boolean }; cells: ReactNode[] }[]>;
@@ -5073,7 +5073,7 @@ export default function Home() {
     if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
     if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
     if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
-    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "VIP group", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
+    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Nhóm hỗ trợ", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
   const visibleChannelPosts = useMemo(() => {
@@ -5135,10 +5135,10 @@ export default function Home() {
   }, [customerSummaries, selectedCustomerId]);
 
   function planOptionLabel(value: string) {
-    if (value === "FULL_1M") return "SVIP chung - 30 ngày";
-    if (value === "FULL_LIFE") return "SVIP chung - trọn đời";
-    if (value === "SELECT_GROUP_1M") return "Khách tự chọn group lẻ - 30 ngày";
-    if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn group lẻ - trọn đời";
+    if (value === "FULL_1M") return "All Access - 30 ngày";
+    if (value === "FULL_LIFE") return "All Access - trọn đời";
+    if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
+    if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -5146,10 +5146,10 @@ export default function Home() {
   }
 
   function priceOptionLabel(value: string) {
-    if (value === "PRICE_SVIP_30D") return "Giá SVIP chung - 30 ngày";
-    if (value === "PRICE_SVIP_LIFE") return "Giá SVIP chung - trọn đời";
-    if (value === "PRICE_SVIP_30D_USD") return "Giá USD SVIP chung - 30 ngày";
-    if (value === "PRICE_SVIP_LIFE_USD") return "Giá USD SVIP chung - trọn đời";
+    if (value === "PRICE_ALL_ACCESS_30D") return "Giá All Access - 30 ngày";
+    if (value === "PRICE_ALL_ACCESS_LIFE") return "Giá All Access - trọn đời";
+    if (value === "PRICE_ALL_ACCESS_30D_USD") return "Giá USD All Access - 30 ngày";
+    if (value === "PRICE_ALL_ACCESS_LIFE_USD") return "Giá USD All Access - trọn đời";
     const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)(_USD)?$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -5157,20 +5157,20 @@ export default function Home() {
   }
 
   function manualPlanNameFromKey(value: string) {
-    if (value === "FULL_1M") return getConfigValue(config, "PLAN_FULL_1M", "SVIP+ 30 Ngày") || "SVIP+ 30 Ngày";
-    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_FULL_LIFE", "SVIP+ Trọn Đời") || "SVIP+ Trọn Đời";
+    if (value === "FULL_1M") return getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày";
+    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời") || "All Access Trọn Đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
-    const prefixKey = match[2] === "1M" ? "PLAN_G_1M" : "PLAN_G_LIFE";
-    const fallbackPrefix = match[2] === "1M" ? "VIP 30 Ngày" : "VIP Trọn Đời";
+    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
+    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : "Collection Trọn Đời";
     const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
     const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
     return `${prefix} - ${groupName}`;
   }
 
   function manualPriceFromKey(value: string) {
-    if (value === "FULL_1M") return getConfigValue(config, "PRICE_SVIP_30D", "0");
-    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_SVIP_LIFE", "0");
+    if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
+    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
@@ -5454,7 +5454,7 @@ export default function Home() {
               textColor="inherit"
               sx={sidebarTabSx}
             >
-              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Group VIP", "VIP group")} />
+              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Khu vực hỗ trợ", "Support area")} />
               <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
               <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
               <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
@@ -5696,20 +5696,20 @@ export default function Home() {
           <div className="stack">
             <section className="panel">
               <PanelHead
-                title="Bảng giá SVIP chung"
-                subtitle="Giá SVIP được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
-                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá SVIP</Button>}
+                title="Bảng giá All Access"
+                subtitle="Giá All Access được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
+                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá All Access</Button>}
               />
               <div className="system-list">
-                <Info label="SVIP 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_30D", "0") || 0))} icon={<BadgeDollarSign size={16} />} />
-                <Info label="SVIP trọn đời VNĐ" value={money(Number(getConfigValue(config, "PRICE_SVIP_LIFE", "0") || 0))} icon={<ShieldCheck size={16} />} />
-                <Info label="SVIP 30 ngày USD" value={getConfigValue(config, "PRICE_SVIP_30D_USD", "-") || "-"} icon={<CreditCard size={16} />} />
-                <Info label="SVIP trọn đời USD" value={getConfigValue(config, "PRICE_SVIP_LIFE_USD", "-") || "-"} icon={<Coins size={16} />} />
+                <Info label="All Access 30 ngày VNĐ" value={money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0))} icon={<BadgeDollarSign size={16} />} />
+                <Info label="All Access trọn đời VNĐ" value={money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0))} icon={<ShieldCheck size={16} />} />
+                <Info label="All Access 30 ngày USD" value={getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "-") || "-"} icon={<CreditCard size={16} />} />
+                <Info label="All Access trọn đời USD" value={getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "-") || "-"} icon={<Coins size={16} />} />
               </div>
             </section>
             <section className="panel">
               <PanelHead
-                title="Nhóm lẻ & bảng giá"
+                title="Collection & bảng giá"
                 subtitle="Bấm một nhóm để sửa trong popup. Không còn form dài nằm sẵn trên trang."
                 action={<Button variant="contained" size="small" onClick={openNewGroupModal} startIcon={<Plus size={16} />}>Thêm nhóm mới</Button>}
               />
@@ -5787,7 +5787,7 @@ export default function Home() {
               {hiddenSetupView === "codes" ? (
                 <>
                   <div className="hint compact">
-                    Hidden code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>SVIP_LIFETIME</code>.
+                    Hidden code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
                   </div>
                   <div className="toolbar hidden-toolbar">
                     <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
@@ -6048,13 +6048,13 @@ export default function Home() {
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} icon={<TrendingUp size={16} />} />
               <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} icon={<XCircle size={16} />} />
               <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} icon={<ShieldCheck size={16} />} />
-              <Metric label="Sự kiện group VIP" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
-              <Metric label="Tên group" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm VIP")} icon={<Users size={16} />} />
+              <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
+              <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} icon={<Users size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
-                title="Group VIP"
-                subtitle="Chỉ hiển thị sự kiện của group VIP theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
+                title="Khu vực hỗ trợ"
+                subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
@@ -6078,8 +6078,8 @@ export default function Home() {
             </section>
             <section className="panel">
               <PanelHead
-                title="Sự kiện group VIP"
-                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group VIP."
+                title="Sự kiện nhóm hỗ trợ"
+                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của nhóm hỗ trợ."
               />
               <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
@@ -6099,7 +6099,7 @@ export default function Home() {
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Tin nhắn bot"
-                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến group VIP."
+                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến nhóm hỗ trợ."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
@@ -6730,14 +6730,14 @@ export default function Home() {
               <PanelHead title="UI Bot tiếng Việt" subtitle="Chỉ quản lý tên gói và nội dung khách Việt nhìn thấy. Giá được quản lý tập trung tại Nhóm & giá." />
               <Tabs value={botViTab} onChange={(_, next) => setBotViTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="plans" label="Tên gói & nút mua" />
-                <Tab value="groups" label="Mô tả group" />
+                <Tab value="groups" label="Mô tả collection" />
                 <Tab value="buttons" label="Nút bấm" />
                 <Tab value="messages" label="Tin nhắn" />
                 <Tab value="saleContent" label="Flash sale" />
               </Tabs>
             </section>
             {botViTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Việt" subtitle="Không chứa giá. Giá bán được quản lý tập trung tại Nhóm & giá." fields={PLAN_VI_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botViTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Việt" subtitle="Chỉ chỉnh nội dung mô tả. Tên group và giá nằm tại Nhóm & giá." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botViTab === "groups" ? <ConfigEditor title="Mô tả collection tiếng Việt" subtitle="Chỉ chỉnh nội dung mô tả. Tên collection và giá nằm tại Nhóm & giá." fields={groupViContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Việt" subtitle="Text nút Telegram dành cho khách Việt." fields={BUTTON_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Việt" subtitle="Các mẫu tin Bot gửi cho khách Việt." fields={VISIBLE_MESSAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botViTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Việt" subtitle="Nội dung flash sale dành cho khách Việt." fields={SALE_CONTENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -6769,14 +6769,14 @@ export default function Home() {
               <PanelHead title="UI Bot tiếng Anh" subtitle="Chỉ quản lý tên gói và nội dung tiếng Anh. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." />
               <Tabs value={botEnTab} onChange={(_, next) => setBotEnTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="plans" label="Tên gói & nút mua" />
-                <Tab value="groups" label="Mô tả group" />
+                <Tab value="groups" label="Mô tả collection" />
                 <Tab value="buttons" label="Nút bấm" />
                 <Tab value="messages" label="Tin nhắn" />
                 <Tab value="saleContent" label="Flash sale" />
               </Tabs>
             </section>
             {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botEnTab === "groups" ? <ConfigEditor title="Mô tả group lẻ tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "groups" ? <ConfigEditor title="Mô tả collection tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh, không gồm các tin auto payment đã gom về tab Auto payment." fields={VISIBLE_MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -7087,7 +7087,7 @@ export default function Home() {
         ) : null}
 
         {svipPriceSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt giá SVIP chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá SVIP." fields={SVIP_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt giá All Access chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá All Access." fields={ALL_ACCESS_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
         ) : null}
 
         {groupModalOpen ? (
@@ -7310,8 +7310,8 @@ export default function Home() {
               <div className="form-grid two">
                 <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
                 <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_SVIP_30D}, {SALE_LABEL_PRICE_SVIP_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
-                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua SVIP => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_SVIP_30D}"}.</span>} />
+                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_ALL_ACCESS_30D}, {SALE_LABEL_PRICE_ALL_ACCESS_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
+                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua All Access => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_ALL_ACCESS_30D}"}</span>} />
               </div>
               <div className="modal-actions">
                 <Button variant="outlined" onClick={() => setMenuModalOpen(false)}>Đóng</Button>
@@ -7331,7 +7331,7 @@ export default function Home() {
                   <Select labelId="sale-price-key-label" label="Gói áp dụng" value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })} sx={popupSelectSx}>
                     {priceKeyOptions.map((item) => <MenuItem key={item} value={item}>{priceOptionLabel(item)}</MenuItem>)}
                   </Select>
-                  <Typography variant="caption" color="text.secondary">Chỉ hiện nhóm đã setup, cộng với SVIP chung.</Typography>
+                  <Typography variant="caption" color="text.secondary">Chỉ hiện collection đã setup, cộng với All Access.</Typography>
                 </FormControl>
                 <TextField className="field" label="Giảm theo phần trăm" value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Hoặc giá sale cố định" value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" fullWidth size="small" sx={popupFieldSx} />
@@ -7400,12 +7400,12 @@ export default function Home() {
                           Duration_Days: isLifetimeCouponPlan(nextPlan) ? lifetimeCouponDays : couponForm.Duration_Days,
                         });
                       }}>{planKeyOptions.map((item) => <MenuItem key={item} value={item}>{planOptionLabel(item)}</MenuItem>)}</Select>
-                        <Typography variant="caption" color="text.secondary">Chọn một gói cố định, hoặc để khách tự chọn group lẻ sau khi nhập mã.</Typography>
+                        <Typography variant="caption" color="text.secondary">Chọn một gói cố định, hoặc để khách tự chọn collection lẻ sau khi nhập mã.</Typography>
                       </FormControl>
                       <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."} />
                       <TextField className="field" label="Nhãn thời hạn" value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."} />
-                      <TextField className="field" label="Mẫu tên gói" value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="VIP {duration_label} - {group}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</span>} />
-                      <TextField className="field" label="Mẫu nút chọn group" value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng khi khách tự chọn group. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</span>} />
+                      <TextField className="field" label="Mẫu tên gói" value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="Collection {duration_label} - {group}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</span>} />
+                      <TextField className="field" label="Mẫu nút chọn collection" value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng khi khách tự chọn collection. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</span>} />
                     </>
                   )}
                   <TextField className="field" label="Số lượt dùng tối đa" value={couponForm.Max_Uses} onChange={(event) => setCouponForm({ ...couponForm, Max_Uses: event.target.value })} placeholder="VD: 1" fullWidth size="small" sx={popupFieldSx} />
@@ -7511,7 +7511,7 @@ export default function Home() {
         ) : null}
 
         {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt Group VIP" subtitle="Quản lý bật/tắt group VIP, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_GROUP_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt nhóm hỗ trợ" subtitle="Quản lý bật/tắt nhóm hỗ trợ, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_GROUP_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
@@ -7732,7 +7732,7 @@ export default function Home() {
                 <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
                   {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
                 </TextField>
-                <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: VIP 30 Ngày - Hang Cú Prime" size="small" sx={{ gridColumn: "1 / -1" }} helperText="Với gói tự nhập, nên chứa đúng tên group đang cấu hình trong Nhóm & giá." />
+                <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" sx={{ gridColumn: "1 / -1" }} helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
                 <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân, USD / crypto có thể có." />
                 <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })} size="small">
                   <MenuItem value="VND">VNĐ</MenuItem>
@@ -7817,7 +7817,7 @@ export default function Home() {
                           Copy toàn bộ nội dung
                         </Button>
                       </Stack>
-                      {manualOrderResult.support_error ? <small className="danger-text">Group VIP chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join group riêng.</small>}
+                      {manualOrderResult.support_error ? <small className="danger-text">Collection chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join collection riêng.</small>}
                     </Box>
                   </Box>
                 ) : null}

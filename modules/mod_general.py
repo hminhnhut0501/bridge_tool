@@ -260,7 +260,7 @@ async def send_sale_announcement(message: Message):
     img = str(db.get_config("IMG_SALE_BANNER", "")).strip()
     layout = db.get_config(
         "SALE_ANNOUNCE_BUTTONS",
-        "🔥 Mua SVIP Trọn Đời => buy_full_life\n💎 Mua SVIP 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
+        "🔥 Mua All Access Trọn Đời => buy_full_life\n💎 Mua All Access 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
     ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
 
@@ -333,7 +333,7 @@ async def deliver_activation_order(message: Message, code: str):
         except Exception:
             pass
 
-    processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link join group..."))
+    processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link tham gia nhóm..."))
     try:
         plan_name = str(activation.get("plan_name") or "").strip()
         links_text, group_names, failed_groups, invite_results = await build_invite_links(message.from_user.id, plan_name)
@@ -356,7 +356,7 @@ async def deliver_activation_order(message: Message, code: str):
             except Exception as exc:
                 print(f"⚠️ Không ghi được manual_activation_link_failed cho {code}: {exc}")
             if not group_names:
-                await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link join group. Vui lòng thử lại sau."))
+                await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link tham gia nhóm. Vui lòng thử lại sau."))
                 return
 
         activation_update_at = datetime.now().isoformat(timespec="seconds")
@@ -427,7 +427,7 @@ async def deliver_activation_order(message: Message, code: str):
             failed_group_text = ", ".join(failed_groups)
             failed_notice = render_cfg(
                 "MANUAL_ORDER_LINK_PARTIAL_TEXT",
-                "⚠️ Một số group chưa tạo được link: {failed_groups}",
+                "⚠️ Một số nhóm chưa tạo được link: {failed_groups}",
                 {"failed_groups": failed_group_text},
             )
             render_context["partial_text"] = failed_notice
@@ -794,15 +794,15 @@ async def cmd_me(event):
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
-        elif "svip" in latest_plan_name.lower() or "full" in latest_plan_name.lower():
+        elif any(token in latest_plan_name.lower() for token in ("svip", "full", "all access", "allaccess")):
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên Trọn đời"), callback_data="buy_full_life"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên All Access Trọn đời"), callback_data="buy_full_life"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
         else:
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_SVIP", "🌟 Xem gói SVIP+"), callback_data="view_svip_page"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_ALL_ACCESS", "🌟 Xem gói All Access"), callback_data="view_all_access_page"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
     else:
         kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))

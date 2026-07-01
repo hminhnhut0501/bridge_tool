@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import config_utils
 import database
+from config_aliases import config_lookup_keys
 from supabase_store import supabase_store
 
 REQUIREMENT_NONE = "NONE"
@@ -105,15 +106,23 @@ def hidden_text(key, default=""):
     return normalize_text(value) or default
 
 
+def _config_text_with_alias(key, default=""):
+    for candidate in config_lookup_keys(key):
+        value = normalize_text(_db().get_config(candidate, ""))
+        if value:
+            return value
+    return default
+
+
 def ensure_hidden_supabase_enabled():
     if not supabase_store.enabled:
-        raise RuntimeError("Hidden groups yêu cầu Supabase. Hãy chạy migration SQL mới nhất và cấu hình SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.")
+        raise RuntimeError("Nhóm ẩn yêu cầu Supabase. Hãy chạy migration SQL mới nhất và cấu hình SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.")
 
 
 def main_group_matches_plan(group_no, plan_name):
-    btn_name = _db().get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
+    btn_name = _config_text_with_alias(f"BTN_G{group_no}", f"Nhóm {group_no}")
     plan_upper = normalize_key_text(plan_name)
-    if "FULL" in plan_upper or "SVIP" in plan_upper:
+    if "FULL" in plan_upper or "SVIP" in plan_upper or "ALL ACCESS" in plan_upper or "ALLACCESS" in plan_upper:
         return True
     if f"G{group_no}" in plan_upper:
         return True
@@ -188,10 +197,10 @@ def _display_language(user_id=None, language=None):
 def _localized_plan_text(user_id, key, default="", language=None):
     lang = _display_language(user_id, language)
     if lang == "en":
-        localized = normalize_text(_db().get_config(f"{key}_EN", ""))
+        localized = _config_text_with_alias(f"{key}_EN", "")
         if localized:
             return localized
-    base = normalize_text(_db().get_config(key, default))
+    base = _config_text_with_alias(key, default)
     return base or default
 
 
@@ -205,8 +214,8 @@ def _resolve_group_number_from_plan_name(plan_name):
     suffix_text = normalize_match_text(suffix)
     plan_text = normalize_match_text(clean_name)
     for group_no in range(1, _group_count() + 1):
-        vi_name = normalize_text(_db().get_config(f"BTN_G{group_no}", f"Nhóm {group_no}"))
-        en_name = normalize_text(_db().get_config(f"BTN_G{group_no}_EN", vi_name))
+        vi_name = _config_text_with_alias(f"BTN_G{group_no}", f"Nhóm {group_no}")
+        en_name = _config_text_with_alias(f"BTN_G{group_no}_EN", vi_name)
         for candidate in {normalize_match_text(vi_name), normalize_match_text(en_name)}:
             if candidate and (candidate == suffix_text or candidate in plan_text):
                 return str(group_no)
@@ -240,13 +249,13 @@ def display_plan_name(plan_name, user_id=None, language=None):
 
     upper_name = normalize_key_text(clean_name)
     is_lifetime = any(token in upper_name for token in {"TRỌN ĐỜI", "TRON DOI", "LIFETIME", " LIFE"})
-    is_svip = "SVIP" in upper_name or "FULL" in upper_name
+    is_svip = "SVIP" in upper_name or "FULL" in upper_name or "ALL ACCESS" in upper_name or "ALLACCESS" in upper_name
 
     if is_svip:
         return _localized_plan_text(
             user_id,
-            "PLAN_FULL_LIFE" if is_lifetime else "PLAN_FULL_1M",
-            "SVIP+ Lifetime (All 4 Groups)" if is_lifetime else "SVIP+ 30 Days (All 4 Groups)",
+            "PLAN_ALL_ACCESS_LIFE" if is_lifetime else "PLAN_ALL_ACCESS_30D",
+            "All Access Lifetime" if is_lifetime else "All Access 30 Days",
             language="en",
         )
 
@@ -255,8 +264,8 @@ def display_plan_name(plan_name, user_id=None, language=None):
         group_label = _localized_plan_text(user_id, f"BTN_G{group_no}", clean_name.rsplit(" - ", 1)[-1] if " - " in clean_name else clean_name, language="en")
         prefix = _localized_plan_text(
             user_id,
-            "PLAN_G_LIFE" if is_lifetime else "PLAN_G_1M",
-            "VIP Lifetime" if is_lifetime else "VIP 30 Days",
+            "PLAN_COLLECTION_LIFE" if is_lifetime else "PLAN_COLLECTION_30D",
+            "Collection Lifetime" if is_lifetime else "Collection 30 Days",
             language="en",
         )
         return f"{prefix} - {group_label}"
@@ -486,7 +495,7 @@ def is_svip_order(plan_name="", plan_token=""):
     if token.startswith("FULL_"):
         return True
     upper = normalize_key_text(strip_plan_token(plan_name))
-    return "FULL" in upper or "SVIP" in upper
+    return "FULL" in upper or "SVIP" in upper or "ALL ACCESS" in upper or "ALLACCESS" in upper
 
 
 def order_is_active(status, expire_at, plan_name="", plan_token="", now=None):
@@ -568,13 +577,13 @@ def validate_hidden_code_for_user(code, user_id):
         return None, hidden_text("MSG_HIDDEN_LIMIT_REACHED", "Mã hidden này đã hết lượt dùng.")
     groups = hidden_code_available_groups(hidden_code)
     if not groups:
-        return None, hidden_text("MSG_HIDDEN_NO_GROUPS", "Mã hợp lệ nhưng hiện chưa có hidden group nào đang bật.")
+        return None, hidden_text("MSG_HIDDEN_NO_GROUPS", "Mã hợp lệ nhưng hiện chưa có nhóm ẩn nào đang bật.")
     requirement_type, requirement_value = hidden_code_requirement(hidden_code)
     if not user_has_requirement(user_id, requirement_type, requirement_value):
         if requirement_type == REQUIREMENT_SVIP_LIFETIME:
-            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME", "Bạn cần có gói SVIP trọn đời để mở mã này.")
+            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME", "Bạn cần có gói All Access trọn đời để mở mã này.")
         if requirement_type == REQUIREMENT_SVIP_ACTIVE:
-            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE", "Bạn cần có gói SVIP còn hạn để mở mã này.")
+            return None, hidden_text("MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE", "Bạn cần có gói All Access còn hạn để mở mã này.")
         if requirement_type == REQUIREMENT_PLAN_TOKEN_ACTIVE:
             template = hidden_text("MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE", "Bạn chưa đủ điều kiện để mở mã này.")
             return None, template.replace("{plan_token}", requirement_value)
@@ -613,7 +622,7 @@ def resolve_plan_groups(plan_name, plan_token=""):
     for group_no in config_utils.group_numbers():
         if not main_group_matches_plan(group_no, plan_name):
             continue
-        gid = normalize_chat_id(_db().get_config(f"ID_G{group_no}"))
+        gid = normalize_chat_id(_config_text_with_alias(f"ID_G{group_no}"))
         if gid:
-            groups.append((gid, _db().get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")))
+            groups.append((gid, _config_text_with_alias(f"BTN_G{group_no}", f"Nhóm {group_no}")))
     return groups

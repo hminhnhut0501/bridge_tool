@@ -20,7 +20,7 @@ async def cmd_scan_vip_groups(message: Message):
     if len(parts) >= 2 and parts[1].strip().lower() in {"live", "on", "1", "true", "yes"}:
         live = True
 
-    await message.reply("⏳ Đang quét VIP group theo dữ liệu đơn hàng...")
+    await message.reply("⏳ Đang quét nhóm hỗ trợ theo dữ liệu đơn hàng...")
     rows = await build_vip_group_audit_rows(live=live)
     if not rows:
         await message.reply("Không tìm thấy khách nào cần kiểm tra.")
@@ -28,10 +28,10 @@ async def cmd_scan_vip_groups(message: Message):
 
     targets = [row for row in rows if row["status"] in {"LEFT_GROUP", "WAITING_CHECK", "KICKED"} or row["needs_action"]]
     if not targets:
-        await message.reply("Không phát hiện ai đã out group theo dữ liệu hiện có.")
+        await message.reply("Không phát hiện ai đã out nhóm theo dữ liệu hiện có.")
         return
 
-    lines = ["<b>Kết quả quét VIP group</b>"]
+    lines = ["<b>Kết quả quét nhóm hỗ trợ</b>"]
     for row in targets[:40]:
         lines.append(
             f"• <b>{row['customer_name']}</b> | {row['group_name']} | {row['status_label']} | user <code>{row['telegram_user_id']}</code> | order <code>{row['order_id']}</code>"

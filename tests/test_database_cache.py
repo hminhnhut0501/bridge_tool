@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from database import Database
 
 
@@ -45,3 +47,31 @@ def test_get_config_keeps_recent_cache_without_reload(monkeypatch):
 
     assert db.get_config("AUTO_PAYMENT_EN_RETURNING_ENABLED", "OFF") == "ON"
     assert calls == []
+
+
+def test_get_config_resolves_alias_keys():
+    db = Database()
+    db.cache_config = {"PRICE_ALL_ACCESS_LIFE": "499000"}
+    db.last_reload_time = 9999999999
+
+    assert db.get_config("PRICE_ALL_ACCESS_LIFE", "0") == "499000"
+    assert db.get_config("PRICE_SVIP_LIFE", "0") == "499000"
+
+
+def test_set_config_mirrors_alias_keys(monkeypatch):
+    db = Database()
+    db.backend = "supabase"
+    writes = []
+
+    def fake_set_configs(items):
+        writes.append([dict(item) for item in items])
+        return items
+
+    monkeypatch.setattr("database.supabase_store", SimpleNamespace(enabled=True, set_configs=fake_set_configs))
+
+    db.set_config("PRICE_SVIP_LIFE", "499000")
+
+    assert writes
+    written_keys = {item["key"] for item in writes[0]}
+    assert "PRICE_ALL_ACCESS_LIFE" in written_keys
+    assert "PRICE_SVIP_LIFE" in written_keys

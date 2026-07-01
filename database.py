@@ -4,11 +4,13 @@ import re
 from dotenv import load_dotenv
 from supabase_store import supabase_store
 from bot_links import normalize_bot_link_template
+from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items, normalize_config_key as normalize_config_key_alias
 
 load_dotenv()
 
+
 def normalize_key(value):
-    return re.sub(r"[\u200b-\u200d\ufeff]", "", str(value or "")).strip()
+    return normalize_config_key_alias(value)
 
 class Database:
     def __init__(self):
@@ -58,7 +60,7 @@ class Database:
         try:
             if self.backend == "supabase" and supabase_store.enabled:
                 temp_cache = {}
-                for row in supabase_store.list_config():
+                for row in canonicalize_config_rows(supabase_store.list_config()):
                     key = normalize_key(row.get("key")).upper()
                     if key:
                         value = str(row.get("value") or "").strip()
@@ -96,27 +98,35 @@ class Database:
             self.reload_config(force=True)
         elif current_time - self.last_reload_time >= 60:
             self.reload_config(force=False)
-        normalized_key = normalize_key(key).upper()
-        value = self.cache_config.get(normalized_key, str(default))
+        normalized_key = canonical_config_key(key)
+        value = str(default)
+        for candidate in config_lookup_keys(normalized_key):
+            candidate_value = self.cache_config.get(candidate)
+            if candidate_value is not None:
+                value = candidate_value
+                break
         if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
             return self._normalize_manual_order_link_template(value)
         return value
 
     def set_config(self, key, value):
-        normalized_key = normalize_key(key).upper()
+        normalized_key = canonical_config_key(key)
         if not normalized_key:
             raise ValueError("Config key không hợp lệ")
         normalized_value = self._normalize_manual_order_link_template(value) if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE" else str(value)
         if self.backend == "supabase" and supabase_store.enabled:
-            supabase_store.set_config(normalized_key, normalized_value)
-            self.cache_config[normalized_key] = str(normalized_value)
+            rows = supabase_store.set_configs(config_write_items(normalized_key, normalized_value))
+            for row in rows or []:
+                row_key = normalize_key(row.get("key")).upper()
+                if row_key:
+                    self.cache_config[row_key] = str(row.get("value") or "")
             try:
                 from helpers import recompute_bot_runtime_state
 
                 recompute_bot_runtime_state()
             except Exception:
                 pass
-            return
+            return rows
 
         raise RuntimeError("Google Sheets runtime has been removed. Use Supabase config storage.")
 
