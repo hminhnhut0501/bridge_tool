@@ -2607,7 +2607,7 @@ export default function Home() {
   const [saving, setSaving] = useState("");
   const [query, setQuery] = useState("");
   const [orderTab, setOrderTab] = useState<"paid" | "other">("paid");
-  const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("month");
+  const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("all");
   const [orderPage, setOrderPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
   const [customerStatus, setCustomerStatus] = useState<CustomerStatusFilter>("all");

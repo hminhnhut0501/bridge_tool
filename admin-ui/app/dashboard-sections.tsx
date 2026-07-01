@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Box, Button, Chip, MenuItem, Stack, Tab, Tabs, TextField, Typography } from "@mui/material";
+import { Box, Button, Chip, Stack, Tab, Tabs, TextField, Typography } from "@mui/material";
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Coins, Megaphone } from "lucide-react";
 import { AppSection, AppToolbar, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 import { Metric } from "./metric-card";
@@ -113,6 +113,13 @@ export function OrdersSection(props: any) {
   const remainingCount = filteredOrdersBase.length - paidCount;
   const todayCount = filteredOrdersBase.filter((item: any) => isWithinPeriod(item.created_at, "today")).length;
   const monthCount = filteredOrdersBase.filter((item: any) => isWithinPeriod(item.created_at, "month")).length;
+  const periodOptions: Array<{ value: "today" | "7d" | "month" | "year" | "all"; label: string }> = [
+    { value: "all", label: "Tất cả" },
+    { value: "today", label: "Hôm nay" },
+    { value: "7d", label: "7 ngày" },
+    { value: "month", label: "Tháng này" },
+    { value: "year", label: "Năm nay" },
+  ];
   return (
     <Stack spacing={2}>
       <AppSection title="Thêm đơn thủ công" subtitle="Dùng khi cần cấp quyền ngoài cổng thanh toán. Mở popup để nhập thông tin, tạo order PAID và gen link." action={<AppToolbar><Button variant="outlined" size="small" onClick={props.openOrderSettings}>Cài đặt</Button><Button variant="contained" size="small" onClick={props.openManualOrder}><Plus size={16} /> Mở form tạo đơn</Button></AppToolbar>} compact accent="amber">
@@ -140,10 +147,21 @@ export function OrdersSection(props: any) {
         </Tabs>
         <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} sx={{ py: 1.5 }}>
           <TextField value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm mã đơn, tên khách, Telegram ID, tên gói, coupon..." size="small" fullWidth />
-          <TextField select value={orderPeriod} onChange={(event) => setOrderPeriod(event.target.value)} size="small" fullWidth>
-            <MenuItem value="today">Hôm nay</MenuItem><MenuItem value="7d">7 ngày gần đây</MenuItem><MenuItem value="month">Tháng này</MenuItem><MenuItem value="year">Năm nay</MenuItem><MenuItem value="all">Tất cả</MenuItem>
-          </TextField>
         </Stack>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, pb: 0.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 800, color: "text.secondary", minWidth: 132 }}>Bộ lọc thời gian</Typography>
+          {periodOptions.map((item) => (
+            <Chip
+              key={item.value}
+              label={item.label}
+              clickable
+              color={orderPeriod === item.value ? "primary" : "default"}
+              variant={orderPeriod === item.value ? "filled" : "outlined"}
+              onClick={() => setOrderPeriod(item.value)}
+              sx={{ fontWeight: 800 }}
+            />
+          ))}
+        </Box>
         <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
         <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
       </AppSection>
