@@ -47,7 +47,7 @@ from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 
 load_dotenv()
 
-app = FastAPI(title="Prive Bot Backend")
+app = FastAPI(title="Hang Cú VIP Backend")
 _booted = False
 _missing_table_warnings: set[str] = set()
 _last_webhook_reset_reason = ""
@@ -1018,7 +1018,7 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"ok": True, "service": "prive-bot-backend"}
+    return {"ok": True, "service": "hang-cu-vip-backend"}
 
 
 @app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])

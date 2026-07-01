@@ -187,8 +187,8 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.bot.kicked, [])
 
-    async def test_coupon_plan_matches_group_when_template_omits_prive_word(self):
-        self.db.config["BTN_G4"] = "Hang Cú Privé Asia"
+    async def test_coupon_plan_matches_group_when_template_omits_brand_word(self):
+        self.db.config["BTN_G4"] = "Hang Cú VIP Asia"
         now = datetime(2026, 5, 25, 21, 20, 0)
         rows = [["old", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "PAID", "", "2026-05-25 21:19:00"]]
 

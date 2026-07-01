@@ -116,7 +116,7 @@ async def main():
         create_background_task(auto_payment_schedule_worker(), name="auto_payment_schedule_worker", context="main")
         print("⏰ [Worker] Đã kích hoạt Auto Payment Schedule")
 
-    print("🤖 Bot Hang Cu Privé+ đang sẵn sàng nhận lệnh...")
+    print("🤖 Bot Hang Cú VIP đang sẵn sàng nhận lệnh...")
     
     # 5. Xóa bỏ Webhook cũ để tránh xung đột và bắt đầu Polling
     await bot.delete_webhook(drop_pending_updates=True)

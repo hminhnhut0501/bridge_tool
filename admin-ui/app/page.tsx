@@ -793,7 +793,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
   {
     key: "PAYPAL_BRAND_NAME",
     label: "Tên shop trên PayPal",
-    placeholder: "Prive Bot",
+    placeholder: "Hang Cú VIP",
     help: "Tên hiển thị trên trang thanh toán PayPal.",
   },
   {
@@ -811,7 +811,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
   {
     key: "NOWPAYMENTS_IPN_CALLBACK_URL",
     label: "NOWPayments IPN URL",
-    placeholder: "https://prive-bot-backend.onrender.com/payment-webhooks/nowpayments",
+    placeholder: "https://your-backend.onrender.com/payment-webhooks/nowpayments",
     help: "URL callback để NOWPayments báo trạng thái. Có thể để trống nếu Render có PUBLIC_BASE_URL hoặc RENDER_EXTERNAL_URL.",
   },
   {
@@ -1392,7 +1392,7 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_GROUP_NAME",
     label: "Tên group VIP",
-    placeholder: "Nhóm VIP Privé+",
+    placeholder: "Nhóm VIP Hang Cú",
     help: "Tên hiển thị trong log/lỗi.",
   },
   {
@@ -2171,7 +2171,7 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
   {
     key: "MSG_SALE_ANNOUNCE",
     label: "Nội dung thông báo flash sale",
-    placeholder: "🔥 <b>FLASH SALE PRIVÉ+ ĐANG MỞ</b>\\n\\n{sale_lines}\\n\\nSale kết thúc sau: {countdown}",
+    placeholder: "🔥 <b>FLASH SALE HANG CÚ VIP ĐANG MỞ</b>\\n\\n{sale_lines}\\n\\nSale kết thúc sau: {countdown}",
     help: "Dùng biến {sale_lines}, {countdown}, {slots}.",
     kind: "textarea",
   },
@@ -5327,7 +5327,7 @@ export default function Home() {
         <Card variant="outlined" sx={{ width: "100%", maxWidth: 520 }}>
           <CardContent sx={{ display: "grid", gap: 2.5, p: 3 }}>
             <Box>
-              <Typography variant="h4" sx={{ fontWeight: 800 }}>Prive Admin</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>Hang Cú VIP Admin</Typography>
               <Typography variant="body2" color="text.secondary">Nhập mật khẩu admin đã đặt trong Render.</Typography>
             </Box>
             <TextField type="password" label="Mật khẩu admin" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="Dán ADMIN_SECRET tại đây" fullWidth />
@@ -5357,7 +5357,7 @@ export default function Home() {
         <Toolbar disableGutters sx={{ minHeight: 68, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, pl: { xs: 2, md: 3 }, pr: 3 }}>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25 }}>
             <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1 }}>
-              Privé+
+              Hang Cú VIP
             </Typography>
             <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: "none", sm: "block" } }}>
               {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}

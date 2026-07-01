@@ -165,7 +165,7 @@ class PayPalManager:
                     "amount": {"currency_code": "USD", "value": self._usd_value(amount)},
                 }],
                 "application_context": {
-                    "brand_name": str(db.get_config("PAYPAL_BRAND_NAME", "Prive Bot") or "Prive Bot"),
+                    "brand_name": str(db.get_config("PAYPAL_BRAND_NAME", "Hang Cú VIP") or "Hang Cú VIP"),
                     "landing_page": "BILLING",
                     "user_action": "PAY_NOW",
                     "return_url": str(db.get_config("PAYMENT_RETURN_URL", PAYPAL_RETURN_URL) or PAYPAL_RETURN_URL),

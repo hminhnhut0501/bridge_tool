@@ -3,8 +3,8 @@ import "./globals.css";
 import ThemeRegistry from "./theme-registry";
 
 export const metadata: Metadata = {
-  title: "Prive Admin",
-  description: "Admin dashboard for Prive Bot",
+  title: "Hang Cú VIP Admin",
+  description: "Admin dashboard for Hang Cú VIP",
 };
 
 export default function RootLayout({

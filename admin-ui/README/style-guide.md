@@ -1,4 +1,4 @@
-# Prive Admin UI Style Guide
+# Hang Cú VIP Admin UI Style Guide
 
 Tài liệu này là nguồn chuẩn cho mọi màn hình mới trong `admin-ui`.
 
@@ -124,4 +124,3 @@ Tài liệu này là nguồn chuẩn cho mọi màn hình mới trong `admin-ui`
 - `app/theme-registry.tsx`: theme override MUI toàn app
 - `app/dashboard-components.tsx`: `AppDialog`, `AppSection`, `AppToolbar`, `PanelHead`, `Metric`
 - `app/dashboard-helpers.ts`: helper format ngày giờ, trạng thái, tiền tệ
-

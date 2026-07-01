@@ -12,5 +12,5 @@ values
   ('PAYMENT_PROVIDER_EN', 'PAYPAL'),
   ('PAYMENT_PROVIDERS_VI', 'PAYOS,PAYPAL'),
   ('PAYMENT_PROVIDERS_EN', 'PAYPAL'),
-  ('PAYPAL_BRAND_NAME', 'Prive Bot')
+  ('PAYPAL_BRAND_NAME', 'Hang Cú VIP')
 on conflict (key) do nothing;
