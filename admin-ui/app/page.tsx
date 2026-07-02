@@ -7960,83 +7960,70 @@ export default function Home() {
                 <Box
                   component="aside"
                   sx={{
-                    width: { xs: "100%", md: 300 },
+                    width: { xs: "100%", md: 320 },
                     flexShrink: 0,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 1.25,
-                    p: 1.25,
+                    gap: 2,
+                    p: 2,
                     border: 1,
-                    borderColor: "divider",
-                    bgcolor: "background.paper",
-                    borderRadius: 3,
-                    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.05)",
+                    borderColor: "rgba(148, 163, 184, 0.15)",
+                    bgcolor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(12px)",
+                    borderRadius: 4,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
                   }}
                 >
-                  <Box sx={{ p: 1.25, borderRadius: 3, bgcolor: "#f8fafb", border: 1, borderColor: "divider" }}>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                     {selectedCustomerIsBlacklisted ? (
-                      <Box sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                        <Chip size="small" color="error" variant="outlined" label="Blacklist" sx={{ height: 22, fontSize: 11, fontWeight: 800 }} />
-                        <Typography variant="caption" color="error.main" sx={{ fontWeight: 800 }}>
-                          Lý do: {selectedCustomerBlacklistEntry?.reason || "chưa ghi lý do"}
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "error.lighter", border: 1, borderColor: "error.light" }}>
+                        <Typography variant="subtitle2" color="error.main" sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <XCircle size={16} /> Khách bị Blacklist
                         </Typography>
+                        <Typography variant="caption" color="error.main" sx={{ display: "block", mt: 0.5 }}>Lý do: {selectedCustomerBlacklistEntry?.reason || "chưa ghi rõ"}</Typography>
                       </Box>
                     ) : null}
-                    {(() => {
-                      const customerStatusTone = selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple");
-                      return (
-                    <Chip
-                      size="small"
-                      label={selectedCustomer.statusLabel}
-                      variant="outlined"
-                      sx={{ ...statusChipSx(customerStatusTone), mb: 1 }}
-                    />
-                      );
-                    })()}
-                    <Box sx={{ mt: 1, display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">Đơn PAID</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedCustomer.paidOrders.length}</Typography>
+
+                    {/* Compact Metrics Grid */}
+                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Đơn PAID</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.paidOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">Đang active</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{selectedCustomer.activeOrders.length}</Typography>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Đang active</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.activeOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">Hạn gần nhất</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Hạn gần nhất</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--ink)", mt: 0.5 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
                       </Box>
-                      <Box sx={{ p: 1, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">Doanh thu</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{money(selectedCustomer.revenue)}</Typography>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Doanh thu</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", mt: 0.5 }}>{money(selectedCustomer.revenue)}</Typography>
                       </Box>
                     </Box>
-                    <Box sx={{ mt: 1.25, p: 1.25, borderRadius: 3, bgcolor: "#f0f7ff", border: 1, borderColor: "rgba(37,99,235,0.16)" }}>
-                      <Typography variant="body2" color="text.secondary">Điểm cần chú ý</Typography>
-                      <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                          <Typography variant="body2" color="text.secondary">Đơn gợi ý</Typography>
-                          <Typography sx={{ fontWeight: 800, fontSize: 13, textAlign: "right" }}>{selectedCustomerRenewTargetOrder ? `${selectedCustomerRenewTargetOrder.order_id} • ${selectedCustomerRenewTargetOrder.plan_name}` : "Chưa có"}</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-                          <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
-                          <Typography sx={{ fontWeight: 800, fontSize: 13, textAlign: "right" }}>{selectedCustomer.statusLabel}</Typography>
-                        </Box>
-                      </Stack>
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}>
-                        <Button variant="contained" size="small" onClick={openCustomerRenewModal} sx={{ borderRadius: 999, minWidth: 96, px: 1.5 }}>
-                          Tạo gia hạn
-                        </Button>
-                        <Button variant="outlined" size="small" onClick={openCustomerCreateOrderModal} sx={{ borderRadius: 999, minWidth: 104, px: 1.5 }}>
-                          Tạo đơn mới
-                        </Button>
-                      </Stack>
+
+                    {/* Attention Point */}
+                    <Box sx={{ p: 1.5, borderRadius: 3, background: "linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)", border: 1, borderColor: "rgba(59,130,246,0.2)" }}>
+                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>Gợi ý Gia Hạn</Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", mt: 0.5 }}>
+                        {selectedCustomerRenewTargetOrder ? selectedCustomerRenewTargetOrder.plan_name : "Khách chưa có đơn gợi ý"}
+                      </Typography>
+                      {selectedCustomerRenewTargetOrder ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                          Đơn gốc: {selectedCustomerRenewTargetOrder.order_id}
+                        </Typography>
+                      ) : null}
                     </Box>
-                    <Box sx={{ mt: 1.25, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
                       {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
                       {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
                     </Box>
                   </Box>
+
+                  <Box sx={{ flexGrow: 1 }} />
 
                   <Tabs
                     orientation="vertical"
@@ -8044,54 +8031,57 @@ export default function Home() {
                     onChange={(_, next) => setCustomerDetailTab(next)}
                     textColor="inherit"
                     indicatorColor="primary"
-                    sx={customerPopupTabSx}
+                    sx={{
+                      ...customerPopupTabSx,
+                      "& .MuiTab-root": {
+                        borderRadius: 2,
+                        mb: 0.5,
+                        justifyContent: "flex-start",
+                        textAlign: "left",
+                        padding: "10px 16px",
+                      },
+                      "& .Mui-selected": {
+                        bgcolor: "var(--primary)",
+                        color: "white !important",
+                        boxShadow: "0 4px 10px rgba(59,130,246,0.3)",
+                      }
+                    }}
                   >
-                    <Tab value="orders" label="Đơn hàng" />
-                    <Tab value="groups" label="Nhóm active" />
-                    <Tab value="timeline" label="Dấu vết" />
+                    <Tab value="orders" label="Đơn hàng" iconPosition="start" icon={<CreditCard size={16} />} sx={{ minHeight: 44 }} />
+                    <Tab value="groups" label="Nhóm active" iconPosition="start" icon={<Users size={16} />} sx={{ minHeight: 44 }} />
+                    <Tab value="timeline" label="Dấu vết" iconPosition="start" icon={<Activity size={16} />} sx={{ minHeight: 44 }} />
                   </Tabs>
                 </Box>
 
-              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0.25 }}>
-                <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) auto" }, alignItems: "stretch", mb: 1.5 }}>
-                  <Box sx={{ p: 1.25, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.35 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Tình trạng khách hàng</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {selectedCustomerIsBlacklisted
-                            ? "Khách đang blacklist, ưu tiên xem lý do và lịch sử gần nhất."
-                            : selectedCustomer.activeOrders.length
-                              ? "Khách đang còn quyền active, có thể gia hạn hoặc tạo đơn mới."
-                              : selectedCustomer.paidOrders.length
-                                ? "Khách đã có lịch sử thanh toán, nhưng hiện chưa active."
-                                : "Khách chưa có lịch sử thanh toán, ưu tiên tạo đơn mới nếu cần."}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        size="small"
-                        label={selectedCustomer.statusLabel}
-                        variant="outlined"
-                        sx={{ ...statusChipSx(selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple")), fontWeight: 800 }}
-                      />
-                    </Stack>
+              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0, display: "flex", flexDirection: "column" }}>
+                {/* Sleek Header Bar */}
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 3, p: 2, borderRadius: 4, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Chip
+                      label={selectedCustomer.statusLabel}
+                      size="small"
+                      sx={{ ...statusChipSx(selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple")), fontWeight: 800, height: 28, px: 1 }}
+                    />
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, display: { xs: "none", sm: "block" } }}>
+                      {selectedCustomerIsBlacklisted ? "Khách đang bị Blacklist." : selectedCustomer.activeOrders.length ? "Khách đang Active." : "Khách chưa có quyền Active."}
+                    </Typography>
                   </Box>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", justifyContent: { xs: "flex-start", md: "flex-end" } }}>
-                    <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCustomerCreateOrderModal} sx={{ borderRadius: 999, px: 1.75 }}>
-                      Tạo đơn mới
+                  <Stack direction="row" spacing={1.5}>
+                    <Button variant="outlined" onClick={openCustomerRenewModal} sx={{ borderRadius: 999, px: 2, bgcolor: "background.paper" }}>
+                      Gia hạn
                     </Button>
-                    <Button variant="outlined" onClick={openCustomerRenewModal} sx={{ borderRadius: 999, px: 1.75 }}>
-                      Tạo gia hạn
+                    <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCustomerCreateOrderModal} sx={{ borderRadius: 999, px: 2, boxShadow: "0 4px 12px rgba(59,130,246,0.3)" }}>
+                      Tạo đơn mới
                     </Button>
                   </Stack>
                 </Box>
                 {customerDetailTab === "orders" ? (
                   <>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "today")).length)} icon={<CalendarClock size={16} />} />
-                      <Metric label="Đơn tháng này" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "month")).length)} icon={<BarChart3 size={16} />} />
-                      <Metric label="Đã thanh toán" value={String(selectedCustomerOrders.filter((item) => item.status === "PAID").length)} icon={<CheckCircle2 size={16} />} />
-                      <Metric label="Trạng thái còn lại" value={String(selectedCustomerOrders.filter((item) => item.status !== "PAID").length)} icon={<Activity size={16} />} />
+                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "today")).length)} accent="blue" icon={<CalendarClock size={16} />} />
+                      <Metric label="Đơn tháng này" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "month")).length)} accent="cyan" icon={<BarChart3 size={16} />} />
+                      <Metric label="Đã thanh toán" value={String(selectedCustomerOrders.filter((item) => item.status === "PAID").length)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+                      <Metric label="Trạng thái còn lại" value={String(selectedCustomerOrders.filter((item) => item.status !== "PAID").length)} accent="amber" icon={<Activity size={16} />} />
                     </Box>
                     <Tabs
                       value={customerOrderTab}
@@ -8122,16 +8112,16 @@ export default function Home() {
                 {customerDetailTab === "groups" ? (
                     <>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} icon={<Users size={16} />} />
-                      <Metric label="Còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} icon={<ShieldCheck size={16} />} />
-                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} icon={<ClipboardList size={16} />} />
-                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} icon={<Eye size={16} />} />
+                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} accent="blue" icon={<Users size={16} />} />
+                      <Metric label="Còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} accent="emerald" icon={<ShieldCheck size={16} />} />
+                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} accent="violet" icon={<ClipboardList size={16} />} />
+                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} accent="cyan" icon={<Eye size={16} />} />
                     </Box>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} icon={<CheckCircle2 size={16} />} />
-                      <Metric label="Đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} icon={<XCircle size={16} />} />
-                      <Metric label="Nhóm hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} icon={<Users size={16} />} />
-                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} icon={<Activity size={16} />} />
+                      <Metric label="Giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+                      <Metric label="Đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} accent="rose" icon={<XCircle size={16} />} />
+                      <Metric label="Nhóm hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} accent="amber" icon={<Users size={16} />} />
+                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} accent="indigo" icon={<Activity size={16} />} />
                     </Box>
                     <section className="panel nested-panel" style={{ borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: "var(--mui-palette-primary-main)" }}>
                       <PanelHead title="Nhóm còn active" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
@@ -8197,10 +8187,10 @@ export default function Home() {
                       <Tab value="orders" label="Order timeline" />
                     </Tabs>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Tổng sự kiện" value={String(selectedCustomerTimelineCounts.total)} icon={<Activity size={16} />} />
-                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} icon={<Plus size={16} />} />
-                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} icon={<TrendingUp size={16} />} />
-                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} icon={<XCircle size={16} />} />
+                      <Metric label="Tổng sự kiện" value={String(selectedCustomerTimelineCounts.total)} accent="blue" icon={<Activity size={16} />} />
+                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} accent="emerald" icon={<Plus size={16} />} />
+                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} accent="amber" icon={<TrendingUp size={16} />} />
+                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} accent="rose" icon={<XCircle size={16} />} />
                     </Box>
                     <section className="panel nested-panel">
                       <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
@@ -8579,57 +8569,39 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
             ...cardSx,
           }}
         >
-          <CardContent sx={{ display: "grid", gap: 1.1, p: 1.5, "&:last-child": { pb: 1.5 } }}>
-            <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
-              <Box>
-                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{order.order_id}</Typography>
+          <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, alignItems: { sm: "center" } }}>
+              {/* Cột 1: ID & Status */}
+              <Box sx={{ flexShrink: 0, width: { sm: 160 }, display: "flex", flexDirection: "column", gap: 0.5 }}>
+                <Typography sx={{ fontWeight: 900, lineHeight: 1.2, color: "var(--ink)", display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <ClipboardList size={14} color="var(--primary)" /> {order.order_id}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">{dateText(order.created_at)}</Typography>
+                <Box>{statusChip(order)}</Box>
               </Box>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", justifyContent: "flex-end" }}>
-                <Box sx={{ mr: 0.5 }}>{statusChip(order)}</Box>
-                <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={statusChipSx("purple")} />
-                <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={statusChipSx("warning")} />
-                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 4, minWidth: 100 }}>
+
+              {/* Cột 2: Gói & Nhóm */}
+              <Box sx={{ flexGrow: 1, minWidth: 0, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" }, display: "flex", flexDirection: "column", gap: 0.5 }}>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)" }}>{order.plan_name}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                  <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.25 }}>
+                  <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{Number(order.amount || 0) === 0 ? "Free" : money(order.coupon_discount_amount || 0)})</span> : "Không coupon"}
+                </Typography>
+              </Box>
+
+              {/* Cột 3: Hạn & Action */}
+              <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 1, alignItems: { xs: "flex-start", sm: "flex-end" }, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" } }}>
+                <Box sx={{ display: "flex", gap: 0.5 }}>
+                  <Chip size="small" label={currencyLabel(inferOrderCurrency(order))} variant="outlined" sx={{ ...statusChipSx("purple"), height: 22, fontSize: 11 }} />
+                  <Chip size="small" label={providerLabel(inferOrderProvider(order))} variant="outlined" sx={{ ...statusChipSx("warning"), height: 22, fontSize: 11 }} />
+                  {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={{ ...statusChipSx("purple"), height: 22, fontSize: 11 }} /> : null}
+                </Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: "text.secondary", mt: -0.25 }}>Hạn: {dateText(order.expire_at)}</Typography>
+                <Button variant={expandedOrders[order.order_id] ? "contained" : "outlined"} color="inherit" size="small" onClick={() => setExpandedOrders((current) => ({ ...current, [order.order_id]: !current[order.order_id] }))} sx={{ fontWeight: 700, textTransform: "none", borderRadius: 4, minWidth: 90, height: 26, py: 0 }}>
                   {expandedOrders[order.order_id] ? "Thu gọn" : "Chi tiết"}
                 </Button>
-              </Box>
-            </Box>
-
-            <Box sx={{
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
-              alignItems: "stretch",
-            }}>
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Gói / Group</Typography>
-                <Typography sx={{ fontWeight: 800, mt: 0.5, lineHeight: 1.25 }}>{order.plan_name}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{groupNamesForOrder(order).join(", ") || orderPlanKind(order)}</Typography>
-              </Box>
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Coupon / Note</Typography>
-                <Stack spacing={0.75} sx={{ mt: 0.5 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                    <Chip size="small" label={orderCouponCode(order) ? orderCouponCode(order) : "Không coupon"} variant="outlined" sx={orderCouponCode(order) ? statusChipSx("warning") : statusChipSx("muted")} />
-                    <Typography variant="caption" color="text.secondary">
-                      {orderCouponCode(order)
-                        ? (Number(order.amount || 0) === 0 ? "Miễn phí" : money(order.coupon_discount_amount || 0))
-                        : "Không có giảm giá"}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {String(order.note || "").trim() ? String(order.note || "") : "Không có ghi chú"}
-                  </Typography>
-                </Stack>
-              </Box>
-              <Box sx={customerInnerCardSx}>
-                <Typography variant="body2" color="text.secondary">Hạn dùng / trạng thái hiệu lực</Typography>
-                <Typography sx={{ fontWeight: 800, mt: 0.5, lineHeight: 1.25 }}>{dateText(order.expire_at)}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: "wrap" }}>
-                  <Chip size="small" label={String(order.status || "-").toUpperCase()} variant="outlined" sx={customerOrderStateChipSx(order.status, isOrderActive(order), daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3)} />
-                  {isLifetimeText(order.plan_name) ? <Chip size="small" label="Trọn đời" variant="outlined" sx={statusChipSx("purple")} /> : null}
-                  {isOrderActive(order) ? <Chip size="small" label="Active" variant="outlined" sx={statusChipSx("success")} /> : daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= 3 ? <Chip size="small" label="Sắp hết hạn" variant="outlined" sx={statusChipSx("warning")} /> : <Chip size="small" label={String(order.status || "").toUpperCase() === "PENDING" ? "Chưa thanh toán" : "Đã hết hạn"} variant="outlined" sx={{ ...statusChipSx("muted"), bgcolor: "action.disabledBackground", color: "text.disabled", borderColor: "divider" }} />}
-                </Stack>
               </Box>
             </Box>
 
