@@ -90,7 +90,6 @@ const baseTheme = createTheme({
           backgroundColor: styleGuide.palette.background.default,
         },
         body: {
-          backgroundColor: styleGuide.palette.background.default,
           color: styleGuide.palette.text.primary,
           fontFamily: styleGuide.typography.fontFamily,
         },
@@ -174,14 +173,10 @@ const baseTheme = createTheme({
             borderColor: "rgba(0, 102, 255, 0.10)",
           },
           "&.Mui-selected": {
-            backgroundImage: "linear-gradient(135deg, #0066ff 0%, #00a2ff 100%)",
-            borderColor: "rgba(0, 102, 255, 0.18)",
-            color: "#ffffff",
-            boxShadow: "0 8px 18px rgba(0, 102, 255, 0.16)",
+            color: styleGuide.palette.primary.main,
           },
           "&.Mui-selected:hover": {
-            backgroundImage: "linear-gradient(135deg, #0052cc 0%, #0088cc 100%)",
-            borderColor: styleGuide.palette.primary.dark,
+            backgroundColor: "rgba(0, 102, 255, 0.08)",
           },
           "& .MuiTab-iconWrapper": {
             marginRight: 8,
@@ -307,7 +302,6 @@ const baseTheme = createTheme({
           borderColor: styleGuide.palette.divider,
           boxShadow: styleGuide.shadows.card,
           backgroundImage: "none",
-          backgroundColor: styleGuide.palette.background.paper,
         },
       },
     },
