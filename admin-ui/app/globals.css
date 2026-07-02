@@ -301,23 +301,7 @@ select:disabled {
   box-shadow: var(--shadow-hover);
 }
 
-.panel::before {
-  content: "";
-  inset: 0 auto auto 0;
-  height: 4px;
-  position: absolute;
-  width: 100%;
-  background: linear-gradient(90deg, #0066ff, #06b6d4, #10b981, #8b5cf6, #f43f5e);
-  background-size: 200% 100%;
-  animation: gradientShift 8s linear infinite;
-  z-index: 1;
-}
 
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
 
 .panel-head {
   align-items: center;
