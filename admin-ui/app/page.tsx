@@ -3135,7 +3135,7 @@ export default function Home() {
       const needsSupportEvents = !light && shouldLoad("renewals", "supportGroup");
       const needsKickAudit = !light && shouldLoad("renewals");
       const needsVipGroupAudit = !light && shouldLoad("renewals");
-      const needsActivityEvents = !light && shouldLoad("analytics");
+      const needsActivityEvents = !light && shouldLoad("overview", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
       const needsWebhook = !light;
