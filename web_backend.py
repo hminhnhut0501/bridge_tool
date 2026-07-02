@@ -2129,11 +2129,15 @@ async def admin_activity_log(
             "createdAt": _backend_text(row.get("created_at")),
         }
 
+    MAX_FETCH = 3000
+
     def fetch_activity(offset: int):
-        return supabase_store.list_analytics_events_page(limit=chunk_size, offset=offset)
+        if offset >= MAX_FETCH: return []
+        return supabase_store.list_analytics_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
 
     def fetch_support(offset: int):
-        return supabase_store.list_support_events_page(limit=chunk_size, offset=offset)
+        if offset >= MAX_FETCH: return []
+        return supabase_store.list_support_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
 
     sources = {
         "activity": {"offset": 0, "rows": [], "index": 0, "done": False, "fetch": fetch_activity},
@@ -2169,7 +2173,9 @@ async def admin_activity_log(
     facet_dates: set[str] = set()
     page_rows: list[dict] = []
 
-    while True:
+    loops = 0
+    while loops < 6000:
+        loops += 1
         activity_head = refill("activity")
         support_head = refill("support")
         if activity_head is None and support_head is None:

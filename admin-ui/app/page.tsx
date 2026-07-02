@@ -5952,7 +5952,7 @@ export default function Home() {
         {tab === "activityLog" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Tổng event" value={String(activityLogTotal)} accent="blue" icon={<Activity size={16} />} />
+              <Metric label="Event gần đây" value={activityLogTotal === 3000 ? "3000+" : String(activityLogTotal)} accent="blue" icon={<Activity size={16} />} />
               <Metric label="User → Bot" value={String(activityLogSummary.user)} accent="cyan" icon={<Users size={16} />} />
               <Metric label="Bot → User" value={String(activityLogSummary.bot)} accent="emerald" icon={<Send size={16} />} />
               <Metric label="Hôm nay" value={String(activityLogSummary.today)} accent="amber" icon={<CalendarClock size={16} />} />
