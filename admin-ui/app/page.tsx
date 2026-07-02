@@ -5859,10 +5859,10 @@ export default function Home() {
         {tab === "activityLog" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Tổng event" value={String(activityLogTotal)} />
-              <Metric label="User → Bot" value={String(activityLogSummary.user)} />
-              <Metric label="Bot → User" value={String(activityLogSummary.bot)} />
-              <Metric label="Hôm nay" value={String(activityLogSummary.today)} />
+              <Metric label="Tổng event" value={String(activityLogTotal)} accent="blue" icon={<Activity size={16} />} />
+              <Metric label="User → Bot" value={String(activityLogSummary.user)} accent="cyan" icon={<Users size={16} />} />
+              <Metric label="Bot → User" value={String(activityLogSummary.bot)} accent="emerald" icon={<Send size={16} />} />
+              <Metric label="Hôm nay" value={String(activityLogSummary.today)} accent="amber" icon={<CalendarClock size={16} />} />
             </div>
             <section className="panel">
               <PanelHead title="Nhật ký tương tác" subtitle="Tải theo trang từ backend, không còn phụ thuộc vào mớ event đã nạp sẵn." />
@@ -6015,12 +6015,12 @@ export default function Home() {
         {tab === "supportGroup" ? (
           <div className="stack">
             <div className="grid">
-              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} icon={<Plus size={16} />} />
-              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} icon={<TrendingUp size={16} />} />
-              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} icon={<XCircle size={16} />} />
-              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} icon={<ShieldCheck size={16} />} />
-              <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} icon={<Activity size={16} />} />
-              <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} icon={<Users size={16} />} />
+              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} accent="emerald" icon={<Plus size={16} />} />
+              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} accent="rose" icon={<TrendingUp size={16} />} />
+              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} accent="amber" icon={<XCircle size={16} />} />
+              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} accent="violet" icon={<ShieldCheck size={16} />} />
+              <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} accent="blue" icon={<Activity size={16} />} />
+              <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} accent="cyan" icon={<Users size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
@@ -6204,51 +6204,15 @@ export default function Home() {
                 }
               />
               <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                <div className="status-grid">
-                  <div className={`health-item ${supportInboxCheck?.get_chat?.ok ? "good" : "warning"}`}>
-                    <ShieldCheck size={18} />
-                    <div>
-                      <strong>{supportInboxCheck ? (supportInboxCheck.get_chat.ok ? "Bot nhận tin đang bật" : "Bot nhận tin đang chờ cấu hình") : "Chưa kiểm tra group"}</strong>
-                      <span>{supportInboxCheck?.group_name || "Chưa có dữ liệu group inbox"}</span>
-                    </div>
-                  </div>
-                  <div className={`health-item ${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "good" : "warning"}`}>
-                    <CheckCircle2 size={18} />
-                    <div>
-                      <strong>Trạng thái kết nối</strong>
-                      <span>{configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"}</span>
-                    </div>
-                  </div>
-                  <div className="health-item">
-                    <Activity size={18} />
-                    <div>
-                      <strong>Tin trạng thái ban đầu</strong>
-                      <span>{getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối"}</span>
-                    </div>
-                  </div>
-                  <div className="health-item">
-                    <Users size={18} />
-                    <div>
-                      <strong>Tin final</strong>
-                      <span>{getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗"}</span>
-                    </div>
-                  </div>
+                <div className="grid">
+                  <Metric label={supportInboxCheck ? (supportInboxCheck.get_chat.ok ? "Bot nhận tin đang bật" : "Chờ cấu hình") : "Chưa kiểm tra"} value={supportInboxCheck?.group_name || "Chưa có dữ liệu"} accent={supportInboxCheck?.get_chat?.ok ? "emerald" : "amber"} icon={<ShieldCheck size={16} />} />
+                  <Metric label="Trạng thái kết nối" value={configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"} accent={configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "emerald" : "amber"} icon={<CheckCircle2 size={16} />} />
+                  <Metric label="Tin trạng thái ban đầu" value={getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối"} accent="blue" icon={<Activity size={16} />} />
+                  <Metric label="Tin final" value={getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng"} accent="cyan" icon={<Users size={16} />} />
                 </div>
-                <div className="status-grid">
-                  <div className={`health-item ${supportInboxCheck?.get_chat?.ok ? "good" : "bad"}`}>
-                    <Users size={18} />
-                    <div>
-                      <strong>Group ID</strong>
-                      <span>{supportInboxCheck?.group_id || supportInboxGroupId || "-"}</span>
-                    </div>
-                  </div>
-                  <div className={`health-item ${supportInboxCheck?.bot_member?.ok ? "good" : "bad"}`}>
-                    <CheckCircle2 size={18} />
-                    <div>
-                      <strong>Bot quyền</strong>
-                      <span>{supportInboxCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"}</span>
-                    </div>
-                  </div>
+                <div className="grid">
+                  <Metric label="Group ID" value={supportInboxCheck?.group_id || supportInboxGroupId || "-"} accent={supportInboxCheck?.get_chat?.ok ? "emerald" : "rose"} icon={<Users size={16} />} />
+                  <Metric label="Bot quyền" value={supportInboxCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"} accent={supportInboxCheck?.bot_member?.ok ? "emerald" : "rose"} icon={<CheckCircle2 size={16} />} />
                 </div>
                 <ConfigEditor
                   title="Cài đặt bot nhận tin"
@@ -6546,54 +6510,22 @@ export default function Home() {
                     title="Trạng thái giờ bot"
                     subtitle="Bot chỉ còn chạy theo bảo trì thủ công, BOT_ACTIVE_HOURS hoặc luôn hoạt động. Bài đăng channel không còn điều khiển trạng thái bot."
                   />
-                  <div className="status-grid">
-                    <div className={`health-item ${botScheduleStatus?.active ? "good" : "bad"}`}>
-                      <Activity size={18} />
-                      <div>
-                        <strong>{botScheduleStatus ? (botScheduleStatus.active ? "Bot đang hoạt động" : "Bot đang offline") : "Không đọc được runtime"}</strong>
-                        <span>{botScheduleStatus?.title || "Không có dữ liệu runtime"}</span>
-                      </div>
-                    </div>
+                  <div className="grid" style={{ padding: "0 16px 8px" }}>
+                    <Metric label={botScheduleStatus ? (botScheduleStatus.active ? "Bot đang hoạt động" : "Bot đang offline") : "Không đọc được runtime"} value={botScheduleStatus?.title || "Không có dữ liệu runtime"} accent={botScheduleStatus?.active ? "emerald" : "rose"} icon={<Activity size={16} />} />
                     {botScheduleStatus ? (
                       <>
-                        <div className="health-item">
-                          <Settings size={18} />
-                          <div>
-                            <strong>Nguồn hiện tại</strong>
-                            <span>{botScheduleStatus?.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus?.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"}</span>
-                          </div>
-                        </div>
-                        <div className="health-item">
-                          <Send size={18} />
-                          <div>
-                            <strong>Khung giờ / lý do</strong>
-                            <span>{botScheduleStatus?.window || "Không có khung giờ runtime"}</span>
-                          </div>
-                        </div>
-                        <div className="health-item">
-                          <ClipboardList size={18} />
-                          <div>
-                            <strong>Lặp bài channel</strong>
-                            <span>Độc lập với giờ hoạt động bot</span>
-                          </div>
-                        </div>
+                        <Metric label="Nguồn hiện tại" value={botScheduleStatus?.source === "fixed" ? "Theo BOT_ACTIVE_HOURS" : botScheduleStatus?.source === "maintenance" ? "Bảo trì thủ công" : "Luôn hoạt động"} accent="blue" icon={<Settings size={16} />} />
+                        <Metric label="Khung giờ / lý do" value={botScheduleStatus?.window || "Không có khung giờ runtime"} accent="cyan" icon={<Send size={16} />} />
+                        <Metric label="Lặp bài channel" value="Độc lập với giờ hoạt động bot" accent="amber" icon={<ClipboardList size={16} />} />
                       </>
                     ) : (
-                      <div className="health-item bad">
-                        <Settings size={18} />
-                        <div>
-                          <strong>Không đọc được runtime</strong>
-                          <span>Không đọc được trạng thái giờ bot từ API.</span>
-                        </div>
-                      </div>
+                      <Metric label="Runtime" value="Không đọc được trạng thái giờ bot từ API" accent="rose" icon={<Settings size={16} />} />
                     )}
                   </div>
                   {botScheduleStatus ? (
-                    <>
-                      <div className="hint compact" style={{ padding: "0 16px 16px" }}>
-                        Múi giờ bot: <strong>{botScheduleStatus?.timezone || "-"}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus?.maintenanceMode ? "ON" : "OFF"}</strong>
-                      </div>
-                    </>
+                    <div className="hint compact" style={{ padding: "0 16px 16px" }}>
+                      Múi giờ bot: <strong>{botScheduleStatus?.timezone || "-"}</strong> • Bảo trì thủ công: <strong>{botScheduleStatus?.maintenanceMode ? "ON" : "OFF"}</strong>
+                    </div>
                   ) : (
                     <div className="hint compact" style={{ padding: "0 16px 16px" }}>
                       Không đọc được runtime từ API.
@@ -6635,10 +6567,10 @@ export default function Home() {
               </div>
             </section>
             <div className="grid">
-              <Metric label="VI khách mới" value={getConfigValue(config, "AUTO_PAYMENT_VI_NEW_ENABLED", getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF"))} icon={<CalendarClock size={16} />} />
-              <Metric label="VI khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_ENABLED", getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON"))} icon={<Settings size={16} />} />
-              <Metric label="EN khách mới" value={getConfigValue(config, "AUTO_PAYMENT_EN_NEW_ENABLED", "OFF")} icon={<Clock3 size={16} />} />
-              <Metric label="EN khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_ENABLED", "ON")} icon={<CheckCircle2 size={16} />} />
+              <Metric label="VI khách mới" value={getConfigValue(config, "AUTO_PAYMENT_VI_NEW_ENABLED", getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF"))} accent="blue" icon={<CalendarClock size={16} />} />
+              <Metric label="VI khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_ENABLED", getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON"))} accent="emerald" icon={<Settings size={16} />} />
+              <Metric label="EN khách mới" value={getConfigValue(config, "AUTO_PAYMENT_EN_NEW_ENABLED", "OFF")} accent="amber" icon={<Clock3 size={16} />} />
+              <Metric label="EN khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_ENABLED", "ON")} accent="violet" icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
               <PanelHead title="Audit gần nhất" subtitle="Worker ghi lại trạng thái mới nhất của từng tệp theo ngôn ngữ để admin kiểm tra nhanh." />
@@ -6907,10 +6839,10 @@ export default function Home() {
               }
             />
             <div className="grid">
-              <Metric label="Chưa gửi" value={String(couponTabCounts.unsent)} />
-              <Metric label="Đã gửi" value={String(couponTabCounts.sent)} />
-              <Metric label="Đã sử dụng" value={String(couponTabCounts.used)} />
-              <Metric label="Đã hết hạn" value={String(couponTabCounts.expired)} />
+              <Metric label="Chưa gửi" value={String(couponTabCounts.unsent)} accent="blue" icon={<Ticket size={16} />} />
+              <Metric label="Đã gửi" value={String(couponTabCounts.sent)} accent="cyan" icon={<Send size={16} />} />
+              <Metric label="Đã sử dụng" value={String(couponTabCounts.used)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+              <Metric label="Đã hết hạn" value={String(couponTabCounts.expired)} accent="rose" icon={<Clock3 size={16} />} />
             </div>
             <Tabs value={couponTab} onChange={(_, next) => setCouponTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
               <Tab value="unsent" label={`Chưa gửi (${couponTabCounts.unsent})`} />
@@ -6981,10 +6913,10 @@ export default function Home() {
               action={<div className="panel-actions"><Button variant="outlined" size="small" onClick={() => loadAll()} startIcon={<RefreshCw size={16} />}>Tải lại</Button></div>}
             />
             <div className="grid">
-              <Metric label="Tổng mã" value={String(activationCodesByStatus.ALL.length)} />
-              <Metric label="Chờ kích hoạt" value={String(activationCodesByStatus.PENDING.length)} />
-              <Metric label="Đã dùng" value={String(activationCodesByStatus.USED.length)} />
-              <Metric label="Đã vô hiệu" value={String(activationCodesByStatus.DISABLED.length)} />
+              <Metric label="Tổng mã" value={String(activationCodesByStatus.ALL.length)} accent="blue" icon={<ClipboardList size={16} />} />
+              <Metric label="Chờ kích hoạt" value={String(activationCodesByStatus.PENDING.length)} accent="amber" icon={<Clock3 size={16} />} />
+              <Metric label="Đã dùng" value={String(activationCodesByStatus.USED.length)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+              <Metric label="Đã vô hiệu" value={String(activationCodesByStatus.DISABLED.length)} accent="rose" icon={<XCircle size={16} />} />
             </div>
             <Tabs value={activationCodeTab} onChange={(_, next) => setActivationCodeTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
               <Tab value="ALL" label={`Tất cả (${activationCodesByStatus.ALL.length})`} />
@@ -7386,26 +7318,29 @@ export default function Home() {
         ) : null}
 
         {menuModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title={menuForm.page_id ? `Menu: ${menuForm.page_id}` : "Thêm trang menu"}
-                subtitle={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc kết thúc bằng _en." : "Trang tiếng Việt không dùng hậu tố _en."}
-                action={<IconButton color="error" size="small" onClick={() => setMenuModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
+          <MuiDialogShell
+            open
+            title={menuForm.page_id ? `Menu: ${menuForm.page_id}` : "Thêm trang menu"}
+            subtitle={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc kết thúc bằng _en." : "Trang tiếng Việt không dùng hậu tố _en."}
+            onClose={() => setMenuModalOpen(false)}
+            maxWidth="md"
+            actions={
+              <>
+                <Button variant="outlined" onClick={() => setMenuModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={() => removeMenuPage()} disabled={!menuForm.page_id} startIcon={<Trash2 size={16} />}>Xoá trang</Button>
+                <Button variant="contained" onClick={saveMenuPage} startIcon={<Save size={16} />}>Lưu menu</Button>
+              </>
+            }
+          >
+            <Box sx={{ p: 2 }}>
               <div className="form-grid two">
                 <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
                 <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_ALL_ACCESS_30D}, {SALE_LABEL_PRICE_ALL_ACCESS_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
                 <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua All Access => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_ALL_ACCESS_30D}"}</span>} />
               </div>
-              <div className="modal-actions">
-                <Button variant="outlined" onClick={() => setMenuModalOpen(false)}>Đóng</Button>
-                <Button variant="outlined" color="error" onClick={() => removeMenuPage()} disabled={!menuForm.page_id} startIcon={<Trash2 size={16} />}>Xoá trang</Button>
-                <Button variant="contained" onClick={saveMenuPage} startIcon={<Save size={16} />}>Lưu menu</Button>
-              </div>
-            </section>
-          </div>
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {saleModalOpen ? (
