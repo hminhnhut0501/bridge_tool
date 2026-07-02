@@ -4272,6 +4272,7 @@ export default function Home() {
         sale_id: `RENEWAL_${customerRenewForm.order_id || "MANUAL"}`,
         payment_currency: String(customerRenewForm.payment_currency || "VND").toUpperCase(),
         payment_provider: String(customerRenewForm.payment_provider || "MANUAL").toUpperCase(),
+        skip_active_code: true,
       });
       setCustomerRenewModalOpen(false);
       await loadAll();

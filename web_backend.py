@@ -45,6 +45,7 @@ from vip_group_audit_utils import build_vip_group_audit_rows
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_write_items
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+from manual_order_helpers import should_skip_manual_active_code
 
 load_dotenv()
 
@@ -1327,7 +1328,7 @@ async def admin_create_manual_order(request: Request):
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
-    skip_active_code = str(body.get("skip_active_code", "")).lower() == "true" or body.get("skip_active_code") is True
+    skip_active_code = should_skip_manual_active_code(body)
     activation_code = "" if skip_active_code else (str(body.get("activation_code", "")).strip().upper() or generate_activation_code())
     activation_url = build_manual_activation_url(activation_code) if activation_code else ""
 

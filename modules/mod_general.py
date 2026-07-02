@@ -1,6 +1,6 @@
 import asyncio
 import html
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
