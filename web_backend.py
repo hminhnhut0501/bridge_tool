@@ -2206,6 +2206,8 @@ async def admin_activity_log(
             summary["today"] += 1
         if page_start <= matched_total - 1 < page_end:
             page_rows.append(entry)
+        if matched_total > page_end:
+            break
 
     return {
         "data": page_rows,
