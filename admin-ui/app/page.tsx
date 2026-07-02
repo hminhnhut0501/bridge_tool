@@ -4922,22 +4922,100 @@ export default function Home() {
     if (event.event_type === "expired_notice_sent" || diff < 0) return "Expired";
     return `T-${diff}`;
   }
+
+  const kickAuditByOrder = useMemo(() => {
+    const map = new Map<string, KickAuditRow[]>();
+    for (const item of kickAudit) {
+      const orderId = String(item.order_id || "");
+      if (orderId) {
+        if (!map.has(orderId)) map.set(orderId, []);
+        map.get(orderId)!.push(item);
+      }
+      const userPlanKey = `${String(item.telegram_user_id || "")}|${String(item.plan_name || "")}`;
+      if (userPlanKey !== "|") {
+        if (!map.has(userPlanKey)) map.set(userPlanKey, []);
+        map.get(userPlanKey)!.push(item);
+      }
+    }
+    return map;
+  }, [kickAudit]);
+
+  const uniqueKickedEventsByOrder = useMemo(() => {
+    const map = new Map<string, SupportEvent[]>();
+    for (const item of uniqueKickedEvents) {
+      const orderId = String(item.order_id || "");
+      if (orderId) {
+        if (!map.has(orderId)) map.set(orderId, []);
+        map.get(orderId)!.push(item);
+      }
+      const userPlanKey = `${String(item.telegram_user_id || "")}|${String(item.plan_name || "")}`;
+      if (userPlanKey !== "|") {
+        if (!map.has(userPlanKey)) map.set(userPlanKey, []);
+        map.get(userPlanKey)!.push(item);
+      }
+    }
+    return map;
+  }, [uniqueKickedEvents]);
   function expiredKickSummary(order: Order) {
     const orderId = String(order.order_id || "");
-    const telegramId = String(order.telegram_user_id || "");
-    const audits = kickAudit.filter((item) => String(item.order_id || "") === orderId || (String(item.telegram_user_id || "") === telegramId && String(item.plan_name || "") === String(order.plan_name || "")));
-    const kickedEvents = uniqueKickedEvents.filter((item) => String(item.order_id || "") === orderId || (String(item.telegram_user_id || "") === telegramId && String(item.plan_name || "") === String(order.plan_name || "")));
-    const groups = uniqueValues([
-      ...audits.filter((item) => ["MEMBER_KICKED", "KICKED", "EXPIRED_KICKED"].includes(String(item.status || "").toUpperCase())).map((item) => item.group_name || item.group_id || ""),
-      ...kickedEvents.map((item) => item.chat_title || item.chat_id || ""),
-    ].filter(Boolean));
+    const userPlanKey = `${String(order.telegram_user_id || "")}|${String(order.plan_name || "")}`;
+    const audits = [
+      ...(kickAuditByOrder.get(orderId) || []),
+      ...(kickAuditByOrder.get(userPlanKey) || []),
+    ].filter((item, index, self) => self.findIndex(t => t.audit_id === item.audit_id) === index);
+    
+    const kickedEvents = [
+      ...(uniqueKickedEventsByOrder.get(orderId) || []),
+      ...(uniqueKickedEventsByOrder.get(userPlanKey) || []),
+    ].filter((item, index, self) => self.findIndex(t => t.id === item.id) === index);
+
+    const groupDetails = audits.map((audit) => {
+      const isKickedEvent = kickedEvents.some(k => String(k.chat_id || "") === String(audit.group_id || ""));
+      const isKickedAudit = ["MEMBER_KICKED", "KICKED", "EXPIRED_KICKED"].includes(String(audit.status || "").toUpperCase());
+      const isRetained = audit.status === "ACTIVE_RETAINED";
+      const hasError = Boolean(audit.latest_error);
+      const isPending = audit.needs_action || (!isKickedEvent && !isKickedAudit && !isRetained && !hasError);
+      
+      let groupStatus: "Đã kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" = "Chờ kick";
+      if (isKickedEvent || isKickedAudit) groupStatus = "Đã kick";
+      else if (isRetained) groupStatus = "Bị giữ lại";
+      else if (hasError) groupStatus = "Lỗi";
+
+      const note = audit.latest_error || audit.retained_reason || (audit.retained_orders?.length ? `Còn đơn active: ${audit.retained_orders.join(", ")}` : "") || kickAuditReason(audit);
+      
+      return {
+        groupId: audit.group_id,
+        groupName: audit.group_name || audit.group_id,
+        status: groupStatus,
+        note: note,
+        auditId: audit.audit_id,
+      };
+    });
+
     const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => new Date(b || "").getTime() - new Date(a || "").getTime())[0] || "";
-    const errorAudit = audits.find((item) => item.latest_error);
-    const retainedAudit = audits.find((item) => item.status === "ACTIVE_RETAINED");
-    const needsAction = audits.some((item) => item.needs_action);
-    const status = groups.length ? "Đã kick" : retainedAudit ? "Bị giữ lại" : errorAudit ? "Lỗi" : needsAction || audits.length ? "Chờ kick" : "Chờ audit";
-    const note = errorAudit?.latest_error || retainedAudit?.retained_reason || (retainedAudit?.retained_orders?.length ? `Còn đơn active: ${retainedAudit.retained_orders.join(", ")}` : "") || (audits[0] ? kickAuditReason(audits[0]) : "Chưa có audit kick gần nhất");
-    return { groups, latestKickAt, note, status };
+    
+    // Overall status logic
+    let overallStatus: "Đã kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" | "Chờ audit" = "Chờ audit";
+    if (groupDetails.length > 0) {
+      if (groupDetails.every(g => g.status === "Đã kick" || g.status === "Bị giữ lại")) overallStatus = "Đã kick"; // Or considered complete
+      else if (groupDetails.some(g => g.status === "Lỗi")) overallStatus = "Lỗi";
+      else if (groupDetails.every(g => g.status === "Bị giữ lại")) overallStatus = "Bị giữ lại";
+      else overallStatus = "Chờ kick";
+    }
+
+    const kickedCount = groupDetails.filter(g => g.status === "Đã kick").length;
+    const errorCount = groupDetails.filter(g => g.status === "Lỗi").length;
+    const retainedCount = groupDetails.filter(g => g.status === "Bị giữ lại").length;
+    
+    const overallNote = groupDetails.length === 0 ? "Chưa có audit kick gần nhất" : `Kick: ${kickedCount}/${groupDetails.length}` + (errorCount ? `, Lỗi: ${errorCount}` : "") + (retainedCount ? `, Giữ lại: ${retainedCount}` : "");
+
+    return { 
+      groups: groupDetails.map(g => g.groupName).filter(Boolean), 
+      groupDetails,
+      latestKickAt, 
+      note: overallNote, 
+      status: overallStatus 
+    };
   }
   const renewalOpsRows = useMemo(() => {
     return {
@@ -4977,6 +5055,10 @@ export default function Home() {
         return {
           key: `expired-${item.order_id}`,
           telegramId: String(item.telegram_user_id || "").trim(),
+          orderId: item.order_id,
+          planName: item.plan_name,
+          customerName: renewalCustomerName(item),
+          groupsToKick: summary.groupDetails.filter(g => g.status === "Lỗi" || g.status === "Chờ kick").map(g => g.groupId),
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: summary.status !== "Đã kick" }),
           cells: [
@@ -4984,8 +5066,29 @@ export default function Home() {
             <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status"><Chip size="small" label={summary.status} color={tone} variant="outlined" />{summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}</Fragment>,
-            summary.groups.length ? summary.groups.join(", ") : "-",
-            summary.note,
+            <Box key="groups" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+              {summary.groupDetails.length ? summary.groupDetails.map((g, i) => (
+                <Tooltip key={i} title={g.note || "Không có ghi chú"} arrow placement="left">
+                  <Chip 
+                    size="small" 
+                    label={g.groupName} 
+                    color={g.status === "Đã kick" ? "success" : g.status === "Lỗi" ? "error" : g.status === "Bị giữ lại" ? "info" : "warning"} 
+                    variant="outlined" 
+                    sx={{ height: 20, fontSize: 11 }} 
+                  />
+                </Tooltip>
+              )) : "-"}
+            </Box>,
+            <Box key="notes" sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxWidth: 200 }}>
+              {summary.groupDetails.length ? summary.groupDetails.map((g, i) => {
+                if (g.status === "Đã kick") return null;
+                return (
+                  <Typography key={i} variant="caption" sx={{ color: g.status === "Lỗi" ? "error.main" : "text.secondary", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.2 }}>
+                    <strong style={{ opacity: 0.7 }}>{g.groupName}</strong>: {g.note || g.status}
+                  </Typography>
+                );
+              }) : summary.note}
+            </Box>,
           ] as ReactNode[],
         };
       }),
@@ -5334,6 +5437,36 @@ export default function Home() {
       payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
       payment_provider: String(matchedOrder?.payment_provider || current.payment_provider || "MANUAL").toUpperCase(),
     }));
+  }
+
+  async function retryKickUserHandler(telegramId: string, orderId: string, planName: string, customerName: string, groupsToKick: string[]) {
+    await runAction(`retry-kick-${orderId}`, async () => {
+      let successCount = 0;
+      let errorCount = 0;
+      for (const groupId of groupsToKick) {
+        try {
+          await kickAuditMember(savedSecret, {
+            telegram_user_id: telegramId,
+            order_id: orderId,
+            group_id: groupId,
+            plan_name: planName,
+            customer_name: customerName,
+          });
+          successCount++;
+        } catch (err) {
+          console.error("Retry kick error for group", groupId, err);
+          errorCount++;
+        }
+      }
+      if (errorCount === 0 && successCount > 0) {
+        showNotice("ok", `Đã kick thành công khỏi ${successCount} nhóm.`);
+      } else if (successCount > 0) {
+        showNotice("error", `Đã kick thành công ${successCount} nhóm. Lỗi ${errorCount} nhóm.`);
+      } else {
+        showNotice("error", `Lỗi kick lại cho ${groupsToKick.length} nhóm. Vui lòng kiểm tra log.`);
+      }
+      await refreshKickAudit(true);
+    });
   }
 
   async function saveManualOrder() {
@@ -6117,12 +6250,15 @@ export default function Home() {
 	                  return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.08)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.05)" } : {};
 	                }}
 	                actions={(idx) => {
-	                  const row = currentRenewalOpsRows[(Math.min(renewalPage, totalRenewalPages) - 1) * RENEWAL_PAGE_SIZE + idx];
+	                  const row = currentRenewalOpsRows[(Math.min(renewalPage, totalRenewalPages) - 1) * RENEWAL_PAGE_SIZE + idx] as (typeof currentRenewalOpsRows)[number] & { orderId?: string, planName?: string, customerName?: string, groupsToKick?: string[] };
 	                  if (!row?.telegramId) return null;
 	                  return (
 	                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
 	                      <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<Search size={14} />}>Mở</Button>
 	                      {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
+                          {renewalTab === "expired" && row.orderId && (row.groupsToKick || []).length > 0 ? (
+                            <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", row.groupsToKick || []); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Thử kick lại ({(row.groupsToKick || []).length})</Button>
+                          ) : null}
 	                    </Box>
 	                  );
 	                }}
