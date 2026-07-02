@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from "recharts";
 import {
   Box,
   Button,
@@ -93,71 +94,13 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
   };
 }
 
-export function MetricCard({ label, value, tone, note, accent: sectionAccent, icon }: { label: string; value: string; tone?: "vnd" | "usd" | "crypto" | "payos" | "paypal" | "neutral"; note?: string; accent?: SectionTone; icon?: ReactNode }) {
-  const toneToken = sectionAccent ? sectionAccentTone(sectionAccent) : tone ? tonePalette[tone] : tonePalette.neutral;
-  const accent = toneToken.main;
-  const bg = toneToken.bg;
-  const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSign size={16} /> : <Activity size={16} />);
-  const compactValue = (() => {
-    const cleaned = String(value)
-      .replace(/^PAYOS:\s*/i, "")
-      .replace(/^PAYPAL:\s*/i, "")
-      .replace(/^CRYPTO:\s*/i, "")
-      .replace(/\bCRYPTO\b$/i, "")
-      .trim();
-    return cleaned || value;
-  })();
-  return (
-    <Card
-      sx={{
-        position: "relative",
-        overflow: "hidden",
-        borderRadius: "16px",
-        minHeight: 104,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        bgcolor: "#ffffff",
-        backgroundImage: `linear-gradient(135deg, #ffffff 40%, ${bg} 100%)`,
-        border: "1px solid",
-        borderColor: "divider",
-        boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)",
-        transition: "transform 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1)",
-        "&:hover": {
-          transform: "translateY(-4px)",
-          boxShadow: `0 12px 32px ${toneToken.glow || "rgba(15, 23, 42, 0.08)"}`,
-        },
-      }}
-    >
-      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 104, p: 2.25, "&:last-child": { pb: 2.25 } }}>
-        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-            <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: "12px", background: `linear-gradient(135deg, ${accent} 0%, ${accent}dd 100%)`, color: "#ffffff", boxShadow: `0 4px 12px ${toneToken.glow || "rgba(15, 23, 42, 0.08)"}` }}>{IconNode}</Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.2 }}>{label}</Typography>
-          </Box>
-          <Chip
-            size="small"
-            label={tone === "vnd" ? "VND" : tone === "usd" ? "USD" : tone === "crypto" ? "CRYPTO" : tone === "payos" ? "PAYOS" : tone === "paypal" ? "PAYPAL" : ""}
-            sx={{ display: tone && tone !== "neutral" ? "inline-flex" : "none", fontSize: "0.7rem", fontWeight: 800, height: 22, bgcolor: "#ffffff", color: accent, border: `1px solid ${accent}33`, boxShadow: "0 2px 4px rgba(15,23,42,0.02)" }}
-          />
-        </Box>
-        <Box sx={{ mt: "auto" }}>
-          <Typography sx={{ fontWeight: 800, lineHeight: 1.1, fontSize: { xs: "1.45rem", sm: "1.65rem", md: "1.85rem" }, letterSpacing: "-0.02em", wordBreak: "break-word", color: "text.primary" }}>
-            {compactValue}
-          </Typography>
-          {note ? <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block", fontWeight: 600 }}>{note}</Typography> : null}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
+
 
 export function PanelHead({ title, subtitle, action, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
   const tone = sectionAccentTone(accent);
   return (
     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-      <Box sx={{ position: "relative", pl: 1.75 }}>
-        <Box sx={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: 999, bgcolor: tone.main }} />
+      <Box sx={{ position: "relative" }}>
         <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, lineHeight: 1.45 }}>{subtitle}</Typography> : null}
       </Box>
@@ -307,63 +250,58 @@ export function useCountUp(endValue: number, duration: number = 1200) {
 
 export function RevenueBarChart({ title, subtitle, accent = "blue", items }: { title: string; subtitle?: string; accent?: SectionTone; items: { label: string; revenue: number; customers: number; aov: string }[] }) {
   const tone = sectionAccentTone(accent);
-  const maxValue = Math.max(1, ...items.map((item) => item.revenue));
   const hasData = items.length > 0 && items.some((item) => item.revenue > 0);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <Box sx={{ bgcolor: "rgba(15,23,42,0.9)", color: "#fff", p: 1.5, borderRadius: 2, boxShadow: "0 10px 25px rgba(0,0,0,0.2)", minWidth: 160 }}>
+          <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.7)", mb: 1, fontWeight: 600 }}>{data.label}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 800, mb: 0.5, color: tone.main }}>{data.revenue.toLocaleString("vi-VN")}đ</Typography>
+          <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.8)" }}>Khách: {data.customers}</Typography>
+          <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.8)" }}>AOV: {data.aov}</Typography>
+        </Box>
+      );
+    }
+    return null;
+  };
 
   return (
     <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper", animation: "fadeUp 0.6s ease-out both" }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
-      <Box sx={{ p: 2, height: 260, display: "flex", flexDirection: "column" }}>
+      <Box sx={{ p: 2, height: 280, display: "flex", flexDirection: "column" }}>
         {!hasData ? (
           <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "text.secondary" }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Chưa có dữ liệu doanh thu trong kỳ này.</Typography>
           </Box>
         ) : (
-          <>
-            <Box sx={{ flexGrow: 1, display: "flex", alignItems: "flex-end", gap: { xs: 0.5, md: 1 }, pt: 2, borderBottom: "1px solid rgba(148, 163, 184, 0.15)" }}>
-              {items.map((item, idx) => {
-                const heightPct = Math.max(2, (item.revenue / maxValue) * 100);
-                return (
-                  <Tooltip 
-                    key={idx} 
-                    title={
-                      <Box sx={{ p: 0.5 }}>
-                        <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.7)", mb: 0.5 }}>{item.label}</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800 }}>Doanh thu: {item.revenue.toLocaleString("vi-VN")}đ</Typography>
-                        <Typography variant="body2">Khách hàng: {item.customers}</Typography>
-                        <Typography variant="body2">AOV: {item.aov}</Typography>
-                      </Box>
-                    } 
-                    arrow 
-                    placement="top"
-                  >
-                    <Box sx={{ flexGrow: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
-                      <Box 
-                        className="revenue-bar"
-                        sx={{ 
-                          width: "100%", 
-                          height: `${heightPct}%`, 
-                          background: `linear-gradient(to top, ${tone.main}, ${tone.main}99)`,
-                          animation: `grow-bar 0.8s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 0.02}s both`
-                        }} 
-                      />
-                    </Box>
-                  </Tooltip>
-                );
-              })}
-            </Box>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1, px: 0.5 }}>
-              {items.length > 2 ? (
-                <>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[0]?.label}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[Math.floor(items.length / 2)]?.label}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[items.length - 1]?.label}</Typography>
-                </>
-              ) : items.length > 0 ? (
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[0]?.label}</Typography>
-              ) : null}
-            </Box>
-          </>
+          <Box sx={{ flexGrow: 1, width: "100%", height: "100%", mt: 2 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={items} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <XAxis 
+                  dataKey="label" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }}
+                  tickFormatter={(value) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(0)}K` : value}
+                />
+                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: "rgba(148,163,184,0.1)", radius: 6 }} />
+                <Bar dataKey="revenue" radius={[6, 6, 6, 6]} barSize={40}>
+                  {items.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={tone.main} fillOpacity={0.9} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
         )}
       </Box>
     </Card>
@@ -389,7 +327,8 @@ export function BreakdownChart({
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
       <Box sx={{ p: 2, display: "grid", gap: 1.25 }}>
         {items.map((item, index) => {
-          const percent = Math.max(4, Math.round((item.value / maxValue) * 100));
+          const actualPercent = Math.round((item.value / maxValue) * 100);
+          const percent = item.value > 0 ? Math.max(4, actualPercent) : 0;
           const palettes = [tone.main, styleGuide.palette.secondary.main, styleGuide.palette.accent.emerald, styleGuide.palette.accent.amber];
           const barColor = palettes[index % palettes.length];
           return (
@@ -482,7 +421,8 @@ export function DonutChart({
           </Typography>
           <Stack spacing={1}>
             {segments.map((segment, index) => {
-              const share = Math.max(2, Math.round((segment.value / total) * 100));
+              const actualShare = Math.round((segment.value / total) * 100);
+              const share = segment.value > 0 ? Math.max(2, actualShare) : 0;
               const barColor = segment.color || colors[index % colors.length];
               return (
                 <Box key={`detail-${segment.label}`} sx={{ display: "grid", gap: 0.75 }}>
@@ -799,14 +739,20 @@ export function TrendTable({ rows, title, subtitle }: { rows: { label: string; r
                         const values = row.sparkline.length ? row.sparkline : [0];
                         const max = Math.max(1, ...values);
                         const step = values.length > 1 ? 110 / (values.length - 1) : 110;
-                        const points = values.map((value, index) => `${5 + index * step},${24 - (value / max) * 18}`).join(" ");
+                        const points = values.length === 1
+                          ? `5,${24 - (values[0] / max) * 18} 115,${24 - (values[0] / max) * 18}`
+                          : values.map((value, index) => `${5 + index * step},${24 - (value / max) * 18}`).join(" ");
+                        const areaPoints = values.length === 1
+                          ? `5,24 ${points} 115,24`
+                          : `5,24 ${points} 115,24`;
                         return (
                           <>
-                            <polyline fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} stroke="none" points={`5,24 ${points} 115,24`} />
+                            <polyline fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} stroke="none" points={areaPoints} />
                             <polyline fill="none" stroke={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} strokeWidth="2.2" points={points} strokeLinecap="round" strokeLinejoin="round" />
                             {values.map((value, index) => (
                               <circle key={index} cx={5 + index * step} cy={24 - (value / max) * 18} r="1.8" fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} />
                             ))}
+                            {values.length === 1 && <circle cx={115} cy={24 - (values[0] / max) * 18} r="1.8" fill={`url(#sparkline-gradient-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()})`} />}
                           </>
                         );
                       })()}
@@ -840,7 +786,7 @@ export function TrendTable({ rows, title, subtitle }: { rows: { label: string; r
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={9} align="center">Chưa có dữ liệu trong kỳ này.</TableCell>
+                <TableCell colSpan={10} align="center">Chưa có dữ liệu trong kỳ này.</TableCell>
               </TableRow>
             )}
           </TableBody>

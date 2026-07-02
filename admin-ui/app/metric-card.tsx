@@ -26,19 +26,30 @@ const accentStyles: Record<MetricAccent, { main: string; bg: string; glow: strin
   indigo: { main: "#6366f1", bg: "#eef2ff", glow: "rgba(79, 70, 229, 0.18)" },
 };
 
-export function Metric({ label, value, tone, note, accent, icon }: { label: string; value: string; tone?: MetricTone; note?: string; accent?: MetricAccent; icon?: ReactNode }) {
+export function Metric({ label, value, tone, note, accent, icon }: { label: string; value: string | ReactNode; tone?: MetricTone; note?: string; accent?: MetricAccent; icon?: ReactNode }) {
   const toneStyle = tone ? toneStyles[tone] : toneStyles.neutral;
   const accentStyle = accent ? accentStyles[accent] : null;
   const accentColor = accentStyle?.main || toneStyle.icon;
-  const compactValue = (() => {
+  const renderValue = () => {
+    if (typeof value !== "string") return value;
     const cleaned = value
       .replace(/^PAYOS:\s*/i, "")
       .replace(/^PAYPAL:\s*/i, "")
       .replace(/^CRYPTO:\s*/i, "")
       .replace(/\bCRYPTO\b$/i, "")
-      .trim();
-    return cleaned || value;
-  })();
+      .trim() || value;
+    
+    if (cleaned.includes(" + ")) {
+      const parts = cleaned.split(" + ");
+      return (
+        <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, flexWrap: "wrap" }}>
+          <span>{parts[0]}</span>
+          {parts[1] && <Typography component="span" color="text.secondary" sx={{ fontWeight: 700, fontSize: "0.65em", opacity: 0.8 }}>+ {parts[1]}</Typography>}
+        </Box>
+      );
+    }
+    return cleaned;
+  };
   const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSignIcon size={16} /> : <Activity size={16} />);
   return (
     <Card
@@ -106,7 +117,7 @@ export function Metric({ label, value, tone, note, accent, icon }: { label: stri
         </Box>
         <Box sx={{ mt: "auto", pt: 1 }}>
           <Typography sx={{ fontWeight: 800, lineHeight: 1.1, fontSize: { xs: "1.45rem", sm: "1.65rem", md: "1.85rem" }, letterSpacing: "-0.02em", wordBreak: "break-word", overflowWrap: "anywhere", color: "text.primary" }}>
-            {compactValue}
+            {renderValue()}
           </Typography>
           {note ? <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block", fontWeight: 600 }}>{note}</Typography> : null}
         </Box>
