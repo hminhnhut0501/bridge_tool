@@ -156,6 +156,7 @@ import {
   createCoupon,
   createCoupons,
   createManualOrder,
+  generateManualActiveCode,
   generateManualJoinLink,
   deleteOrder,
   deleteConfig,
@@ -5355,10 +5356,36 @@ export default function Home() {
         payment_currency: paymentCurrency,
         payment_provider: paymentProvider,
         skip_join_link: true,
+        skip_active_code: true,
       });
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
       await loadAll();
+    });
+  }
+
+  async function generateManualActiveCodeHandler() {
+    if (!manualOrderResult) return;
+    await runAction("generate-active-code", async () => {
+      const res = await generateManualActiveCode(savedSecret, {
+        order_id: manualOrderResult.order_id,
+        telegram_user_id: manualOrderResult.telegram_user_id,
+        full_name: manualOrderResult.full_name,
+        plan_name: manualOrderResult.plan_name,
+        expire_at: manualOrderResult.expire_at,
+      });
+      
+      setManualOrderResult(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          activation_code: res.data.activation_code,
+          activation_url: res.data.activation_url,
+          manual_order_message_url: res.data.manual_order_message_url,
+          manual_order_text: res.data.manual_order_text,
+        };
+      });
+      showNotice("ok", "Đã tạo link active code thành công.");
     });
   }
 
@@ -7848,7 +7875,7 @@ export default function Home() {
             actions={
               <>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
-                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & Lấy Active Code</Button>
+                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn</Button>
               </>
             }
           >
@@ -7905,18 +7932,30 @@ export default function Home() {
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{manualOrderResult.manual_order_message_title || "Tin active code"}</Typography>
-                      <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || ""))}>
-                        {manualOrderResult.manual_order_message_button_label || "Copy tin active code"}
-                      </Button>
+                      {manualOrderResult.manual_order_text ? (
+                        <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || ""))}>
+                          {manualOrderResult.manual_order_message_button_label || "Copy tin active code"}
+                        </Button>
+                      ) : null}
                     </Stack>
-                    <TextField
-                      value={stripHtml(manualOrderResult.manual_order_text || "")}
-                      slotProps={{ input: { readOnly: true } }}
-                      fullWidth
-                      multiline
-                      minRows={6}
-                      sx={{ ...popupFieldSx, "& .MuiInputBase-root": { bgcolor: "background.default" } }}
-                    />
+                    
+                    {!manualOrderResult.manual_order_text ? (
+                      <Box sx={{ p: 4, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
+                        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>Bạn chưa tạo active code cho đơn hàng này.</Typography>
+                        <Button variant="contained" onClick={generateManualActiveCodeHandler} disabled={saving === "generate-active-code"} startIcon={saving === "generate-active-code" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                          Tạo link active code
+                        </Button>
+                      </Box>
+                    ) : (
+                      <TextField
+                        value={stripHtml(manualOrderResult.manual_order_text || "")}
+                        slotProps={{ input: { readOnly: true } }}
+                        fullWidth
+                        multiline
+                        minRows={6}
+                        sx={{ ...popupFieldSx, "& .MuiInputBase-root": { bgcolor: "background.default" } }}
+                      />
+                    )}
                   </Box>
 
                   {/* Join Link Generation / Display Box */}

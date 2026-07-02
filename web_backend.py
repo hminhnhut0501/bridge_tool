@@ -1292,8 +1292,9 @@ async def admin_create_manual_order(request: Request):
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
-    activation_code = str(body.get("activation_code", "")).strip().upper() or generate_activation_code()
-    activation_url = build_manual_activation_url(activation_code)
+    skip_active_code = str(body.get("skip_active_code", "")).lower() == "true" or body.get("skip_active_code") is True
+    activation_code = "" if skip_active_code else (str(body.get("activation_code", "")).strip().upper() or generate_activation_code())
+    activation_url = build_manual_activation_url(activation_code) if activation_code else ""
 
     if not telegram_user_id:
         raise HTTPException(status_code=400, detail="Cần nhập Telegram ID.")
@@ -1429,27 +1430,28 @@ async def admin_create_manual_order(request: Request):
         "expire_at": expire_at.isoformat(timespec="seconds"),
     })
 
-    try:
-        supabase_store.create_order_activation_code(
-            code=activation_code,
-            order_id=order_id,
-            telegram_user_id=telegram_user_id,
-            full_name=full_name or telegram_user_id,
-            plan_name=plan_name,
-            expire_at=expire_at.isoformat(timespec="seconds"),
-            activation_url=activation_url,
-            raw_data={
-                "manual_order": True,
-                "order_id": order_id,
-                "telegram_user_id": telegram_user_id,
-                "plan_name": plan_name,
-                "expire_at": expire_at.isoformat(timespec="seconds"),
-            },
-        )
-    except Exception as exc:
-        if not is_missing_supabase_table_error(exc, "order_activation_codes"):
-            raise
-        print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
+    if not skip_active_code:
+        try:
+            supabase_store.create_order_activation_code(
+                code=activation_code,
+                order_id=order_id,
+                telegram_user_id=telegram_user_id,
+                full_name=full_name or telegram_user_id,
+                plan_name=plan_name,
+                expire_at=expire_at.isoformat(timespec="seconds"),
+                activation_url=activation_url,
+                raw_data={
+                    "manual_order": True,
+                    "order_id": order_id,
+                    "telegram_user_id": telegram_user_id,
+                    "plan_name": plan_name,
+                    "expire_at": expire_at.isoformat(timespec="seconds"),
+                },
+            )
+        except Exception as exc:
+            if not is_missing_supabase_table_error(exc, "order_activation_codes"):
+                raise
+            print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
 
     try:
         supabase_store.record_support_event(
@@ -1504,7 +1506,7 @@ async def admin_create_manual_order(request: Request):
             "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
-            "manual_order_text": render_manual_order_message_text(message_template, {
+            "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
@@ -1515,7 +1517,7 @@ async def admin_create_manual_order(request: Request):
                 "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
                 "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
                 "activation_url": activation_url,
-                "message_url": build_manual_order_message_url(activation_code),
+                "message_url": build_manual_order_message_url(activation_code) if activation_code else "",
                 "links_text": links_text,
                 "support_text": support_text,
                 "support_group_name": support_group_name(),
@@ -1523,7 +1525,7 @@ async def admin_create_manual_order(request: Request):
                 "support_error": support_error,
                 "activation_code": activation_code,
             }),
-            "manual_order_join_text": render_manual_order_message_text(join_template, {
+            "manual_order_join_text": "" if skip_join_link else render_manual_order_message_text(join_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
@@ -1546,6 +1548,84 @@ async def admin_create_manual_order(request: Request):
         }
     }
 
+@app.post("/admin-api/manual-orders/generate-active-code", dependencies=[Depends(require_admin)])
+async def admin_generate_manual_active_code(request: Request):
+    body = await request.json()
+    order_id = str(body.get("order_id", "")).strip()
+    telegram_user_id = str(body.get("telegram_user_id", "")).strip()
+    full_name = str(body.get("full_name", "")).strip()
+    plan_name = str(body.get("plan_name", "")).strip()
+    expire_at_str = str(body.get("expire_at", "")).strip()
+
+    if not order_id or not telegram_user_id or not plan_name:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin đơn hàng.")
+
+    activation_code = generate_activation_code()
+    activation_url = build_manual_activation_url(activation_code)
+
+    try:
+        supabase_store.create_order_activation_code(
+            code=activation_code,
+            order_id=order_id,
+            telegram_user_id=telegram_user_id,
+            full_name=full_name or telegram_user_id,
+            plan_name=plan_name,
+            expire_at=expire_at_str,
+            activation_url=activation_url,
+            raw_data={
+                "manual_order": True,
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "plan_name": plan_name,
+                "expire_at": expire_at_str,
+            },
+        )
+    except Exception as exc:
+        if not is_missing_supabase_table_error(exc, "order_activation_codes"):
+            raise
+        print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
+
+    message_template = str(db.get_config(
+        "MANUAL_ORDER_MESSAGE_TEMPLATE",
+        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
+    ) or "").strip()
+
+    order_text = render_manual_order_info_text({
+        "order_id": order_id,
+        "telegram_user_id": telegram_user_id,
+        "full_name": full_name or telegram_user_id,
+        "plan_name": plan_name,
+        "expire_at": expire_at_str,
+    })
+
+    manual_order_text = render_manual_order_message_text(message_template, {
+        "order_id": order_id,
+        "telegram_user_id": telegram_user_id,
+        "full_name": full_name or telegram_user_id,
+        "plan_name": plan_name,
+        "expire_at": expire_at_str,
+        "order_text": order_text,
+        "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
+        "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
+        "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
+        "activation_url": activation_url,
+        "message_url": build_manual_order_message_url(activation_code),
+        "links_text": "",
+        "support_text": "",
+        "support_group_name": support_group_name(),
+        "support_link": "",
+        "support_error": "",
+        "activation_code": activation_code,
+    })
+
+    return {
+        "data": {
+            "activation_code": activation_code,
+            "activation_url": activation_url,
+            "manual_order_message_url": build_manual_order_message_url(activation_code),
+            "manual_order_text": manual_order_text,
+        }
+    }
 
 @app.post("/admin-api/manual-orders/generate-join-link", dependencies=[Depends(require_admin)])
 async def admin_generate_manual_join_link(request: Request):
