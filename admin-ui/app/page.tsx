@@ -2658,6 +2658,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
   const [query, setQuery] = useState("");
+  const [supportInboxTab, setSupportInboxTab] = useState<"inbox" | "settings">("inbox");
   const [orderTab, setOrderTab] = useState<"paid" | "other">("paid");
   const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("all");
   const [orderPage, setOrderPage] = useState(1);
@@ -5762,7 +5763,6 @@ export default function Home() {
               sx={sidebarTabSx}
             >
               <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Support inbox")} />
-              <Tab value="supportInboxSettings" icon={<Settings size={16} />} iconPosition="start" label={ui("Cài đặt bot", "Support settings")} />
             </Tabs>
           </Box>
           <Box>
@@ -6328,13 +6328,21 @@ export default function Home() {
 
         {tab === "supportInbox" ? (
           <div className="stack">
+            <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 1 }}>
+              <Tabs value={supportInboxTab} onChange={(_, next) => setSupportInboxTab(next)} variant="scrollable">
+                <Tab value="inbox" label="Quản lý Inbox & Tra cứu case" />
+                <Tab value="settings" label="Cài đặt Bot nhận tin" />
+              </Tabs>
+            </Box>
+            {supportInboxTab === "inbox" ? (
+              <>
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Tin nhắn bot"
                 subtitle="Khối riêng cho user ↔ admin. Không liên quan đến nhóm hỗ trợ."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
+                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
                     <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Nhân viên hỗ trợ</Button>
                     <Button variant="contained" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
                   </div>
@@ -6361,7 +6369,7 @@ export default function Home() {
                 subtitle="Các cấu hình cho inbox user ↔ admin. Không bao gồm khối deep link auto payment."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInboxSettings")} startIcon={<Settings size={16} />}>Mở cấu hình bot</Button>
+                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Mở cấu hình bot</Button>
                   </div>
                 }
               />
@@ -6448,18 +6456,18 @@ export default function Home() {
                 </Box>
               ) : null}
             </section>
-          </div>
-        ) : null}
+              </>
+            ) : null}
 
-        {tab === "supportInboxSettings" ? (
-          <div className="stack">
+            {supportInboxTab === "settings" ? (
+              <>
             <Card variant="outlined" sx={sectionCardSx}>
               <PanelHead
                 title="Cài đặt bot nhận tin/trả lời"
                 subtitle="Cài đặt inbox riêng: group ID, trạng thái kết nối, quyền bot và template gửi/nhận tin."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => selectTab("supportInbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
+                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("inbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
                     <Button variant="contained" size="small" onClick={() => void runSupportInboxCheck()} disabled={saving === "support-inbox-check"} startIcon={saving === "support-inbox-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
                   </div>
                 }
@@ -6750,6 +6758,8 @@ export default function Home() {
                 />
               </Box>
             </Card>
+              </>
+            ) : null}
           </div>
         ) : null}
 
