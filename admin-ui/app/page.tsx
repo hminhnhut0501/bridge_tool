@@ -5795,47 +5795,56 @@ export default function Home() {
                 subtitle="Giá All Access được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
                 action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá All Access</Button>}
               />
-              <div className="group-grid">
-                <button className="premium-card all-access" onClick={() => setSvipPriceSettingsOpen(true)}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                    <div className="card-icon"><BadgeDollarSign size={24} /></div>
-                    <div>
-                      <div className="premium-card-title">All Access 30 ngày VNĐ</div>
-                      <div className="premium-card-subtitle">Cấp quyền VIP 1 tháng</div>
+              <div className="pricing-grid">
+                {/* Bảng giá VNĐ */}
+                <div className="pricing-table">
+                  <div className="pricing-header vnpay">
+                    <div className="pricing-icon"><ShieldCheck size={28} /></div>
+                    <div className="pricing-title-group">
+                      <h3>Bản quyền All Access VNĐ</h3>
+                      <p>Khách hàng thanh toán qua ngân hàng nội địa</p>
+                    </div>
+                    <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
+                  </div>
+                  <div className="pricing-body">
+                    <div className="pricing-tier">
+                      <div className="tier-label">Gói 30 Ngày</div>
+                      <div className="tier-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0))}đ</div>
+                      <div className="tier-desc">Cấp quyền VIP 1 tháng</div>
+                    </div>
+                    <div className="pricing-divider" />
+                    <div className="pricing-tier highlight">
+                      <div className="tier-label">Gói Trọn Đời</div>
+                      <div className="tier-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0))}đ</div>
+                      <div className="tier-desc">Cấp quyền VIP vĩnh viễn</div>
                     </div>
                   </div>
-                  <div className="premium-card-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0))}đ</div>
-                </button>
-                <button className="premium-card all-access" onClick={() => setSvipPriceSettingsOpen(true)}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                    <div className="card-icon"><ShieldCheck size={24} /></div>
-                    <div>
-                      <div className="premium-card-title">All Access trọn đời VNĐ</div>
-                      <div className="premium-card-subtitle">Cấp quyền VIP vĩnh viễn</div>
+                </div>
+
+                {/* Bảng giá USD */}
+                <div className="pricing-table">
+                  <div className="pricing-header usd">
+                    <div className="pricing-icon"><Coins size={28} /></div>
+                    <div className="pricing-title-group">
+                      <h3>Bản quyền All Access USD</h3>
+                      <p>Khách hàng thanh toán quốc tế (PayPal, USDT)</p>
+                    </div>
+                    <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
+                  </div>
+                  <div className="pricing-body">
+                    <div className="pricing-tier">
+                      <div className="tier-label">Gói 30 Ngày</div>
+                      <div className="tier-price">{getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "-") || "-"} USD</div>
+                      <div className="tier-desc">Thanh toán quốc tế 1 tháng</div>
+                    </div>
+                    <div className="pricing-divider" />
+                    <div className="pricing-tier highlight">
+                      <div className="tier-label">Gói Trọn Đời</div>
+                      <div className="tier-price">{getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "-") || "-"} USD</div>
+                      <div className="tier-desc">Thanh toán quốc tế vĩnh viễn</div>
                     </div>
                   </div>
-                  <div className="premium-card-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0))}đ</div>
-                </button>
-                <button className="premium-card all-access" onClick={() => setSvipPriceSettingsOpen(true)}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                    <div className="card-icon"><CreditCard size={24} /></div>
-                    <div>
-                      <div className="premium-card-title">All Access 30 ngày USD</div>
-                      <div className="premium-card-subtitle">Thanh toán quốc tế</div>
-                    </div>
-                  </div>
-                  <div className="premium-card-price">{getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "-") || "-"} USD</div>
-                </button>
-                <button className="premium-card all-access" onClick={() => setSvipPriceSettingsOpen(true)}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                    <div className="card-icon"><Coins size={24} /></div>
-                    <div>
-                      <div className="premium-card-title">All Access trọn đời USD</div>
-                      <div className="premium-card-subtitle">Thanh toán quốc tế</div>
-                    </div>
-                  </div>
-                  <div className="premium-card-price">{getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "-") || "-"} USD</div>
-                </button>
+                </div>
               </div>
             </section>
             <section className="panel">
@@ -5847,41 +5856,36 @@ export default function Home() {
               <div className="hint">
                 Giá chỉ chỉnh tại màn hình này. UI Bot chỉ quản lý nội dung hiển thị, không còn trường giá trùng lặp.
               </div>
-              <div className="group-grid">
+              <div className="bento-grid">
                 {visibleGroups.length ? visibleGroups.map((item) => {
                   const name = getConfigValue(config, `BTN_G${item}`);
                   const id = getConfigValue(config, `ID_G${item}`);
                   const isOk = name && id;
                   return (
-                    <button className="premium-card" key={item} onClick={() => openEditGroupModal(String(item))}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-                        <div>
-                          <div className="premium-card-title">{name || "Chưa đặt tên"}</div>
-                          <div className="premium-card-subtitle">Nhóm G{item}</div>
+                    <button className="bento-card" key={item} onClick={() => openEditGroupModal(String(item))}>
+                      <div className="bento-top">
+                        <div className="bento-badge">G{item}</div>
+                        <div className="bento-status">
+                          {isOk ? <CheckCircle2 size={14} className="icon-success" /> : <XCircle size={14} className="icon-error" />}
+                          <span className={isOk ? "text-success" : "text-error"}>{isOk ? "Active" : "Cần thiết lập"}</span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", fontWeight: 700, color: isOk ? "#10b981" : "#ef4444", background: isOk ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", padding: "4px 8px", borderRadius: "999px" }}>
-                          {isOk ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                          {isOk ? "Active" : "Thiếu thông tin"}
+                        <h4 className="bento-title">{name || "Chưa đặt tên nhóm"}</h4>
+                        <div className="bento-id"><Users size={14} /> ID: {id || "---"}</div>
+                        
+                        <div className="bento-action">
+                          <Settings size={16} /> Cấu hình
                         </div>
                       </div>
                       
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)", fontSize: "0.85rem", marginTop: "4px" }}>
-                        <Users size={14} /> ID: {id || "Chưa cấu hình"}
-                      </div>
-                      
-                      <div className="premium-card-divider" />
-                      
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginTop: "4px" }}>
-                        <span style={{ color: "var(--muted)" }}>Giá 30 ngày:</span>
-                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{getConfigValue(config, `PRICE_G${item}_1M`, "-")}đ</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
-                        <span style={{ color: "var(--muted)" }}>Giá trọn đời:</span>
-                        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{getConfigValue(config, `PRICE_G${item}_LIFE`, "-")}đ</span>
-                      </div>
-                      
-                      <div className="premium-card-action">
-                        <Settings size={16} />
+                      <div className="bento-bottom">
+                        <div className="bento-price-row">
+                          <span className="price-label">Gói 30 ngày</span>
+                          <span className="price-value">{getConfigValue(config, `PRICE_G${item}_1M`, "-")}đ</span>
+                        </div>
+                        <div className="bento-price-row">
+                          <span className="price-label">Gói Trọn đời</span>
+                          <span className="price-value">{getConfigValue(config, `PRICE_G${item}_LIFE`, "-")}đ</span>
+                        </div>
                       </div>
                     </button>
                   );

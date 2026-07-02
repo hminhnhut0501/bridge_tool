@@ -2077,127 +2077,287 @@ td select {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+/* --- NEW SETUP UI: Pricing Tables & Bento Grid --- */
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
 }
 
-.premium-card {
-  position: relative;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  text-align: left;
+.pricing-table {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  cursor: pointer;
 }
 
-.premium-card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.premium-card:hover {
-  transform: translateY(-4px) scale(1.02);
+.pricing-table:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 0 20px rgba(59, 130, 246, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.9);
 }
 
-.premium-card:hover::before {
-  opacity: 1;
-}
-
-.premium-card:active {
-  transform: translateY(0) scale(0.98);
-  transition: all 0.1s ease;
-}
-
-.premium-card.all-access {
-  flex-direction: row;
+.pricing-header {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
   align-items: center;
-  justify-content: space-between;
-  background: linear-gradient(145deg, #ffffff, #f8fafc);
-  border-color: rgba(226, 232, 240, 0.8);
+  position: relative;
 }
 
-.premium-card.all-access:hover {
-  background: linear-gradient(145deg, #ffffff, #f1f5f9);
+.pricing-header.vnpay {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.1);
 }
 
-.premium-card .card-icon {
-  background: var(--light-blue);
-  color: var(--primary);
-  width: 48px;
-  height: 48px;
+.pricing-header.vnpay .pricing-icon {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.pricing-header.usd {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.02) 100%);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.pricing-header.usd .pricing-icon {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.pricing-icon {
+  width: 52px;
+  height: 52px;
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);
-  transition: all 0.3s ease;
 }
 
-.premium-card:hover .card-icon {
-  transform: scale(1.1) rotate(-5deg);
-  background: var(--primary);
-  color: white;
-}
-
-.premium-card-title {
-  font-weight: 700;
+.pricing-title-group h3 {
   font-size: 1.1rem;
+  font-weight: 700;
   color: var(--ink);
-  letter-spacing: -0.01em;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
-.premium-card-subtitle {
+.pricing-title-group p {
   font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.pricing-edit-btn {
+  border-radius: 12px !important;
+  background: var(--ink) !important;
+  color: white !important;
+  box-shadow: 0 4px 6px rgba(15, 23, 42, 0.2) !important;
+}
+
+.pricing-edit-btn:hover {
+  background: #334155 !important;
+}
+
+.pricing-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pricing-tier {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.pricing-tier.highlight {
+  background: rgba(59, 130, 246, 0.04);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  margin: -8px -12px;
+}
+
+.pricing-tier .tier-label {
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
-.premium-card-price {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-}
-
-.premium-card-divider {
-  height: 1px;
-  background: linear-gradient(90deg, rgba(148,163,184,0.1), rgba(148,163,184,0.2) 50%, rgba(148,163,184,0.1));
-  margin: 12px 0;
-  width: 100%;
-}
-
-.premium-card-action {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  opacity: 0;
-  transform: translateX(10px);
-  transition: all 0.3s ease;
+.pricing-tier.highlight .tier-label {
   color: var(--primary);
 }
 
-.premium-card:hover .premium-card-action {
+.pricing-tier .tier-price {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: right;
+  letter-spacing: -0.02em;
+}
+
+.pricing-tier .tier-desc {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-top: 1px dashed rgba(148, 163, 184, 0.3);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.pricing-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(148,163,184,0.1), rgba(148,163,184,0.2) 50%, rgba(148,163,184,0.1));
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.bento-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.bento-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.bento-top {
+  padding: 24px 20px 20px;
+  position: relative;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.bento-badge {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  background: var(--primary);
+  color: white;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+}
+
+.bento-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.bento-status .icon-success { color: #10b981; }
+.bento-status .icon-error { color: #ef4444; }
+.bento-status .text-success { color: #047857; }
+.bento-status .text-error { color: #b91c1c; }
+
+.bento-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.bento-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.bento-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  bottom: 20px;
+  right: 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+  opacity: 0;
+  transform: translateX(10px);
+  transition: all 0.3s ease;
+  background: rgba(255,255,255,0.9);
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.bento-card:hover .bento-action {
   opacity: 1;
   transform: translateX(0);
 }
 
-.feed-content {
+.bento-bottom {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bento-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bento-price-row .price-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.bento-price-row .price-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ------------------------------------------- */
   flex-grow: 1;
   min-width: 0;
   display: flex;
