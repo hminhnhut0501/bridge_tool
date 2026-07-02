@@ -14,6 +14,7 @@ import {
   FileText,
   Gift,
   CreditCard,
+  History,
   Coins,
   Loader2,
   Megaphone,
@@ -5155,6 +5156,49 @@ export default function Home() {
     if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Nhóm hỗ trợ", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
+
+  const actionableFeed = useMemo(() => {
+    const feed: { type: string; id: string; priority: number; title: string; detail: string; time: string; tone: "critical" | "warning" | "good" }[] = [];
+    
+    // Priority Alerts (Critical)
+    if (missingCore.length) feed.push({ type: "alert", id: "missing-core", priority: 10, title: "Thiếu cấu hình hệ thống", detail: missingCore.join(" • "), time: new Date().toISOString(), tone: "critical" });
+    if (webhookMeta?.maintenance_override?.active) feed.push({ type: "alert", id: "webhook-maint", priority: 9, title: "Webhook đang bảo trì", detail: webhookMeta.maintenance_override.reason || "Bot đang bảo trì do webhook", time: new Date().toISOString(), tone: "critical" });
+    else if (!webhook?.url || webhookMeta?.problem_reason) feed.push({ type: "alert", id: "webhook-prob", priority: 9, title: "Lỗi Webhook", detail: webhookMeta?.problem_reason || "Chưa có URL webhook", time: new Date().toISOString(), tone: "critical" });
+    else if (botScheduleStatus && !botScheduleStatus.active) feed.push({ type: "alert", id: "bot-offline", priority: 8, title: "Bot đang Offline", detail: botScheduleStatus.title, time: new Date().toISOString(), tone: "critical" });
+    
+    // Pending Orders (High)
+    const pendingOrders = orders.filter((o) => o.status === "PENDING").slice(0, 10);
+    pendingOrders.forEach((o) => {
+      feed.push({ type: "order", id: `order-${o.order_id}`, priority: 5, title: `Đơn chờ duyệt: ${o.order_id}`, detail: `${o.full_name || "Khách ẩn danh"} • ${o.plan_name}`, time: o.created_at, tone: "warning" });
+    });
+
+    // Expiring Customers (Medium)
+    expiringSoon.slice(0, 10).forEach((c) => {
+      feed.push({ type: "customer", id: `exp-${c.order_id}`, priority: 3, title: `Khách sắp hết hạn: ${c.full_name || "Không rõ"}`, detail: `Còn ${daysUntil(c.expire_at)} ngày • ${c.plan_name}`, time: new Date().toISOString(), tone: "warning" });
+    });
+
+    // Just added orders (Low)
+    const paidOrders = orders.filter((o) => o.status === "PAID").slice(0, 5);
+    paidOrders.forEach((o) => {
+      feed.push({ type: "order", id: `order-paid-${o.order_id}`, priority: 1, title: `Đơn mới: ${o.order_id}`, detail: `${o.full_name || "Khách ẩn danh"} • ${o.plan_name}`, time: o.created_at, tone: "good" });
+    });
+
+    return feed.sort((a, b) => b.priority - a.priority || new Date(b.time).getTime() - new Date(a.time).getTime());
+  }, [missingCore, webhookMeta, webhook, botScheduleStatus, orders, expiringSoon]);
+
+  const activityStream = useMemo(() => {
+    const stream: { id: string; type: string; title: string; detail: string; time: string }[] = [];
+    overviewRecentUserActivity.slice(0, 20).forEach((e) => {
+      stream.push({
+        id: `act-${e.id}`,
+        type: payloadText(e.payload || {}, "event_type") || e.event_name || "event",
+        title: activityEventLabel(payloadText(e.payload || {}, "event_type") || e.event_name || "event"),
+        detail: customerNameById.get(e.telegram_user_id || payloadText(e.payload || {}, "user_id")) || payloadText(e.payload || {}, "full_name") || payloadText(e.payload || {}, "username") || e.telegram_user_id || "Không rõ",
+        time: e.created_at,
+      });
+    });
+    return stream.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  }, [overviewRecentUserActivity, customerNameById]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
@@ -5628,164 +5672,79 @@ export default function Home() {
         ) : null}
 
         {tab === "overview" ? (
-          <Stack spacing={2}>
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead
-                title="Tổng quan vận hành"
-                subtitle="Trung tâm theo dõi hoạt động bot, đơn mới, khách mới và cảnh báo cần xử lý."
-                action={
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="outlined" size="small" onClick={() => selectTab("analytics")}>Xem thống kê</Button>
-                    <Button variant="contained" size="small" onClick={() => loadAll(savedSecret, { silent: false, resetPages: false, scope: "overview" })}>Tải lại</Button>
-                  </Stack>
-                }
-              />
-              <Stack spacing={2} sx={{ p: 2 }}>
-                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-                  {overviewHealthAlerts.map((item) => (
-                    <Box key={item.title} className={`overview-health-card ${item.tone}`}>
-                      <strong>{item.title}</strong>
-                      <span>{item.detail}</span>
-                    </Box>
-                  ))}
-                </Box>
-                <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-                  <Box className="overview-priority-card overview-noc-card">
-                    <div className="overview-section-head overview-noc-head"><strong>Cần chú ý ngay</strong><span>{overviewPriorityAlerts.length} mục</span></div>
-                    <Stack spacing={1}>
-                      {overviewPriorityAlerts.length ? overviewPriorityAlerts.map((item) => (
-                        <Box key={`${item.title}-${item.detail}`} className={`overview-alert ${item.tone}`}>
-                          <span className={`overview-pill ${item.tone}`}>{item.tone === "bad" ? "Critical" : "Warning"}</span>
-                          <strong>{item.title}</strong>
-                          <span>{item.detail}</span>
-                        </Box>
-                      )) : <div className="overview-empty overview-empty-compact">Hiện chưa có cảnh báo ưu tiên.</div>}
-                    </Stack>
-                  </Box>
-                  <Box className="overview-priority-card">
-                    <div className="overview-section-head"><strong>Hệ thống</strong><span>Trạng thái nhanh</span></div>
-                    <Stack spacing={1}>
-                      <HealthItem ok={Boolean(webhook?.url) && !webhookMeta?.maintenance_override?.active && !webhookMeta?.problem_reason} title="Webhook" detail={webhookMeta?.maintenance_override?.active ? (webhookMeta.maintenance_override.reason || "Bot đang bảo trì do webhook") : webhookMeta?.problem_reason ? `Lỗi: ${webhookMeta.problem_reason}` : webhook?.url || "Chưa set webhook"} />
-                      <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot runtime" detail={botScheduleStatus?.title || "Bot runtime"} />
-                      <HealthItem ok={configuredGroups.length > 0} title="Nhóm nhận link" detail={configuredGroups.length ? `Đã có ${configuredGroups.length} nhóm` : "Vào Nhóm & giá để cấu hình"} />
-                      <HealthItem ok={metrics.menu > 0} title="Menu bot" detail={`${metrics.menu} trang menu`} />
-                    </Stack>
-                  </Box>
-                </Box>
+          <Stack spacing={3}>
+            {/* VITAL SIGNS (Top Bar) */}
+            <Card variant="outlined" sx={{ ...sectionCardSx, p: 2.5, display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center", justifyContent: "space-between" }}>
+              <Box sx={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                <HealthItem ok={Boolean(webhook?.url) && !webhookMeta?.maintenance_override?.active && !webhookMeta?.problem_reason} title="Webhook" detail={webhookMeta?.maintenance_override?.active ? "Đang bảo trì" : webhookMeta?.problem_reason ? "Lỗi kết nối" : "Hoạt động tốt"} />
+                <HealthItem ok={botScheduleStatus?.active ?? true} title="Bot Runtime" detail={botScheduleStatus?.title || "Hoạt động tốt"} />
+                <HealthItem ok={metrics.pending === 0} title="Đơn đang chờ" detail={`${metrics.pending} đơn chờ duyệt`} />
+                <HealthItem ok={expiringSoon.length === 0} title="Sắp hết hạn" detail={`${expiringSoon.length} khách chờ gia hạn`} />
+              </Box>
+              <Stack direction="row" spacing={1.5}>
+                <Button variant="outlined" onClick={() => selectTab("analytics")}>Xem thống kê</Button>
+                <Button variant="contained" onClick={() => loadAll(savedSecret, { silent: false, resetPages: false, scope: "overview" })} startIcon={<RefreshCw size={16} />}>Tải lại dữ liệu</Button>
               </Stack>
             </Card>
 
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
-              <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="10 hoạt động gần nhất của user" subtitle="Theo dõi các tương tác private gần nhất." />
-                {overviewRecentUserActivity.length ? (
-                  <SimpleTable
-                    headers={["Thời điểm", "Khách", "Loại", "Nội dung", "Chi tiết"]}
-                    rows={overviewRecentUserActivity.map((event) => [
-                      dateText(event.created_at),
-                      <Fragment key={`${event.id}-customer`}><strong>{customerNameById.get(event.telegram_user_id || payloadText(event.payload || {}, "user_id")) || payloadText(event.payload || {}, "full_name") || payloadText(event.payload || {}, "username") || event.telegram_user_id || "-"}</strong><div className="muted">{event.telegram_user_id || payloadText(event.payload || {}, "user_id") || "-"}</div></Fragment>,
-                      <span key={`${event.id}-type`} className={`overview-pill ${activityEventBadgeTone(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}`}>{activityEventLabel(payloadText(event.payload || {}, "event_type") || event.event_name || "event")}</span>,
-                      payloadText(event.payload || {}, "message_text") || payloadText(event.payload || {}, "source_ref") || payloadText(event.payload || {}, "activation_code") || payloadText(event.payload || {}, "start_payload") || payloadText(event.payload || {}, "callback_data") || payloadText(event.payload || {}, "command") || "-",
-                      [payloadText(event.payload || {}, "message_kind"), payloadText(event.payload || {}, "chat_type")].filter(Boolean).join(" • ") || "-",
-                    ])}
-                  />
-                ) : (
-                  <Stack spacing={1.25}>
-                    <div className="overview-empty">Chưa có hoạt động private nào để hiển thị.</div>
-                    <div className="overview-skeleton card" />
-                    <div className="overview-skeleton card" />
-                  </Stack>
-                )}
-              </Card>
-              <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="10 đơn hàng mới" subtitle="Danh sách ngắn để xem đơn nào vừa tạo." />
-                {overviewRecentOrders.length ? (
-                  <SimpleTable
-                    headers={["Thời điểm", "Đơn", "Khách", "Gói", "Trạng thái"]}
-                    rows={overviewRecentOrders.map((order) => [
-                      dateText(order.created_at),
-                      <strong key={order.order_id}>{order.order_id}</strong>,
-                      <Fragment key={`${order.order_id}-customer`}><strong>{order.full_name || "-"}</strong><div className="muted">{order.telegram_user_id}</div></Fragment>,
-                      <Fragment key={`${order.order_id}-plan`}><strong>{order.plan_name}</strong><div className="muted">{order.note || "Không có ghi chú"}</div></Fragment>,
-                      <span key={`${order.order_id}-status`} className={`overview-pill ${order.status === "PAID" ? "good" : order.status === "PENDING" ? "warning" : "bad"}`}>{orderLifecycleLabel(order)}</span>,
-                    ])}
-                  />
-                ) : (
-                  <Stack spacing={1.25}>
-                    <div className="overview-empty">Chưa có đơn mới.</div>
-                    <div className="overview-skeleton card" />
-                  </Stack>
-                )}
-              </Card>
-            </Box>
-
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" } }}>
-              <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="10 khách hàng mới" subtitle="Khách mới theo đơn gần nhất và giá trị đã thanh toán." />
-                {overviewNewCustomers.length ? (
-                  <SimpleTable
-                    headers={["Khách", "Mốc gần nhất", "Gói", "Trạng thái", "Giá trị"]}
-                    rows={overviewNewCustomers.map((customer) => [
-                      <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
-                      dateText(customer.lastOrderAt),
-                      customer.plans[0] || "-",
-                      <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : customer.statusColor === "error" ? "bad" : ""}`}>{customer.statusLabel}</span>,
-                      money(customer.revenue),
-                    ])}
-                  />
-                ) : (
-                  <Stack spacing={1.25}>
-                    <div className="overview-empty">Chưa có khách mới.</div>
-                    <div className="overview-skeleton card" />
-                  </Stack>
-                )}
-              </Card>
-              <Card variant="outlined" sx={sectionCardSx}>
-                <PanelHead title="Khách gần hết hạn" subtitle={`Ưu tiên nhóm trong ${reminderNoticeDays} ngày tới.`} />
-                {overviewExpiringCustomers.length ? (
-                  <SimpleTable
-                    headers={["Khách", "Gói", "Hạn", "Còn lại", "Trạng thái"]}
-                    rows={overviewExpiringCustomers.map((customer) => {
-                      const targetOrder = customer.activeOrders[0] || customer.paidOrders[0] || null;
-                      const expireAt = targetOrder?.expire_at || customer.latestExpire;
-                      return [
-                        <Fragment key={`${customer.id}-customer`}><strong>{customer.name || "-"}</strong><div className="muted">{customer.id}</div></Fragment>,
-                        targetOrder?.plan_name || customer.plans[0] || "-",
-                        dateText(expireAt),
-                        <span key={`${customer.id}-remaining`} className={`overview-pill ${daysUntil(expireAt) <= 0 ? "bad" : daysUntil(expireAt) <= 1 ? "warning" : "good"}`}>{expireAt ? `${daysUntil(expireAt)} ngày` : "-"}</span>,
-                        <span key={`${customer.id}-status`} className={`overview-pill ${customer.statusColor === "success" ? "good" : customer.statusColor === "warning" ? "warning" : "bad"}`}>{customer.statusLabel}</span>,
-                      ];
-                    })}
-                  />
-                ) : (
-                  <Stack spacing={1.25}>
-                    <div className="overview-empty">Chưa có khách nào sắp hết hạn.</div>
-                    <div className="overview-skeleton card" />
-                  </Stack>
-                )}
-              </Card>
-            </Box>
-
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead title="Nhật ký bot cần chú ý" subtitle="Feed tóm tắt các tín hiệu từ bot và user." />
-              {overviewRecentNotifications.length ? (
-                <SimpleTable
-                  headers={["Thời điểm", "Nguồn", "Khách", "Nội dung", "Chi tiết"]}
-                  rows={overviewRecentNotifications.map((item) => [
-                    dateText(item.createdAt),
-                    <span key={`${item.key}-kind`} className={`overview-pill ${item.kind === "user" ? "user" : "bot"}`}>{item.kind === "user" ? "User" : "Bot"}</span>,
-                    item.userId || "-",
-                    item.title,
-                    item.detail,
-                  ]) as ReactNode[][]}
-                />
-              ) : (
-                <Stack spacing={1.25}>
-                  <div className="overview-empty">Chưa có nhật ký bot đáng chú ý.</div>
-                  <div className="overview-skeleton card" />
+            <Box sx={{ display: "grid", gap: 4, gridTemplateColumns: { xs: "1fr", lg: "6.5fr 3.5fr" }, alignItems: "start" }}>
+              {/* LEFT: NOTIFICATION FEED */}
+              <Stack spacing={2.5}>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 1 }}>
+                  <Activity size={20} className="text-primary" />
+                  Trung tâm thông báo
+                </Typography>
+                <Stack spacing={2}>
+                  {actionableFeed.length ? actionableFeed.map((item, idx) => {
+                    // Cờ "mới" cho các sự kiện trong 24h qua
+                    const isNew = new Date().getTime() - new Date(item.time).getTime() < 24 * 60 * 60 * 1000;
+                    return (
+                      <Box key={`${item.id}-${idx}`} className={`feed-item ${isNew ? "unread" : ""}`}>
+                        {isNew && <div className={`feed-dot ${item.tone}`} />}
+                        <div className="feed-icon" style={{ background: item.tone === "critical" ? "linear-gradient(135deg, #ef4444, #f87171)" : item.tone === "warning" ? "linear-gradient(135deg, #f59e0b, #fbbf24)" : "linear-gradient(135deg, #10b981, #34d399)" }}>
+                          {item.type === "alert" ? <ShieldCheck size={22} /> : item.type === "order" ? <ClipboardList size={22} /> : <Users size={22} />}
+                        </div>
+                        <div className="feed-content">
+                          <div className="feed-title">{item.title}</div>
+                          <div className="feed-time">{item.detail} • <span style={{ opacity: 0.8 }}>{dateText(item.time)}</span></div>
+                        </div>
+                        <div className="feed-action" style={{ display: "flex", alignItems: "center" }}>
+                          <Button size="small" sx={{ borderRadius: "8px", fontWeight: 700 }} variant={isNew ? "contained" : "outlined"} color={item.tone === "critical" ? "error" : item.tone === "warning" ? "warning" : "primary"}>
+                            Xem chi tiết
+                          </Button>
+                        </div>
+                      </Box>
+                    );
+                  }) : (
+                    <div className="overview-empty">Tuyệt vời! Không có thông báo hay công việc nào đang chờ xử lý.</div>
+                  )}
                 </Stack>
-              )}
-            </Card>
+              </Stack>
+
+              {/* RIGHT: LIVE ACTIVITY STREAM */}
+              <Stack spacing={2.5}>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 1 }}>
+                  <History size={20} className="text-primary" />
+                  Live Activity
+                </Typography>
+                <Card variant="outlined" sx={{ ...sectionCardSx, p: 3 }}>
+                  {activityStream.length ? (
+                    <div className="timeline-container">
+                      {activityStream.map((item, idx) => (
+                        <div key={`${item.id}-${idx}`} className="timeline-item">
+                          <div className="timeline-node" />
+                          <div className="feed-title" style={{ fontSize: "14px" }}>{item.title}</div>
+                          <div className="feed-time" style={{ fontSize: "13px", marginBottom: "4px", color: "var(--ink)" }}>{item.detail}</div>
+                          <div className="muted" style={{ fontSize: "12px", opacity: 0.7 }}>{dateText(item.time)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overview-empty overview-empty-compact">Chưa có hoạt động nào của user/bot gần đây.</div>
+                  )}
+                </Card>
+              </Stack>
+            </Box>
           </Stack>
         ) : null}
 
