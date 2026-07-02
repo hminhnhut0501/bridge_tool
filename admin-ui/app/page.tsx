@@ -34,6 +34,7 @@ import {
   Users,
   TrendingUp,
   XCircle,
+  ChevronRight,
 } from "lucide-react";
 import {
   AppBar,
@@ -5696,22 +5697,43 @@ export default function Home() {
                 </Typography>
                 <Stack spacing={2}>
                   {actionableFeed.length ? actionableFeed.map((item, idx) => {
-                    // Cờ "mới" cho các sự kiện trong 24h qua
                     const isNew = new Date().getTime() - new Date(item.time).getTime() < 24 * 60 * 60 * 1000;
+                    
+                    // Determine elegant icon styling
+                    let iconBg = "rgba(16, 185, 129, 0.1)";
+                    let iconColor = "#10b981";
+                    if (item.tone === "critical") {
+                      iconBg = "rgba(239, 68, 68, 0.1)";
+                      iconColor = "#ef4444";
+                    } else if (item.tone === "warning") {
+                      iconBg = "rgba(245, 158, 11, 0.1)";
+                      iconColor = "#f59e0b";
+                    }
+
+                    const handleFeedClick = () => {
+                      if (item.type === "order") {
+                        setQuery(item.id.replace("order-", "").replace("paid-", ""));
+                        selectTab("orders");
+                      } else if (item.type === "customer") {
+                        setQuery(item.id.replace("exp-", ""));
+                        selectTab("customers");
+                      } else if (item.type === "alert") {
+                        selectTab("setup");
+                      }
+                    };
+
                     return (
-                      <Box key={`${item.id}-${idx}`} className={`feed-item ${isNew ? "unread" : ""}`}>
+                      <Box key={`${item.id}-${idx}`} className={`feed-item ${isNew ? "unread" : ""}`} sx={{ animationDelay: `${idx * 0.05}s`, cursor: "pointer" }} onClick={handleFeedClick}>
                         {isNew && <div className={`feed-dot ${item.tone}`} />}
-                        <div className="feed-icon" style={{ background: item.tone === "critical" ? "linear-gradient(135deg, #ef4444, #f87171)" : item.tone === "warning" ? "linear-gradient(135deg, #f59e0b, #fbbf24)" : "linear-gradient(135deg, #10b981, #34d399)" }}>
-                          {item.type === "alert" ? <ShieldCheck size={22} /> : item.type === "order" ? <ClipboardList size={22} /> : <Users size={22} />}
+                        <div className="feed-icon" style={{ background: iconBg, color: iconColor }}>
+                          {item.type === "alert" ? <ShieldCheck size={20} /> : item.type === "order" ? <ClipboardList size={20} /> : <Users size={20} />}
                         </div>
                         <div className="feed-content">
                           <div className="feed-title">{item.title}</div>
-                          <div className="feed-time">{item.detail} • <span style={{ opacity: 0.8 }}>{dateText(item.time)}</span></div>
+                          <div className="feed-time">{item.detail} • <span style={{ opacity: 0.7 }}>{dateText(item.time)}</span></div>
                         </div>
-                        <div className="feed-action" style={{ display: "flex", alignItems: "center" }}>
-                          <Button size="small" sx={{ borderRadius: "8px", fontWeight: 700 }} variant={isNew ? "contained" : "outlined"} color={item.tone === "critical" ? "error" : item.tone === "warning" ? "warning" : "primary"}>
-                            Xem chi tiết
-                          </Button>
+                        <div className="feed-action" style={{ display: "flex", alignItems: "center", opacity: 0.6 }}>
+                          <ChevronRight size={20} />
                         </div>
                       </Box>
                     );
@@ -5731,7 +5753,7 @@ export default function Home() {
                   {activityStream.length ? (
                     <div className="timeline-container">
                       {activityStream.map((item, idx) => (
-                        <div key={`${item.id}-${idx}`} className="timeline-item">
+                        <div key={`${item.id}-${idx}`} className="timeline-item" style={{ animationDelay: `${idx * 0.05 + 0.2}s` }}>
                           <div className="timeline-node" />
                           <div className="feed-title" style={{ fontSize: "14px" }}>{item.title}</div>
                           <div className="feed-time" style={{ fontSize: "13px", marginBottom: "4px", color: "var(--ink)" }}>{item.detail}</div>

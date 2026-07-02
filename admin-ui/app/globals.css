@@ -1975,106 +1975,120 @@ td select {
 .feed-item {
   position: relative;
   display: flex;
-  gap: 16px;
-  padding: 16px;
-  background: rgba(255,255,255,0.6);
-  border: 1px solid rgba(148,163,184,0.12);
-  border-radius: 16px;
-  transition: all 0.25s ease;
-  backdrop-filter: blur(8px);
+  gap: 18px;
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 18px;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  backdrop-filter: blur(12px);
+  animation: feed-slide-up 0.5s ease backwards;
+}
+
+@keyframes feed-slide-up {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .feed-item:hover {
-  background: #ffffff;
-  transform: translateX(4px);
-  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.02);
+  border-color: rgba(148, 163, 184, 0.2);
 }
 
 .feed-item.unread {
-  background: linear-gradient(135deg, rgba(239,246,255,0.9) 0%, rgba(219,234,254,0.5) 100%);
-  border-color: rgba(96,165,250,0.3);
+  background: rgba(239, 246, 255, 0.5);
+  border-color: rgba(59, 130, 246, 0.2);
 }
 
 .feed-item.unread:hover {
-  background: linear-gradient(135deg, rgba(219,234,254,0.95) 0%, rgba(191,219,254,0.6) 100%);
-  box-shadow: 0 8px 24px rgba(59,130,246,0.12);
+  background: rgba(239, 246, 255, 0.9);
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .feed-dot {
   position: absolute;
-  top: 18px;
-  left: -6px;
-  width: 12px;
-  height: 12px;
+  top: 24px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
   background-color: #3b82f6;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(59,130,246,0.2);
-  animation: pulse-dot 2s infinite;
+  animation: elegant-pulse 3s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .feed-dot.critical {
   background-color: #ef4444;
-  box-shadow: 0 0 0 4px rgba(239,68,68,0.2);
 }
 
 .feed-dot.warning {
   background-color: #f59e0b;
-  box-shadow: 0 0 0 4px rgba(245,158,11,0.2);
 }
 
-@keyframes pulse-dot {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+@keyframes elegant-pulse {
+  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(var(--dot-color-rgb, 59, 130, 246), 0.5); }
+  50% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(var(--dot-color-rgb, 59, 130, 246), 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(var(--dot-color-rgb, 59, 130, 246), 0); }
 }
 
 .feed-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   flex-shrink: 0;
-  color: #fff;
+  transition: transform 0.3s ease;
+}
+
+.feed-item:hover .feed-icon {
+  transform: scale(1.05);
 }
 
 .feed-content {
   flex-grow: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .feed-title {
   font-weight: 700;
   font-size: 14px;
   color: var(--ink);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .feed-time {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .timeline-container {
   position: relative;
-  padding-left: 24px;
+  padding-left: 28px;
 }
 
 .timeline-container::before {
   content: '';
   position: absolute;
-  top: 8px;
+  top: 10px;
   bottom: 0;
-  left: 9px;
+  left: 11px;
   width: 2px;
-  background: rgba(148,163,184,0.15);
+  background: linear-gradient(180deg, rgba(148,163,184,0.2) 0%, rgba(148,163,184,0.05) 100%);
 }
 
 .timeline-item {
   position: relative;
-  padding-bottom: 24px;
+  padding-bottom: 28px;
+  animation: feed-slide-up 0.5s ease backwards;
 }
 
 .timeline-item:last-child {
@@ -2083,13 +2097,19 @@ td select {
 
 .timeline-node {
   position: absolute;
-  top: 4px;
-  left: -24px;
-  width: 12px;
-  height: 12px;
+  top: 6px;
+  left: -27px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #ffffff;
   border: 2px solid var(--accent);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.8);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.6);
+  transition: all 0.3s ease;
+}
+
+.timeline-item:hover .timeline-node {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.1);
 }
 
