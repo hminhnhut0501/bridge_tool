@@ -1549,7 +1549,7 @@ async def admin_create_manual_order(request: Request):
         }
     }
 
-@app.post("/admin-api/manual-orders/generate-active-code", dependencies=[Depends(require_admin)])
+@app.post("/admin-api/manual-orders/gen-act", dependencies=[Depends(require_admin)])
 async def admin_generate_manual_active_code(request: Request):
     body = await request.json()
     order_id = str(body.get("order_id", "")).strip()
@@ -1629,7 +1629,7 @@ async def admin_generate_manual_active_code(request: Request):
         }
     }
 
-@app.post("/admin-api/manual-orders/generate-join-link", dependencies=[Depends(require_admin)])
+@app.post("/admin-api/manual-orders/gen-join", dependencies=[Depends(require_admin)])
 async def admin_generate_manual_join_link(request: Request):
     body = await request.json()
     order_id = str(body.get("order_id", "")).strip()
