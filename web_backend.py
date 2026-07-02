@@ -425,9 +425,15 @@ def parse_manual_expire_at(value: str | None):
 
 
 def format_manual_expire_at(value: str | None):
-    parsed = parse_manual_expire_at(value)
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = parse_manual_expire_at(raw)
+    except Exception:
+        return raw
     if not parsed:
-        return str(value or "").strip()
+        return raw
     return parsed.strftime("%H:%M %d/%m/%Y")
 
 
