@@ -1,17 +1,27 @@
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
-  --panel: #ffffff;
+  --bg: #eef2f7;
+  --bg-gradient: linear-gradient(160deg, #eef2f7 0%, #e2e8f0 50%, #dde4ed 100%);
+  --panel: rgba(255,255,255,0.78);
+  --panel-solid: #ffffff;
   --panel-soft: #f1f5f9;
-  --line: #e2e8f0;
+  --line: rgba(148,163,184,0.18);
   --text: #0f172a;
   --muted: #64748b;
   --accent: #0066ff;
   --accent-dark: #0052cc;
+  --accent-glow: rgba(0,102,255,0.18);
   --good: #10b981;
   --warn: #f59e0b;
   --danger: #f43f5e;
   --ink: #0f172a;
+  --sidebar-bg: linear-gradient(180deg, #0c1222 0%, #162032 60%, #1a2744 100%);
+  --sidebar-text: #cbd5e1;
+  --sidebar-active: linear-gradient(135deg, #0066ff 0%, #0ea5e9 100%);
+  --radius-panel: 16px;
+  --radius-card: 12px;
+  --shadow-panel: 0 8px 32px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  --shadow-hover: 0 16px 48px rgba(15,23,42,0.10), 0 2px 4px rgba(15,23,42,0.06);
 }
 
 @keyframes fadeUp {
@@ -36,7 +46,8 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-weight: 500;
@@ -68,31 +79,50 @@ select:disabled {
 }
 
 .sidebar {
-  background: #ffffff;
-  color: #0f172a;
-  border-right: 1px solid var(--line);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  border-right: 1px solid rgba(148,163,184,0.08);
   padding: 22px 16px;
+  box-shadow: 4px 0 32px rgba(15,23,42,0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: radial-gradient(ellipse at 30% 0%, rgba(0,102,255,0.08) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .brand {
   font-size: 21px;
   font-weight: 800;
   margin-bottom: 12px;
-  color: var(--accent);
+  color: #60a5fa;
+  position: relative;
+  z-index: 1;
 }
 
 .side-status {
   align-items: center;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--muted);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 10px;
+  color: #94a3b8;
   display: flex;
   font-size: 13px;
   gap: 8px;
   margin-bottom: 20px;
   min-height: 38px;
   padding: 8px 10px;
+  position: relative;
+  z-index: 1;
+  backdrop-filter: blur(8px);
 }
 
 .dot {
@@ -112,7 +142,18 @@ select:disabled {
 
 .nav {
   display: grid;
-  gap: 7px;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.nav-section {
+  color: rgba(148,163,184,0.6);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 14px 0 6px 10px;
+  text-transform: uppercase;
 }
 
 .main {
@@ -147,7 +188,7 @@ select:disabled {
 
 .grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -246,26 +287,49 @@ select:disabled {
 }
 
 .panel {
-  background: #ffffff;
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+  position: relative;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-hover);
 }
 
 .panel::before {
   content: "";
   inset: 0 auto auto 0;
-  height: 5px;
+  height: 4px;
   position: absolute;
   width: 100%;
-  background: linear-gradient(90deg, #2563eb, #06b6d4, #10b981, #a855f7);
+  background: linear-gradient(90deg, #0066ff, #06b6d4, #10b981, #8b5cf6, #f43f5e);
+  background-size: 200% 100%;
+  animation: gradientShift 8s linear infinite;
+  z-index: 1;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .panel-head {
   align-items: center;
-  background: rgba(255, 255, 255, 0.72);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  background: linear-gradient(135deg, rgba(248,250,252,0.92) 0%, rgba(241,245,249,0.85) 100%);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  padding: 18px 18px 15px;
+  padding: 18px 20px 15px;
+  position: relative;
+  z-index: 1;
 }
 
 .panel-actions {
@@ -393,24 +457,32 @@ table {
 th,
 td {
   border-bottom: 1px solid var(--line);
-  font-size: 14px;
-  padding: 12px 14px;
+  font-size: 13.5px;
+  padding: 13px 16px;
   text-align: left;
   vertical-align: middle;
 }
 
 th {
-  background: #f8fafc;
+  background: linear-gradient(180deg, rgba(241,245,249,0.95) 0%, rgba(226,232,240,0.7) 100%);
   color: var(--muted);
+  font-size: 11.5px;
   font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 tbody tr {
-  transition: background 0.12s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(248,250,252,0.5);
 }
 
 tbody tr:hover {
-  background: #fbfcfd;
+  background: rgba(0,102,255,0.04);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .clickable-row {
@@ -463,14 +535,21 @@ tbody tr:hover {
 }
 
 .empty-card {
-  background: var(--panel-soft);
-  border: 1px dashed var(--line);
-  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.9) 100%);
+  border: 1px dashed rgba(148,163,184,0.28);
+  border-radius: var(--radius-card);
   color: var(--muted);
   grid-column: 1 / -1;
-  line-height: 1.45;
-  padding: 18px;
+  line-height: 1.5;
+  padding: 32px 24px;
   text-align: center;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.empty-card:hover {
+  border-color: rgba(0,102,255,0.2);
+  background: linear-gradient(180deg, rgba(248,250,252,0.98) 0%, rgba(239,246,255,0.9) 100%);
 }
 
 .coupon-scope {
@@ -570,21 +649,27 @@ td select {
 }
 
 .hint {
-  background: #eef6f3;
-  border-top: 1px solid #c7ded7;
-  color: #164b40;
+  background: linear-gradient(135deg, rgba(0,102,255,0.04) 0%, rgba(6,182,212,0.04) 100%);
+  border: 1px solid rgba(0,102,255,0.12);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-card);
+  color: #1e3a5f;
   margin: 0 16px 16px;
+  backdrop-filter: blur(8px);
 }
 
 .hint.compact {
-  border: 1px solid #c7ded7;
+  border: 1px solid rgba(0,102,255,0.12);
+  border-left: 4px solid var(--accent);
   margin-top: 16px;
 }
 
 .hint code {
-  background: #dceee8;
-  border-radius: 4px;
-  padding: 2px 5px;
+  background: rgba(0,102,255,0.08);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight: 700;
+  color: var(--accent-dark);
 }
 
 .customer-layout {
@@ -1047,8 +1132,9 @@ td select {
 
 .config-row {
   align-items: center;
-  background: #ffffff;
+  background: transparent;
   border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
   color: var(--text);
   display: grid;
   gap: 18px;
@@ -1057,6 +1143,7 @@ td select {
   padding: 14px 16px;
   text-align: left;
   width: 100%;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .config-row:last-child {
@@ -1065,7 +1152,8 @@ td select {
 
 .config-row:hover,
 .config-row:focus-visible {
-  background: #f5faf8;
+  background: linear-gradient(135deg, rgba(0,102,255,0.03) 0%, rgba(6,182,212,0.02) 100%);
+  border-left-color: var(--accent);
   outline: none;
 }
 
@@ -1107,19 +1195,26 @@ td select {
 
 .status-grid {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 16px;
 }
 
 .health-item {
   align-items: flex-start;
-  background: var(--panel-soft);
+  background: linear-gradient(135deg, rgba(248,250,252,0.9) 0%, rgba(241,245,249,0.8) 100%);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   display: flex;
   gap: 10px;
-  padding: 13px;
+  padding: 14px;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(8px);
+}
+
+.health-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
 }
 
 .health-item div {
@@ -1142,28 +1237,40 @@ td select {
 
 .group-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 16px;
 }
 
 .group-row {
   align-items: center;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255,247,237,0.85) 0%, rgba(255,251,235,0.7) 100%);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(254,215,170,0.5);
+  border-radius: var(--radius-card);
   color: var(--text);
   display: grid;
   gap: 8px;
   grid-template-columns: 46px minmax(0, 1fr) minmax(120px, 190px);
   min-height: 46px;
-  padding: 9px 11px;
+  padding: 10px 12px;
   text-align: left;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.group-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  border-color: rgba(254,215,170,0.8);
 }
 
 .group-row.ok {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: linear-gradient(135deg, rgba(240,253,244,0.85) 0%, rgba(236,253,245,0.7) 100%);
+  border-color: rgba(187,247,208,0.5);
+}
+
+.group-row.ok:hover {
+  border-color: rgba(187,247,208,0.8);
 }
 
 .group-row span {
@@ -1222,13 +1329,20 @@ td select {
 
 .info-row {
   align-items: center;
-  background: var(--panel-soft);
+  background: linear-gradient(135deg, rgba(248,250,252,0.9) 0%, rgba(241,245,249,0.8) 100%);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   display: grid;
   gap: 10px;
   grid-template-columns: 180px minmax(0, 1fr);
-  padding: 11px 13px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.info-row:hover {
+  border-color: rgba(0,102,255,0.15);
+  background: linear-gradient(135deg, rgba(239,246,255,0.9) 0%, rgba(248,250,252,0.85) 100%);
 }
 
 .info-row span {
@@ -1361,8 +1475,9 @@ td select {
 
 /* Nav active state */
 .active {
-  background: #263244;
+  background: var(--sidebar-active);
   color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0,102,255,0.24), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
 /* Button variants */
@@ -1426,12 +1541,22 @@ td select {
 
 /* Health item variants */
 .health-item.bad {
-  background: #fef3f2;
-  border-color: #fecdca;
+  background: linear-gradient(135deg, rgba(254,242,242,0.9) 0%, rgba(255,241,242,0.8) 100%);
+  border-color: rgba(254,205,202,0.5);
 }
 
 .health-item.bad span {
   color: var(--danger);
+}
+
+.health-item.good {
+  background: linear-gradient(135deg, rgba(236,253,245,0.9) 0%, rgba(240,253,244,0.8) 100%);
+  border-color: rgba(167,243,208,0.4);
+}
+
+.health-item.warning {
+  background: linear-gradient(135deg, rgba(255,251,235,0.9) 0%, rgba(255,247,237,0.8) 100%);
+  border-color: rgba(253,230,138,0.4);
 }
 
 /* Hint variants */

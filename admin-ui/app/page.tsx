@@ -364,8 +364,18 @@ const DEMO_USERS: UserRow[] = [
 
 const popupFieldSx = {
   "& .MuiOutlinedInput-root": {
-    borderRadius: 2,
-    backgroundColor: "#ffffff",
+    borderRadius: "10px",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    backdropFilter: "blur(8px)",
+    transition: "all 200ms ease",
+    "&:hover": {
+      backgroundColor: "#ffffff",
+      boxShadow: "0 4px 12px rgba(15,23,42,0.04)",
+    },
+    "&.Mui-focused": {
+      backgroundColor: "#ffffff",
+      boxShadow: "0 0 0 3px rgba(0,102,255,0.1), 0 4px 12px rgba(15,23,42,0.04)",
+    },
   },
   "& .MuiInputBase-input": {
     fontWeight: 500,
@@ -376,8 +386,14 @@ const popupFieldSx = {
 } as const;
 
 const popupSelectSx = {
-  borderRadius: 2,
-  backgroundColor: "#ffffff",
+  borderRadius: "10px",
+  backgroundColor: "rgba(255,255,255,0.9)",
+  backdropFilter: "blur(8px)",
+  transition: "all 200ms ease",
+  "&:hover": {
+    backgroundColor: "#ffffff",
+    boxShadow: "0 4px 12px rgba(15,23,42,0.04)",
+  },
 } as const;
 
 const customerPopupTabSx = {
@@ -475,14 +491,24 @@ const customerOrderStateChipSx = (status: string, active: boolean, expiringSoon:
 const sectionCardSx = {
   overflow: "hidden",
   position: "relative",
-  borderRadius: 2,
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.06)",
+  borderRadius: "16px",
+  bgcolor: "rgba(255,255,255,0.78)",
+  backdropFilter: "blur(20px)",
+  border: "1px solid rgba(148,163,184,0.12)",
+  boxShadow: "0 8px 32px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15,23,42,0.04)",
+  transition: "box-shadow 0.3s ease, transform 0.3s ease",
+  "&:hover": {
+    boxShadow: "0 16px 48px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15,23,42,0.06)",
+  },
   "&::before": {
     content: '""',
     position: "absolute",
     inset: 0,
-    height: 2,
-    background: "linear-gradient(90deg, #2563eb, #06b6d4, #10b981, #8b5cf6)",
+    height: 4,
+    background: "linear-gradient(90deg, #0066ff, #06b6d4, #10b981, #8b5cf6, #f43f5e)",
+    backgroundSize: "200% 100%",
+    animation: "gradientShift 8s linear infinite",
+    zIndex: 1,
   },
 } as const;
 
@@ -507,21 +533,24 @@ const sidebarTabSx = {
     minHeight: 40,
     px: 1.4,
     py: 0.82,
-    borderRadius: 1.5,
-    border: "1px solid rgba(148,163,184,0.08)",
-    bgcolor: "rgba(255,255,255,0.03)",
+    borderRadius: "10px",
+    border: "1px solid rgba(148,163,184,0.06)",
+    bgcolor: "rgba(255,255,255,0.02)",
     width: "100%",
     boxSizing: "border-box",
     textTransform: "none",
     fontWeight: 600,
+    fontSize: "0.84rem",
     color: "#94a3b8",
     boxShadow: "none",
-    transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+    transition: "all 250ms cubic-bezier(0.4, 0, 0.2, 1)",
     borderLeft: "3px solid transparent",
     overflow: "hidden",
+    letterSpacing: "0.01em",
     "& .MuiTab-iconWrapper": {
       marginRight: 7,
       minWidth: 0,
+      transition: "transform 200ms ease, color 200ms ease",
     },
     "& .MuiTab-iconWrapper > *": {
       display: "block",
@@ -533,20 +562,35 @@ const sidebarTabSx = {
     },
   },
   "& .MuiTab-root:hover": {
-    bgcolor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(96,165,250,0.12)",
-    color: "#fff",
+    bgcolor: "rgba(96,165,250,0.08)",
+    borderColor: "rgba(96,165,250,0.15)",
+    color: "#e2e8f0",
+    transform: "translateX(2px)",
+    "& .MuiTab-iconWrapper": {
+      color: "#60a5fa",
+    },
   },
   "& .MuiTab-root.Mui-selected": {
-    backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
+    backgroundImage: "linear-gradient(135deg, #0066ff 0%, #0ea5e9 100%)",
     color: "#fff",
-    borderColor: "rgba(96,165,250,0.22)",
-    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.16)",
+    borderColor: "rgba(96,165,250,0.25)",
+    boxShadow: "0 8px 24px rgba(0, 102, 255, 0.22), inset 0 1px 0 rgba(255,255,255,0.12)",
     borderLeftColor: "rgba(255,255,255,0.72)",
+    fontWeight: 700,
+    "& .MuiTab-iconWrapper": {
+      color: "#fff",
+      transform: "scale(1.1)",
+    },
+    "& .MuiChip-root": {
+      bgcolor: "rgba(255,255,255,0.2)",
+      color: "#fff",
+      borderColor: "rgba(255,255,255,0.3)",
+    },
   },
   "& .MuiTab-root.Mui-selected:hover": {
     backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
     borderColor: "rgba(96,165,250,0.5)",
+    boxShadow: "0 12px 32px rgba(0, 102, 255, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
   },
   "& .MuiTabs-indicator": { display: "none" },
 } as const;
