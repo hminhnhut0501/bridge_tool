@@ -124,7 +124,7 @@ def format_membership_expire(value, user_id=None):
                 timezone = ZoneInfo("Asia/Ho_Chi_Minh")
             parsed = parsed.astimezone(timezone).replace(tzinfo=None)
     except ValueError:
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%H:%M %d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
             try:
                 parsed = datetime.strptime(raw, fmt)
                 break
@@ -150,7 +150,7 @@ def format_manual_expire(value):
                 timezone = ZoneInfo("Asia/Ho_Chi_Minh")
             parsed = parsed.astimezone(timezone).replace(tzinfo=None)
     except ValueError:
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%H:%M %d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
             try:
                 parsed = datetime.strptime(raw, fmt)
                 break
@@ -181,7 +181,7 @@ def parse_membership_expire_dt(value):
             parsed = parsed.astimezone(timezone).replace(tzinfo=None)
         return parsed
     except ValueError:
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%H:%M %d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
             try:
                 return datetime.strptime(raw, fmt)
             except ValueError:

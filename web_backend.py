@@ -409,6 +409,7 @@ def parse_manual_expire_at(value: str | None):
             "%Y-%m-%d %H:%M",
             "%Y-%m-%dT%H:%M:%S",
             "%Y-%m-%d %H:%M:%S",
+            "%H:%M %d/%m/%Y",
             "%d/%m/%Y %H:%M",
             "%d/%m/%Y %H:%M:%S",
         ):
