@@ -1,8 +1,95 @@
 import type { ActivityEvent, KickAuditRow, Order, SupportEvent } from "@/lib/api";
 import type { OrderPeriod } from "./dashboard-types";
 
+const VI_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
 function groupedNumber(value: number) {
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value || 0);
+}
+
+function parseLooseDateParts(value: string) {
+  const text = value.trim();
+  const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(text);
+  if (hasTimezone) {
+    const direct = new Date(text);
+    if (!Number.isNaN(direct.getTime())) return direct;
+  }
+
+  const isoLike = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (isoLike) {
+    const [, y, m, d, hh = "00", mm = "00", ss = "00"] = isoLike;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh) - 7, Number(mm), Number(ss)));
+  }
+
+  const dmyTime = text.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmyTime) {
+    const [, d, m, y, hh = "00", mm = "00", ss = "00"] = dmyTime;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh) - 7, Number(mm), Number(ss)));
+  }
+
+  const timeFirst = text.match(/^(\d{2}):(\d{2})(?::(\d{2}))?\s+(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (timeFirst) {
+    const [, hh, mm, ss = "00", d, m, y] = timeFirst;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh) - 7, Number(mm), Number(ss)));
+  }
+
+  const dateOnly = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dateOnly) {
+    const [, d, m, y] = dateOnly;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), -7, 0, 0));
+  }
+
+  const timestamp = Number(text);
+  if (Number.isFinite(timestamp)) return new Date(timestamp);
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) return direct;
+  return null;
+}
+
+export function parseSafeDate(value: string | number | Date | null | undefined) {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+  if (typeof value === "number") return Number.isFinite(value) ? new Date(value) : null;
+  const text = String(value).trim();
+  if (!text || text === "null" || text === "undefined") return null;
+  return parseLooseDateParts(text);
+}
+
+export function safeDateMillis(value: string | number | Date | null | undefined) {
+  return parseSafeDate(value)?.getTime() ?? null;
+}
+
+function formatDateKey(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VI_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.year || "0000"}-${map.month || "00"}-${map.day || "00"}`;
+}
+
+function formatDateTimeParts(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VI_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(value);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: map.year || "0000",
+    month: map.month || "00",
+    day: map.day || "00",
+    hour: map.hour || "00",
+    minute: map.minute || "00",
+    second: map.second || "00",
+  };
 }
 
 export function money(value: number) {
@@ -47,12 +134,15 @@ export function orderPlanKind(order: Order) {
 
 export function isOrderActive(order: Order) {
   if (!order.expire_at || isLifetimeText(order.plan_name)) return true;
-  return new Date(order.expire_at).getTime() >= Date.now();
+  const expireMillis = safeDateMillis(order.expire_at);
+  return expireMillis === null ? true : expireMillis >= Date.now();
 }
 
 export function daysUntil(value: string | null | undefined) {
   if (!value) return -9999;
-  return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000);
+  const millis = safeDateMillis(value);
+  if (millis === null) return -9999;
+  return Math.ceil((millis - Date.now()) / 86400000);
 }
 
 export function groupNamesForOrder(order: Order) {
@@ -100,6 +190,8 @@ export function providerRevenueFormat(provider: string, value: number) {
 
 export function dateText(value: string | null | undefined) {
   if (!value) return "-";
+  const date = parseSafeDate(value);
+  if (!date) return displayText(value) || "-";
   return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -107,8 +199,8 @@ export function dateText(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(new Date(value));
+    timeZone: VI_TIME_ZONE,
+  }).format(date);
 }
 
 export function dateTextShort(value: string | null | undefined) {
@@ -123,8 +215,10 @@ export function dateTimePreviewText(value: string | null | undefined, fallback =
 
 export function dateTimeInputValue(value: string | null | undefined) {
   if (!value) return "";
-  const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const date = parseSafeDate(value);
+  if (!date) return "";
+  const parts = formatDateTimeParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 export function orderExpireValue(value: string | null | undefined) {
@@ -133,16 +227,16 @@ export function orderExpireValue(value: string | null | undefined) {
 
 export function isTodayDate(value: string | null | undefined) {
   if (!value) return false;
-  const date = new Date(value);
-  const now = new Date();
-  return date.toDateString() === now.toDateString();
+  const date = parseSafeDate(value);
+  if (!date) return false;
+  return formatDateKey(date) === formatDateKey(new Date());
 }
 
 export function dateMinusDaysText(value: string | null | undefined, days: number) {
   if (!value) return "-";
-  const date = new Date(value);
-  date.setDate(date.getDate() - days);
-  return dateText(date.toISOString());
+  const date = parseSafeDate(value);
+  if (!date) return "-";
+  return dateText(new Date(date.getTime() - days * 86400000).toISOString());
 }
 
 export function dayKey(value: string | null | undefined) {
@@ -155,13 +249,16 @@ export function isoDayKey(value: string | null | undefined) {
 
 export function isWithinPeriod(value: string | null | undefined, period: OrderPeriod) {
   if (!value) return false;
-  const date = new Date(value);
+  const date = parseSafeDate(value);
   const now = new Date();
+  if (!date) return false;
   if (period === "all") return true;
-  if (period === "today") return date.toDateString() === now.toDateString();
+  const dateKey = formatDateKey(date);
+  const nowKey = formatDateKey(now);
+  if (period === "today") return dateKey === nowKey;
   if (period === "7d") return now.getTime() - date.getTime() <= 7 * 86400000;
-  if (period === "month") return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  if (period === "year") return date.getFullYear() === now.getFullYear();
+  if (period === "month") return dateKey.slice(0, 7) === nowKey.slice(0, 7);
+  if (period === "year") return dateKey.slice(0, 4) === nowKey.slice(0, 4);
   return true;
 }
 
@@ -294,7 +391,8 @@ export function orderLifecycleLabel(order: Order) {
     return isLifetimeText(order.plan_name) ? "PAID · Trọn đời" : "PAID · Hết hạn";
   }
   if (status === "PENDING") {
-    return order.expire_at && new Date(order.expire_at).getTime() < Date.now()
+    const expireMillis = safeDateMillis(order.expire_at);
+    return expireMillis !== null && expireMillis < Date.now()
       ? "Chưa thanh toán / quá hạn"
       : "Đang chờ thanh toán";
   }

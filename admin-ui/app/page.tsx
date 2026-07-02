@@ -106,6 +106,7 @@ import {
   orderMoney,
   payloadText,
   providerRevenueFormat,
+  safeDateMillis,
   statusClass,
   logEntryTypeLabel,
   orderStatusLabel,
@@ -2459,8 +2460,8 @@ function couponLastUsedAt(coupon: Coupon) {
 function couponIsExpired(coupon: Coupon) {
   if (String(coupon.status || "").toUpperCase() !== "ACTIVE") return true;
   if (!coupon.expires_at) return false;
-  const expire = new Date(coupon.expires_at);
-  return !Number.isNaN(expire.getTime()) && expire.getTime() <= Date.now();
+  const expire = safeDateMillis(coupon.expires_at);
+  return expire !== null && expire <= Date.now();
 }
 
 function couponIsUsed(coupon: Coupon) {
@@ -2547,8 +2548,8 @@ function renderLimitedTags(items: string[], prefix: string, limit = 4) {
 
 function datetimeLocalToIso(value: string) {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  const millis = safeDateMillis(value);
+  return millis === null ? null : new Date(millis).toISOString();
 }
 function hiddenRequirementNeedsValue(value: string | null | undefined) {
   return ["PLAN_TOKEN_ACTIVE", "PLAN_TOKEN_LIFETIME"].includes(String(value || "").toUpperCase());
@@ -2601,10 +2602,9 @@ function channelPostTabFor(post: ChannelPost): ChannelPostTab {
 }
 function datePlusDaysText(value: string | null | undefined, days: number) {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  date.setDate(date.getDate() + days);
-  return dateText(date.toISOString());
+  const date = safeDateMillis(value);
+  if (date === null) return "-";
+  return dateText(new Date(date + days * 86400000).toISOString());
 }
 
 function normalizeChatId(value: string | number | null | undefined) {
@@ -3345,7 +3345,7 @@ export default function Home() {
       showNotice("error", "Cần nhập mã hidden code hoặc tên để hệ thống tự tạo mã.");
       return;
     }
-    if (validFrom && validUntil && new Date(validUntil).getTime() < new Date(validFrom).getTime()) {
+    if (validFrom && validUntil && (safeDateMillis(validUntil) ?? 0) < (safeDateMillis(validFrom) ?? 0)) {
       showNotice("error", "Thời gian hết hạn phải sau thời gian bắt đầu.");
       return;
     }
@@ -3942,12 +3942,12 @@ export default function Home() {
     const sortForTab = (list: Coupon[], tabKey: CouponTab) => {
       return [...list].sort((a, b) => {
         if (tabKey === "used") {
-          return new Date(couponLastUsedAt(b) || b.created_at || "").getTime() - new Date(couponLastUsedAt(a) || a.created_at || "").getTime();
+          return (safeDateMillis(couponLastUsedAt(b) || b.created_at) ?? 0) - (safeDateMillis(couponLastUsedAt(a) || a.created_at) ?? 0);
         }
         if (tabKey === "expired") {
-          return new Date(b.expires_at || b.created_at || "").getTime() - new Date(a.expires_at || a.created_at || "").getTime();
+          return (safeDateMillis(b.expires_at || b.created_at) ?? 0) - (safeDateMillis(a.expires_at || a.created_at) ?? 0);
         }
-        return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+        return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
       });
     };
     return {
@@ -4064,7 +4064,7 @@ export default function Home() {
     const now = Date.now();
     for (const item of activationCodes) {
       const status = String(item.activation_status || "PENDING").toUpperCase();
-      const expired = item.expire_at ? new Date(item.expire_at).getTime() < now : false;
+      const expired = (safeDateMillis(item.expire_at) ?? Number.POSITIVE_INFINITY) < now;
       buckets.ALL.push(item);
       if (expired && status !== "USED") buckets.EXPIRED.push(item);
       if (status === "USED") buckets.USED.push(item);
@@ -4083,16 +4083,16 @@ export default function Home() {
     ) : rows;
     return filtered.sort((a, b) => {
       if (activationCodeSort === "expiring") {
-        const aTime = a.expire_at ? new Date(a.expire_at).getTime() : Number.MAX_SAFE_INTEGER;
-        const bTime = b.expire_at ? new Date(b.expire_at).getTime() : Number.MAX_SAFE_INTEGER;
+        const aTime = safeDateMillis(a.expire_at) ?? Number.MAX_SAFE_INTEGER;
+        const bTime = safeDateMillis(b.expire_at) ?? Number.MAX_SAFE_INTEGER;
         return aTime - bTime;
       }
       if (activationCodeSort === "recently_used") {
-        const aTime = new Date(a.used_at || a.activated_at || 0).getTime();
-        const bTime = new Date(b.used_at || b.activated_at || 0).getTime();
+        const aTime = safeDateMillis(a.used_at || a.activated_at) ?? 0;
+        const bTime = safeDateMillis(b.used_at || b.activated_at) ?? 0;
         return bTime - aTime;
       }
-      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     });
   }, [activationCodeQuery, activationCodeSort, activationCodeTab, activationCodesByStatus]);
 
@@ -4332,7 +4332,11 @@ export default function Home() {
     const sourceOrders = orders.filter((item) => item.status === "PAID" && isWithinPeriod(item.created_at, overviewTrendRange));
     const groupMap = new Map<string, Order[]>();
     for (const order of sourceOrders) {
-      const key = overviewTrendRange === "month" ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(new Date(order.created_at || "")) : new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "2-digit" }).format(new Date(order.created_at || ""));
+      const orderDate = safeDateMillis(order.created_at);
+      const keyDate = orderDate ? new Date(orderDate) : null;
+      const key = overviewTrendRange === "month"
+        ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(keyDate || new Date())
+        : new Intl.DateTimeFormat("vi-VN", { month: "2-digit", year: "2-digit" }).format(keyDate || new Date());
       groupMap.set(key, [...(groupMap.get(key) || []), order]);
     }
     return Array.from(groupMap.entries()).map(([label, items]) => ({
@@ -4421,12 +4425,12 @@ export default function Home() {
       const latestExpire = paidOrders
         .map((item) => item.expire_at)
         .filter(Boolean)
-        .sort((a, b) => new Date(b || "").getTime() - new Date(a || "").getTime())[0] || "";
+        .sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
       const coupons = uniqueValues(customer.orders.map(orderCouponCode));
       const groups = uniqueValues(customer.orders.flatMap(groupNamesForOrder));
       const plans = uniqueValues(customer.orders.map((item) => item.plan_name));
       const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
-      const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || "";
+      const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
       const hasLifetimeSvip = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name) && String(item.plan_name || "").toLowerCase().includes("svip"));
       const hasLifetimeOrder = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name));
       const expiringWithinWindow = customer.orders.some((item) => item.status === "PAID" && !isLifetimeText(item.plan_name) && (() => {
@@ -4461,7 +4465,7 @@ export default function Home() {
         statusLabel: status === "active" ? "Đang còn hạn" : status === "expiring" ? "Sắp hết hạn" : status === "expired" ? "Hết hạn / chờ kick" : "Chưa PAID",
         statusColor: status === "active" ? "success" : status === "expiring" ? "warning" : status === "expired" ? "error" : "default",
       };
-    }).sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime());
+    }).sort((a, b) => (safeDateMillis(b.lastOrderAt) ?? 0) - (safeDateMillis(a.lastOrderAt) ?? 0));
   }, [orders, reminderNoticeDays]);
   const customerSummaryById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item] as const)), [customerSummaries]);
   const customerNameById = useMemo(() => new Map(customerSummaries.map((item) => [item.id, item.name] as const)), [customerSummaries]);
@@ -4505,20 +4509,20 @@ export default function Home() {
     return [...selectedCustomer.orders].sort((a, b) => {
       const statusDiff = score(a) - score(b);
       if (statusDiff !== 0) return statusDiff;
-      const aExpire = new Date(a.expire_at || 0).getTime();
-      const bExpire = new Date(b.expire_at || 0).getTime();
+      const aExpire = safeDateMillis(a.expire_at) ?? 0;
+      const bExpire = safeDateMillis(b.expire_at) ?? 0;
       if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
-      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     });
   }, [selectedCustomer]);
   const selectedCustomerRenewTargetOrder = useMemo(() => {
     if (!selectedCustomer) return null;
     const candidates = selectedCustomer.activeOrders.length ? selectedCustomer.activeOrders : selectedCustomer.paidOrders;
     return [...candidates].sort((a, b) => {
-      const aExpire = new Date(a.expire_at || 0).getTime();
-      const bExpire = new Date(b.expire_at || 0).getTime();
+      const aExpire = safeDateMillis(a.expire_at) ?? 0;
+      const bExpire = safeDateMillis(b.expire_at) ?? 0;
       if (!Number.isNaN(aExpire) && !Number.isNaN(bExpire) && aExpire !== bExpire) return aExpire - bExpire;
-      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     })[0] || null;
   }, [selectedCustomer]);
   const selectedCustomerRenewPlanOptions = useMemo(() => {
@@ -4571,7 +4575,7 @@ export default function Home() {
       .map((item) => ({
         key: `vip-${item.audit_id}`,
         type: item.status,
-        sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
+        sortKey: safeDateMillis(item.latest_kick_at || item.expire_at) ?? 0,
         row: [
           <Tooltip key={`vip-${item.audit_id}-status-tip`} title={tooltipLabel(auditStatusLabel(item.status_label || item.status), item.status)} arrow>
             <span key={`vip-${item.audit_id}-status`} className={statusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>
@@ -4597,7 +4601,7 @@ export default function Home() {
       .map((item) => ({
         key: `kick-${item.audit_id}`,
         type: item.status,
-        sortKey: new Date(item.latest_kick_at || item.expire_at || 0).getTime(),
+        sortKey: safeDateMillis(item.latest_kick_at || item.expire_at) ?? 0,
         row: [
           <Tooltip key={`kick-${item.audit_id}-status-tip`} title={tooltipLabel(auditStatusLabel(item.status_label || item.status), item.status)} arrow>
             <span key={`kick-${item.audit_id}-status`} className={kickAuditStatusClass(item.status)}>{auditStatusLabel(item.status_label || item.status)}</span>
@@ -4626,7 +4630,7 @@ export default function Home() {
     if (!selectedCustomer) return [];
     return supportEvents
       .filter((item) => String(item.telegram_user_id || "").trim() === selectedCustomer.id)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
   }, [selectedCustomer, supportEvents]);
   const selectedCustomerTimelineRows = useMemo(() => {
     if (!selectedCustomer) return [];
@@ -4680,7 +4684,7 @@ export default function Home() {
 
     const rows = [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
       .filter((item) => item.createdAt)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0))
       .map((item) => ({
         key: item.key,
         type: item.type,
@@ -4733,8 +4737,8 @@ export default function Home() {
     const firstPaidAt = customer?.paidOrders
       .map((order) => order.created_at)
       .filter(Boolean)
-      .sort((a, b) => new Date(a || "").getTime() - new Date(b || "").getTime())[0] || "";
-    const daysFromFirstPaid = firstPaidAt ? Math.max(0, Math.floor((Date.now() - new Date(firstPaidAt).getTime()) / 86400000)) : Number.MAX_SAFE_INTEGER;
+      .sort((a, b) => (safeDateMillis(a) ?? 0) - (safeDateMillis(b) ?? 0))[0] || "";
+    const daysFromFirstPaid = firstPaidAt ? Math.max(0, Math.floor((Date.now() - (safeDateMillis(firstPaidAt) ?? Date.now())) / 86400000)) : Number.MAX_SAFE_INTEGER;
     const isNewCustomer = paidCount <= 1 || daysFromFirstPaid <= 14;
     const expireDays = "expire_at" in item ? daysUntil(item.expire_at) : Number.MAX_SAFE_INTEGER;
     const latestReminder = options?.reminderSentAt || ("last_reminder_date" in item ? item.last_reminder_date || "" : "");
@@ -4753,9 +4757,9 @@ export default function Home() {
       });
       if (aPriority[0] !== bPriority[0]) return aPriority[0] - bPriority[0];
       if (aPriority[1] !== bPriority[1]) return aPriority[1] - bPriority[1];
-      const expireDiff = new Date(a.expire_at || "").getTime() - new Date(b.expire_at || "").getTime();
+      const expireDiff = (safeDateMillis(a.expire_at) ?? 0) - (safeDateMillis(b.expire_at) ?? 0);
       if (!Number.isNaN(expireDiff) && expireDiff !== 0) return expireDiff;
-      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     });
   }
   function sortRenewalEvents<T extends SupportEvent>(items: T[]) {
@@ -4764,7 +4768,7 @@ export default function Home() {
       const bPriority = renewalPriorityScore(b);
       if (aPriority[0] !== bPriority[0]) return aPriority[0] - bPriority[0];
       if (aPriority[1] !== bPriority[1]) return aPriority[1] - bPriority[1];
-      return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     });
   }
   const supportNameById = useMemo(() => {
@@ -4790,7 +4794,7 @@ export default function Home() {
       const orderId = event.order_id || "";
       if (!orderId) continue;
       const current = map.get(orderId);
-      if (!current || new Date(event.created_at).getTime() > new Date(current.created_at).getTime()) {
+      if (!current || (safeDateMillis(event.created_at) ?? 0) > (safeDateMillis(current.created_at) ?? 0)) {
         map.set(orderId, event);
       }
     }
@@ -4803,11 +4807,11 @@ export default function Home() {
     for (const item of supportEvents.filter((event) => event.event_type === "member_kicked")) {
       const key = [item.telegram_user_id || "", item.order_id || "", item.chat_id || ""].join("|");
       const current = map.get(key);
-      if (!current || new Date(item.created_at).getTime() > new Date(current.created_at).getTime()) {
+      if (!current || (safeDateMillis(item.created_at) ?? 0) > (safeDateMillis(current.created_at) ?? 0)) {
         map.set(key, item);
       }
     }
-    return Array.from(map.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return Array.from(map.values()).sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
   }, [supportEvents]);
   const sortedExpiringToday = useMemo(() => sortRenewalOrders(expiringToday, { forceImportant: true }), [expiringToday]);
   const sortedReminderEvents = useMemo(() => sortRenewalEvents(renewalReminderEvents), [renewalReminderEvents]);
@@ -4822,12 +4826,12 @@ export default function Home() {
   const expiredRenewalOrders = useMemo(() => {
     return [...orders]
       .filter((item) => ["PAID", "EXPIRED"].includes(String(item.status || "").toUpperCase()) && item.expire_at && !isLifetimeText(item.plan_name) && daysUntil(item.expire_at) < 0)
-      .sort((a, b) => new Date(b.expire_at || b.created_at || "").getTime() - new Date(a.expire_at || a.created_at || "").getTime());
+      .sort((a, b) => (safeDateMillis(b.expire_at || b.created_at) ?? 0) - (safeDateMillis(a.expire_at || a.created_at) ?? 0));
   }, [orders]);
   const lifetimeRenewalOrders = useMemo(() => {
     return [...orders]
       .filter((item) => String(item.status || "").toUpperCase() === "PAID" && isLifetimeText(item.plan_name))
-      .sort((a, b) => new Date(b.paid_at || b.created_at || "").getTime() - new Date(a.paid_at || a.created_at || "").getTime());
+      .sort((a, b) => (safeDateMillis(b.paid_at || b.created_at) ?? 0) - (safeDateMillis(a.paid_at || a.created_at) ?? 0));
   }, [orders]);
   const remindedToday = useMemo(() => paidMemberOrders.filter((item) => item.last_reminder_date && isTodayDate(item.last_reminder_date)), [paidMemberOrders]);
   function renewalCustomerName(item: Order | SupportEvent) {
@@ -4916,7 +4920,7 @@ export default function Home() {
     lifetime: ["Khách", "Gói", "Ngày mua", "Nguồn", "Group"],
   };
   const renewalNoticeEvents = useMemo(() => {
-    return [...renewalReminderEvents, ...expiredNoticeEvents].sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
+    return [...renewalReminderEvents, ...expiredNoticeEvents].sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
   }, [renewalReminderEvents, expiredNoticeEvents]);
   function renewalNoticeLabel(event: SupportEvent) {
     return event.event_type === "expired_notice_sent" ? "Báo hết hạn" : "Nhắc gia hạn";
@@ -4998,7 +5002,7 @@ export default function Home() {
       };
     });
 
-    const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => new Date(b || "").getTime() - new Date(a || "").getTime())[0] || "";
+    const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
     
     // Overall status logic
     let overallStatus: "Đã kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" | "Chờ audit" = "Chờ audit";
@@ -5169,13 +5173,13 @@ export default function Home() {
   const botScheduleStatus = botScheduleStatusApi;
   const overviewRecentOrders = useMemo(() => {
     return [...orders]
-      .sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime())
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0))
       .slice(0, 10);
   }, [orders]);
   const overviewNewCustomers = useMemo(() => {
     return [...customerSummaries]
       .filter((item) => item.lastOrderAt || item.hasAnyPaidOrder || item.orders.length)
-      .sort((a, b) => new Date(b.lastOrderAt || "").getTime() - new Date(a.lastOrderAt || "").getTime())
+      .sort((a, b) => (safeDateMillis(b.lastOrderAt) ?? 0) - (safeDateMillis(a.lastOrderAt) ?? 0))
       .slice(0, 10);
   }, [customerSummaries]);
   const overviewRecentUserActivity = useMemo(() => {
@@ -5184,7 +5188,7 @@ export default function Home() {
         const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
         return chatType !== "group" && chatType !== "supergroup" && chatType !== "channel";
       })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0))
       .slice(0, 10);
   }, [activityEvents]);
   const overviewRecentNotifications = useMemo(() => {
@@ -5232,7 +5236,7 @@ export default function Home() {
         createdAt: event.created_at,
         userId: event.telegram_user_id || "",
       }));
-    return [...userEvents, ...botEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
+    return [...userEvents, ...botEvents].sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0)).slice(0, 10);
   }, [activityEvents, supportEvents]);
   const overviewExpiringCustomers = useMemo(() => {
     return [...customerSummaries]
@@ -5294,7 +5298,7 @@ export default function Home() {
       feed.push({ type: "order", id: `order-paid-${o.order_id}`, priority: 1, title: `Đơn mới: ${o.order_id}`, detail: `${o.full_name || "Khách ẩn danh"} • ${o.plan_name}`, time: o.created_at, tone: "good" });
     });
 
-    return feed.sort((a, b) => b.priority - a.priority || new Date(b.time).getTime() - new Date(a.time).getTime());
+    return feed.sort((a, b) => b.priority - a.priority || (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0));
   }, [missingCore, webhookMeta, webhook, botScheduleStatus, orders, expiringSoon]);
 
   const activityStream = useMemo(() => {
@@ -5308,12 +5312,12 @@ export default function Home() {
         time: e.created_at,
       });
     });
-    return stream.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    return stream.sort((a, b) => (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0));
   }, [overviewRecentUserActivity, customerNameById]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)
-      .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+      .sort((a, b) => (safeDateMillis(b.updated_at || b.created_at) ?? 0) - (safeDateMillis(a.updated_at || a.created_at) ?? 0));
   }, [channelPosts, channelPostTab]);
   const totalChannelPostPages = Math.max(1, Math.ceil(visibleChannelPosts.length / CHANNEL_POST_PAGE_SIZE));
   const pagedChannelPosts = useMemo(() => {
@@ -5916,7 +5920,7 @@ export default function Home() {
                 </Typography>
                 <Stack spacing={2}>
                   {actionableFeed.length ? actionableFeed.map((item, idx) => {
-                    const isNew = new Date().getTime() - new Date(item.time).getTime() < 24 * 60 * 60 * 1000;
+                    const isNew = Date.now() - (safeDateMillis(item.time) ?? 0) < 24 * 60 * 60 * 1000;
                     
                     // Determine elegant icon styling
                     let iconBg = "rgba(16, 185, 129, 0.1)";
@@ -8789,7 +8793,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
     if (statusDiff !== 0) return statusDiff;
     const activeDiff = Number(isOrderActive(b)) - Number(isOrderActive(a));
     if (activeDiff !== 0) return activeDiff;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
   });
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const statusChip = (order: Order) => {
