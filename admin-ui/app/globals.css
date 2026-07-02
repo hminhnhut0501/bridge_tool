@@ -2077,8 +2077,9 @@ td select {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-/* --- NEW SETUP UI: Pricing Tables & Bento Grid --- */
+}
 
+/* --- NEW SETUP UI: Pricing Tables & Bento Grid --- */
 .pricing-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -2358,6 +2359,8 @@ td select {
 }
 
 /* ------------------------------------------- */
+
+.feed-content {
   flex-grow: 1;
   min-width: 0;
   display: flex;
