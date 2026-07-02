@@ -5724,7 +5724,7 @@ export default function Home() {
 
                     return (
                       <Box key={`${item.id}-${idx}`} className={`feed-item ${isNew ? "unread" : ""}`} sx={{ animationDelay: `${idx * 0.05}s`, cursor: "pointer" }} onClick={handleFeedClick}>
-                        {isNew && <div className={`feed-dot ${item.tone}`} />}
+                        {isNew && <div className={`feed-dot tone-${item.tone}`} />}
                         <div className="feed-icon" style={{ background: iconBg, color: iconColor }}>
                           {item.type === "alert" ? <ShieldCheck size={20} /> : item.type === "order" ? <ClipboardList size={20} /> : <Users size={20} />}
                         </div>
@@ -8253,7 +8253,7 @@ function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail:
       variant="outlined"
       sx={{
         height: "100%",
-        borderRadius: 4,
+        borderRadius: "16px",
         boxShadow: "0 12px 26px rgba(15, 23, 42, 0.05)",
         bgcolor: ok ? "rgba(236,253,245,0.9)" : "rgba(254,242,242,0.9)",
         borderColor: ok ? "rgba(167,243,208,0.9)" : "rgba(254,202,202,0.9)",
