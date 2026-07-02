@@ -554,7 +554,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "hiddenMessages" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -2697,6 +2697,7 @@ export default function Home() {
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [hiddenSetupView, setHiddenSetupView] = useState<HiddenSetupView>("groups");
   const [hiddenGroupModalOpen, setHiddenGroupModalOpen] = useState(false);
+  const [specialGroupSettingsOpen, setSpecialGroupSettingsOpen] = useState(false);
   const [hiddenCodeModalOpen, setHiddenCodeModalOpen] = useState(false);
   const [hiddenGroupForm, setHiddenGroupForm] = useState<HiddenGroupFormState>({ ...EMPTY_HIDDEN_GROUP_FORM });
   const [hiddenCodeForm, setHiddenCodeForm] = useState<HiddenCodeFormState>({ ...EMPTY_HIDDEN_CODE_FORM });
@@ -5528,7 +5529,7 @@ export default function Home() {
               <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
               <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
               <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
-              <Tab value="hiddenMessages" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Hidden text</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
               <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
@@ -5797,105 +5798,6 @@ export default function Home() {
                   );
                 }) : <div className="empty-card">Chưa có nhóm nào. Bấm <strong>Thêm nhóm mới</strong>, nhập tên nhóm và Telegram group ID rồi lưu.</div>}
               </div>
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Hidden access"
-                subtitle="Quản lý nhóm extra ẩn, mã reveal và lịch sử người đã mở catalog."
-                action={(
-                  <div className="panel-actions">
-                    {hiddenSetupView === "groups" ? <Button variant="contained" size="small" onClick={openNewHiddenGroupModal} startIcon={<Plus size={16} />}>Thêm Hidden Group</Button> : null}
-                    {hiddenSetupView === "codes" ? <Button variant="contained" size="small" onClick={openNewHiddenCodeModal} startIcon={<Plus size={16} />}>Thêm Hidden Code</Button> : null}
-                  </div>
-                )}
-              />
-              <div className="status-grid">
-                <Metric label="Hidden group" value={String(hiddenGroups.length)} />
-                <Metric label="Đang bật" value={String(hiddenGroups.filter((item) => item.is_active).length)} />
-                <Metric label="Hidden code" value={String(hiddenCodes.length)} />
-                <Metric label="Lượt mở catalog" value={String(hiddenRedemptions.length)} />
-              </div>
-              <Tabs value={hiddenSetupView} onChange={(_, next) => setHiddenSetupView(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="groups" label="Nhóm ẩn" />
-                <Tab value="codes" label="Mã reveal" />
-                <Tab value="activity" label="Lịch sử mở mã" />
-              </Tabs>
-              {hiddenSetupView === "groups" ? (
-                <>
-                  <div className="hint compact">
-                    Mỗi hidden group là một entitlement riêng. ID nên ngắn gọn, ổn định như <code>prime_alpha</code> vì nó đi vào plan token và scheduler.
-                  </div>
-                  <div className="toolbar hidden-toolbar">
-                    <TextField value={hiddenGroupQuery} onChange={(event) => setHiddenGroupQuery(event.target.value)} placeholder="Tìm theo ID, tên nhóm, chat ID..." size="small" fullWidth />
-                  </div>
-                  <div className="group-list">
-                    {filteredHiddenGroups.length ? filteredHiddenGroups.map((item) => (
-                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.id}>
-                        <span>{item.id}</span>
-                        <div className="hidden-row-copy">
-                          <strong>{item.name || "Chưa đặt tên"}</strong>
-                          <em>{item.chat_id || "Chưa có group ID"} • {hiddenRequirementLabel(item.requirement_type)} • {hiddenCodeUsageByGroup.get(item.id) || 0} mã đang trỏ vào</em>
-                          <div className="tag-list">
-                            <span>{item.is_active ? "Đang bán" : "Tạm tắt"}</span>
-                            <span>30 ngày {money(item.price_1m_vnd || 0)}</span>
-                            <span>Trọn đời {money(item.price_life_vnd || 0)}</span>
-                            <span>USD {Number(item.price_1m_usd || 0).toFixed(2)} / {Number(item.price_life_usd || 0).toFixed(2)}</span>
-                            <span>{item.duration_1m_days}d / {item.lifetime_days}d</span>
-                          </div>
-                        </div>
-                        <div className="coupon-row-actions">
-                          <Button variant="outlined" size="small" onClick={() => openEditHiddenGroupModal(item)} disabled={saving === `hidden-group-${item.id}`}>Sửa</Button>
-                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}>Xóa</Button>
-                        </div>
-                      </div>
-                    )) : <div className="empty-card">Chưa có Hidden Group khớp bộ lọc.</div>}
-                  </div>
-                </>
-              ) : null}
-              {hiddenSetupView === "codes" ? (
-                <>
-                  <div className="hint compact">
-                    Hidden code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
-                  </div>
-                  <div className="toolbar hidden-toolbar">
-                    <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
-                  </div>
-                  <div className="group-list">
-                    {filteredHiddenCodes.length ? filteredHiddenCodes.map((item) => (
-                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.code}>
-                        <span>{item.code}</span>
-                        <div className="hidden-row-copy">
-                          <strong>{item.name || "Không tên"}</strong>
-                          <em>{hiddenScopeLabel(item.scope_type)} • {hiddenRequirementLabel(item.requirement_type)} • used {item.used_count}/{item.max_uses || "∞"}</em>
-                          <div className="tag-list">
-                            <span>{item.is_active ? "Đang bật" : "Tạm tắt"}</span>
-                            <span>{hiddenValidityText(item)}</span>
-                            <span>{item.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Toàn bộ hidden group active" : `${item.group_ids.length} group cụ thể`}</span>
-                            {(item.group_ids || []).slice(0, 4).map((groupId) => <span key={`${item.code}-${groupId}`}>{groupId}</span>)}
-                            {item.group_ids.length > 4 ? <span>+{item.group_ids.length - 4} group</span> : null}
-                          </div>
-                        </div>
-                        <div className="coupon-row-actions">
-                          <Button variant="outlined" size="small" onClick={() => copyHiddenCode(item.code)} disabled={saving === `hidden-code-copy-${item.code}`}>Copy mã</Button>
-                          <Button variant="outlined" size="small" onClick={() => openEditHiddenCodeModal(item)} disabled={saving === `hidden-code-${item.code}`}>Sửa</Button>
-                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}>Xóa</Button>
-                        </div>
-                      </div>
-                    )) : <div className="empty-card">Chưa có Hidden Code khớp bộ lọc.</div>}
-                  </div>
-                </>
-              ) : null}
-              {hiddenSetupView === "activity" ? (
-                <SimpleTable
-                  headers={["Thời gian", "Mã", "Người dùng", "Nhóm đã reveal"]}
-                  rows={hiddenRedemptions.map((item) => [
-                    dateText(item.created_at),
-                    <strong key={`code-${item.id || item.code}`}>{item.code}</strong>,
-                    <><strong>{item.full_name || item.username || item.telegram_user_id}</strong><div className="muted">{item.telegram_user_id}{item.username ? ` • @${item.username}` : ""}</div></>,
-                    item.revealed_group_ids?.length ? item.revealed_group_ids.join(", ") : "-",
-                  ])}
-                />
-              ) : null}
             </section>
           </div>
         ) : null}
@@ -6813,22 +6715,108 @@ export default function Home() {
           </div>
         ) : null}
 
-        {tab === "hiddenMessages" ? (
+        {tab === "specialGroups" ? (
           <div className="stack">
-            <section className="panel content-hub">
-              <PanelHead title="Hidden text" subtitle="Toàn bộ text hiển thị khi nhập hidden code hoặc gặp lỗi hidden được gom ở đây." />
-              <Tabs value="messages" onChange={() => undefined} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="messages" label="Messages" />
+            <div className="grid">
+              <Metric label="Special group" value={String(hiddenGroups.length)} accent="blue" icon={<Users size={20} />} />
+              <Metric label="Đang hoạt động" value={String(hiddenGroups.filter((item) => item.is_active).length)} accent="emerald" icon={<CheckCircle2 size={20} />} />
+              <Metric label="Special code" value={String(hiddenCodes.length)} accent="amber" icon={<Ticket size={20} />} />
+              <Metric label="Lượt mở catalog" value={String(hiddenRedemptions.length)} accent="violet" icon={<Activity size={20} />} />
+            </div>
+            <section className="panel">
+              <PanelHead
+                title="Special Group"
+                subtitle="Quản lý nhóm đặc biệt ẩn, mã reveal và lịch sử người đã mở catalog."
+                action={(
+                  <div className="panel-actions">
+                    <IconButton onClick={() => setSpecialGroupSettingsOpen(true)} color="primary" sx={{ mr: 1 }} title="Cài đặt tin nhắn Special Group"><Settings size={18} /></IconButton>
+                    {hiddenSetupView === "groups" ? <Button variant="contained" size="small" onClick={openNewHiddenGroupModal} startIcon={<Plus size={16} />}>Thêm Special Group</Button> : null}
+                    {hiddenSetupView === "codes" ? <Button variant="contained" size="small" onClick={openNewHiddenCodeModal} startIcon={<Plus size={16} />}>Thêm Special Code</Button> : null}
+                  </div>
+                )}
+              />
+              <Tabs value={hiddenSetupView} onChange={(_, next) => setHiddenSetupView(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="groups" label="Nhóm đặc biệt" />
+                <Tab value="codes" label="Mã reveal" />
+                <Tab value="activity" label="Lịch sử mở mã" />
               </Tabs>
+              {hiddenSetupView === "groups" ? (
+                <>
+                  <div className="hint compact">
+                    Mỗi Special Group là một entitlement riêng. ID nên ngắn gọn, ổn định như <code>prime_alpha</code> vì nó đi vào plan token và scheduler.
+                  </div>
+                  <div className="toolbar hidden-toolbar">
+                    <TextField value={hiddenGroupQuery} onChange={(event) => setHiddenGroupQuery(event.target.value)} placeholder="Tìm theo ID, tên nhóm, chat ID..." size="small" fullWidth />
+                  </div>
+                  <div className="group-list">
+                    {filteredHiddenGroups.length ? filteredHiddenGroups.map((item) => (
+                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.id}>
+                        <span>{item.id}</span>
+                        <div className="hidden-row-copy">
+                          <strong>{item.name || "Chưa đặt tên"}</strong>
+                          <em>{item.chat_id || "Chưa có group ID"} • {hiddenRequirementLabel(item.requirement_type)} • {hiddenCodeUsageByGroup.get(item.id) || 0} mã đang trỏ vào</em>
+                          <div className="tag-list">
+                            <span>{item.is_active ? "Đang bán" : "Tạm tắt"}</span>
+                            <span>30 ngày {money(item.price_1m_vnd || 0)}</span>
+                            <span>Trọn đời {money(item.price_life_vnd || 0)}</span>
+                            <span>USD {Number(item.price_1m_usd || 0).toFixed(2)} / {Number(item.price_life_usd || 0).toFixed(2)}</span>
+                            <span>{item.duration_1m_days}d / {item.lifetime_days}d</span>
+                          </div>
+                        </div>
+                        <div className="coupon-row-actions">
+                          <Button variant="outlined" size="small" onClick={() => openEditHiddenGroupModal(item)} disabled={saving === `hidden-group-${item.id}`}>Sửa</Button>
+                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenGroupAction(item.id)} disabled={saving === `hidden-group-delete-${item.id}`}>Xóa</Button>
+                        </div>
+                      </div>
+                    )) : <div className="empty-card">Chưa có Special Group khớp bộ lọc.</div>}
+                  </div>
+                </>
+              ) : null}
+              {hiddenSetupView === "codes" ? (
+                <>
+                  <div className="hint compact">
+                    Special Code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
+                  </div>
+                  <div className="toolbar hidden-toolbar">
+                    <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
+                  </div>
+                  <div className="group-list">
+                    {filteredHiddenCodes.length ? filteredHiddenCodes.map((item) => (
+                      <div className={item.is_active ? "group-row ok hidden-row" : "group-row hidden-row"} key={item.code}>
+                        <span>{item.code}</span>
+                        <div className="hidden-row-copy">
+                          <strong>{item.name || "Không tên"}</strong>
+                          <em>{hiddenScopeLabel(item.scope_type)} • {hiddenRequirementLabel(item.requirement_type)} • used {item.used_count}/{item.max_uses || "∞"}</em>
+                          <div className="tag-list">
+                            <span>{item.is_active ? "Đang bật" : "Tạm tắt"}</span>
+                            <span>{hiddenValidityText(item)}</span>
+                            <span>{item.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Toàn bộ Special Group active" : `${item.group_ids.length} group cụ thể`}</span>
+                            {(item.group_ids || []).slice(0, 4).map((groupId) => <span key={`${item.code}-${groupId}`}>{groupId}</span>)}
+                            {item.group_ids.length > 4 ? <span>+{item.group_ids.length - 4} group</span> : null}
+                          </div>
+                        </div>
+                        <div className="coupon-row-actions">
+                          <Button variant="outlined" size="small" onClick={() => copyHiddenCode(item.code)} disabled={saving === `hidden-code-copy-${item.code}`}>Copy mã</Button>
+                          <Button variant="outlined" size="small" onClick={() => openEditHiddenCodeModal(item)} disabled={saving === `hidden-code-${item.code}`}>Sửa</Button>
+                          <Button variant="outlined" color="error" size="small" onClick={() => removeHiddenCodeAction(item.code)} disabled={saving === `hidden-code-delete-${item.code}`}>Xóa</Button>
+                        </div>
+                      </div>
+                    )) : <div className="empty-card">Chưa có Special Code khớp bộ lọc.</div>}
+                  </div>
+                </>
+              ) : null}
+              {hiddenSetupView === "activity" ? (
+                <SimpleTable
+                  headers={["Thời gian", "Mã", "Người dùng", "Nhóm đã reveal"]}
+                  rows={hiddenRedemptions.map((item) => [
+                    dateText(item.created_at),
+                    <strong key={`code-${item.id || item.code}`}>{item.code}</strong>,
+                    <><strong>{item.full_name || item.username || item.telegram_user_id}</strong><div className="muted">{item.telegram_user_id}{item.username ? ` • @${item.username}` : ""}</div></>,
+                    item.revealed_group_ids?.length ? item.revealed_group_ids.join(", ") : "-",
+                  ])}
+                />
+              ) : null}
             </section>
-            <ConfigEditor
-              title="Hidden messages"
-              subtitle="Chỉnh text hợp lệ, không hợp lệ và các rule hidden tại một nơi."
-              fields={HIDDEN_MESSAGE_FIELDS}
-              values={fieldValues}
-              setValues={setFieldValues}
-              onSave={saveFields}
-            />
           </div>
         ) : null}
 
@@ -7159,14 +7147,34 @@ export default function Home() {
           <SettingsConfigModal title="Cài đặt giá All Access chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá All Access." fields={ALL_ACCESS_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
         ) : null}
 
+        {specialGroupSettingsOpen ? (
+          <SettingsConfigModal
+            title="Cài đặt tin nhắn Special Group"
+            subtitle="Toàn bộ text hiển thị khi khách nhập mã special, gặp lỗi, hoặc không đủ điều kiện mở khóa."
+            fields={HIDDEN_MESSAGE_FIELDS}
+            values={fieldValues}
+            setValues={setFieldValues}
+            onSave={saveFields}
+            onClose={() => setSpecialGroupSettingsOpen(false)}
+          />
+        ) : null}
+
         {groupModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title={`Cấu hình nhóm G${groupNo}`}
-                subtitle="Tên nhóm, group ID và giá bán được lưu tập trung tại đây."
-                action={<IconButton color="error" size="small" onClick={() => setGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
+          <MuiDialogShell
+            open
+            title={`Cấu hình nhóm G${groupNo}`}
+            subtitle="Tên nhóm, group ID và giá bán được lưu tập trung tại đây."
+            onClose={() => setGroupModalOpen(false)}
+            maxWidth="md"
+            actions={
+              <>
+                <Button variant="outlined" onClick={() => setGroupModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" color="error" onClick={removeGroupConfig} disabled={saving === "group-delete"} startIcon={<Trash2 size={16} />}>Xoá nhóm</Button>
+                <Button variant="contained" onClick={saveGroupConfig} disabled={saving === "group"} startIcon={saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu nhóm</Button>
+              </>
+            }
+          >
+            <Box sx={{ p: 2 }}>
               <div className="form-grid">
                 <TextField
                   className="field"
@@ -7180,7 +7188,7 @@ export default function Home() {
                   sx={popupFieldSx}
                   slotProps={{ htmlInput: { inputMode: "numeric", pattern: "[0-9]*" } }}
                 />
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, gridColumn: "1 / -1", mt: -0.5, mb: 0.5 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, gridColumn: "1 / -1", mt: -0.5, mb: 1.5 }}>
                   {groupQuickOptions.map((item) => (
                     <Chip key={item} label={`G${item}${visibleGroups.map(String).includes(item) ? "" : " mới"}`} clickable variant={String(groupNo) === String(item) ? "filled" : "outlined"} color={String(groupNo) === String(item) ? "primary" : "default"} onClick={() => fillGroupForm(item)} />
                   ))}
@@ -7193,28 +7201,31 @@ export default function Home() {
                 <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} />
               </div>
-              <div className="modal-actions">
-                <Button variant="outlined" onClick={() => setGroupModalOpen(false)}>Đóng</Button>
-                <Button variant="outlined" color="error" onClick={removeGroupConfig} disabled={saving === "group-delete"} startIcon={<Trash2 size={16} />}>Xoá nhóm</Button>
-                <Button variant="contained" onClick={saveGroupConfig} disabled={saving === "group"} startIcon={saving === "group" ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu nhóm</Button>
-              </div>
-            </section>
-          </div>
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {hiddenGroupModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title={hiddenGroupForm.id ? `Hidden Group: ${hiddenGroupForm.id}` : "Tạo Hidden Group"}
-                subtitle="Thiết lập group extra ẩn, giá, hạn và điều kiện mua. Không còn phải nhập JSON thủ công."
-                action={<IconButton color="error" size="small" onClick={() => setHiddenGroupModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
+          <MuiDialogShell
+            open
+            title={hiddenGroupForm.id ? `Special Group: ${hiddenGroupForm.id}` : "Tạo Special Group"}
+            subtitle="Thiết lập group đặc biệt ẩn, giá, hạn và điều kiện mua. Không còn phải nhập JSON thủ công."
+            onClose={() => setHiddenGroupModalOpen(false)}
+            maxWidth="md"
+            actions={
+              <>
+                <Button variant="outlined" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</Button>
+                {hiddenGroupForm.id ? <Button variant="outlined" onClick={() => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(hiddenGroupForm.name) || hiddenGroupForm.id })} startIcon={<RefreshCw size={16} />}>Tạo lại ID từ tên</Button> : null}
+                <Button variant="contained" onClick={saveHiddenGroup} disabled={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}`} startIcon={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Special Group</Button>
+              </>
+            }
+          >
+            <Box sx={{ p: 2 }}>
               <div className="form-grid">
                 <TextField className="field" label="ID kỹ thuật" value={hiddenGroupForm.id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(event.target.value) })} placeholder="VD: prime_alpha" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng trong plan token dạng <code>HG:prime_alpha:1M</code>. Để trống thì hệ thống tự tạo từ tên.</span>} />
                 <TextField className="field" label="Tên hiển thị" value={hiddenGroupForm.name} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, name: event.target.value })} placeholder="VD: Prime Alpha" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Telegram group ID" value={hiddenGroupForm.chat_id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, chat_id: event.target.value })} placeholder="-1001234567890" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field wide" label="Mô tả ngắn" value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu hidden group." fullWidth multiline minRows={4} sx={popupFieldSx} />
+                <TextField className="field wide" label="Mô tả ngắn" value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu Special Group." fullWidth multiline minRows={4} sx={popupFieldSx} />
                 <div className="hint compact wide">Giá duration nào để 0 thì bot sẽ không hiện nút mua duration đó. Nếu chỉ bán trọn đời, để giá 30 ngày VND/USD = 0 và chỉ nhập giá trọn đời.</div>
                 <TextField className="field" label="Giá VNĐ 30 ngày" value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: event.target.value })} inputMode="numeric" placeholder="99000" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá VNĐ trọn đời" value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: event.target.value })} inputMode="numeric" placeholder="299000" fullWidth size="small" sx={popupFieldSx} />
@@ -7239,26 +7250,29 @@ export default function Home() {
                   </Select>
                 </FormControl>
               </div>
-              <div className="modal-actions">
-                <Button variant="outlined" onClick={() => setHiddenGroupModalOpen(false)}>Đóng</Button>
-                {hiddenGroupForm.id ? <Button variant="outlined" onClick={() => setHiddenGroupForm({ ...hiddenGroupForm, id: hiddenSlug(hiddenGroupForm.name) || hiddenGroupForm.id })} startIcon={<RefreshCw size={16} />}>Tạo lại ID từ tên</Button> : null}
-                <Button variant="contained" onClick={saveHiddenGroup} disabled={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}`} startIcon={saving === `hidden-group-${hiddenGroupForm.id || hiddenSlug(hiddenGroupForm.name) || "new"}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Hidden Group</Button>
-              </div>
-            </section>
-          </div>
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {hiddenCodeModalOpen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <section className="modal-panel wide-modal">
-              <PanelHead
-                title={hiddenCodeForm.code ? `Hidden Code: ${hiddenCodeForm.code}` : "Tạo Hidden Code"}
-                subtitle="Mã reveal catalog hidden group. Có thể giới hạn group, điều kiện và khoảng thời gian sử dụng."
-                action={<IconButton color="error" size="small" onClick={() => setHiddenCodeModalOpen(false)} title="Đóng"><XCircle size={18} /></IconButton>}
-              />
-              <Box sx={{ display: "grid", gap: 1.5, p: 2 }}>
+          <MuiDialogShell
+            open
+            title={hiddenCodeForm.code ? `Special Code: ${hiddenCodeForm.code}` : "Tạo Special Code"}
+            subtitle="Mã reveal catalog Special Group. Có thể giới hạn group, điều kiện và khoảng thời gian sử dụng."
+            onClose={() => setHiddenCodeModalOpen(false)}
+            maxWidth="md"
+            actions={
+              <>
+                <Button variant="outlined" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</Button>
+                <Button variant="outlined" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })} startIcon={<RefreshCw size={16} />}>Gợi ý mã từ tên</Button>
+                <Button variant="contained" onClick={saveHiddenCode} disabled={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}`} startIcon={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Special Code</Button>
+              </>
+            }
+          >
+            <Box sx={{ p: 2 }}>
+              <Box sx={{ display: "grid", gap: 1.5 }}>
                 <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-                  <TextField className="field" label="Mã hidden" value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" fullWidth size="small" sx={popupFieldSx} helperText="Bot chỉ hiện hidden catalog cho người nhập đúng mã này." />
+                  <TextField className="field" label="Mã special" value={hiddenCodeForm.code} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, code: event.target.value.toUpperCase().replace(/\s+/g, "-") })} placeholder="VD: PRIME-ALPHA" fullWidth size="small" sx={popupFieldSx} helperText="Bot chỉ hiện Special catalog cho người nhập đúng mã này." />
                   <TextField className="field" label="Tên nội bộ" value={hiddenCodeForm.name} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, name: event.target.value })} placeholder="VD: Code bán cho cộng tác viên A" fullWidth size="small" sx={popupFieldSx} />
                   <FormControl className="field" fullWidth size="small">
                     <InputLabel id="hidden-code-active-label">Trạng thái</InputLabel>
@@ -7271,13 +7285,13 @@ export default function Home() {
                   <FormControl className="field" fullWidth size="small">
                     <InputLabel id="hidden-code-scope-label">Phạm vi reveal</InputLabel>
                     <Select labelId="hidden-code-scope-label" label="Phạm vi reveal" value={hiddenCodeForm.scope_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, scope_type: event.target.value })} sx={popupSelectSx}>
-                      {HIDDEN_SCOPE_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                      {HIDDEN_SCOPE_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label.replace(/hidden/gi, "Special")}</MenuItem>)}
                     </Select>
                   </FormControl>
                   <FormControl className="field" fullWidth size="small">
                     <InputLabel id="hidden-code-requirement-label">Điều kiện override</InputLabel>
                     <Select labelId="hidden-code-requirement-label" label="Điều kiện override" value={hiddenCodeForm.requirement_type} onChange={(event) => setHiddenCodeForm({ ...hiddenCodeForm, requirement_type: event.target.value, requirement_value: hiddenRequirementNeedsValue(event.target.value) ? hiddenCodeForm.requirement_value : "" })} sx={popupSelectSx}>
-                      <MenuItem value="">Dùng rule của hidden group</MenuItem>
+                      <MenuItem value="">Dùng rule của Special Group</MenuItem>
                       {HIDDEN_REQUIREMENT_OPTIONS.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
                     </Select>
                   </FormControl>
@@ -7289,8 +7303,8 @@ export default function Home() {
                 </Box>
                 <div className="coupon-scope">
                   <div className="coupon-scope-head">
-                    <strong>Hidden groups được reveal</strong>
-                    <span className="muted">{hiddenCodeForm.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Đang áp dụng cho mọi hidden group active." : `${hiddenCodeForm.group_ids.length} group đã chọn`}</span>
+                    <strong>Special Groups được reveal</strong>
+                    <span className="muted">{hiddenCodeForm.scope_type === "ALL_ACTIVE_HIDDEN_GROUPS" ? "Đang áp dụng cho mọi Special Group active." : `${hiddenCodeForm.group_ids.length} group đã chọn`}</span>
                   </div>
                   {hiddenCodeForm.scope_type === "SELECTED_GROUPS" ? (
                     hiddenGroups.length ? (
@@ -7305,19 +7319,14 @@ export default function Home() {
                           </label>
                         ))}
                       </div>
-                    ) : <div className="empty-card">Cần tạo Hidden Group trước khi gán cho Hidden Code.</div>
+                    ) : <div className="empty-card">Cần tạo Special Group trước khi gán cho Special Code.</div>
                   ) : (
-                    <div className="hint compact">Code này sẽ tự reveal toàn bộ Hidden Group đang bật, nên không cần chọn group thủ công.</div>
+                    <div className="hint compact">Code này sẽ tự reveal toàn bộ Special Group đang bật, nên không cần chọn group thủ công.</div>
                   )}
                 </div>
               </Box>
-              <div className="modal-actions">
-                <Button variant="outlined" onClick={() => setHiddenCodeModalOpen(false)}>Đóng</Button>
-                <Button variant="outlined" onClick={() => setHiddenCodeForm({ ...hiddenCodeForm, code: hiddenCodeSeed(hiddenCodeForm.name || hiddenCodeForm.description || "hidden-code") })} startIcon={<RefreshCw size={16} />}>Gợi ý mã từ tên</Button>
-                <Button variant="contained" onClick={saveHiddenCode} disabled={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}`} startIcon={saving === `hidden-code-${(hiddenCodeForm.code.trim() || hiddenCodeSeed(hiddenCodeForm.name)).toUpperCase()}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}>Lưu Hidden Code</Button>
-              </div>
-            </section>
-          </div>
+            </Box>
+          </MuiDialogShell>
         ) : null}
 
         {campaignModalOpen ? (
