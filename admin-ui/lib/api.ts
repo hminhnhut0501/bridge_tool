@@ -760,7 +760,7 @@ export async function kickAuditMember(secret: string, payload: KickAuditPayload)
 }
 
 export async function getActivityEvents(secret: string) {
-  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events?limit=5000", secret);
+  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events?limit=50", secret);
 }
 
 export async function getActivityLog(
