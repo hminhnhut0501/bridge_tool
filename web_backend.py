@@ -1487,6 +1487,7 @@ async def admin_create_manual_order(request: Request):
             "payment_provider": payment_provider,
             "paid_at": paid_at.isoformat(timespec="seconds"),
             "expire_at": format_manual_expire_at(expire_at.isoformat(timespec="seconds")),
+            "expire_at_iso": expire_at.isoformat(timespec="seconds"),
             "group_names": ", ".join(group_names),
             "links_text": links_text,
             "activation_code": activation_code,
@@ -1556,6 +1557,7 @@ async def admin_generate_manual_active_code(request: Request):
     full_name = str(body.get("full_name", "")).strip()
     plan_name = str(body.get("plan_name", "")).strip()
     expire_at_str = str(body.get("expire_at", "")).strip()
+    expire_at_iso = str(body.get("expire_at_iso", "")).strip()
 
     if not order_id or not telegram_user_id or not plan_name:
         raise HTTPException(status_code=400, detail="Thiếu thông tin đơn hàng.")
@@ -1570,14 +1572,14 @@ async def admin_generate_manual_active_code(request: Request):
             telegram_user_id=telegram_user_id,
             full_name=full_name or telegram_user_id,
             plan_name=plan_name,
-            expire_at=expire_at_str,
+            expire_at=expire_at_iso or expire_at_str,
             activation_url=activation_url,
             raw_data={
                 "manual_order": True,
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "plan_name": plan_name,
-                "expire_at": expire_at_str,
+                "expire_at": expire_at_iso or expire_at_str,
             },
         )
     except Exception as exc:

@@ -5506,6 +5506,7 @@ export default function Home() {
         full_name: manualOrderResult.full_name,
         plan_name: manualOrderResult.plan_name,
         expire_at: manualOrderResult.expire_at,
+        expire_at_iso: manualOrderResult.expire_at_iso,
       });
       
       setManualOrderResult(prev => {
@@ -5527,6 +5528,10 @@ export default function Home() {
     await runAction("generate-join-link", async () => {
       const res = await generateManualJoinLink(savedSecret, {
         order_id: manualOrderResult.order_id,
+        telegram_user_id: manualOrderResult.telegram_user_id,
+        plan_name: manualOrderResult.plan_name,
+        full_name: manualOrderResult.full_name,
+        expire_at: manualOrderResult.expire_at,
       });
       
       setManualOrderResult(prev => {
