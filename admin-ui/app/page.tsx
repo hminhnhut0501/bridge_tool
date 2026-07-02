@@ -5725,74 +5725,79 @@ export default function Home() {
       >
         <Box sx={{ px: 1.5, pt: 0.75, pb: 2, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <Box sx={{ mt: 1, pr: 0.5, display: "grid", gap: 1.25, overflow: "visible" }}>
-          <Box>
-            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
-              Vận hành
-            </Typography>
-            <Tabs
-              orientation="vertical"
-              value={tab}
-              onChange={(_, next) => selectTab(next)}
-              variant="scrollable"
-              scrollButtons={false}
-              textColor="inherit"
-              sx={sidebarTabSx}
-            >
-              <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
-              <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
-              <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="activityLog" icon={<ClipboardList size={16} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
-              <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
-            </Tabs>
-          </Box>
-          <Box>
-            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
-              Tin nhắn bot
-            </Typography>
-            <Tabs
-              orientation="vertical"
-              value={tab}
-              onChange={(_, next) => selectTab(next)}
-              variant="scrollable"
-              scrollButtons={false}
-              textColor="inherit"
-              sx={sidebarTabSx}
-            >
-              <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Support inbox")} />
-            </Tabs>
-          </Box>
-          <Box>
-            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
-              Cấu hình
-            </Typography>
-            <Tabs
-              orientation="vertical"
-              value={tab}
-              onChange={(_, next) => selectTab(next)}
-              variant="scrollable"
-              scrollButtons={false}
-              textColor="inherit"
-              sx={sidebarTabSx}
-            >
-              <Tab value="supportGroup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Khu vực hỗ trợ", "Support area")} />
-              <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình bot", "Bot config")} />
-              <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
-              <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
-              <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
-              <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
-              <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
-              <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
-              <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
-              <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
-            </Tabs>
-          </Box>
+          {(() => {
+            const activeSidebarTab = 
+              ["orders", "renewals"].includes(tab) ? "orders" :
+              ["customers", "activityLog"].includes(tab) ? "customers" :
+              ["setup", "specialGroups"].includes(tab) ? "setup" :
+              ["sales", "coupons", "activationCodes"].includes(tab) ? "sales" :
+              ["campaigns", "channelPosts"].includes(tab) ? "campaigns" :
+              ["content", "autoPayment", "supportGroup"].includes(tab) ? "content" :
+              ["botVi", "botEn", "botTools", "menuBuilder"].includes(tab) ? "botVi" :
+              ["system", "security"].includes(tab) ? "system" :
+              tab;
+            
+            return (
+              <>
+                <Box>
+                  <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+                    QUẢN LÝ VẬN HÀNH
+                  </Typography>
+                  <Tabs
+                    orientation="vertical"
+                    value={activeSidebarTab}
+                    onChange={(_, next) => selectTab(next)}
+                    variant="scrollable"
+                    scrollButtons={false}
+                    textColor="inherit"
+                    sx={sidebarTabSx}
+                  >
+                    <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+                    <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
+                    <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Đơn hàng & Gia hạn", "Orders & Renewals")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+                    <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Khách hàng & Nhật ký", "Customers & Logs")}</span><Chip size="small" label={String(customerSummaries.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+                    <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Bot messages")} />
+                  </Tabs>
+                </Box>
+                <Box>
+                  <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+                    SẢN PHẨM & MARKETING
+                  </Typography>
+                  <Tabs
+                    orientation="vertical"
+                    value={activeSidebarTab}
+                    onChange={(_, next) => selectTab(next)}
+                    variant="scrollable"
+                    scrollButtons={false}
+                    textColor="inherit"
+                    sx={sidebarTabSx}
+                  >
+                    <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá bán", "Groups & pricing")} />
+                    <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label={ui("Khuyến mãi & Code", "Promos & Codes")} />
+                    <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Chiến dịch & Kênh</span><Chip size="small" label={String(campaigns.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+                  </Tabs>
+                </Box>
+                <Box>
+                  <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
+                    CẤU HÌNH HỆ THỐNG
+                  </Typography>
+                  <Tabs
+                    orientation="vertical"
+                    value={activeSidebarTab}
+                    onChange={(_, next) => selectTab(next)}
+                    variant="scrollable"
+                    scrollButtons={false}
+                    textColor="inherit"
+                    sx={sidebarTabSx}
+                  >
+                    <Tab value="content" icon={<Settings size={16} />} iconPosition="start" label={ui("Cấu hình Bot chung", "Bot Config")} />
+                    <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label={ui("Giao diện & Ngôn ngữ", "UI & Language")} />
+                    <Tab value="system" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Hệ thống & Bảo mật", "System & Security")} />
+                  </Tabs>
+                </Box>
+              </>
+            );
+          })()}
         </Box>
         </Box>
       </Drawer>
@@ -5835,6 +5840,82 @@ export default function Home() {
             <strong>Cần hoàn tất cấu hình</strong>
             <Box component="span" sx={{ display: "block" }}>{missingCore.join(" • ")}</Box>
           </Alert>
+        ) : null}
+
+        {["orders", "renewals"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="orders" label="Quản lý đơn hàng" />
+              <Tab value="renewals" label="Theo dõi gia hạn" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["customers", "activityLog"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="customers" label="Danh sách khách hàng" />
+              <Tab value="activityLog" label="Nhật ký hệ thống" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["setup", "specialGroups"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="setup" label="Nhóm & giá bán" />
+              <Tab value="specialGroups" label="Special Group" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["sales", "coupons", "activationCodes"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="sales" label="Khuyến mãi (Sale rules)" />
+              <Tab value="coupons" label="Mã giảm giá" />
+              <Tab value="activationCodes" label="Mã kích hoạt" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["campaigns", "channelPosts"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="campaigns" label="Chiến dịch Broadcast" />
+              <Tab value="channelPosts" label="Đăng Channel" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["content", "autoPayment", "supportGroup"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="content" label="Cấu hình bot chung" />
+              <Tab value="autoPayment" label="Auto Payment" />
+              <Tab value="supportGroup" label="Khu vực hỗ trợ" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["botVi", "botEn", "botTools", "menuBuilder"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="botVi" label="Giao diện Bot tiếng Việt" />
+              <Tab value="botEn" label="Giao diện Bot tiếng Anh" />
+              <Tab value="botTools" label="Lệnh & cảnh báo" />
+              <Tab value="menuBuilder" label="Menu Builder" />
+            </Tabs>
+          </Box>
+        ) : null}
+
+        {["system", "security"].includes(tab) ? (
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 3 }}>
+            <Tabs value={tab} onChange={(_, next) => selectTab(next)} variant="scrollable">
+              <Tab value="system" label="Cấu hình hệ thống" />
+              <Tab value="security" label="Bảo mật" />
+            </Tabs>
+          </Box>
         ) : null}
 
         {tab === "overview" ? (
