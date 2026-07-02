@@ -2310,6 +2310,8 @@ const EMPTY_MANUAL_ORDER_FORM = {
   full_name: "",
   plan_key: "FULL_1M",
   plan_name: "",
+  special_group_id: "",
+  special_group_duration: "1M",
   note: "",
   amount: "0",
   expiry_mode: "days",
@@ -4232,6 +4234,8 @@ export default function Home() {
       full_name: selectedCustomer.name || selectedCustomer.id,
       plan_key: defaultOrder ? "CUSTOM" : "FULL_1M",
       plan_name: defaultOrder?.plan_name || manualPlanNameFromKey("FULL_1M"),
+      special_group_id: "",
+      special_group_duration: "1M",
       amount: defaultOrder ? String(defaultOrder.amount || "0") : (manualPriceFromKey("FULL_1M") || "0"),
       payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
       payment_provider: String(defaultOrder?.payment_provider || "MANUAL").toUpperCase(),
@@ -4360,6 +4364,7 @@ export default function Home() {
     ...discountPlanKeyOptions,
     "CUSTOM",
   ], [discountPlanKeyOptions]);
+  const activeSpecialGroups = useMemo(() => hiddenGroups.filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [hiddenGroups]);
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
@@ -5405,6 +5410,23 @@ export default function Home() {
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
   }
 
+  function hiddenGroupDurationLabel(group: HiddenGroup, durationKey: string) {
+    return String(durationKey).toUpperCase() === "LIFE"
+      ? "Trọn Đời"
+      : `${group.duration_1m_days || 30} Ngày`;
+  }
+
+  function hiddenGroupManualPrice(group: HiddenGroup, durationKey: string, currency: string) {
+    const useUsd = String(currency || "VND").toUpperCase() === "USD";
+    if (String(durationKey).toUpperCase() === "LIFE") return useUsd ? group.price_life_usd : group.price_life_vnd;
+    return useUsd ? group.price_1m_usd : group.price_1m_vnd;
+  }
+
+  function hiddenGroupManualPlanName(group: HiddenGroup, durationKey: string) {
+    const durationLabel = hiddenGroupDurationLabel(group, durationKey);
+    return `Hidden - ${group.name} - ${durationLabel} [PT:HG:${group.id}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}]`;
+  }
+
   function changeManualPlanKey(value: string) {
     const lifetime = isLifetimeCouponPlan(value);
     setManualOrderForm({
@@ -5415,7 +5437,35 @@ export default function Home() {
       expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
+      special_group_id: "",
+      special_group_duration: "1M",
     });
+  }
+
+  function changeManualSpecialGroup(groupId: string, durationKey = manualOrderForm.special_group_duration || "1M") {
+    const group = activeSpecialGroups.find((item) => item.id === groupId) || null;
+    const normalizedDuration = String(durationKey || "1M").toUpperCase() === "LIFE" ? "LIFE" : "1M";
+    const nextPlanName = group ? hiddenGroupManualPlanName(group, normalizedDuration) : "";
+    const nextAmount = group ? String(hiddenGroupManualPrice(group, normalizedDuration, manualOrderForm.payment_currency) || "0") : manualOrderForm.amount;
+    setManualOrderForm({
+      ...manualOrderForm,
+      plan_key: group ? "CUSTOM" : manualOrderForm.plan_key,
+      special_group_id: groupId,
+      special_group_duration: normalizedDuration,
+      plan_name: nextPlanName || manualOrderForm.plan_name,
+      amount: nextAmount,
+      expiry_mode: "days",
+      duration_days: normalizedDuration === "LIFE"
+        ? String(group?.lifetime_days || lifetimeCouponDays || 3650)
+        : String(group?.duration_1m_days || manualOrderForm.duration_days || 30),
+    });
+  }
+
+  function manualOrderPlanNameDisplay() {
+    const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
+    if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
+    if (manualOrderForm.plan_key === "CUSTOM") return manualOrderForm.plan_name;
+    return manualPlanNameFromKey(manualOrderForm.plan_key);
   }
 
   function manualExpiryPreview() {
@@ -5471,7 +5521,9 @@ export default function Home() {
   }
 
   async function saveManualOrder() {
-    const planName = manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key);
+    const specialGroup = activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null;
+    const specialPlanName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualOrderForm.special_group_duration || "1M") : "";
+    const planName = specialPlanName || (manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key));
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
     const durationDays = manualOrderForm.expiry_mode === "days" ? manualOrderForm.duration_days : "";
@@ -5622,6 +5674,8 @@ export default function Home() {
       telegram_user_id: nextCustomerId,
       full_name: customer?.name && customer.name !== "-" ? customer.name : current.full_name,
       plan_name: customer?.paidOrders.length ? current.plan_name : manualPlanNameFromKey("FULL_1M"),
+      special_group_id: "",
+      special_group_duration: "1M",
     }));
     setManualOrderModalOpen(true);
     setCustomerQuickLookupOpen(false);
@@ -8039,7 +8093,21 @@ export default function Home() {
                   <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
                     {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
                   </TextField>
-                  <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
+                  <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn để tạo đơn cho group đặc biệt / hidden." : "Chưa có Special Group đang hoạt động."}>
+                    <MenuItem value="">
+                      <em>Không dùng Special Group</em>
+                    </MenuItem>
+                    {activeSpecialGroups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>{group.name} ({group.chat_id})</MenuItem>
+                    ))}
+                  </TextField>
+                  {manualOrderForm.special_group_id ? (
+                    <TextField select label="Hạn Special Group" value={manualOrderForm.special_group_duration} onChange={(event) => changeManualSpecialGroup(manualOrderForm.special_group_id, event.target.value)} size="small" helperText="Dùng để khớp đúng token plan và giá của hidden group.">
+                      <MenuItem value="1M">30 ngày</MenuItem>
+                      <MenuItem value="LIFE">Trọn đời</MenuItem>
+                    </TextField>
+                  ) : null}
+                  <TextField label="Tên gói lưu vào đơn" value={manualOrderPlanNameDisplay()} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM", special_group_id: "", special_group_duration: "1M" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
                   <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
 
@@ -8047,7 +8115,15 @@ export default function Home() {
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
                     <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân." />
-                    <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })} size="small">
+                    <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => {
+                      const nextCurrency = event.target.value;
+                      const selectedGroup = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
+                      setManualOrderForm({
+                        ...manualOrderForm,
+                        payment_currency: nextCurrency,
+                        amount: selectedGroup ? String(hiddenGroupManualPrice(selectedGroup, manualOrderForm.special_group_duration || "1M", nextCurrency) || "0") : manualOrderForm.amount,
+                      });
+                    }} size="small">
                       <MenuItem value="VND">VNĐ</MenuItem>
                       <MenuItem value="USD">USD</MenuItem>
                       <MenuItem value="USDT">USDT</MenuItem>
