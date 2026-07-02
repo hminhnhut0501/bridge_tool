@@ -3130,7 +3130,7 @@ export default function Home() {
       const needsSales = !light && shouldLoad("sales");
       const needsCoupons = !light && shouldLoad("overview", "coupons");
       const needsActivationCodes = !light && shouldLoad("activationCodes");
-      const needsHidden = !light && shouldLoad("setup", "coupons");
+      const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
       const needsBlacklist = !light && shouldLoad("security");
       const needsSupportEvents = !light && shouldLoad("renewals", "supportGroup");
       const needsKickAudit = !light && shouldLoad("renewals");
