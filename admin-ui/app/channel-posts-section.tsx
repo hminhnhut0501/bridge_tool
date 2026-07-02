@@ -18,8 +18,30 @@ export function ChannelPostsSection(props: any) {
         <Metric label="Có lỗi" value={String(channelPostCounts.failed)} accent="blue" />
       </Box>
       <AppSection title="Đăng channel" subtitle="Soạn bài, gắn nút inline, hẹn giờ đăng hoặc hẹn giờ xóa bài khỏi Telegram. Bot phải là admin của channel/group nhận bài." action={<AppToolbar><Button variant="contained" size="small" onClick={openNewChannelPostModal} startIcon={<Plus size={16} />}>Soạn bài mới</Button></AppToolbar>} accent="cyan">
-        <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", p: 2 }}>
-          {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => <Button key={tab} variant={channelPostTab === tab ? "contained" : "outlined"} sx={channelPostTab === tab ? statusButtonSx("success") : statusButtonSx("muted")} onClick={() => setChannelPostTab(tab)}>{tab}</Button>)}
+        <Box sx={{ display: "flex", p: 0.5, mx: 2, mt: 2, mb: 1, bgcolor: "rgba(15, 23, 42, 0.04)", borderRadius: "8px", border: "1px solid rgba(15, 23, 42, 0.05)", overflowX: "auto" }}>
+          {["draft", "queue", "scheduled", "sent", "failed", "deleted"].map((tab) => (
+            <Box
+              key={tab}
+              onClick={() => setChannelPostTab(tab)}
+              sx={{
+                flex: 1,
+                textAlign: "center",
+                px: 2,
+                py: 0.75,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                borderRadius: "6px",
+                color: channelPostTab === tab ? "primary.main" : "text.secondary",
+                bgcolor: channelPostTab === tab ? "#ffffff" : "transparent",
+                boxShadow: channelPostTab === tab ? "0 1px 3px rgba(15,23,42,0.1)" : "none",
+                transition: "all 200ms ease",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {tab.toUpperCase()}
+            </Box>
+          ))}
         </Box>
         <SimpleTable
           headers={["Bài đăng", "Channel/Group", "Trạng thái", "Lịch", "Telegram", "Lỗi"]}

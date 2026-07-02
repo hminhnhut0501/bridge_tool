@@ -104,12 +104,12 @@ const baseTheme = createTheme({
           letterSpacing: styleGuide.typography.bodyTracking,
         },
         contained: {
-          boxShadow: "0 10px 22px rgba(37, 99, 235, 0.16)",
-          backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
+          boxShadow: "0 8px 20px rgba(0, 102, 255, 0.16)",
+          backgroundImage: "linear-gradient(135deg, #0066ff 0%, #00a2ff 100%)",
           color: "#ffffff",
           "&:hover": {
-            backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
-            boxShadow: "0 12px 26px rgba(37, 99, 235, 0.22)",
+            backgroundImage: "linear-gradient(135deg, #0052cc 0%, #0088cc 100%)",
+            boxShadow: "0 10px 24px rgba(0, 102, 255, 0.22)",
           },
         },
         outlined: {
@@ -118,13 +118,13 @@ const baseTheme = createTheme({
           color: styleGuide.palette.primary.main,
           "&:hover": {
             borderColor: styleGuide.palette.primary.dark,
-            backgroundColor: "rgba(25, 118, 210, 0.04)",
+            backgroundColor: "rgba(0, 102, 255, 0.04)",
           },
         },
         text: {
           color: styleGuide.palette.primary.main,
           "&:hover": {
-            backgroundColor: "rgba(37, 99, 235, 0.06)",
+            backgroundColor: "rgba(0, 102, 255, 0.06)",
           },
         },
       },
@@ -135,9 +135,7 @@ const baseTheme = createTheme({
           minHeight: 44,
           padding: 4,
           borderRadius: 999,
-          backgroundColor: "rgba(255,255,255,0.78)",
-          border: `1px solid ${styleGuide.palette.divider}`,
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.82)",
+          backgroundColor: "#f1f5f9",
           gap: 6,
         },
         indicator: {
@@ -172,17 +170,17 @@ const baseTheme = createTheme({
           textTransform: "none",
           transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
           "&:hover": {
-            backgroundColor: "rgba(25, 118, 210, 0.06)",
-            borderColor: "rgba(37,99,235,0.10)",
+            backgroundColor: "rgba(0, 102, 255, 0.06)",
+            borderColor: "rgba(0, 102, 255, 0.10)",
           },
           "&.Mui-selected": {
-            backgroundImage: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
-            borderColor: "rgba(37,99,235,0.18)",
+            backgroundImage: "linear-gradient(135deg, #0066ff 0%, #00a2ff 100%)",
+            borderColor: "rgba(0, 102, 255, 0.18)",
             color: "#ffffff",
-            boxShadow: "0 8px 18px rgba(25, 118, 210, 0.16)",
+            boxShadow: "0 8px 18px rgba(0, 102, 255, 0.16)",
           },
           "&.Mui-selected:hover": {
-            backgroundImage: "linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%)",
+            backgroundImage: "linear-gradient(135deg, #0052cc 0%, #0088cc 100%)",
             borderColor: styleGuide.palette.primary.dark,
           },
           "& .MuiTab-iconWrapper": {
@@ -308,7 +306,8 @@ const baseTheme = createTheme({
           borderRadius: styleGuide.shape.cardRadius,
           borderColor: styleGuide.palette.divider,
           boxShadow: styleGuide.shadows.card,
-          backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)",
+          backgroundImage: "none",
+          backgroundColor: styleGuide.palette.background.paper,
         },
       },
     },
@@ -328,7 +327,7 @@ const baseTheme = createTheme({
     MuiDialog: {
       styleOverrides: {
         root: {
-          backdropFilter: "blur(6px)",
+          backgroundColor: "rgba(15, 23, 42, 0.4)",
         },
         paper: {
           borderRadius: styleGuide.shape.dialogRadius,
@@ -342,8 +341,8 @@ const baseTheme = createTheme({
       styleOverrides: {
         root: {
           padding: "22px 24px 18px",
-          background: "linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(255,255,255,0.9) 100%)",
-          borderBottom: "1px solid #e6ebf0",
+          background: "#ffffff",
+          borderBottom: "1px solid #f1f5f9",
         },
       },
     },
@@ -351,7 +350,7 @@ const baseTheme = createTheme({
       styleOverrides: {
         root: {
           padding: 24,
-          backgroundColor: "#f4f6f8",
+          backgroundColor: "#ffffff",
         },
       },
     },
@@ -360,7 +359,7 @@ const baseTheme = createTheme({
         root: {
           padding: "16px 24px 22px",
           background: "#ffffff",
-          borderTop: "1px solid #e6ebf0",
+          borderTop: "1px solid #f1f5f9",
         },
       },
     },

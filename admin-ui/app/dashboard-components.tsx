@@ -24,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId, useState, useEffect } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
 import { dateText, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
@@ -96,14 +96,11 @@ export function MetricCard({ label, value, tone, note, accent: sectionAccent, ic
   const toneToken = sectionAccent ? sectionAccentTone(sectionAccent) : tone ? tonePalette[tone] : tonePalette.neutral;
   const accent = toneToken.main;
   const bg = toneToken.bg;
-  const glow = toneToken.glow;
   const IconNode = icon || (tone === "vnd" ? <TrendingUp size={16} /> : tone === "usd" ? <CreditCard size={16} /> : tone === "crypto" ? <Coins size={16} /> : tone === "payos" ? <ShieldCheck size={16} /> : tone === "paypal" ? <BadgeDollarSign size={16} /> : <Activity size={16} />);
   const compactValue = (() => {
-    const cleaned = value
+    const cleaned = String(value)
       .replace(/^PAYOS:\s*/i, "")
       .replace(/^PAYPAL:\s*/i, "")
-      .replace(/^NOWPAYMENTS:\s*/i, "")
-      .replace(/^NOWPAYMENTS\s*\/\s*USDT:\s*/i, "")
       .replace(/^CRYPTO:\s*/i, "")
       .replace(/\bCRYPTO\b$/i, "")
       .trim();
@@ -114,32 +111,41 @@ export function MetricCard({ label, value, tone, note, accent: sectionAccent, ic
       sx={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "28px",
-        minHeight: 136,
+        borderRadius: "16px",
+        minHeight: 104,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        bgcolor: bg,
-        borderColor: `${accent}18`,
-        backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.88) 0%, ${bg} 38%, rgba(255,255,255,0.96) 100%)`,
-        boxShadow: `0 10px 26px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255,255,255,0.92), 0 0 0 1px ${glow}`,
+        bgcolor: "#ffffff",
+        backgroundImage: `linear-gradient(135deg, #ffffff 40%, ${bg} 100%)`,
+        border: "1px solid",
+        borderColor: "divider",
+        boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)",
+        transition: "transform 250ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "&:hover": {
+          transform: "translateY(-4px)",
+          boxShadow: `0 12px 32px ${toneToken.glow || "rgba(15, 23, 42, 0.08)"}`,
+        },
       }}
     >
-      <Box sx={{ position: "absolute", inset: 10, borderRadius: "22px", pointerEvents: "none", background: `radial-gradient(circle at 16% 18%, rgba(255,255,255,0.84) 0%, transparent 18%), radial-gradient(circle at 84% 18%, ${glow} 0%, transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 54%)`, opacity: 0.92 }} />
-      <CardContent sx={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 1, minHeight: 132, "&:last-child": { pb: 2 } }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
-            <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "999px", bgcolor: "#ffffff", color: accent, border: `1px solid ${accent}12`, boxShadow: `0 8px 18px ${accent}10` }}>{IconNode}</Box>
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25, fontWeight: 800, letterSpacing: "-0.01em" }}>{label}</Typography>
+      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: 104, p: 2.25, "&:last-child": { pb: 2.25 } }}>
+        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+            <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: "12px", background: `linear-gradient(135deg, ${accent} 0%, ${accent}dd 100%)`, color: "#ffffff", boxShadow: `0 4px 12px ${toneToken.glow || "rgba(15, 23, 42, 0.08)"}` }}>{IconNode}</Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.2 }}>{label}</Typography>
           </Box>
-          <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, height: 30, px: 1.1, borderRadius: "999px", bgcolor: "rgba(255,255,255,0.88)", color: "#7c8798", border: "1px solid rgba(226,232,240,0.95)", fontSize: "0.78rem", fontWeight: 800, letterSpacing: "0.04em" }}>
-            {tone === "vnd" ? "VND" : tone === "usd" ? "USD" : tone === "crypto" ? "CRYPTO" : tone === "payos" ? "PAYOS" : tone === "paypal" ? "PAYPAL" : ""}
-          </Box>
+          <Chip
+            size="small"
+            label={tone === "vnd" ? "VND" : tone === "usd" ? "USD" : tone === "crypto" ? "CRYPTO" : tone === "payos" ? "PAYOS" : tone === "paypal" ? "PAYPAL" : ""}
+            sx={{ display: tone && tone !== "neutral" ? "inline-flex" : "none", fontSize: "0.7rem", fontWeight: 800, height: 22, bgcolor: "#ffffff", color: accent, border: `1px solid ${accent}33`, boxShadow: "0 2px 4px rgba(15,23,42,0.02)" }}
+          />
         </Box>
-        <Typography sx={{ mt: "auto", fontWeight: 900, lineHeight: 0.94, letterSpacing: "-0.04em", fontSize: { xs: "1.75rem", sm: "2rem", md: "2.2rem" }, wordBreak: "break-word", overflowWrap: "anywhere", maxWidth: "100%", color: "text.primary" }}>
-          {compactValue}
-        </Typography>
-        {note ? <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, fontSize: "0.93rem" }}>{note}</Typography> : null}
+        <Box sx={{ mt: "auto" }}>
+          <Typography sx={{ fontWeight: 800, lineHeight: 1.1, fontSize: { xs: "1.45rem", sm: "1.65rem", md: "1.85rem" }, letterSpacing: "-0.02em", wordBreak: "break-word", color: "text.primary" }}>
+            {compactValue}
+          </Typography>
+          {note ? <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block", fontWeight: 600 }}>{note}</Typography> : null}
+        </Box>
       </CardContent>
     </Card>
   );
@@ -148,7 +154,7 @@ export function MetricCard({ label, value, tone, note, accent: sectionAccent, ic
 export function PanelHead({ title, subtitle, action, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
   const tone = sectionAccentTone(accent);
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper", backgroundImage: `radial-gradient(circle at top left, ${tone.bg} 0%, rgba(255,255,255,0.96) 46%), linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,1) 100%)` }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
       <Box sx={{ position: "relative", pl: 1.75 }}>
         <Box sx={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: 999, bgcolor: tone.main }} />
         <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>{title}</Typography>
@@ -168,22 +174,15 @@ export function AppToolbar({ children }: { children: ReactNode }) {
 }
 
 export function AppSection({ title, subtitle, action, children, compact = false, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; compact?: boolean; accent?: SectionTone }) {
-  const tone = sectionAccentTone(accent);
   return (
     <Card
-      variant="outlined"
       sx={{
         overflow: "hidden",
         position: "relative",
-        borderRadius: styleGuide.shape.cardRadius,
-        boxShadow: `0 16px 36px ${tone.main}12`,
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          height: 4,
-          background: `linear-gradient(90deg, ${tone.main}, rgba(124,58,237,0.92), rgba(16,185,129,0.9))`,
-        },
+        border: "1px solid",
+        borderColor: "divider",
+        boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)",
+        bgcolor: "#ffffff",
       }}
     >
       <PanelHead title={title} subtitle={subtitle} action={action} accent={accent} />
@@ -233,7 +232,7 @@ export function TrendChart({
     .join(" ");
   const areaPoints = `${paddingX},${height - paddingY} ${linePoints} ${width - paddingX},${height - paddingY}`;
   return (
-    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper", backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 26%, rgba(255,255,255,1) 100%)` }}>
+    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper" }}>
       <PanelHead
         title={title}
         subtitle={subtitle}
@@ -285,6 +284,98 @@ export function TrendChart({
   );
 }
 
+export function useCountUp(endValue: number, duration: number = 1200) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 4);
+      setValue(Math.floor(ease * endValue));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        setValue(endValue);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [endValue, duration]);
+  return value;
+}
+
+export function AreaChart({ title, subtitle, accent = "blue", items }: { title: string; subtitle?: string; accent?: SectionTone; items: { label: string; value: number }[] }) {
+  const tone = sectionAccentTone(accent);
+  const hasData = items.length > 0 && items.some((item) => item.value > 0);
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+  const chartHeight = 180;
+  const padTop = 10;
+  const padBottom = 4;
+  const viewH = 100;
+  const usable = viewH - padTop - padBottom;
+
+  const pts = items.map((item, i) => {
+    const x = items.length > 1 ? (i / (items.length - 1)) * 100 : 50;
+    const y = padTop + usable - (item.value / maxValue) * usable;
+    return { x, y };
+  });
+  const polylinePoints = pts.map((p) => `${p.x},${p.y}`).join(" ");
+  const polygonPoints = `0,${viewH} ${polylinePoints} 100,${viewH}`;
+
+  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((frac) => padTop + usable - frac * usable);
+
+  return (
+    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper", animation: "fadeUp 0.6s ease-out both" }}>
+      <PanelHead title={title} subtitle={subtitle} accent={accent} />
+      <Box sx={{ p: 2 }}>
+        {!hasData ? (
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120, color: "text.secondary" }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Chưa có dữ liệu doanh thu trong kỳ này.</Typography>
+          </Box>
+        ) : (
+          <Box sx={{ position: "relative", width: "100%", height: chartHeight }}>
+            <svg viewBox={`0 0 100 ${viewH}`} preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible", display: "block" }}>
+              <defs>
+                <linearGradient id={`areaGrad-${accent}`} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={tone.main} stopOpacity="0.25" />
+                  <stop offset="100%" stopColor={tone.main} stopOpacity="0.02" />
+                </linearGradient>
+                <style>{`
+                  @keyframes drawLine { from { stroke-dasharray: 0, 2000; } to { stroke-dasharray: 2000, 0; } }
+                  @keyframes fadeArea { from { opacity: 0; } to { opacity: 1; } }
+                  .area-line { animation: drawLine 1.8s ease-out forwards; vector-effect: non-scaling-stroke; }
+                  .area-fill { animation: fadeArea 1.2s ease-out 0.5s both; }
+                  .area-dot { vector-effect: non-scaling-stroke; transition: all 0.2s; }
+                  .area-dot:hover { r: 5px; fill: ${tone.main}; stroke: #fff; stroke-width: 2px; }
+                `}</style>
+              </defs>
+              {gridLines.map((gy, gi) => (
+                <line key={gi} x1="0" y1={gy} x2="100" y2={gy} stroke="rgba(148,163,184,0.15)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              ))}
+              <polygon className="area-fill" points={polygonPoints} fill={`url(#areaGrad-${accent})`} />
+              <polyline className="area-line" points={polylinePoints} fill="none" stroke={tone.main} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              {pts.map((p, i) => (
+                <circle key={i} className="area-dot" cx={p.x} cy={p.y} r="3" fill="#ffffff" stroke={tone.main} strokeWidth="1.5" />
+              ))}
+            </svg>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1, px: 0.5 }}>
+              {items.length > 2 ? (
+                <>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[0]?.label}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[Math.floor(items.length / 2)]?.label}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[items.length - 1]?.label}</Typography>
+                </>
+              ) : items.length > 0 ? (
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[0]?.label}</Typography>
+              ) : null}
+            </Box>
+          </Box>
+        )}
+      </Box>
+    </Card>
+  );
+}
+
 export function BreakdownChart({
   title,
   subtitle,
@@ -298,8 +389,9 @@ export function BreakdownChart({
 }) {
   const tone = sectionAccentTone(accent);
   const maxValue = Math.max(1, ...items.map((item) => item.value));
+
   return (
-    <Card variant="outlined" sx={{ overflow: "hidden", borderRadius: styleGuide.shape.cardRadius, backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper" }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
       <Box sx={{ p: 2, display: "grid", gap: 1.25 }}>
         {items.map((item, index) => {
@@ -313,7 +405,7 @@ export function BreakdownChart({
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{item.value}</Typography>
               </Box>
               <Box sx={{ height: 12, borderRadius: 999, bgcolor: "rgba(148,163,184,0.16)", overflow: "hidden" }}>
-                <Box sx={{ width: `${percent}%`, height: "100%", borderRadius: 999, bgcolor: barColor, backgroundImage: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.22))`, boxShadow: `0 8px 20px ${barColor}28` }} />
+                <Box sx={{ width: `${percent}%`, height: "100%", borderRadius: 999, bgcolor: barColor, backgroundImage: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.22))`, boxShadow: `0 8px 20px ${barColor}28`, transformOrigin: "left center", animation: `growBar 0.8s ease-out ${index * 0.12}s both` }} />
               </Box>
               {item.note ? <Typography variant="caption" color="text.secondary">{item.note}</Typography> : null}
             </Box>
@@ -345,7 +437,7 @@ export function DonutChart({
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
   return (
-    <Card variant="outlined" sx={{ overflow: "hidden", borderRadius: styleGuide.shape.cardRadius, backgroundImage: `linear-gradient(180deg, ${tone.bg} 0%, rgba(255,255,255,0.98) 28%, rgba(255,255,255,1) 100%)` }}>
+    <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper" }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
       <Box sx={{ p: 2, display: "grid", gap: 2 }}>
         <Box sx={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: 2, alignItems: "center" }}>
@@ -426,7 +518,7 @@ export function DonutChart({
 
 export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; detail: string }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
+    <Card variant="outlined" sx={{ borderRadius: "16px" }}>
       <CardContent>
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
           {ok ? <CheckCircle2 color={statusPalette.success.main} size={20} /> : <XCircle color={statusPalette.error.main} size={20} />}
@@ -442,7 +534,7 @@ export function HealthItem({ ok, title, detail }: { ok: boolean; title: string; 
 
 export function Info({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
+    <Card variant="outlined" sx={{ borderRadius: "16px" }}>
       <CardContent sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
           {icon ? <Box sx={{ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37,99,235,0.08)", color: "primary.main" }}>{icon}</Box> : null}
@@ -474,7 +566,7 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
   }
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
+    <Card variant="outlined" sx={{ borderRadius: "16px" }}>
       <PanelHead title={title} subtitle={`${subtitle} Bấm vào từng mục để chỉnh sửa và lưu riêng.`} />
       <Box sx={{ display: "grid", gap: 1.25, p: 2 }}>
         {fields.map((field) => (
@@ -542,7 +634,7 @@ export function SettingsConfigModal(props: { title: string; subtitle: string; fi
   );
 }
 
-export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
+export function MuiDialogShell({ open, title, subtitle, onClose, children, actions, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; actions?: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth} scroll="paper">
       <DialogTitle sx={{ position: "relative", pr: 6 }}>
@@ -574,6 +666,11 @@ export function MuiDialogShell({ open, title, subtitle, onClose, children, maxWi
           {children}
         </Stack>
       </DialogContent>
+      {actions ? (
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: "background.paper" }}>
+          {actions}
+        </DialogActions>
+      ) : null}
     </Dialog>
   );
 }
@@ -663,7 +760,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
 
 export function TrendTable({ rows, title, subtitle }: { rows: { label: string; revenue: string; paid: number; pending: number; customers: number; aov: string; coupon: string; conversion: string; conversionColor: "good" | "warn" | "bad"; barWidth: number; trend: number; sparkline: number[] }[]; title: string; subtitle?: string }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: styleGuide.shape.cardRadius }}>
+    <Card variant="outlined" sx={{ borderRadius: "16px" }}>
       <PanelHead title={title} subtitle={subtitle} />
       <Box sx={{ overflowX: "auto" }}>
         <Table size="small" sx={{ minWidth: 1120 }}>

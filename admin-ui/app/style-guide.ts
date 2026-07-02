@@ -1,12 +1,12 @@
 export const styleGuide = {
   name: "mui-homepage-dashboard",
   summary:
-    "Visual language for the admin UI: bright MUI-style surfaces, blue primary, purple secondary, soft shadows, and rounded cards/dialogs.",
+    "Visual language for the admin UI: bright MUI-style surfaces, gradient blue primary, vibrant secondary, soft shadows, and rounded cards/dialogs.",
   palette: {
     primary: {
-      main: "#2563eb",
-      light: "#60a5fa",
-      dark: "#1d4ed8",
+      main: "#0066ff",
+      light: "#66a3ff",
+      dark: "#0052cc",
       contrastText: "#ffffff",
     },
     secondary: {
@@ -23,29 +23,29 @@ export const styleGuide = {
       indigo: "#4f46e5",
       sky: "#0ea5e9",
       violet: "#8b5cf6",
-      blue: "#2563eb",
+      blue: "#0066ff",
       green: "#10b981",
     },
     background: {
-      default: "#f6f8fc",
+      default: "#f8fafc",
       paper: "#ffffff",
     },
     text: {
-      primary: "#1f2937",
-      secondary: "#6b7280",
+      primary: "#0f172a",
+      secondary: "#64748b",
     },
-    divider: "#e2e8f0",
+    divider: "#f1f5f9",
   },
   shape: {
-    cardRadius: 4,
-    dialogRadius: 16,
-    inputRadius: 10,
-    buttonRadius: 999,
+    cardRadius: 10,
+    dialogRadius: 12,
+    inputRadius: 8,
+    buttonRadius: 8,
   },
   shadows: {
-    card: "0 1px 0 rgba(16, 24, 40, 0.03), 0 10px 24px rgba(16, 24, 40, 0.05)",
-    dialog: "0 20px 60px rgba(15, 23, 42, 0.14)",
-    focus: "0 0 0 4px rgba(37, 99, 235, 0.12)",
+    card: "0 4px 20px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.02)",
+    dialog: "0 24px 64px rgba(15, 23, 42, 0.08)",
+    focus: "0 0 0 4px rgba(0, 102, 255, 0.15)",
   },
   typography: {
     fontFamily: [
@@ -57,9 +57,9 @@ export const styleGuide = {
       "Segoe UI",
       "sans-serif",
     ].join(","),
-    displayTracking: "-0.04em",
-    headingTracking: "-0.02em",
-    bodyTracking: "-0.01em",
+    displayTracking: "-0.03em",
+    headingTracking: "-0.015em",
+    bodyTracking: "-0.005em",
   },
   rules: [
     "Use MUI components by default: Button, TextField, Select, Tabs, Card, Dialog, Chip, Table, IconButton, Box, Stack.",
@@ -75,21 +75,21 @@ export const styleGuide = {
   ],
   tokens: {
     field: {
-      radius: 14,
-      border: "#d9e0e8",
-      hoverBorder: "#c5d9ef",
-      focusBorder: "#2563eb",
+      radius: 8,
+      border: "#e2e8f0",
+      hoverBorder: "#cbd5e1",
+      focusBorder: "#0066ff",
       background: "#ffffff",
     },
     button: {
-      radius: 999,
-      containedShadow: "0 10px 22px rgba(37, 99, 235, 0.16)",
-      outlinedShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+      radius: 8,
+      containedShadow: "0 8px 20px rgba(0, 102, 255, 0.16)",
+      outlinedShadow: "0 4px 10px rgba(15, 23, 42, 0.02)",
     },
     panel: {
-      headerRadius: 12,
-      border: "#e2e8f0",
-      shadow: "0 16px 36px rgba(15, 23, 42, 0.06)",
+      headerRadius: 10,
+      border: "#f1f5f9",
+      shadow: "0 10px 30px rgba(15, 23, 42, 0.04)",
     },
   },
   screenThemes: {

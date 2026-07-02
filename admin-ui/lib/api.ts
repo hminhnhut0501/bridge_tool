@@ -397,6 +397,7 @@ export type ManualOrderPayload = {
   sale_id?: string;
   payment_currency?: string;
   payment_provider?: string;
+  skip_join_link?: boolean;
 };
 
 export type ManualOrderResult = {
@@ -579,6 +580,13 @@ export async function deleteOrder(secret: string, orderId: string) {
 
 export async function createManualOrder(secret: string, payload: ManualOrderPayload) {
   return request<{ data: ManualOrderResult }>("/admin-api/manual-orders", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateManualJoinLink(secret: string, payload: { order_id: string }) {
+  return request<{ data: { links_text: string; support_text: string; support_link: string | null; support_error: string; manual_order_join_text: string } }>("/admin-api/manual-orders/generate-join-link", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });

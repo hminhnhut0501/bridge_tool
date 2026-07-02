@@ -49,11 +49,20 @@ export function CustomersSection(props: any) {
         action={<AppToolbar><Button variant="outlined" size="small" onClick={exportCustomersCsv} disabled={!filteredCustomers.length}>CSV</Button></AppToolbar>}
         accent="violet"
       >
-        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: "minmax(0, 1fr) repeat(3, 180px)", p: 1.75 }}>
-          <TextField size="small" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." />
-          <Select size="small" value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value)}>{["all","active","expiring","lifetime","expired","paid","coupon"].map((item) => <MenuItem key={item} value={item}>{item === "all" ? "Tất cả khách" : item}</MenuItem>)}</Select>
-          <Select size="small" value={customerGroup} onChange={(event) => setCustomerGroup(event.target.value)}>{["ALL", ...customerGroupOptions].map((item: any) => <MenuItem key={item} value={item}>{item === "ALL" ? "Tất cả group" : item}</MenuItem>)}</Select>
-          <Select size="small" value={customerPlanKind} onChange={(event) => setCustomerPlanKind(event.target.value)}>{["ALL", "1 ngày", "30 ngày", "Trọn đời", "Khác"].map((item) => <MenuItem key={item} value={item}>{item === "ALL" ? "Tất cả gói" : item}</MenuItem>)}</Select>
+        {/* Unified Control Bar */}
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, p: 1.5, mb: 1, bgcolor: "rgba(241, 245, 249, 0.4)", borderRadius: "12px", border: "1px solid", borderColor: "divider" }}>
+          <TextField 
+            size="small" 
+            value={query} 
+            onChange={(event) => setQuery(event.target.value)} 
+            placeholder="Tìm tên khách, Telegram ID, gói, group, coupon..." 
+            sx={{ flexGrow: 1, minWidth: { xs: "100%", md: "320px" }, bgcolor: "#fff", borderRadius: 1, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }} 
+          />
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+            <Select sx={{ bgcolor: "#fff", borderRadius: "8px", minWidth: 140 }} size="small" value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value)}>{["all","active","expiring","lifetime","expired","paid","coupon"].map((item) => <MenuItem key={item} value={item}>{item === "all" ? "Tất cả khách" : item}</MenuItem>)}</Select>
+            <Select sx={{ bgcolor: "#fff", borderRadius: "8px", minWidth: 140 }} size="small" value={customerGroup} onChange={(event) => setCustomerGroup(event.target.value)}>{["ALL", ...customerGroupOptions].map((item: any) => <MenuItem key={item} value={item}>{item === "ALL" ? "Tất cả group" : item}</MenuItem>)}</Select>
+            <Select sx={{ bgcolor: "#fff", borderRadius: "8px", minWidth: 140 }} size="small" value={customerPlanKind} onChange={(event) => setCustomerPlanKind(event.target.value)}>{["ALL", "1 ngày", "30 ngày", "Trọn đời", "Khác"].map((item) => <MenuItem key={item} value={item}>{item === "ALL" ? "Tất cả gói" : item}</MenuItem>)}</Select>
+          </Box>
         </Box>
         <SimpleTable
           headers={["Khách", "Trạng thái", "PAID", "Gói / Group", "Hạn gần nhất", "Tổng tiền"]}

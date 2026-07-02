@@ -154,6 +154,7 @@ import {
   createCoupon,
   createCoupons,
   createManualOrder,
+  generateManualJoinLink,
   deleteOrder,
   deleteConfig,
   deleteBlacklist,
@@ -5263,10 +5264,33 @@ export default function Home() {
         sale_id: "MANUAL",
         payment_currency: paymentCurrency,
         payment_provider: paymentProvider,
+        skip_join_link: true,
       });
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
       await loadAll();
+    });
+  }
+
+  async function generateManualJoinLinkHandler() {
+    if (!manualOrderResult) return;
+    await runAction("generate-join-link", async () => {
+      const res = await generateManualJoinLink(savedSecret, {
+        order_id: manualOrderResult.order_id,
+      });
+      
+      setManualOrderResult(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          links_text: res.data.links_text,
+          support_text: res.data.support_text,
+          support_link: res.data.support_link,
+          support_error: res.data.support_error,
+          manual_order_join_text: res.data.manual_order_join_text,
+        };
+      });
+      showNotice("ok", "Đã tạo link tham gia nhóm thành công.");
     });
   }
 
@@ -7778,102 +7802,118 @@ export default function Home() {
         ) : null}
 
         {manualOrderModalOpen ? (
-          <MuiDialogShell open title="Tạo đơn thủ công" subtitle="Nhập thông tin khách, tạo order PAID và gen link join group." onClose={() => setManualOrderModalOpen(false)} maxWidth="lg">
-              <Box sx={{ display: "grid", gap: 1.5 }}>
-                <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
-                <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-                <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
-                  {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
-                </TextField>
-                <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" sx={{ gridColumn: "1 / -1" }} helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
-                <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân, USD / crypto có thể có." />
-                <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })} size="small">
-                  <MenuItem value="VND">VNĐ</MenuItem>
-                  <MenuItem value="USD">USD</MenuItem>
-                  <MenuItem value="USDT">USDT / Crypto</MenuItem>
-                </TextField>
-                <TextField select label="Phương thức thanh toán" value={manualOrderForm.payment_provider} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_provider: event.target.value })} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
-                  <MenuItem value="MANUAL">Thủ công</MenuItem>
-                  <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
-                  <MenuItem value="PAYPAL">PayPal</MenuItem>
-                  <MenuItem value="NOWPAYMENTS">NOWPayments</MenuItem>
-                  <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
-                </TextField>
-                <TextField select label="Kiểu hết hạn" value={manualOrderForm.expiry_mode} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : manualOrderForm.expire_at })} size="small" helperText="Chọn 1 cách duy nhất: theo số ngày hoặc ngày cụ thể." sx={{ gridColumn: "1 / -1" }}>
-                  <MenuItem value="days">Theo số ngày</MenuItem>
-                  <MenuItem value="date">Ngày cụ thể</MenuItem>
-                </TextField>
-                {manualOrderForm.expiry_mode === "days" ? (
-                  <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText={manualExpiryPreview()} />
-                ) : (
-                  <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview()} />
-                )}
-                <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" sx={{ gridColumn: "1 / -1" }} />
-                <TextField label="Ghi chú nội bộ cho đơn" value={manualOrderForm.note} onChange={(event) => setManualOrderForm({ ...manualOrderForm, note: event.target.value })} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công theo trao đổi, cần follow riêng..." size="small" multiline minRows={3} sx={{ gridColumn: "1 / -1" }} />
-              </Box>
-              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
+          <MuiDialogShell
+            open
+            title="Tạo đơn thủ công"
+            subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
+            onClose={() => setManualOrderModalOpen(false)}
+            maxWidth="lg"
+            actions={
+              <>
                 <Button variant="outlined" onClick={() => setManualOrderModalOpen(false)}>Đóng</Button>
-                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & gen 2 tin</Button>
-              </Stack>
-                {manualOrderResult ? (
-                  <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+                <Button variant="contained" onClick={saveManualOrder} disabled={saving === "manual-order"} startIcon={saving === "manual-order" ? <Loader2 size={18} className="spin" /> : <Plus size={18} />}>Tạo đơn & Lấy Active Code</Button>
+              </>
+            }
+          >
+            <Box sx={{ p: 2.5 }}>
+              <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, mb: 2 }}>
+                {/* Cột trái: Thông tin khách & gói */}
+                <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
+                  <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
+                  <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
+                  <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
+                    {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
+                  </TextField>
+                  <TextField label="Tên gói lưu vào đơn" value={manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(manualOrderForm.plan_key)} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
+                  <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
+                </Box>
+
+                {/* Cột phải: Thanh toán & hạn dùng */}
+                <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
+                    <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân." />
+                    <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_currency: event.target.value })} size="small">
+                      <MenuItem value="VND">VNĐ</MenuItem>
+                      <MenuItem value="USD">USD</MenuItem>
+                      <MenuItem value="USDT">USDT</MenuItem>
+                    </TextField>
+                  </Box>
+                  <TextField select label="Phương thức thanh toán" value={manualOrderForm.payment_provider} onChange={(event) => setManualOrderForm({ ...manualOrderForm, payment_provider: event.target.value })} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+                    <MenuItem value="MANUAL">Thủ công</MenuItem>
+                    <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
+                    <MenuItem value="PAYPAL">PayPal</MenuItem>
+                    <MenuItem value="NOWPAYMENTS">NOWPayments</MenuItem>
+                    <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+                  </TextField>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    <TextField select label="Kiểu hết hạn" value={manualOrderForm.expiry_mode} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : manualOrderForm.expire_at })} size="small">
+                      <MenuItem value="days">Theo số ngày</MenuItem>
+                      <MenuItem value="date">Ngày cụ thể</MenuItem>
+                    </TextField>
+                    {manualOrderForm.expiry_mode === "days" ? (
+                      <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText={manualExpiryPreview()} />
+                    ) : (
+                      <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview()} />
+                    )}
+                  </Box>
+                  <TextField label="Ghi chú nội bộ cho đơn" value={manualOrderForm.note} onChange={(event) => setManualOrderForm({ ...manualOrderForm, note: event.target.value })} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công..." size="small" multiline minRows={2} />
+                </Box>
+              </Box>
+
+              {manualOrderResult ? (
+                <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
+                  
+                  {/* Active Code Box */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{manualOrderResult.manual_order_message_title || "Tin active code"}</Typography>
+                      <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || ""))}>
+                        {manualOrderResult.manual_order_message_button_label || "Copy tin active code"}
+                      </Button>
+                    </Stack>
                     <TextField
-                      className="field wide"
-                      label={manualOrderResult.manual_order_message_title || "Tin active code"}
                       value={stripHtml(manualOrderResult.manual_order_text || "")}
                       slotProps={{ input: { readOnly: true } }}
                       fullWidth
                       multiline
-                      minRows={10}
-                      sx={popupFieldSx}
+                      minRows={6}
+                      sx={{ ...popupFieldSx, "& .MuiInputBase-root": { bgcolor: "background.default" } }}
                     />
-                    <TextField
-                      label={manualOrderResult.manual_order_join_title || "Tin join group"}
-                      value={stripHtml(manualOrderResult.manual_order_join_text || manualOrderResult.links_text || "")}
-                      slotProps={{ input: { readOnly: true } }}
-                      fullWidth
-                      multiline
-                      minRows={10}
-                      sx={popupFieldSx}
-                    />
-                    <TextField
-                      label={manualOrderResult.bot_link_title || "Active code"}
-                      value={manualOrderResult.activation_url || ""}
-                      slotProps={{ input: { readOnly: true } }}
-                      fullWidth
-                      multiline
-                      minRows={4}
-                      sx={popupFieldSx}
-                    />
-                    <TextField
-                      label="Ghi chú đã lưu"
-                      value={manualOrderResult.note || ""}
-                      slotProps={{ input: { readOnly: true } }}
-                      fullWidth
-                      multiline
-                      minRows={4}
-                      sx={popupFieldSx}
-                    />
-                    <Box sx={{ gridColumn: "1 / -1" }}>
-                      <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-start" }}>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || ""))}>{manualOrderResult.manual_order_message_button_label || "Copy tin active code"}</Button>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_join_text || manualOrderResult.links_text || ""))}>{manualOrderResult.manual_order_join_button_label || "Copy tin join group"}</Button>
-                        <Button variant="outlined" onClick={() => navigator.clipboard.writeText(manualOrderResult.activation_url || "")}>{manualOrderResult.bot_link_button_label || "Gen active code"}</Button>
-                        <Button
-                          variant="outlined"
-                          onClick={() => {
-                            if (!manualOrderResult) return;
-                            navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_text || manualOrderResult.manual_order_join_text || ""));
-                            showNotice("ok", "Đã copy toàn bộ nội dung hiển thị.");
-                          }}
-                        >
-                          Copy toàn bộ nội dung
-                        </Button>
-                      </Stack>
-                      {manualOrderResult.support_error ? <small className="danger-text">Collection chưa tạo được link: {manualOrderResult.support_error}</small> : <small>Đơn đã được ghi PAID. Khách bấm link bot để nhận link join collection riêng.</small>}
-                    </Box>
                   </Box>
-                ) : null}
+
+                  {/* Join Link Generation / Display Box */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{manualOrderResult.manual_order_join_title || "Tin join group"}</Typography>
+                      {manualOrderResult.manual_order_join_text ? (
+                        <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => navigator.clipboard.writeText(stripHtml(manualOrderResult.manual_order_join_text || ""))}>
+                          {manualOrderResult.manual_order_join_button_label || "Copy tin tham gia"}
+                        </Button>
+                      ) : null}
+                    </Stack>
+                    
+                    {!manualOrderResult.manual_order_join_text ? (
+                      <Box sx={{ p: 4, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
+                        <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>Bạn chưa tạo link tham gia nhóm cho đơn hàng này.</Typography>
+                        <Button variant="contained" onClick={generateManualJoinLinkHandler} disabled={saving === "generate-join-link"} startIcon={saving === "generate-join-link" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                          Tạo link tham gia nhóm
+                        </Button>
+                      </Box>
+                    ) : (
+                      <TextField
+                        value={stripHtml(manualOrderResult.manual_order_join_text || "")}
+                        slotProps={{ input: { readOnly: true } }}
+                        fullWidth
+                        multiline
+                        minRows={6}
+                        sx={{ ...popupFieldSx, "& .MuiInputBase-root": { bgcolor: "background.default" } }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              ) : null}
+            </Box>
           </MuiDialogShell>
         ) : null}
 
