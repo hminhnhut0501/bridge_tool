@@ -3,7 +3,7 @@
 
 import { Box, Button, Chip, Stack, Tab, Tabs, TextField, Typography } from "@mui/material";
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Settings } from "lucide-react";
-import { AppSection, AppToolbar, AreaChart, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
+import { AppSection, AppToolbar, RevenueBarChart, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 import { Metric } from "./metric-card";
 
 export function AnalyticsSection(props: any) {
@@ -12,7 +12,12 @@ export function AnalyticsSection(props: any) {
   const yearGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "year")), "month");
   const monthPeak = Math.max(1, ...monthGroups.map((item: any) => item.stats.revenue));
   const yearPeak = Math.max(1, ...yearGroups.map((item: any) => item.stats.revenue));
-  const monthRevenue = monthGroups.map((item: any) => ({ label: item.label, value: Number(item.stats.revenue || 0) }));
+  const monthChartData = monthGroups.map((item: any) => ({
+    label: item.label,
+    revenue: Number(item.stats.revenue || 0),
+    customers: item.stats.customers || 0,
+    aov: props.ordersAverageMoney(item.items),
+  }));
   const paymentStatusBreakdown = [
     { label: "PAID", value: monthStats.paid },
     { label: "PENDING", value: monthStats.pending },
@@ -79,16 +84,13 @@ export function AnalyticsSection(props: any) {
       </Box>
 
       <Box sx={{ width: "100%", animation: "fadeUp 0.6s ease-out 0.4s both" }}>
-        <AreaChart title="Doanh thu theo ngày" subtitle="Biểu đồ trực quan hóa xu hướng dòng tiền tăng trưởng hàng ngày." accent="blue" items={monthRevenue.slice().reverse()} />
+        <RevenueBarChart title="Doanh thu theo ngày" subtitle="Biểu đồ trực quan hóa xu hướng dòng tiền tăng trưởng hàng ngày." accent="blue" items={monthChartData.slice().reverse()} />
       </Box>
 
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.6s both" }}>
-        <DonutChart title="Cơ cấu trạng thái tháng" subtitle="Tỉ trọng đơn để đọc nhanh trạng thái vận hành." accent="emerald" segments={paymentStatusBreakdown} centerLabel={`${monthStats.conversion}%`} />
-        <BreakdownChart title="Doanh thu theo phương thức" subtitle="PayOS, PayPal và USDT TRC20." accent="violet" items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]} />
-      </Box>
-
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.7s both" }}>
-        <BreakdownChart title="Doanh thu theo currency" subtitle="Biết ngay dòng tiền chính tháng này nằm ở đâu." accent="cyan" items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]} />
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.6s both" }}>
+        <DonutChart title="Cơ cấu trạng thái tháng" subtitle="Tỉ trọng đơn để đọc nhanh trạng thái." accent="emerald" segments={paymentStatusBreakdown} centerLabel={`${monthStats.conversion}%`} />
+        <BreakdownChart title="Doanh thu theo phương thức" subtitle="PayOS, PayPal và USDT." accent="violet" items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]} />
+        <BreakdownChart title="Doanh thu theo currency" subtitle="Biết ngay dòng tiền chính nằm ở đâu." accent="cyan" items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]} />
       </Box>
 
       <Box sx={{ animation: "fadeUp 0.5s ease-out 0.8s both" }}>

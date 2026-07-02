@@ -21,6 +21,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
@@ -304,60 +305,53 @@ export function useCountUp(endValue: number, duration: number = 1200) {
   return value;
 }
 
-export function AreaChart({ title, subtitle, accent = "blue", items }: { title: string; subtitle?: string; accent?: SectionTone; items: { label: string; value: number }[] }) {
+export function RevenueBarChart({ title, subtitle, accent = "blue", items }: { title: string; subtitle?: string; accent?: SectionTone; items: { label: string; revenue: number; customers: number; aov: string }[] }) {
   const tone = sectionAccentTone(accent);
-  const hasData = items.length > 0 && items.some((item) => item.value > 0);
-  const maxValue = Math.max(1, ...items.map((item) => item.value));
-  const chartHeight = 180;
-  const padTop = 10;
-  const padBottom = 4;
-  const viewH = 100;
-  const usable = viewH - padTop - padBottom;
-
-  const pts = items.map((item, i) => {
-    const x = items.length > 1 ? (i / (items.length - 1)) * 100 : 50;
-    const y = padTop + usable - (item.value / maxValue) * usable;
-    return { x, y };
-  });
-  const polylinePoints = pts.map((p) => `${p.x},${p.y}`).join(" ");
-  const polygonPoints = `0,${viewH} ${polylinePoints} 100,${viewH}`;
-
-  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((frac) => padTop + usable - frac * usable);
+  const maxValue = Math.max(1, ...items.map((item) => item.revenue));
+  const hasData = items.length > 0 && items.some((item) => item.revenue > 0);
 
   return (
     <Card variant="outlined" sx={{ overflow: "hidden", bgcolor: "background.paper", animation: "fadeUp 0.6s ease-out both" }}>
       <PanelHead title={title} subtitle={subtitle} accent={accent} />
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 2, height: 260, display: "flex", flexDirection: "column" }}>
         {!hasData ? (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120, color: "text.secondary" }}>
+          <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "text.secondary" }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Chưa có dữ liệu doanh thu trong kỳ này.</Typography>
           </Box>
         ) : (
-          <Box sx={{ position: "relative", width: "100%", height: chartHeight }}>
-            <svg viewBox={`0 0 100 ${viewH}`} preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible", display: "block" }}>
-              <defs>
-                <linearGradient id={`areaGrad-${accent}`} x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor={tone.main} stopOpacity="0.25" />
-                  <stop offset="100%" stopColor={tone.main} stopOpacity="0.02" />
-                </linearGradient>
-                <style>{`
-                  @keyframes drawLine { from { stroke-dasharray: 0, 2000; } to { stroke-dasharray: 2000, 0; } }
-                  @keyframes fadeArea { from { opacity: 0; } to { opacity: 1; } }
-                  .area-line { animation: drawLine 1.8s ease-out forwards; vector-effect: non-scaling-stroke; }
-                  .area-fill { animation: fadeArea 1.2s ease-out 0.5s both; }
-                  .area-dot { vector-effect: non-scaling-stroke; transition: all 0.2s; }
-                  .area-dot:hover { r: 5px; fill: ${tone.main}; stroke: #fff; stroke-width: 2px; }
-                `}</style>
-              </defs>
-              {gridLines.map((gy, gi) => (
-                <line key={gi} x1="0" y1={gy} x2="100" y2={gy} stroke="rgba(148,163,184,0.15)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-              ))}
-              <polygon className="area-fill" points={polygonPoints} fill={`url(#areaGrad-${accent})`} />
-              <polyline className="area-line" points={polylinePoints} fill="none" stroke={tone.main} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              {pts.map((p, i) => (
-                <circle key={i} className="area-dot" cx={p.x} cy={p.y} r="3" fill="#ffffff" stroke={tone.main} strokeWidth="1.5" />
-              ))}
-            </svg>
+          <>
+            <Box sx={{ flexGrow: 1, display: "flex", alignItems: "flex-end", gap: { xs: 0.5, md: 1 }, pt: 2, borderBottom: "1px solid rgba(148, 163, 184, 0.15)" }}>
+              {items.map((item, idx) => {
+                const heightPct = Math.max(2, (item.revenue / maxValue) * 100);
+                return (
+                  <Tooltip 
+                    key={idx} 
+                    title={
+                      <Box sx={{ p: 0.5 }}>
+                        <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.7)", mb: 0.5 }}>{item.label}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>Doanh thu: {item.revenue.toLocaleString("vi-VN")}đ</Typography>
+                        <Typography variant="body2">Khách hàng: {item.customers}</Typography>
+                        <Typography variant="body2">AOV: {item.aov}</Typography>
+                      </Box>
+                    } 
+                    arrow 
+                    placement="top"
+                  >
+                    <Box sx={{ flexGrow: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
+                      <Box 
+                        className="revenue-bar"
+                        sx={{ 
+                          width: "100%", 
+                          height: `${heightPct}%`, 
+                          background: `linear-gradient(to top, ${tone.main}, ${tone.main}99)`,
+                          animation: `grow-bar 0.8s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 0.02}s both`
+                        }} 
+                      />
+                    </Box>
+                  </Tooltip>
+                );
+              })}
+            </Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1, px: 0.5 }}>
               {items.length > 2 ? (
                 <>
@@ -369,7 +363,7 @@ export function AreaChart({ title, subtitle, accent = "blue", items }: { title: 
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{items[0]?.label}</Typography>
               ) : null}
             </Box>
-          </Box>
+          </>
         )}
       </Box>
     </Card>
