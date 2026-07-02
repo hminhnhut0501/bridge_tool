@@ -23,7 +23,7 @@ const CONFIG_KEY_ALIASES: Record<string, string> = {
   BTN_BUY_LIFE: "BTN_BUY_COLLECTION_LIFE",
 };
 
-function canonicalConfigKey(key: string) {
+export function canonicalConfigKey(key: string) {
   const raw = String(key || "").trim().toUpperCase();
   if (!raw) return "";
   if (CONFIG_KEY_ALIASES[raw]) return CONFIG_KEY_ALIASES[raw];

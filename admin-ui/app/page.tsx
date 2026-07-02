@@ -113,7 +113,7 @@ import {
   supportEventLabel,
   uniqueValues,
 } from "./dashboard-helpers";
-import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, type GroupMode } from "./dashboard-business";
+import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, canonicalConfigKey, type GroupMode } from "./dashboard-business";
 import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, PanelHead, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
 import { Metric } from "./metric-card";
 import { TrendChart as MuiTrendChart } from "./dashboard-components";
@@ -3508,7 +3508,7 @@ export default function Home() {
   }
 
   function resetGroupForm(nextGroupNo?: string) {
-    const used = new Set(config.filter((item) => /^BTN_G\d+$/.test(item.key)).map((item) => item.key.replace("BTN_G", "")));
+    const used = new Set(Array.from({ length: maxGroups }, (_, idx) => idx + 1).filter(item => hasAnyGroupConfig(config, item)).map(String));
     const firstEmpty = Array.from({ length: maxGroups }, (_, idx) => String(idx + 1)).find((item) => !used.has(item)) || "1";
     loadGroupForm(nextGroupNo || firstEmpty, "reset");
   }
@@ -3535,13 +3535,13 @@ export default function Home() {
         return;
       }
       await updateConfigs(savedSecret, [
-        { key: `BTN_G${normalizedGroupNo}`, value: groupName },
-        { key: `BTN_G${normalizedGroupNo}_EN`, value: groupNameEn },
-        { key: `ID_G${normalizedGroupNo}`, value: groupId },
-        { key: `PRICE_G${normalizedGroupNo}_1M`, value: groupPrice1m },
-        { key: `PRICE_G${normalizedGroupNo}_LIFE`, value: groupPriceLife },
-        { key: `PRICE_G${normalizedGroupNo}_1M_USD`, value: groupPrice1mUsd },
-        { key: `PRICE_G${normalizedGroupNo}_LIFE_USD`, value: groupPriceLifeUsd },
+        { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}`), value: groupName },
+        { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}_EN`), value: groupNameEn },
+        { key: canonicalConfigKey(`ID_G${normalizedGroupNo}`), value: groupId },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_1M`), value: groupPrice1m },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_LIFE`), value: groupPriceLife },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_1M_USD`), value: groupPrice1mUsd },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_LIFE_USD`), value: groupPriceLifeUsd },
       ]);
       clearGroupFields();
       setGroupModalOpen(false);
