@@ -242,6 +242,11 @@ def is_missing_supabase_table_error(exc: Exception, table_name: str) -> bool:
     return table_name in text and ("PGRST205" in text or "Could not find the table" in text)
 
 
+def is_missing_supabase_runtime_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "missing supabase_url" in text or "missing supabase_service_role_key" in text
+
+
 def warn_missing_table_once(table_name: str, exc: Exception):
     if table_name in _missing_table_warnings:
         return
@@ -369,7 +374,13 @@ async def webhook_watch_worker():
 
 
 def backend_timezone():
-    timezone_name = str(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh")) or "").strip()
+    try:
+        timezone_name = str(db.get_config("BOT_TIMEZONE", os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh")) or "").strip()
+    except Exception as exc:
+        if is_missing_supabase_runtime_error(exc):
+            timezone_name = ""
+        else:
+            raise
     if not timezone_name:
         timezone_name = str(os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
     try:
@@ -522,6 +533,23 @@ def normalize_template_text(value: str | None):
     return str(value or "").replace("\\n", "\n").strip()
 
 
+def safe_db_config(key: str, default: str = ""):
+    try:
+        return db.get_config(key, default) or default
+    except Exception as exc:
+        message = str(exc)
+        if "Missing SUPABASE_URL" in message or "Missing SUPABASE_SERVICE_ROLE_KEY" in message:
+            return default
+        raise
+
+
+def safe_support_group_name(default: str = "Nhóm hỗ trợ"):
+    try:
+        return support_group_name()
+    except Exception:
+        return default
+
+
 def render_manual_order_support_text(template: str, context: dict[str, object]):
     text = normalize_template_text(template)
     if not text:
@@ -543,7 +571,7 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
 
 
 def render_manual_order_info_text(context: dict[str, object]):
-    template = normalize_template_text(db.get_config(
+    template = normalize_template_text(safe_db_config(
         "MANUAL_ORDER_INFO_TEMPLATE",
         "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
     ) or "")
@@ -586,7 +614,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
 
 
 def render_activation_text(template_key: str, default_text: str, context: dict[str, object]):
-    template = normalize_template_text(db.get_config(template_key, default_text) or default_text)
+    template = normalize_template_text(safe_db_config(template_key, default_text) or default_text)
     for key, value in context.items():
         template = template.replace(f"{{{key}}}", str(value or ""))
     return template.strip()
@@ -607,7 +635,7 @@ def normalize_manual_order_join_template(value: str):
 
 
 def build_manual_activation_url(code: str):
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_LINK_TEMPLATE", "") or "")
+    template = normalize_manual_order_link_template(safe_db_config("MANUAL_ORDER_LINK_TEMPLATE", "") or "")
     return template.replace("{code}", str(code or "").strip())
 
 
@@ -628,7 +656,7 @@ def refresh_auto_payment_schedule_if_needed(keys):
 
 
 def build_manual_order_message_url(code: str):
-    template = normalize_manual_order_link_template(db.get_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "") or "")
+    template = normalize_manual_order_link_template(safe_db_config("MANUAL_ORDER_MESSAGE_LINK_TEMPLATE", "") or "")
     if "start=act_{code}" in template:
         template = template.replace("start=act_{code}", "start=act_{code}")
     elif "start={code}" in template:
@@ -638,7 +666,7 @@ def build_manual_order_message_url(code: str):
 
 def build_manual_order_join_message_text(context: dict[str, object]):
     return render_manual_order_message_text(
-        normalize_manual_order_join_template(db.get_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
+        normalize_manual_order_join_template(safe_db_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
         {
             **context,
             "activation_url": context.get("activation_url", ""),
@@ -1352,39 +1380,45 @@ async def admin_create_manual_order(request: Request):
     paid_at = now_local()
     order_id = str(int(time.time() * 1000))
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
-    message_template = str(db.get_config(
+    message_template = str(safe_db_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
         "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
     ) or "").strip()
-    join_template = str(db.get_config(
+    join_template = str(safe_db_config(
         "MANUAL_ORDER_JOIN_TEMPLATE",
         "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
     ) or "").strip()
-    supabase_store.create_order(
-        order_id=order_id,
-        telegram_user_id=telegram_user_id,
-        full_name=full_name or telegram_user_id,
-        plan_name=plan_name,
-        amount=amount,
-        note=note,
-        sale_id=sale_id,
-        original_amount=body.get("original_amount", amount),
-        coupon_code=coupon_code,
-        payment_currency=payment_currency,
-        payment_provider=payment_provider,
-        metadata={
-            "manual_order": True,
-            "payment_currency": payment_currency,
-            "payment_provider": payment_provider,
-            "language": user_language,
-            "note": note,
-        },
-    )
-    order_data = supabase_store.mark_order_paid(
-        order_id,
-        paid_at=paid_at.isoformat(timespec="seconds"),
-        expire_at=expire_at.isoformat(timespec="seconds"),
-    )
+    try:
+        supabase_store.create_order(
+            order_id=order_id,
+            telegram_user_id=telegram_user_id,
+            full_name=full_name or telegram_user_id,
+            plan_name=plan_name,
+            amount=amount,
+            note=note,
+            sale_id=sale_id,
+            original_amount=body.get("original_amount", amount),
+            coupon_code=coupon_code,
+            payment_currency=payment_currency,
+            payment_provider=payment_provider,
+            metadata={
+                "manual_order": True,
+                "payment_currency": payment_currency,
+                "payment_provider": payment_provider,
+                "language": user_language,
+                "note": note,
+            },
+        )
+        order_data = supabase_store.mark_order_paid(
+            order_id,
+            paid_at=paid_at.isoformat(timespec="seconds"),
+            expire_at=expire_at.isoformat(timespec="seconds"),
+        )
+    except Exception as exc:
+        if not (is_missing_supabase_table_error(exc, "orders") or is_missing_supabase_runtime_error(exc)):
+            raise
+        print(f"⚠️ Bỏ qua lưu đơn thủ công vào Supabase vì thiếu bảng/env: {exc}")
+        order_data = []
 
     from modules.mod_coupon import build_invite_links
 
@@ -1408,7 +1442,7 @@ async def admin_create_manual_order(request: Request):
                 "full_name": full_name,
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
-                "support_group_name": support_group_name(),
+                "support_group_name": safe_support_group_name(),
                 "support_link": support_link,
                 "support_error": "",
             })
@@ -1417,7 +1451,7 @@ async def admin_create_manual_order(request: Request):
                 "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
                 "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
                 {
-                    "support_group_name": support_group_name(),
+                    "support_group_name": safe_support_group_name(),
                     "support_error": support_error,
                 },
             )
@@ -1449,9 +1483,9 @@ async def admin_create_manual_order(request: Request):
                 },
             )
         except Exception as exc:
-            if not is_missing_supabase_table_error(exc, "order_activation_codes"):
+            if not (is_missing_supabase_table_error(exc, "order_activation_codes") or is_missing_supabase_runtime_error(exc)):
                 raise
-            print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
+            print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng/env Supabase: {exc}")
 
     try:
         supabase_store.record_support_event(
@@ -1471,8 +1505,10 @@ async def admin_create_manual_order(request: Request):
             },
         )
     except Exception as exc:
-        if not is_missing_supabase_table_error(exc, "support_events"):
+        if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
             print(f"⚠️ Không ghi được manual_order_created: {exc}")
+        else:
+            print(f"⚠️ Bỏ qua ghi manual_order_created vì thiếu bảng/env Supabase: {exc}")
 
     return {
         "data": {
@@ -1521,7 +1557,7 @@ async def admin_create_manual_order(request: Request):
                 "message_url": build_manual_order_message_url(activation_code) if activation_code else "",
                 "links_text": links_text,
                 "support_text": support_text,
-                "support_group_name": support_group_name(),
+                "support_group_name": safe_support_group_name(),
                 "support_link": support_link,
                 "support_error": support_error,
                 "activation_code": activation_code,
@@ -1539,7 +1575,7 @@ async def admin_create_manual_order(request: Request):
                 "message_url": "",
                 "links_text": links_text,
                 "support_text": support_text,
-                "support_group_name": support_group_name(),
+                "support_group_name": safe_support_group_name(),
                 "support_link": support_link,
                 "support_error": support_error,
                 "activation_code": activation_code,
@@ -1583,11 +1619,11 @@ async def admin_generate_manual_active_code(request: Request):
             },
         )
     except Exception as exc:
-        if not is_missing_supabase_table_error(exc, "order_activation_codes"):
+        if not (is_missing_supabase_table_error(exc, "order_activation_codes") or is_missing_supabase_runtime_error(exc)):
             raise
-        print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng order_activation_codes: {exc}")
+        print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng/env Supabase: {exc}")
 
-    message_template = str(db.get_config(
+    message_template = str(safe_db_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
         "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
     ) or "").strip()
@@ -1614,7 +1650,7 @@ async def admin_generate_manual_active_code(request: Request):
         "message_url": build_manual_order_message_url(activation_code),
         "links_text": "",
         "support_text": "",
-        "support_group_name": support_group_name(),
+        "support_group_name": safe_support_group_name(),
         "support_link": "",
         "support_error": "",
         "activation_code": activation_code,
@@ -1649,7 +1685,13 @@ async def admin_generate_manual_join_link(request: Request):
         
     from modules.mod_coupon import build_invite_links
 
-    support_link, support_error = await create_support_invite_link(user_id)
+    try:
+        support_link, support_error = await create_support_invite_link(user_id)
+    except Exception as exc:
+        if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
+            raise
+        print(f"⚠️ Bỏ qua tạo support link vì thiếu bảng/env Supabase: {exc}")
+        support_link, support_error = None, ""
     links_text = ""
     group_names = []
     failed_groups = []
@@ -1657,7 +1699,8 @@ async def admin_generate_manual_join_link(request: Request):
     try:
         links_text, group_names, failed_groups, invite_results = await build_invite_links(user_id, plan_name)
     except Exception as exc:
-        print(f"⚠️ Không build được join links cho manual order {order_id}: {exc}")
+        if not is_missing_supabase_runtime_error(exc):
+            print(f"⚠️ Không build được join links cho manual order {order_id}: {exc}")
         
     if support_link:
         support_text = render_manual_order_support_text("💬 {support_group_name}:\n{support_link}", {
@@ -1666,7 +1709,7 @@ async def admin_generate_manual_join_link(request: Request):
             "full_name": full_name,
             "plan_name": plan_name,
             "expire_at": expire_at_str,
-            "support_group_name": support_group_name(),
+            "support_group_name": safe_support_group_name(),
             "support_link": support_link,
             "support_error": "",
         })
@@ -1675,7 +1718,7 @@ async def admin_generate_manual_join_link(request: Request):
             "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
             "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
             {
-                "support_group_name": support_group_name(),
+                "support_group_name": safe_support_group_name(),
                 "support_error": support_error,
             },
         )
@@ -1690,7 +1733,7 @@ async def admin_generate_manual_join_link(request: Request):
         "expire_at": expire_at_str,
     })
     
-    join_template = str(db.get_config(
+    join_template = str(safe_db_config(
         "MANUAL_ORDER_JOIN_TEMPLATE",
         "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
     ) or "").strip()
@@ -1710,7 +1753,7 @@ async def admin_generate_manual_join_link(request: Request):
         "message_url": "",
         "links_text": links_text,
         "support_text": support_text,
-        "support_group_name": support_group_name(),
+        "support_group_name": safe_support_group_name(),
         "support_link": support_link,
         "support_error": support_error,
         "activation_code": activation_code,
