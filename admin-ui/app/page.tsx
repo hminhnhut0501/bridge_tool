@@ -5864,7 +5864,7 @@ export default function Home() {
                   return (
                     <button className="bento-card" key={item} onClick={() => openEditGroupModal(String(item))}>
                       <div className="bento-top">
-                        <div className="bento-badge">G{item}</div>
+
                         <div className="bento-status">
                           {isOk ? <CheckCircle2 size={14} className="icon-success" /> : <XCircle size={14} className="icon-error" />}
                           <span className={isOk ? "text-success" : "text-error"}>{isOk ? "Active" : "Cần thiết lập"}</span>
