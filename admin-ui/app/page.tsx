@@ -184,6 +184,7 @@ import {
   getHiddenRedemptions,
   getKickAudit,
   getVipGroupAudit,
+  getVipMemberAudit,
   getMenuPages,
   getOrders,
   getSaleRules,
@@ -193,6 +194,7 @@ import {
   getUsers,
   getWebhookInfo,
   kickAuditMember,
+  cleanupVipInviteLinks,
   pauseCampaign,
   previewCampaign,
   regenerateActivationCode,
@@ -216,6 +218,7 @@ import {
   type HiddenCode,
   type HiddenGroup,
   type VipGroupAuditRow,
+  type VipMemberAuditRow,
   type SupportGroupCheck,
 } from "@/lib/api";
 
@@ -602,7 +605,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
@@ -2643,6 +2646,7 @@ export default function Home() {
   const [supportCases, setSupportCases] = useState<SupportCase[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
+  const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3137,6 +3141,7 @@ export default function Home() {
       const needsSupportEvents = !light && shouldLoad("renewals", "supportGroup");
       const needsKickAudit = !light && shouldLoad("renewals");
       const needsVipGroupAudit = !light && shouldLoad("renewals");
+      const needsVipMemberAudit = !light && shouldLoad("vipAudit", "renewals", "security");
       const needsActivityEvents = !light && shouldLoad("overview", "analytics");
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
@@ -3157,6 +3162,7 @@ export default function Home() {
       addTask(needsSupportEvents, () => getSupportEvents(activeSecret), setSupportEvents);
       addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
       addTask(needsVipGroupAudit, () => getVipGroupAudit(activeSecret), setVipGroupAudit);
+      addTask(needsVipMemberAudit, () => getVipMemberAudit(activeSecret), setVipMemberAudit);
       addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
@@ -3599,6 +3605,30 @@ export default function Home() {
       const res = await getVipGroupAudit(savedSecret, live);
       setVipGroupAudit(res.data);
     if (live) showNotice("ok", "Đã kiểm tra live trạng thái nhóm hỗ trợ.");
+    });
+  }
+
+  async function refreshVipMemberAudit(live = false) {
+    await runAction(live ? "vip-member-audit-live" : "vip-member-audit-refresh", async () => {
+      const res = await getVipMemberAudit(savedSecret, live);
+      setVipMemberAudit(res.data);
+      if (live) showNotice("ok", "Đã quét live thành viên VIP đã ghi nhận.");
+    });
+  }
+
+  async function cleanupVipInviteLinksAction(groupId = "", force = true) {
+    await runAction(`vip-invite-cleanup-${groupId || "all"}`, async () => {
+      const res = await cleanupVipInviteLinks(savedSecret, { group_id: groupId, force, only_used: false });
+      const total = res.data.total || 0;
+      const success = res.data.success || 0;
+      const failed = res.data.failed || 0;
+      setNotice({
+        type: failed ? "error" : "ok",
+        text: failed
+          ? `Đã dọn ${success}/${total} link join, lỗi ${failed} lượt.`
+          : `Đã dọn xong ${total} nhóm/link join.`,
+      });
+      await loadAll(savedSecret, { silent: true, scope: "vipAudit" });
     });
   }
 
@@ -5848,6 +5878,7 @@ export default function Home() {
               <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
+              <Tab value="vipAudit" icon={<Users size={16} />} iconPosition="start" label="VIP audit" />
               <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
               <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
             </Tabs>
@@ -7338,6 +7369,52 @@ export default function Home() {
                     <Trash2 size={16} />
                   </IconButton>
                 )}
+              />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "vipAudit" ? (
+          <div className="stack">
+            <section className="panel">
+              <PanelHead
+                title="VIP audit"
+                subtitle="Dò những member VIP bot đã ghi nhận nhưng không còn đơn active hoặc chưa từng có đơn. Dùng live check để bỏ qua member đã out group."
+                action={(
+                  <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => refreshVipMemberAudit(false)} disabled={saving === "vip-member-audit-refresh"} startIcon={saving === "vip-member-audit-refresh" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                      Quét lại
+                    </Button>
+                    <Button variant="contained" size="small" onClick={() => refreshVipMemberAudit(true)} disabled={saving === "vip-member-audit-live"} startIcon={saving === "vip-member-audit-live" ? <Loader2 size={16} className="spin" /> : <Search size={16} />}>
+                      Quét live
+                    </Button>
+                    <Button variant="outlined" color="warning" size="small" onClick={() => cleanupVipInviteLinksAction("", true)} disabled={saving === "vip-invite-cleanup-all"} startIcon={saving === "vip-invite-cleanup-all" ? <Loader2 size={16} className="spin" /> : <Trash2 size={16} />}>
+                      Dọn toàn bộ link join
+                    </Button>
+                  </div>
+                )}
+              />
+              <div className="hint compact">
+                Công cụ này chỉ quét member VIP mà bot đã ghi nhận qua sự kiện join/left/kick. Telegram Bot API không cho phép liệt kê toàn bộ member ẩn của group từ con số 0.
+              </div>
+              <div className="grid" style={{ padding: "0 16px 12px" }}>
+                <Metric label="Rows" value={String(vipMemberAudit.length)} accent="blue" icon={<Users size={16} />} />
+                <Metric label="Không có đơn" value={String(vipMemberAudit.filter((item) => item.risk_type === "NO_ORDER").length)} accent="amber" icon={<Ticket size={16} />} />
+                <Metric label="Đơn hết hạn" value={String(vipMemberAudit.filter((item) => item.risk_type === "EXPIRED_ORDER").length)} accent="rose" icon={<Clock3 size={16} />} />
+                <Metric label="Live checked" value={String(vipMemberAudit.filter((item) => item.live_checked).length)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+              </div>
+              <SimpleTable
+                headers={["Khách", "Telegram ID", "Group", "Lý do", "Đơn gần nhất", "Hạn", "Live", "Cập nhật"]}
+                rows={vipMemberAudit.map((item) => [
+                  <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.latest_event_type || "-"}</div></>,
+                  item.telegram_user_id,
+                  <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id}</div></>,
+                  <><strong>{item.risk_label}</strong><div className="muted">{item.risk_type}</div></>,
+                  <><strong>{item.order_id || "-"}</strong><div className="muted">{item.latest_order_status || "-"}</div></>,
+                  dateText(item.expire_at || ""),
+                  item.live_checked ? (item.live_present ? "Có mặt" : "Không còn") : "Chưa live",
+                  <><div>{dateText(item.latest_event_at) || "-"}</div><div className="muted">{item.live_status || ""}</div></>,
+                ])}
               />
             </section>
           </div>

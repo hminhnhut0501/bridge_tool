@@ -295,6 +295,26 @@ export type VipGroupAuditRow = {
   current_group_ids?: string[] | null;
 };
 
+export type VipMemberAuditRow = {
+  audit_id: string;
+  customer_name: string;
+  telegram_user_id: string;
+  group_id: string;
+  group_name: string;
+  risk_type: "NO_ORDER" | "EXPIRED_ORDER" | string;
+  risk_label: string;
+  latest_event_type: string;
+  latest_event_at: string;
+  order_id: string;
+  plan_name: string;
+  expire_at: string;
+  latest_order_status: string;
+  live_checked: boolean;
+  live_present: boolean | null;
+  live_status: string;
+  needs_action: boolean;
+};
+
 export type KickAuditPayload = {
   telegram_user_id: string;
   order_id: string;
@@ -761,11 +781,26 @@ export async function getVipGroupAudit(secret: string, live = false) {
   return request<{ data: VipGroupAuditRow[] }>(`/admin-api/vip-group-audit?live=${live ? "true" : "false"}`, secret);
 }
 
+export async function getVipMemberAudit(secret: string, live = false) {
+  return request<{ data: VipMemberAuditRow[] }>(`/admin-api/vip-member-audit?live=${live ? "true" : "false"}`, secret);
+}
+
 export async function kickAuditMember(secret: string, payload: KickAuditPayload) {
   return request<{ data: KickAuditRow[] }>("/admin-api/kick-audit/kick", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function cleanupVipInviteLinks(secret: string, payload: { group_id?: string; force?: boolean; only_used?: boolean }) {
+  return request<{ data: { total: number; success: number; failed: number; rows: Array<Record<string, unknown>> } }>(
+    "/admin-api/vip-invite-links/cleanup",
+    secret,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function getActivityEvents(secret: string) {

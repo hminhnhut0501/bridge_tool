@@ -41,7 +41,7 @@ from support_utils import (
     support_inbox_group_id,
     support_inbox_group_name,
 )
-from vip_group_audit_utils import build_vip_group_audit_rows
+from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_risk_rows
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_write_items
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
@@ -2100,6 +2100,15 @@ async def admin_vip_group_audit(live: bool = False):
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét nhóm hỗ trợ: {exc}")
 
 
+@app.get("/admin-api/vip-member-audit", dependencies=[Depends(require_admin)])
+async def admin_vip_member_audit(live: bool = False):
+    try:
+        return {"data": await build_vip_member_risk_rows(live=live)}
+    except Exception as exc:
+        print(f"⚠️ Không dựng được danh sách audit member VIP: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được danh sách audit member VIP: {exc}")
+
+
 @app.post("/admin-api/kick-audit/kick", dependencies=[Depends(require_admin)])
 async def admin_kick_audit_member(request: Request):
     body = await request.json()
@@ -2150,6 +2159,22 @@ async def admin_kick_audit_member(request: Request):
         raise HTTPException(status_code=500, detail=f"Kick không thành công: {exc}")
 
     return {"data": await build_kick_audit_rows(live=True, order_id_filter=order_id, user_id_filter=user_id, chat_id_filter=chat_id)}
+
+
+@app.post("/admin-api/vip-invite-links/cleanup", dependencies=[Depends(require_admin)])
+async def admin_cleanup_vip_invite_links(request: Request):
+    body = await request.json()
+    group_id = str(body.get("group_id") or "").strip()
+    force = bool(body.get("force", True))
+    only_used = bool(body.get("only_used", False))
+    try:
+        from scheduler import cleanup_order_invite_links
+
+        result = await cleanup_order_invite_links(group_id=group_id, force=force, only_used=only_used)
+        return {"data": result}
+    except Exception as exc:
+        print(f"⚠️ Không dọn được link join VIP: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dọn được link join VIP: {exc}")
 
 
 @app.get("/admin-api/activity-events", dependencies=[Depends(require_admin)])

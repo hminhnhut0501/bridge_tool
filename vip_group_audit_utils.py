@@ -82,6 +82,130 @@ def group_label_for_chat_id(chat_id):
     return target or "-"
 
 
+def vip_group_ids():
+    ids = []
+    seen = set()
+    for group_no in range(1, 101):
+        gid = _normalize_chat_id(db.get_config(f"ID_G{group_no}", ""))
+        if gid and gid not in seen:
+            ids.append(gid)
+            seen.add(gid)
+    return ids
+
+
+def _event_new_status(event):
+    raw_data = dict((event or {}).get("raw_data") or {})
+    status = str(raw_data.get("new_status") or raw_data.get("status") or "").strip().lower()
+    if status:
+        return status
+    return str((event or {}).get("event_type") or "").strip().lower()
+
+
+def _order_is_active(order, now):
+    plan_name = str(order.get("plan_name") or "")
+    if not plan_name:
+        return False
+    if "PAID" != str(order.get("status") or "").upper():
+        return False
+    if "lifetime" in plan_name.lower() or "trọn đời" in plan_name.lower() or "tron doi" in plan_name.lower():
+        return True
+    expire_at = parse_expire_datetime(order.get("expire_at"))
+    return bool(expire_at and expire_at > now)
+
+
+async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filter=""):
+    db.reload_config(force=True)
+    now = now_local().replace(tzinfo=None)
+    orders = supabase_store.list_scheduler_orders(limit=5000)
+    try:
+        support_events = supabase_store.list_support_events(limit=10000)
+    except Exception:
+        support_events = []
+
+    vip_ids = set(vip_group_ids())
+    latest_membership_events = {}
+    for event in support_events:
+        event_type = str(event.get("event_type") or "").strip()
+        if event_type not in {"vip_joined", "vip_left", "vip_kicked", "vip_restricted_changed", "vip_unmuted", "vip_role_changed"}:
+            continue
+        gid = _normalize_chat_id(event.get("chat_id"))
+        if not gid or gid not in vip_ids:
+            continue
+        user_id = str(event.get("telegram_user_id") or "").strip()
+        if not user_id:
+            continue
+        key = (user_id, gid)
+        if key not in latest_membership_events:
+            latest_membership_events[key] = event
+
+    orders_by_user_group = {}
+    for order in orders:
+        user_id = str(order.get("telegram_user_id") or "").strip()
+        if not user_id:
+            continue
+        for gid in plan_group_ids(order.get("plan_name") or ""):
+            normalized_gid = _normalize_chat_id(gid)
+            key = (user_id, normalized_gid)
+            orders_by_user_group.setdefault(key, []).append(order)
+
+    rows = []
+    for (user_id, gid), event in latest_membership_events.items():
+        if user_id_filter and user_id != str(user_id_filter):
+            continue
+        if chat_id_filter and _normalize_chat_id(chat_id_filter) != gid:
+            continue
+
+        new_status = _event_new_status(event)
+        in_group = new_status not in {"left", "kicked", "banned"}
+        if not in_group:
+            continue
+
+        live_state = {"checked": False, "present": None, "status": "", "error": ""}
+        if live:
+            live_state = await member_live_state(gid, user_id)
+            if live_state["present"] is False:
+                continue
+
+        matched_orders = orders_by_user_group.get((user_id, gid), [])
+        active_orders = [order for order in matched_orders if _order_is_active(order, now)]
+        if active_orders:
+            continue
+
+        latest_order = matched_orders[0] if matched_orders else None
+        if len(matched_orders) > 1:
+            matched_orders.sort(key=lambda item: str(item.get("expire_at") or item.get("created_at") or ""), reverse=True)
+            latest_order = matched_orders[0]
+
+        risk_type = "NO_ORDER" if not matched_orders else "EXPIRED_ORDER"
+        risk_label = "Không có đơn active" if risk_type == "NO_ORDER" else "Đơn đã hết hạn"
+        latest_event_type = str(event.get("event_type") or "").strip()
+        latest_event_at = support_event_time(event)
+
+        rows.append({
+            "audit_id": f"{user_id}:{gid}",
+            "customer_name": order_display_name(latest_order or {"telegram_user_id": user_id, "full_name": "", "username": ""}, support_events),
+            "telegram_user_id": user_id,
+            "group_id": gid,
+            "group_name": group_label_for_chat_id(gid),
+            "risk_type": risk_type,
+            "risk_label": risk_label,
+            "latest_event_type": latest_event_type,
+            "latest_event_at": latest_event_at,
+            "order_id": str((latest_order or {}).get("order_id") or ""),
+            "plan_name": str((latest_order or {}).get("plan_name") or ""),
+            "expire_at": str((latest_order or {}).get("expire_at") or ""),
+            "latest_order_status": str((latest_order or {}).get("status") or ""),
+            "live_checked": live_state["checked"],
+            "live_present": live_state["present"],
+            "live_status": live_state["status"],
+            "needs_action": True,
+        })
+
+    priority = {"EXPIRED_ORDER": 0, "NO_ORDER": 1}
+    rows.sort(key=lambda item: (priority.get(item["risk_type"], 9), item["group_name"], item["customer_name"], item["telegram_user_id"]))
+    return rows
+
+
 async def build_vip_group_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter=""):
     db.reload_config(force=True)
     now = now_local().replace(tzinfo=None)
