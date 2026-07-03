@@ -4386,6 +4386,11 @@ export default function Home() {
     if (selected) values.add(selected);
     return Array.from(values).sort((a, b) => Number(a) - Number(b));
   }, [groupNo, visibleGroups]);
+  const activeSpecialGroups = useMemo(() => hiddenGroups.filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [hiddenGroups]);
+  const manualSpecialGroupPlanKeys = useMemo(() => activeSpecialGroups.flatMap((item) => [
+    `SPECIAL:${item.id}:1M`,
+    `SPECIAL:${item.id}:LIFE`,
+  ]), [activeSpecialGroups]);
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
@@ -4397,9 +4402,9 @@ export default function Home() {
   ], [configuredGroups]);
   const manualPlanKeyOptions = useMemo(() => [
     ...discountPlanKeyOptions,
+    ...manualSpecialGroupPlanKeys,
     "CUSTOM",
-  ], [discountPlanKeyOptions]);
-  const activeSpecialGroups = useMemo(() => hiddenGroups.filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [hiddenGroups]);
+  ], [discountPlanKeyOptions, manualSpecialGroupPlanKeys]);
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
@@ -5408,6 +5413,12 @@ export default function Home() {
     if (value === "FULL_LIFE") return "All Access - trọn đời";
     if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
+    const special = parseManualSpecialGroupKey(value);
+    if (special) {
+      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
+      const duration = special.duration === "LIFE" ? "trọn đời" : `${specialGroup?.duration_1m_days || 30} ngày`;
+      return specialGroup ? `Special Group - ${specialGroup.name} - ${duration}` : `Special Group - ${special.groupId} - ${duration}`;
+    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -5428,6 +5439,11 @@ export default function Home() {
   function manualPlanNameFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày";
     if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời") || "All Access Trọn Đời";
+    const special = parseManualSpecialGroupKey(value);
+    if (special) {
+      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
+      return specialGroup ? hiddenGroupManualPlanName(specialGroup, special.duration) : "";
+    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
@@ -5440,6 +5456,11 @@ export default function Home() {
   function manualPriceFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
     if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
+    const special = parseManualSpecialGroupKey(value);
+    if (special) {
+      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
+      return specialGroup ? String(hiddenGroupManualPrice(specialGroup, special.duration, manualOrderForm.payment_currency) || "0") : "";
+    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
@@ -5462,18 +5483,39 @@ export default function Home() {
     return `Hidden - ${group.name} - ${durationLabel} [PT:HG:${group.id}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}]`;
   }
 
+  function parseManualSpecialGroupKey(value: string) {
+    const match = value.match(/^SPECIAL:([^:]+):(1M|LIFE)$/i);
+    if (!match) return null;
+    return {
+      groupId: match[1],
+      duration: String(match[2]).toUpperCase() === "LIFE" ? "LIFE" : "1M",
+    };
+  }
+
+  function manualSpecialGroupKey(groupId: string, durationKey: string) {
+    return `SPECIAL:${groupId}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}`;
+  }
+
   function changeManualPlanKey(value: string) {
-    const lifetime = isLifetimeCouponPlan(value);
+    const special = parseManualSpecialGroupKey(value);
+    const lifetime = special ? special.duration === "LIFE" : isLifetimeCouponPlan(value);
+    const specialGroup = special ? activeSpecialGroups.find((item) => item.id === special.groupId) || null : null;
     setManualOrderForm({
       ...manualOrderForm,
       plan_key: value,
-      plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
-      amount: manualPriceFromKey(value) || manualOrderForm.amount,
+      plan_name: value === "CUSTOM"
+        ? manualOrderForm.plan_name
+        : specialGroup
+          ? hiddenGroupManualPlanName(specialGroup, special?.duration || "1M")
+          : manualPlanNameFromKey(value),
+      amount: specialGroup
+        ? String(hiddenGroupManualPrice(specialGroup, special?.duration || "1M", manualOrderForm.payment_currency) || "0")
+        : manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
-      special_group_id: "",
-      special_group_duration: "1M",
+      special_group_id: special?.groupId || "",
+      special_group_duration: special?.duration || "1M",
     });
   }
 
@@ -5484,7 +5526,7 @@ export default function Home() {
     const nextAmount = group ? String(hiddenGroupManualPrice(group, normalizedDuration, manualOrderForm.payment_currency) || "0") : manualOrderForm.amount;
     setManualOrderForm({
       ...manualOrderForm,
-      plan_key: group ? "CUSTOM" : manualOrderForm.plan_key,
+      plan_key: group ? manualSpecialGroupKey(groupId, normalizedDuration) : manualOrderForm.plan_key,
       special_group_id: groupId,
       special_group_duration: normalizedDuration,
       plan_name: nextPlanName || manualOrderForm.plan_name,
@@ -5499,6 +5541,11 @@ export default function Home() {
   function manualOrderPlanNameDisplay() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
+    const special = parseManualSpecialGroupKey(manualOrderForm.plan_key);
+    if (special) {
+      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
+      if (specialGroup) return hiddenGroupManualPlanName(specialGroup, special.duration);
+    }
     if (manualOrderForm.plan_key === "CUSTOM") return manualOrderForm.plan_name;
     return manualPlanNameFromKey(manualOrderForm.plan_key);
   }
