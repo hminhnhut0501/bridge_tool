@@ -5816,6 +5816,23 @@ export default function Home() {
             <Button variant="outlined" onClick={() => void openCustomerQuickLookup()} size="small" startIcon={<Search size={16} />}>
               Tra cứu khách
             </Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={() => {
+                setManualOrderResult(null);
+                setManualOrderForm({
+                  ...EMPTY_MANUAL_ORDER_FORM,
+                  plan_key: "FULL_1M",
+                  plan_name: manualPlanNameFromKey("FULL_1M"),
+                  amount: manualPriceFromKey("FULL_1M") || "0",
+                });
+                setManualOrderModalOpen(true);
+              }}
+              startIcon={<Plus size={16} />}
+            >
+              Tạo đơn
+            </Button>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap", px: 1.15, py: 0.7, borderRadius: 999, border: "1px solid rgba(148, 163, 184, 0.16)", bgcolor: "rgba(15,23,42,0.03)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.76)" }}>
               <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: webhookMeta?.maintenance_override?.active ? "#ef4444" : webhook?.url ? "#22c55e" : "#ef4444", boxShadow: webhookMeta?.maintenance_override?.active ? "0 0 0 5px rgba(239,68,68,0.12)" : webhook?.url ? "0 0 0 5px rgba(34,197,94,0.12)" : "0 0 0 5px rgba(239,68,68,0.12)" }} />
               <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700, lineHeight: 1 }}>
@@ -8219,24 +8236,18 @@ export default function Home() {
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
                   <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-                  <TextField select label="Gói cấp cho khách" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small">
+                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" helperText="Chọn 1 gói duy nhất, gồm cả Special Group nếu cần.">
                     {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
                   </TextField>
-                  <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn để tạo đơn cho group đặc biệt / hidden." : "Chưa có Special Group đang hoạt động."}>
-                    <MenuItem value="">
-                      <em>Không dùng Special Group</em>
-                    </MenuItem>
-                    {activeSpecialGroups.map((group) => (
-                      <MenuItem key={group.id} value={group.id}>{group.name} ({group.chat_id})</MenuItem>
-                    ))}
-                  </TextField>
-                  {manualOrderForm.special_group_id ? (
-                    <TextField select label="Hạn Special Group" value={manualOrderForm.special_group_duration} onChange={(event) => changeManualSpecialGroup(manualOrderForm.special_group_id, event.target.value)} size="small" helperText="Dùng để khớp đúng token plan và giá của hidden group.">
-                      <MenuItem value="1M">30 ngày</MenuItem>
-                      <MenuItem value="LIFE">Trọn đời</MenuItem>
-                    </TextField>
-                  ) : null}
-                  <TextField label="Tên gói lưu vào đơn" value={manualOrderPlanNameDisplay()} onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM", special_group_id: "", special_group_duration: "1M" })} placeholder="VD: Collection 30 Ngày - Hang Cú Prime" size="small" helperText="Với gói tự nhập, nên chứa đúng tên collection đang cấu hình trong Nhóm & giá." />
+                  <TextField
+                    label="Tên gói lưu vào đơn"
+                    value={manualOrderPlanNameDisplay()}
+                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM", special_group_id: "", special_group_duration: "1M" })}
+                    placeholder="VD: Collection 30 Ngày - Hang Cú Prime"
+                    size="small"
+                    helperText={manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
+                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" } }}
+                  />
                   <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
 
