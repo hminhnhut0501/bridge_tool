@@ -4256,6 +4256,7 @@ export default function Home() {
 
   function openCustomerCreateOrderModal() {
     if (!selectedCustomer) return;
+    void ensureHiddenGroupsDataset();
     const defaultOrder = selectedCustomerRenewTargetOrder || selectedCustomer.paidOrders[0] || null;
     setManualOrderResult(null);
     setManualOrderForm({
@@ -5708,9 +5709,16 @@ export default function Home() {
     return customer;
   }
 
+  async function ensureHiddenGroupsDataset() {
+    if (!savedSecret) return;
+    if (hiddenGroups.length > 0) return;
+    await loadAll(savedSecret, { silent: true, resetPages: false, scope: "specialGroups" });
+  }
+
   async function openCustomerFromLookup(customerId: string) {
     const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
+    await ensureHiddenGroupsDataset();
     setSelectedCustomerId(customer.id);
     setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
@@ -5721,6 +5729,7 @@ export default function Home() {
   async function openCustomerRenewFromLookup(customerId: string) {
     const customer = await ensureCustomerDataset(customerId);
     if (!customer) return;
+    await ensureHiddenGroupsDataset();
     setSelectedCustomerId(customer.id);
     setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
@@ -5751,6 +5760,7 @@ export default function Home() {
     const customer = lookupCustomerByTelegramId(customerId);
     const nextCustomerId = customer?.id || customerId.trim();
     if (!nextCustomerId) return;
+    void ensureHiddenGroupsDataset();
     setManualOrderForm((current) => ({
       ...current,
       telegram_user_id: nextCustomerId,
