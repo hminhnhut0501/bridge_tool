@@ -5473,8 +5473,8 @@ export default function Home() {
       expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
-      special_group_id: "",
-      special_group_duration: "1M",
+      special_group_id: value === "CUSTOM" ? manualOrderForm.special_group_id : "",
+      special_group_duration: value === "CUSTOM" ? manualOrderForm.special_group_duration : "1M",
     });
   }
 
@@ -8199,10 +8199,10 @@ export default function Home() {
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
                   <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" disabled={Boolean(manualOrderForm.special_group_id)} helperText={manualOrderForm.special_group_id ? "Đang chọn Special Group, hãy xoá bên dưới nếu muốn chọn gói thường." : "Chọn gói thường. Nếu chọn Special Group bên dưới thì ô này sẽ tự khóa."}>
+                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" helperText="Chọn gói thường. Nếu chọn Special Group bên dưới, hệ thống sẽ tự đổi sang special." >
                     {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
                   </TextField>
-                  <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" disabled={manualOrderForm.plan_key !== "CUSTOM"} helperText={activeSpecialGroups.length ? "Chọn Special Group riêng. Khi chọn, ô gói thường sẽ bị khóa." : "Chưa có Special Group đang hoạt động."}>
+                  <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn Special Group riêng. Khi chọn, ô gói thường sẽ tự chuyển sang Special." : "Chưa có Special Group đang hoạt động."}>
                     <MenuItem value="">
                       <em>Không dùng Special Group</em>
                     </MenuItem>
@@ -8223,7 +8223,7 @@ export default function Home() {
                     placeholder="VD: Collection 30 Ngày - Hang Cú Prime"
                     size="small"
                     helperText={manualOrderForm.special_group_id ? "Tên sẽ tự khớp theo Special Group đã chọn." : manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
-                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" || Boolean(manualOrderForm.special_group_id) } }}
+                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" && !manualOrderForm.special_group_id } }}
                   />
                   <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
