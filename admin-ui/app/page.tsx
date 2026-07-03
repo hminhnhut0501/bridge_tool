@@ -4388,10 +4388,6 @@ export default function Home() {
     return Array.from(values).sort((a, b) => Number(a) - Number(b));
   }, [groupNo, visibleGroups]);
   const activeSpecialGroups = useMemo(() => hiddenGroups.filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [hiddenGroups]);
-  const manualSpecialGroupPlanKeys = useMemo(() => activeSpecialGroups.flatMap((item) => [
-    `SPECIAL:${item.id}:1M`,
-    `SPECIAL:${item.id}:LIFE`,
-  ]), [activeSpecialGroups]);
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
@@ -4403,9 +4399,8 @@ export default function Home() {
   ], [configuredGroups]);
   const manualPlanKeyOptions = useMemo(() => [
     ...discountPlanKeyOptions,
-    ...manualSpecialGroupPlanKeys,
     "CUSTOM",
-  ], [discountPlanKeyOptions, manualSpecialGroupPlanKeys]);
+  ], [discountPlanKeyOptions]);
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
@@ -5414,12 +5409,6 @@ export default function Home() {
     if (value === "FULL_LIFE") return "All Access - trọn đời";
     if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
-    const special = parseManualSpecialGroupKey(value);
-    if (special) {
-      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
-      const duration = special.duration === "LIFE" ? "trọn đời" : `${specialGroup?.duration_1m_days || 30} ngày`;
-      return specialGroup ? `Special Group - ${specialGroup.name} - ${duration}` : `Special Group - ${special.groupId} - ${duration}`;
-    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -5440,11 +5429,6 @@ export default function Home() {
   function manualPlanNameFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày";
     if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời") || "All Access Trọn Đời";
-    const special = parseManualSpecialGroupKey(value);
-    if (special) {
-      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
-      return specialGroup ? hiddenGroupManualPlanName(specialGroup, special.duration) : "";
-    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
@@ -5457,11 +5441,6 @@ export default function Home() {
   function manualPriceFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
     if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
-    const special = parseManualSpecialGroupKey(value);
-    if (special) {
-      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
-      return specialGroup ? String(hiddenGroupManualPrice(specialGroup, special.duration, manualOrderForm.payment_currency) || "0") : "";
-    }
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
@@ -5484,39 +5463,18 @@ export default function Home() {
     return `Hidden - ${group.name} - ${durationLabel} [PT:HG:${group.id}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}]`;
   }
 
-  function parseManualSpecialGroupKey(value: string) {
-    const match = value.match(/^SPECIAL:([^:]+):(1M|LIFE)$/i);
-    if (!match) return null;
-    return {
-      groupId: match[1],
-      duration: String(match[2]).toUpperCase() === "LIFE" ? "LIFE" : "1M",
-    };
-  }
-
-  function manualSpecialGroupKey(groupId: string, durationKey: string) {
-    return `SPECIAL:${groupId}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}`;
-  }
-
   function changeManualPlanKey(value: string) {
-    const special = parseManualSpecialGroupKey(value);
-    const lifetime = special ? special.duration === "LIFE" : isLifetimeCouponPlan(value);
-    const specialGroup = special ? activeSpecialGroups.find((item) => item.id === special.groupId) || null : null;
+    const lifetime = isLifetimeCouponPlan(value);
     setManualOrderForm({
       ...manualOrderForm,
       plan_key: value,
-      plan_name: value === "CUSTOM"
-        ? manualOrderForm.plan_name
-        : specialGroup
-          ? hiddenGroupManualPlanName(specialGroup, special?.duration || "1M")
-          : manualPlanNameFromKey(value),
-      amount: specialGroup
-        ? String(hiddenGroupManualPrice(specialGroup, special?.duration || "1M", manualOrderForm.payment_currency) || "0")
-        : manualPriceFromKey(value) || manualOrderForm.amount,
+      plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
+      amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
-      special_group_id: special?.groupId || "",
-      special_group_duration: special?.duration || "1M",
+      special_group_id: "",
+      special_group_duration: "1M",
     });
   }
 
@@ -5527,7 +5485,7 @@ export default function Home() {
     const nextAmount = group ? String(hiddenGroupManualPrice(group, normalizedDuration, manualOrderForm.payment_currency) || "0") : manualOrderForm.amount;
     setManualOrderForm({
       ...manualOrderForm,
-      plan_key: group ? manualSpecialGroupKey(groupId, normalizedDuration) : manualOrderForm.plan_key,
+      plan_key: group ? "CUSTOM" : manualOrderForm.plan_key,
       special_group_id: groupId,
       special_group_duration: normalizedDuration,
       plan_name: nextPlanName || manualOrderForm.plan_name,
@@ -5542,11 +5500,6 @@ export default function Home() {
   function manualOrderPlanNameDisplay() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
-    const special = parseManualSpecialGroupKey(manualOrderForm.plan_key);
-    if (special) {
-      const specialGroup = activeSpecialGroups.find((item) => item.id === special.groupId) || null;
-      if (specialGroup) return hiddenGroupManualPlanName(specialGroup, special.duration);
-    }
     if (manualOrderForm.plan_key === "CUSTOM") return manualOrderForm.plan_name;
     return manualPlanNameFromKey(manualOrderForm.plan_key);
   }
@@ -8246,17 +8199,31 @@ export default function Home() {
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
                   <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" helperText="Chọn 1 gói duy nhất, gồm cả Special Group nếu cần.">
+                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" disabled={Boolean(manualOrderForm.special_group_id)} helperText={manualOrderForm.special_group_id ? "Đang chọn Special Group, hãy xoá bên dưới nếu muốn chọn gói thường." : "Chọn gói thường. Nếu chọn Special Group bên dưới thì ô này sẽ tự khóa."}>
                     {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
                   </TextField>
+                  <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" disabled={manualOrderForm.plan_key !== "CUSTOM"} helperText={activeSpecialGroups.length ? "Chọn Special Group riêng. Khi chọn, ô gói thường sẽ bị khóa." : "Chưa có Special Group đang hoạt động."}>
+                    <MenuItem value="">
+                      <em>Không dùng Special Group</em>
+                    </MenuItem>
+                    {activeSpecialGroups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>{group.name} ({group.chat_id})</MenuItem>
+                    ))}
+                  </TextField>
+                  {manualOrderForm.special_group_id ? (
+                    <TextField select label="Hạn Special Group" value={manualOrderForm.special_group_duration} onChange={(event) => changeManualSpecialGroup(manualOrderForm.special_group_id, event.target.value)} size="small" helperText="Dùng để khớp đúng token plan và giá của special group.">
+                      <MenuItem value="1M">30 ngày</MenuItem>
+                      <MenuItem value="LIFE">Trọn đời</MenuItem>
+                    </TextField>
+                  ) : null}
                   <TextField
                     label="Tên gói lưu vào đơn"
                     value={manualOrderPlanNameDisplay()}
                     onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM", special_group_id: "", special_group_duration: "1M" })}
                     placeholder="VD: Collection 30 Ngày - Hang Cú Prime"
                     size="small"
-                    helperText={manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
-                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" } }}
+                    helperText={manualOrderForm.special_group_id ? "Tên sẽ tự khớp theo Special Group đã chọn." : manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
+                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" || Boolean(manualOrderForm.special_group_id) } }}
                   />
                   <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
