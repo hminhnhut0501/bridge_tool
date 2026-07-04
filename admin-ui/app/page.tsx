@@ -2097,9 +2097,9 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME",
-    label: "Hidden cần All Access lifetime",
+    label: "Hidden cần All Access trọn đời",
     placeholder: "Bạn cần có gói All Access trọn đời để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu All Access lifetime.",
+    help: "Tin hiển thị khi rule yêu cầu All Access trọn đời.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE",
@@ -2109,9 +2109,9 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_LIFETIME",
-    label: "Hidden cần plan token lifetime",
+    label: "Hidden cần plan token trọn đời",
     placeholder: "Bạn cần có gói {plan_token} trọn đời để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu plan token lifetime.",
+    help: "Tin hiển thị khi rule yêu cầu plan token trọn đời.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_GENERIC",
@@ -2356,9 +2356,9 @@ const EMPTY_CHANNEL_POST_FORM = {
 const HIDDEN_REQUIREMENT_OPTIONS = [
   { value: "NONE", label: "Không yêu cầu thêm" },
   { value: "SVIP_ACTIVE", label: "Phải có All Access active" },
-  { value: "SVIP_LIFETIME", label: "Phải có All Access lifetime" },
+  { value: "SVIP_LIFETIME", label: "Phải có All Access trọn đời" },
   { value: "PLAN_TOKEN_ACTIVE", label: "Phải có plan token active" },
-  { value: "PLAN_TOKEN_LIFETIME", label: "Phải có plan token lifetime" },
+  { value: "PLAN_TOKEN_LIFETIME", label: "Phải có plan token trọn đời" },
 ];
 
 const HIDDEN_SCOPE_OPTIONS = [
@@ -5144,7 +5144,7 @@ export default function Home() {
           <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           dateText(item.paid_at || item.created_at),
           [item.payment_provider || item.source_type || "PAID", inferOrderCurrency(item)].filter(Boolean).join(" / "),
-          groupNamesForOrder(item).join(", ") || "All Access / lifetime",
+          groupNamesForOrder(item).join(", ") || "All Access / trọn đời",
         ] as ReactNode[],
       })),
     } satisfies Record<RenewalSubTab, { key: string; telegramId: string; searchText: string; flags: { isImportant: boolean; isNew: boolean; isSvip: boolean; isUnreminded: boolean }; cells: ReactNode[] }[]>;
@@ -5448,7 +5448,7 @@ export default function Home() {
 
   function hiddenGroupDurationLabel(group: HiddenGroup, durationKey: string) {
     return String(durationKey).toUpperCase() === "LIFE"
-      ? "Trọn Đời"
+      ? "Trọn đời"
       : `${group.duration_1m_days || 30} Ngày`;
   }
 
@@ -6328,7 +6328,7 @@ export default function Home() {
 	                { key: "soon" as RenewalSubTab, label: "Sắp hết hạn", value: String(expiringSoon.length), accent: "amber" as const, note: "5 ngày tới" },
 	                { key: "reminded" as RenewalSubTab, label: "Đã thông báo", value: String(renewalNoticeEvents.length), accent: "cyan" as const, note: "Nhắc / báo hết hạn" },
 	                { key: "expired" as RenewalSubTab, label: "Đã hết hạn", value: String(expiredRenewalOrders.length), accent: "rose" as const, note: "Theo trạng thái kick" },
-	                { key: "lifetime" as RenewalSubTab, label: "Lifetime", value: String(lifetimeRenewalOrders.length), accent: "indigo" as const, note: "Không cần nhắc/kick" },
+                { key: "lifetime" as RenewalSubTab, label: "Trọn đời", value: String(lifetimeRenewalOrders.length), accent: "indigo" as const, note: "Không cần nhắc/kick" },
 	              ].map((item) => (
                 <ButtonBase
                   key={item.key}
@@ -6342,7 +6342,7 @@ export default function Home() {
             <section className="panel">
 	              <PanelHead
 	                title="Quản lý gia hạn"
-	                subtitle="4 danh sách gọn: sắp hết hạn 5 ngày, đã thông báo, đã hết hạn và lifetime."
+	                subtitle="4 danh sách gọn: sắp hết hạn 5 ngày, đã thông báo, đã hết hạn và trọn đời."
 	                action={
 	                  <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => refreshVipGroupAudit(true)} disabled={saving === "vip-audit-live"} startIcon={saving === "vip-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
@@ -6362,7 +6362,7 @@ export default function Home() {
 	                <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
 	                <Tab value="reminded" label={`Đã thông báo (${renewalNoticeEvents.length})`} />
 	                <Tab value="expired" label={`Đã hết hạn (${expiredRenewalOrders.length})`} />
-	                <Tab value="lifetime" label={`Lifetime (${lifetimeRenewalOrders.length})`} />
+	                <Tab value="lifetime" label={`Trọn đời (${lifetimeRenewalOrders.length})`} />
 	              </Tabs>
 	              <SimpleTable
 	                headers={renewalHeaders[renewalTab]}
@@ -7598,7 +7598,7 @@ export default function Home() {
                 <TextField className="field" label="Giá USD 30 ngày" value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: event.target.value })} inputMode="decimal" placeholder="4.99" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá USD trọn đời" value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: event.target.value })} inputMode="decimal" placeholder="14.99" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Hạn 30 ngày (days)" value={hiddenGroupForm.duration_1m_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, duration_1m_days: event.target.value })} inputMode="numeric" placeholder="30" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Hạn trọn đời (days)" value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Hạn trọn đời (days)" value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" fullWidth size="small" sx={popupFieldSx} helperText="Mặc định đồng bộ 10 năm = 3650 ngày." />
                 <TextField className="field" label="Sort order" value={hiddenGroupForm.sort_order} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, sort_order: event.target.value })} inputMode="numeric" placeholder="1" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Ảnh / File ID" value={hiddenGroupForm.image_url} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, image_url: event.target.value })} placeholder="URL hoặc Telegram file_id nếu có" fullWidth size="small" sx={popupFieldSx} />
                 <FormControl className="field" fullWidth size="small">
@@ -7857,7 +7857,7 @@ export default function Home() {
                       }}>{planKeyOptions.map((item) => <MenuItem key={item} value={item}>{planOptionLabel(item)}</MenuItem>)}</Select>
                         <Typography variant="caption" color="text.secondary">Chọn một gói cố định, hoặc để khách tự chọn collection lẻ sau khi nhập mã.</Typography>
                       </FormControl>
-                      <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời tự dùng số ngày trọn đời, không cần nhập 0." : "Dùng cho coupon kích hoạt theo ngày."} />
+                      <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời luôn dùng 10 năm = 3650 ngày." : "Dùng cho coupon kích hoạt theo ngày."} />
                       <TextField className="field" label="Nhãn thời hạn" value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."} />
                       <TextField className="field" label="Mẫu tên gói" value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="Collection {duration_label} - {group}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</span>} />
                       <TextField className="field" label="Mẫu nút chọn collection" value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng khi khách tự chọn collection. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</span>} />
