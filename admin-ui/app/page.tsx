@@ -2399,7 +2399,7 @@ const EMPTY_HIDDEN_CODE_FORM: HiddenCodeFormState = {
   is_active: true,
 };
 
-const DEFAULT_LIFETIME_DAYS = "36500";
+const DEFAULT_LIFETIME_DAYS = "3650";
 
 const ORDER_PAGE_SIZE = 25;
 const CUSTOMER_PAGE_SIZE = 25;
