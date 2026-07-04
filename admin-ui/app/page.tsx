@@ -5471,7 +5471,7 @@ export default function Home() {
       plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
-      duration_days: lifetime ? lifetimeCouponDays : manualOrderForm.duration_days || "30",
+      duration_days: lifetime ? lifetimeCouponDays : "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
       special_group_id: value === "CUSTOM" ? manualOrderForm.special_group_id : "",
       special_group_duration: value === "CUSTOM" ? manualOrderForm.special_group_duration : "1M",
