@@ -460,6 +460,18 @@ def order_is_lifetime(plan_name: str | None):
     return any(token in text for token in ("trọn đời", "tron doi", "lifetime", "life", "vĩnh viễn", "vinh vien"))
 
 
+def resolve_manual_order_duration_days(plan_name: str | None, duration_days: int, *, telegram_user_id: str = "", full_name: str = ""):
+    raw_duration_days = duration_days
+    if not order_is_lifetime(plan_name) and duration_days > 365:
+        print(
+            "⚠️ Manual order duration clamped to 30 days because non-lifetime plan exceeded safety limit: "
+            f"user_id={telegram_user_id or '-'} | full_name={full_name or '-'} | plan_name={plan_name or '-'} | "
+            f"raw_duration_days={raw_duration_days}"
+        )
+        return 30
+    return duration_days
+
+
 def order_is_active(order):
     if str(order.get("status") or "").upper() != "PAID":
         return False
@@ -1383,6 +1395,12 @@ async def admin_create_manual_order(request: Request):
             duration_days = 30
         if duration_days <= 0:
             raise HTTPException(status_code=400, detail="Số ngày sử dụng phải lớn hơn 0, hoặc nhập ngày hết hạn cụ thể.")
+        duration_days = resolve_manual_order_duration_days(
+            plan_name,
+            duration_days,
+            telegram_user_id=telegram_user_id,
+            full_name=full_name,
+        )
         expire_at = now_local() + timedelta(days=duration_days)
 
     paid_at = now_local()
