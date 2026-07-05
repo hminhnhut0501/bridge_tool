@@ -104,6 +104,33 @@ def render_manual_order_message_text(context: dict[str, object]):
     )
 
 
+def group_command_replies_enabled():
+    return config_enabled("BOT_GROUP_COMMANDS_ENABLED", "ON")
+
+
+def group_command_hint():
+    return db.get_config(
+        "BOT_GROUP_COMMAND_HINT",
+        "Dùng lệnh này trong group để xem hướng dẫn ngắn. Nếu cần thao tác riêng tư, hãy mở bot trong inbox.",
+    ).replace("\\n", "\n")
+
+
+def render_group_command_text(command_name: str, *, detail: str = "", extra: str = ""):
+    title_map = {
+        "/start": "🚀 /start",
+        "/me": "👤 /me",
+        "/support": "💬 /support",
+        "/policy": "📜 /policy",
+    }
+    base = [title_map.get(command_name, "ℹ️ Lệnh bot trong group")]
+    if detail:
+        base.append(detail)
+    if extra:
+        base.append(extra)
+    base.append(group_command_hint())
+    return "\n\n".join(part.strip() for part in base if part and str(part).strip())
+
+
 def infer_language_from_payment_context(*, payment_currency="", payment_provider="", raw_data=None):
     raw = raw_data if isinstance(raw_data, dict) else {}
     raw_language = str(raw.get("language") or "").strip().lower()
@@ -575,6 +602,16 @@ async def cmd_start(message: Message):
         parts = (message.text or "").split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
         print(f"🚀 cmd_start payload user={message.from_user.id} payload={payload[:120]}")
+        in_group_chat = getattr(message.chat, "type", "") != "private"
+        if in_group_chat and not payload and group_command_replies_enabled():
+            await message.answer(
+                render_group_command_text(
+                    "/start",
+                    detail="Mở nhanh menu bot.",
+                    extra="Muốn xem đủ nút và mua gói, nhắn /start trong inbox.",
+                )
+            )
+            return
         if payload:
             normalized = payload.strip()
             inferred_language = language_from_start_payload(normalized)
@@ -727,6 +764,15 @@ async def view_policy(event):
     if not await check_protection(event): return
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
+    if isinstance(event, Message) and event.chat.type != "private" and group_command_replies_enabled():
+        await event.answer(
+            render_group_command_text(
+                "/policy",
+                detail="Xem quy định ngắn.",
+                extra="Mở /policy trong inbox nếu muốn đọc bản đầy đủ.",
+            )
+        )
+        return
     
     # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
@@ -756,6 +802,15 @@ async def view_support(event):
     if not await check_protection(event): return
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
+    if isinstance(event, Message) and event.chat.type != "private" and group_command_replies_enabled():
+        await event.answer(
+            render_group_command_text(
+                "/support",
+                detail="Nhắn admin ngay.",
+                extra="Muốn kín hơn, dùng /support trong inbox.",
+            )
+        )
+        return
     
     # Ưu tiên gọi giao diện động hiện có trong hệ thống. Nếu thiếu page thì lùi về nội dung fallback.
     try:
@@ -784,6 +839,15 @@ async def cmd_me(event):
     if not await check_protection(event): return
     chat_id = event.chat.id if isinstance(event, Message) else event.message.chat.id
     await cleanup_welcome(event.from_user.id, chat_id)
+    if isinstance(event, Message) and event.chat.type != "private" and group_command_replies_enabled():
+        await event.answer(
+            render_group_command_text(
+                "/me",
+                detail="Xem nhanh gói của bạn.",
+                extra="Muốn đủ chi tiết, mở /me trong inbox.",
+            )
+        )
+        return
     
     user_id = str(event.from_user.id)
     if supabase_store.enabled:

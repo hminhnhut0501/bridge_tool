@@ -608,7 +608,7 @@ const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgco
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
-type BotToolsSubTab = "commandsVi" | "commandsEn" | "alertsVi" | "alertsEn";
+type BotToolsSubTab = "commandsVi" | "commandsEn" | "groupCommands" | "alertsVi" | "alertsEn";
 type MenuLanguage = "vi" | "en";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "paid" | "other";
@@ -1414,6 +1414,26 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Nhắn admin trợ giúp", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
+];
+
+const GROUP_COMMAND_FIELDS: ConfigField[] = [
+  {
+    key: "BOT_GROUP_COMMANDS_ENABLED",
+    label: "Phản hồi lệnh trong group",
+    placeholder: "ON",
+    help: "Bật ON để /start, /me, /support, /policy vẫn phản hồi trong group bằng nội dung rút gọn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "BOT_GROUP_COMMAND_HINT",
+    label: "Dòng nhắc cuối",
+    placeholder: "Dùng lệnh này trong group để xem hướng dẫn ngắn. Nếu cần thao tác riêng tư, hãy mở bot trong inbox.",
+    help: "Câu chốt cuối cho mọi lệnh group. Giữ ngắn để đỡ spam chat.",
+  },
 ];
 
 const ADMIN_FIELDS: ConfigField[] = [
@@ -2639,7 +2659,7 @@ export default function Home() {
   const [contentTab, setContentTab] = useState<ContentSubTab>("bot");
   const [botViTab, setBotViTab] = useState<BotUiSubTab>("plans");
   const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
-  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("commandsVi");
+  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("groupCommands");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
   const [orders, setOrders] = useState<Order[]>(isDevPreview ? DEMO_ORDERS : []);
@@ -2821,7 +2841,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...GROUP_COMMAND_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     Object.keys(nextValues).forEach((key) => {
@@ -7177,12 +7197,33 @@ export default function Home() {
             <section className="panel content-hub">
               <PanelHead title="Lệnh & cảnh báo Bot" subtitle="Tách riêng khỏi nội dung UI để dễ kiểm soát các lệnh Telegram và alert ngắn." />
               <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="groupCommands" label="Lệnh group" />
                 <Tab value="commandsVi" label="Lệnh tiếng Việt" />
                 <Tab value="commandsEn" label="Lệnh tiếng Anh" />
                 <Tab value="alertsVi" label="Cảnh báo tiếng Việt" />
                 <Tab value="alertsEn" label="Cảnh báo tiếng Anh" />
               </Tabs>
             </section>
+            {botToolsTab === "groupCommands" ? (
+              <div className="stack">
+                <section className="panel">
+                  <PanelHead
+                    title="Lệnh trong group"
+                    subtitle="Bật/tắt phản hồi group và chỉnh câu nhắc ngắn cho 4 lệnh chính."
+                  />
+                  <div className="grid">
+                    <Metric label="Group commands" value={String(getConfigValue(config, "BOT_GROUP_COMMANDS_ENABLED", "ON"))} accent={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
+                    <Metric label="/start" value={getConfigValue(config, "BOT_COMMAND_DESC_START", "Trang chủ / Mua gói") || "Trang chủ / Mua gói"} accent="blue" icon={<MessageSquare size={16} />} />
+                    <Metric label="/support" value={getConfigValue(config, "BOT_COMMAND_DESC_SUPPORT", "Nhắn admin trợ giúp") || "Nhắn admin trợ giúp"} accent="cyan" icon={<MessageSquare size={16} />} />
+                  </div>
+                  <Box sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Button variant="outlined" size="small" onClick={() => setBotToolsTab("commandsVi")} startIcon={<Settings size={16} />}>Mở mô tả lệnh</Button>
+                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Nhóm hỗ trợ</Button>
+                  </Box>
+                </section>
+                <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              </div>
+            ) : null}
             {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "alertsVi" ? <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
