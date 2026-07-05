@@ -32,12 +32,12 @@ def explain_support_invite_error(error, gid, config_key="SUPPORT_GROUP_ID"):
     lower = err.lower()
     if "chat not found" in lower:
         return (
-            f"{err}. Kiểm tra {config_key}={mask_chat_id(gid)}: phải là chat_id thật của group/supergroup "
-            "dạng -100..., bot phải đang ở trong đúng group hỗ trợ."
+            f"{err}. Kiểm tra {config_key}={mask_chat_id(gid)}: phải là chat_id thật của group/channel "
+            "dạng -100..., bot phải đang ở trong đúng nơi hỗ trợ."
         )
     if "not enough rights" in lower or "administrator" in lower or "can't invite" in lower:
         return (
-            f"{err}. Bot cần được đặt làm admin trong group hỗ trợ và có quyền tạo link mời/thêm thành viên."
+            f"{err}. Bot cần được đặt làm admin trong khu vực hỗ trợ và có quyền tạo link mời/thêm thành viên."
         )
     return err
 
@@ -47,12 +47,18 @@ def support_group_enabled():
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def support_group_mode():
+    raw = str(db.get_config("SUPPORT_GROUP_MODE", "group") or "group").strip().lower()
+    return raw if raw in {"group", "channel"} else "group"
+
+
 def support_group_id():
     return normalize_chat_id(db.get_config("SUPPORT_GROUP_ID", ""))
 
 
 def support_group_name():
-    return db.get_config("SUPPORT_GROUP_NAME", "Nhóm VIP")
+    default_name = "Kênh hỗ trợ" if support_group_mode() == "channel" else "Nhóm hỗ trợ"
+    return db.get_config("SUPPORT_GROUP_NAME", default_name)
 
 
 def support_group_grace_days():
@@ -768,14 +774,15 @@ async def create_support_invite_link(user_id):
         return None, "Nhóm hỗ trợ chưa cấu hình group ID."
 
     try:
-        try:
-            await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
-        except Exception:
-            pass
-        try:
-            await unmute_member(gid, user_id)
-        except Exception:
-            pass
+        if support_group_mode() != "channel":
+            try:
+                await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
+            except Exception:
+                pass
+            try:
+                await unmute_member(gid, user_id)
+            except Exception:
+                pass
         invite = await bot.create_chat_invite_link(
             chat_id=gid,
             member_limit=1,
@@ -784,7 +791,7 @@ async def create_support_invite_link(user_id):
         )
         return invite.invite_link, ""
     except Exception as exc:
-        print(f"⚠️ Không tạo được support invite link group={mask_chat_id(gid)} user={user_id}: {exc}")
+        print(f"⚠️ Không tạo được support invite link mode={support_group_mode()} target={mask_chat_id(gid)} user={user_id}: {exc}")
         return None, explain_support_invite_error(exc, gid)
 
 
