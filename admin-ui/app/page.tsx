@@ -750,7 +750,7 @@ const BOT_FIELDS: ConfigField[] = [
     key: "LANGUAGE_SWITCH_ENABLED",
     label: "Hiện nút đổi ngôn ngữ",
     placeholder: "ON",
-    help: "Bật để hiện nút English/Tiếng Việt ở menu chính. Khi tắt, hệ thống cũng ẩn các nút set_lang: đã khai báo trong Menu Builder.",
+    help: "Turn ON to show English/Vietnamese switching in the main menu. When OFF, menu-builder set_lang buttons are hidden too.",
     kind: "select",
     options: [
       { label: "Tắt", value: "OFF" },
@@ -908,7 +908,7 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     key: "AUTO_PAYMENT_EN_NEW_ENABLED",
     label: "New users (EN): auto payment",
     placeholder: "ON",
-    help: "Turn ON to let English-speaking new users use auto payment when schedule is also enabled.",
+    help: "Turn ON to let new English-speaking users use auto payment when the schedule also allows it.",
     kind: "select",
     options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
   },
@@ -916,7 +916,7 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     key: "AUTO_PAYMENT_EN_NEW_SCHEDULE_ENABLED",
     label: "New users (EN): time window",
     placeholder: "ON",
-    help: "Turn ON to enforce time windows for English-speaking new users.",
+    help: "Turn ON to enforce time windows for new English-speaking users.",
     kind: "select",
     options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
   },
@@ -924,13 +924,13 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     key: "AUTO_PAYMENT_EN_NEW_WINDOWS",
     label: "New users (EN): windows",
     placeholder: "22:00-06:00",
-    help: "Example: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
+    help: "Examples: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
   },
   {
     key: "AUTO_PAYMENT_EN_RETURNING_ENABLED",
     label: "Returning users (EN): auto payment",
     placeholder: "ON",
-    help: "Turn ON to let English-speaking returning users use auto payment when schedule is also enabled.",
+    help: "Turn ON to let returning English-speaking users use auto payment when the schedule also allows it.",
     kind: "select",
     options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
   },
@@ -938,7 +938,7 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     key: "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED",
     label: "Returning users (EN): time window",
     placeholder: "ON",
-    help: "Turn ON to enforce time windows for English-speaking returning users.",
+    help: "Turn ON to enforce time windows for returning English-speaking users.",
     kind: "select",
     options: [{ label: "On", value: "ON" }, { label: "Off", value: "OFF" }],
   },
@@ -946,7 +946,7 @@ const AUTO_PAYMENT_EN_FIELDS: ConfigField[] = [
     key: "AUTO_PAYMENT_EN_RETURNING_WINDOWS",
     label: "Returning users (EN): windows",
     placeholder: "22:00-06:00",
-    help: "Example: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
+    help: "Examples: 22:00-06:00 or 22:00-23:30,00:30-06:00.",
   },
 ];
 
@@ -974,7 +974,7 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",
     label: "Text nút bot hỗ trợ",
-    placeholder: "💬 Mở bot hỗ trợ",
+    placeholder: "💬 Contact support",
     help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
   },
   {
@@ -1002,13 +1002,13 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_LABEL_EN",
     label: "Text nút bot hỗ trợ (EN)",
-    placeholder: "💬 Open support bot",
+    placeholder: "💬 Contact support",
     help: "Tên nút dẫn sang bot hỗ trợ thủ công cho khách tiếng Anh.",
   },
   {
     key: "MSG_MANUAL_SUPPORT_REDIRECT_EN",
     label: "Support redirect text (EN)",
-    placeholder: "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
+    placeholder: "👋 Auto payment is turned off for this account.\nTap the button below and we’ll handle it manually.",
     help: "Message shown together with the support button when auto payment is blocked.",
     kind: "textarea",
   },
@@ -2251,8 +2251,8 @@ function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
   return fields.map((field) => ({
     ...field,
     key: `${field.key}_${language}`,
-    label: `${field.label} - tiếng Anh`,
-    help: `Dữ liệu riêng cho Bot tiếng Anh. ${field.help}`,
+    label: `${field.label} - English`,
+    help: `English-only content for the bot. ${field.help}`,
   }));
 }
 
@@ -4396,7 +4396,7 @@ export default function Home() {
     { key: `DESC_G${item}`, label: `G${item} - Mô tả tiếng Việt`, placeholder: "Mô tả nội dung nhóm", help: "Nội dung trang chi tiết nhóm tiếng Việt.", kind: "textarea" as const },
   ]), [configuredGroups]);
   const groupEnContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
-    { key: `DESC_G${item}_EN`, label: `G${item} - Mô tả tiếng Anh`, placeholder: "English group description", help: "Nội dung trang chi tiết nhóm tiếng Anh.", kind: "textarea" as const },
+    { key: `DESC_G${item}_EN`, label: `G${item} - English description`, placeholder: "Short, sharp group description in English", help: "English content for the group detail page.", kind: "textarea" as const },
   ]), [configuredGroups]);
   const visibleMenuPages = useMemo(
     () => menuPages.filter((item) => menuLanguage === "en" ? item.page_id.endsWith("_en") : !item.page_id.endsWith("_en")),

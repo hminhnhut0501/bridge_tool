@@ -148,10 +148,10 @@ def infer_language_from_payment_context(*, payment_currency="", payment_provider
 def language_switch_keyboard(current_language):
     kb = InlineKeyboardBuilder()
     if current_language == "en":
-        kb.row(InlineKeyboardButton(text="🇻🇳 Tiếng Việt", callback_data="set_lang:vi"))
+        kb.row(InlineKeyboardButton(text="🇻🇳 Vietnamese", callback_data="set_lang:vi"))
     else:
         kb.row(InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang:en"))
-    kb.row(InlineKeyboardButton(text="🏠 Main menu", callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text="🏠 Back to menu", callback_data="back_main"))
     return kb.as_markup()
 
 def format_membership_expire(value, user_id=None):
@@ -724,9 +724,9 @@ async def cmd_language(message: Message):
     if not await check_protection(message): return
     current_language = get_user_language(message.from_user.id)
     text = (
-        "Choose your language and I’ll bring you back to the main menu."
+        "Pick a language. I’ll take you straight back to the main menu."
         if current_language == "en"
-        else "Chọn ngôn ngữ để quay lại menu chính."
+        else "Chọn ngôn ngữ, bot sẽ đưa bạn về menu chính ngay."
     )
     await message.answer(text, reply_markup=language_switch_keyboard(current_language))
 
@@ -741,7 +741,7 @@ async def change_language(callback: CallbackQuery):
         return
     language = set_user_language(callback.from_user.id, callback.data.split(":", 1)[1])
     try:
-        await callback.answer("Language updated." if language == "en" else "Đã đổi ngôn ngữ.")
+        await callback.answer("Language saved." if language == "en" else "Đã lưu ngôn ngữ.")
     except Exception as exc:
         if "query is too old" not in str(exc).lower() and "query id is invalid" not in str(exc).lower():
             raise
@@ -752,7 +752,7 @@ async def change_language(callback: CallbackQuery):
     except Exception as exc:
         print(f"❌ Lỗi render menu sau khi đổi ngôn ngữ user {callback.from_user.id}: {exc}")
 
-    fallback = "Language updated, but the menu could not be loaded. Please send /start." if language == "en" else "Đã đổi ngôn ngữ nhưng chưa tải được menu. Vui lòng gửi /start."
+    fallback = "Language saved, but I could not load the menu. Please send /start." if language == "en" else "Đã lưu ngôn ngữ nhưng bot chưa tải được menu. Vui lòng gửi /start."
     await callback.message.answer(fallback)
 
 # [4] TRANG QUY ĐỊNH (PHỤC HỒI CODE CŨ + BỔ SUNG LỆNH)

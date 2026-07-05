@@ -594,7 +594,7 @@ def auto_payment_gate_message(user_id, preferred_language=None):
             "MSG_MANUAL_SUPPORT_REDIRECT_EN",
             db.get_config(
                 "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
-                "👋 Auto payment is disabled for this account.\nPlease use the button below to contact support for manual processing.",
+                "👋 Auto payment is turned off for this account.\nPlease tap the button below and we’ll handle it manually.",
             ),
         )
     return t(
@@ -648,9 +648,9 @@ def manual_support_bot_label_en():
     return str(
         db.get_config(
             "MANUAL_SUPPORT_BOT_LABEL_EN",
-            db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Open support bot") or "💬 Open support bot",
+            db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Contact support") or "💬 Contact support",
         )
-        or "💬 Open support bot"
+        or "💬 Contact support"
     ).strip()
 
 
