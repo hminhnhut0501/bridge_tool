@@ -3,7 +3,7 @@ import time
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,16 +26,33 @@ async def set_commands():
         def command_desc(key, fallback):
             return fallback
 
-    commands = [
-        BotCommand(command="start", description=command_desc("BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")),
-        BotCommand(command="lang", description=command_desc("BOT_COMMAND_DESC_LANG", "Đổi ngôn ngữ")),
-        BotCommand(command="me", description=command_desc("BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")),
-        BotCommand(command="support", description=command_desc("BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")),
-        BotCommand(command="policy", description=command_desc("BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")),
-    ]
-    if coupon_enabled:
-        commands.insert(2, BotCommand(command="coupon", description=command_desc("BOT_COMMAND_DESC_COUPON", "Nhập mã giảm giá / mã kích hoạt")))
-    await bot.set_my_commands(commands)
+    def enabled(key, default="ON"):
+        return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
+
+    private_commands = []
+    group_commands = []
+
+    def add_if(target, flag_key, command, desc_key, fallback):
+        if enabled(flag_key, "ON"):
+            target.append(BotCommand(command=command, description=command_desc(desc_key, fallback)))
+
+    add_if(private_commands, "BOT_MENU_PRIVATE_START_ENABLED", "start", "BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")
+    add_if(private_commands, "BOT_MENU_PRIVATE_LANG_ENABLED", "lang", "BOT_COMMAND_DESC_LANG", "Đổi ngôn ngữ")
+    add_if(private_commands, "BOT_MENU_PRIVATE_ME_ENABLED", "me", "BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")
+    add_if(private_commands, "BOT_MENU_PRIVATE_SUPPORT_ENABLED", "support", "BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")
+    add_if(private_commands, "BOT_MENU_PRIVATE_POLICY_ENABLED", "policy", "BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")
+
+    add_if(group_commands, "BOT_MENU_GROUP_START_ENABLED", "start", "BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")
+    add_if(group_commands, "BOT_MENU_GROUP_LANG_ENABLED", "lang", "BOT_COMMAND_DESC_LANG", "Đổi ngôn ngữ")
+    add_if(group_commands, "BOT_MENU_GROUP_ME_ENABLED", "me", "BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")
+    add_if(group_commands, "BOT_MENU_GROUP_SUPPORT_ENABLED", "support", "BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")
+    add_if(group_commands, "BOT_MENU_GROUP_POLICY_ENABLED", "policy", "BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")
+
+    if coupon_enabled and enabled("BOT_MENU_PRIVATE_COUPON_ENABLED", "ON"):
+        private_commands.insert(2, BotCommand(command="coupon", description=command_desc("BOT_COMMAND_DESC_COUPON", "Nhập mã giảm giá / mã kích hoạt")))
+
+    await bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
+    await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
 # Lưu trữ lịch sử bấm nút của User {user_id: timestamp}
 user_cooldowns = {}

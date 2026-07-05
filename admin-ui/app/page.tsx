@@ -608,7 +608,7 @@ const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgco
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
-type BotToolsSubTab = "commandsVi" | "commandsEn" | "groupCommands" | "alertsVi" | "alertsEn";
+type BotToolsSubTab = "menuPrivate" | "menuGroup" | "commandsVi" | "commandsEn" | "groupCommands" | "alertsVi" | "alertsEn";
 type MenuLanguage = "vi" | "en";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "paid" | "other";
@@ -1435,6 +1435,23 @@ const GROUP_COMMAND_FIELDS: ConfigField[] = [
     placeholder: "Dùng lệnh này trong group để xem hướng dẫn ngắn. Nếu cần thao tác riêng tư, hãy mở bot trong inbox.",
     help: "Câu chốt cuối cho mọi lệnh group. Giữ ngắn để đỡ spam chat.",
   },
+];
+
+const PRIVATE_MENU_FIELDS: ConfigField[] = [
+  { key: "BOT_MENU_PRIVATE_START_ENABLED", label: "Hiện /start", placeholder: "ON", help: "Bật/tắt /start trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_LANG_ENABLED", label: "Hiện /lang", placeholder: "ON", help: "Bật/tắt /lang trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_ME_ENABLED", label: "Hiện /me", placeholder: "ON", help: "Bật/tắt /me trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_SUPPORT_ENABLED", label: "Hiện /support", placeholder: "ON", help: "Bật/tắt /support trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_POLICY_ENABLED", label: "Hiện /policy", placeholder: "ON", help: "Bật/tắt /policy trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_COUPON_ENABLED", label: "Hiện /coupon", placeholder: "ON", help: "Chỉ hiện nếu lệnh coupon đang bật.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+];
+
+const GROUP_MENU_FIELDS: ConfigField[] = [
+  { key: "BOT_MENU_GROUP_START_ENABLED", label: "Hiện /start", placeholder: "ON", help: "Bật/tắt /start trong menu group.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_GROUP_LANG_ENABLED", label: "Hiện /lang", placeholder: "ON", help: "Bật/tắt /lang trong menu group.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_GROUP_ME_ENABLED", label: "Hiện /me", placeholder: "ON", help: "Bật/tắt /me trong menu group.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_GROUP_SUPPORT_ENABLED", label: "Hiện /support", placeholder: "ON", help: "Bật/tắt /support trong menu group.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_GROUP_POLICY_ENABLED", label: "Hiện /policy", placeholder: "ON", help: "Bật/tắt /policy trong menu group.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
 ];
 
 const ADMIN_FIELDS: ConfigField[] = [
@@ -2660,7 +2677,7 @@ export default function Home() {
   const [contentTab, setContentTab] = useState<ContentSubTab>("bot");
   const [botViTab, setBotViTab] = useState<BotUiSubTab>("plans");
   const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
-  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("groupCommands");
+  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("menuPrivate");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
   const [orders, setOrders] = useState<Order[]>(isDevPreview ? DEMO_ORDERS : []);
@@ -2842,7 +2859,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...GROUP_COMMAND_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...PRIVATE_MENU_FIELDS, ...GROUP_MENU_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...GROUP_COMMAND_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     Object.keys(nextValues).forEach((key) => {
@@ -7198,6 +7215,8 @@ export default function Home() {
             <section className="panel content-hub">
               <PanelHead title="Lệnh & cảnh báo Bot" subtitle="Tách riêng khỏi nội dung UI để dễ kiểm soát các lệnh Telegram và alert ngắn." />
               <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="menuPrivate" label="Menu private" />
+                <Tab value="menuGroup" label="Menu group" />
                 <Tab value="groupCommands" label="Lệnh group" />
                 <Tab value="commandsVi" label="Lệnh tiếng Việt" />
                 <Tab value="commandsEn" label="Lệnh tiếng Anh" />
@@ -7205,6 +7224,8 @@ export default function Home() {
                 <Tab value="alertsEn" label="Cảnh báo tiếng Anh" />
               </Tabs>
             </section>
+            {botToolsTab === "menuPrivate" ? <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "menuGroup" ? <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "groupCommands" ? (
               <div className="stack">
                 <section className="panel">

@@ -1838,8 +1838,8 @@ async def admin_set_config(key: str, request: Request):
         row_key = canonical_config_key(row.get("key"))
         if row_key:
             db.cache_config[row_key] = str(row.get("value") or "")
-    if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
-        await set_commands()
+        if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_") or normalized_key.startswith("BOT_MENU_"):
+            await set_commands()
     refresh_auto_payment_schedule_if_needed([normalized_key])
     return {"data": data}
 
@@ -1872,7 +1872,7 @@ async def admin_set_config_batch(request: Request):
         db.cache_config[normalized_key] = str(item.get("value", ""))
         if auto_payment_config_key(normalized_key):
             auto_payment_keys.append(normalized_key)
-        if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_"):
+        if normalized_key == "COUPON_COMMAND_ENABLED" or normalized_key.startswith("BOT_COMMAND_DESC_") or normalized_key.startswith("BOT_MENU_"):
             command_changed = True
     if command_changed:
         await set_commands()
