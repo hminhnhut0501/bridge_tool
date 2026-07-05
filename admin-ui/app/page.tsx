@@ -315,7 +315,7 @@ const DEMO_ORDERS: Order[] = [
     expire_at: null,
     sale_id: "PENDING01",
     coupon_code: null,
-    payment_provider: "NOWPAYMENTS",
+    payment_provider: "PAYOS",
     payment_currency: "USDT",
     source_type: "manual",
     created_at: demoDate(-1, 20, 0),
@@ -809,14 +809,6 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "NOWPAYMENTS_PAYMENT_ENABLED",
-    label: "Bật thanh toán Crypto NOWPayments",
-    placeholder: "OFF",
-    help: "Chỉ hoạt động khi Render đã có NOWPAYMENTS_API_KEY và NOWPAYMENTS_IPN_SECRET.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
     key: "TRON_USDT_PAYMENT_ENABLED",
     label: "Bật USDT TRC20 tự quét",
     placeholder: "OFF",
@@ -825,18 +817,10 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
-    key: "BINANCE_PAY_SIEUTHICODE_ENABLED",
-    label: "Bật Binance Pay Sieuthicode",
-    placeholder: "OFF",
-    help: "Cổng quét lịch sử Binance Pay từ Sieuthicode để đối soát đơn VNĐ song song với PayOS.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
-    placeholder: "PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY",
-    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT,BINANCE_PAY. PayPal/USDT dùng bảng giá USD riêng.",
+    placeholder: "PAYOS,PAYPAL,TRON_USDT",
+    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT. PayPal/USDT dùng bảng giá USD riêng.",
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
@@ -851,46 +835,10 @@ const PAYMENT_FIELDS: ConfigField[] = [
     help: "Tên hiển thị trên trang thanh toán PayPal.",
   },
   {
-    key: "NOWPAYMENTS_PRICE_CURRENCY",
-    label: "Tiền tệ giá Crypto",
-    placeholder: "USD",
-    help: "Nên giữ USD để dùng bảng giá USD riêng, không quy đổi từ VNĐ.",
-  },
-  {
-    key: "NOWPAYMENTS_PAY_CURRENCY",
-    label: "Coin cố định",
-    placeholder: "Để trống hoặc usdttrc20",
-    help: "Để trống để khách tự chọn coin/network. Nhập usdttrc20 nếu muốn ép thanh toán USDT TRC20.",
-  },
-  {
-    key: "NOWPAYMENTS_IPN_CALLBACK_URL",
-    label: "NOWPayments IPN URL",
-    placeholder: "https://your-backend.onrender.com/payment-webhooks/nowpayments",
-    help: "URL callback để NOWPayments báo trạng thái. Có thể để trống nếu Render có PUBLIC_BASE_URL hoặc RENDER_EXTERNAL_URL.",
-  },
-  {
-    key: "NOWPAYMENTS_TTL_SECONDS",
-    label: "Thời gian chờ Crypto",
-    placeholder: "3600",
-    help: "Số giây bot giữ đơn crypto ở trạng thái chờ. Mặc định 3600 giây vì blockchain xác nhận chậm hơn VietQR.",
-  },
-  {
     key: "TRON_USDT_WALLET_ADDRESS",
     label: "Ví nhận USDT TRC20",
     placeholder: "T...",
     help: "Địa chỉ ví TRON nhận USDT TRC20. Không nhập seed/private key vào đây.",
-  },
-  {
-    key: "BINANCE_PAY_SIEUTHICODE_TOKEN",
-    label: "Token Binance Pay Sieuthicode",
-    placeholder: "TOKEN...",
-    help: "Token do Sieuthicode cấp để truy vấn lịch sử giao dịch Binance Pay.",
-  },
-  {
-    key: "BINANCE_PAY_SIEUTHICODE_APPROVAL_URL",
-    label: "URL mở Binance Pay",
-    placeholder: "https://pay.binance.com",
-    help: "URL mở cổng Binance Pay hoặc trang hướng dẫn thanh toán. Có thể để trống nếu không cần nút mở ngoài.",
   },
   {
     key: "TRON_USDT_UNIQUE_AMOUNT_ENABLED",
@@ -1863,13 +1811,6 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
-    key: "MSG_NOWPAYMENTS_BILL_TEMPLATE",
-    label: "Nội dung bill Crypto NOWPayments",
-    placeholder: "₿ <b>THANH TOÁN CRYPTO</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <b>{amount}</b>\\n🧾 Đơn: <code>{desc}</code>\\n\\nSau khi blockchain xác nhận xong, bot sẽ tự cấp quyền. Quá trình này có thể mất vài phút.",
-    help: "Dùng biến {plan}, {amount}, {desc}. Đây là tin bot gửi kèm nút thanh toán Crypto.",
-    kind: "textarea",
-  },
-  {
     key: "MSG_TRON_USDT_BILL_TEMPLATE",
     label: "Nội dung bill USDT TRC20",
     placeholder: "₮ <b>THANH TOÁN USDT TRC20</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <code>{usdt_amount} USDT</code>\\n🌐 Network: <b>TRC20</b>\\n👛 Ví nhận:\\n<code>{wallet}</code>\\n🧾 Đơn: <code>{desc}</code>\\n\\nVui lòng chuyển đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền sau khi giao dịch xác nhận.",
@@ -2220,7 +2161,6 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_CHECK_PAYMENT", label: "Nút đã chuyển khoản", placeholder: "🔄 Đã chuyển khoản", help: "Nút dưới QR để khách check thủ công." },
   { key: "BTN_CANCEL_ORDER", label: "Nút hủy đơn", placeholder: "❌ Hủy", help: "Nút dưới QR để hủy đơn pending." },
   { key: "BTN_PAYPAL_CHECKOUT", label: "Nút thanh toán PayPal", placeholder: "💳 Pay with PayPal", help: "Nút mở trang checkout PayPal." },
-  { key: "BTN_NOWPAYMENTS_CHECKOUT", label: "Nút thanh toán Crypto", placeholder: "₿ Thanh toán Crypto", help: "Nút mở trang checkout NOWPayments." },
   { key: "BTN_TRONSCAN_ADDRESS", label: "Nút xem ví Tronscan", placeholder: "🔎 Xem ví trên Tronscan", help: "Nút dưới bill USDT TRC20." },
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
   { key: "BTN_BUY_COLLECTION_30D", label: "Nút mua collection 30 ngày", placeholder: "💎 COLLECTION 30 NGÀY", help: "Nút trên trang chi tiết collection." },
@@ -2569,9 +2509,7 @@ function providerLabel(value: string | null | undefined) {
     MANUAL: "Thủ công",
     PAYOS: "PayOS",
     PAYPAL: "PayPal",
-    NOWPAYMENTS: "NOWPayments",
     TRON_USDT: "USDT TRC20",
-    BINANCE_PAY: "Binance Pay",
     UNKNOWN: "Chưa rõ",
   };
   return labels[provider] || (provider ? provider : "Chưa rõ");
@@ -6973,7 +6911,7 @@ export default function Home() {
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </>
             ) : null}
-            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và NOWPayments dùng giá USD riêng, không quy đổi tỷ giá. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và USDT TRC20 dùng giá riêng. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
@@ -8312,8 +8250,7 @@ export default function Home() {
                     <MenuItem value="MANUAL">Thủ công</MenuItem>
                     <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
                     <MenuItem value="PAYPAL">PayPal</MenuItem>
-                    <MenuItem value="NOWPAYMENTS">NOWPayments</MenuItem>
-                    <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+                  <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
                   </TextField>
                   <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
                     <TextField select label="Kiểu hết hạn" value={manualOrderForm.expiry_mode} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : manualOrderForm.expire_at })} size="small">
@@ -8725,8 +8662,6 @@ export default function Home() {
                   <MenuItem value="MANUAL">MANUAL</MenuItem>
                   <MenuItem value="PAYOS">PAYOS</MenuItem>
                   <MenuItem value="PAYPAL">PAYPAL</MenuItem>
-                  <MenuItem value="NOWPAYMENTS">NOWPAYMENTS</MenuItem>
-                  <MenuItem value="BINANCE_PAY">BINANCE_PAY</MenuItem>
                   <MenuItem value="TRON_USDT">TRON_USDT</MenuItem>
                 </TextField>
               </Stack>

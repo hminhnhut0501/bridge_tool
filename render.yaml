@@ -22,12 +22,6 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      - key: NOWPAYMENTS_API_KEY
-        sync: false
-      - key: NOWPAYMENTS_IPN_SECRET
-        sync: false
-      - key: NOWPAYMENTS_IPN_CALLBACK_URL
-        sync: false
       - key: TRONGRID_API_KEY
         sync: false
       - key: WEBHOOK_URL

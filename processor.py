@@ -296,8 +296,8 @@ async def auto_check_loop(order_code, user_id):
     str_code = str(order_code).strip()
     order = supabase_store.get_order(str_code) if supabase_store.enabled else None
     provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
-    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
-    ttl_default = 7200 if provider == "TRON_USDT" else 3600 if provider == "NOWPAYMENTS" else 300
+    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "QR_TTL_SECONDS"
+    ttl_default = 7200 if provider == "TRON_USDT" else 300
     qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     check_interval_seconds = max(5, parse_int_config("PAYMENT_CHECK_INTERVAL_SECONDS", 10))
     max_checks = max(1, math.ceil(qr_ttl_seconds / check_interval_seconds))
@@ -334,18 +334,4 @@ async def auto_check_loop(order_code, user_id):
 
 
 async def binance_pay_polling_worker():
-    interval_seconds = max(30, parse_int_config("BINANCE_PAY_POLL_INTERVAL_SECONDS", 120))
-    batch_limit = max(1, parse_int_config("BINANCE_PAY_POLL_BATCH_LIMIT", 200))
-    print(f"🚀 Binance Pay polling worker khởi động: interval={interval_seconds}s batch={batch_limit}.")
-    while True:
-        try:
-            matched_orders = await asyncio.to_thread(payment_manager.scan_pending_orders, "BINANCE_PAY")
-            if matched_orders:
-                print(f"💰 Binance Pay quét thấy {len(matched_orders)} đơn PAID chờ giao hàng: {', '.join(matched_orders[:10])}")
-            for order_id in matched_orders[:batch_limit]:
-                if cancelled_orders.__contains__(order_id):
-                    continue
-                await process_successful_payment(order_id)
-        except Exception as exc:
-            print(f"⚠️ Binance Pay polling lỗi: {exc}")
-        await asyncio.sleep(interval_seconds)
+    return

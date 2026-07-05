@@ -92,7 +92,7 @@ def safe_int(value_str):
 
 def currency_for_provider(provider):
     normalized = str(provider or "").upper()
-    return "VND" if normalized in {"PAYOS", "BINANCE_PAY"} else "USD"
+    return "VND" if normalized == "PAYOS" else "USD"
 
 
 def default_currency_for_user(user_id):
@@ -317,20 +317,13 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
         return sent
 
-    if provider in {"PAYPAL", "NOWPAYMENTS"}:
+    if provider == "PAYPAL":
         approval_url = str(pay_data.get("approval_url") or "").strip()
-        if provider == "NOWPAYMENTS":
-            caption = t(
-                callback.from_user.id,
-                "MSG_NOWPAYMENTS_BILL_TEMPLATE",
-                "₿ <b>THANH TOÁN CRYPTO</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nSau khi blockchain xác nhận xong, bot sẽ tự cấp quyền. Quá trình này có thể mất vài phút.",
-            ).replace("\\n", "\n")
-        else:
-            caption = t(
-                callback.from_user.id,
-                "MSG_PAYPAL_BILL_TEMPLATE",
-                "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
-            ).replace("\\n", "\n")
+        caption = t(
+            callback.from_user.id,
+            "MSG_PAYPAL_BILL_TEMPLATE",
+            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+        ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
             .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or "USD")))
@@ -339,43 +332,10 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         )
         caption += extra_caption
         kb = InlineKeyboardBuilder()
-        checkout_label = t(
-            callback.from_user.id,
-            "BTN_NOWPAYMENTS_CHECKOUT",
-            "₿ Thanh toán Crypto",
-        ) if provider == "NOWPAYMENTS" else t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal")
+        checkout_label = t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal")
         kb.row(InlineKeyboardButton(text=checkout_label, url=approval_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 I've paid"), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Cancel"), callback_data=f"cancel_order_{order_id}"))
-        sent = await bot.send_message(
-            chat_id=callback.message.chat.id,
-            text=caption,
-            reply_markup=kb.as_markup(),
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
-        if supabase_store.enabled and sent:
-            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
-        return sent
-
-    if provider == "BINANCE_PAY":
-        caption = t(
-            callback.from_user.id,
-            "MSG_BINANCE_PAY_BILL_TEMPLATE",
-            "🏦 <b>BINANCE PAY</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nVui lòng thanh toán theo hướng dẫn của cổng và bấm nút kiểm tra sau khi chuyển tiền.",
-        ).replace("\\n", "\n")
-        caption = (
-            caption.replace("{plan}", str(pretty_plan_name))
-            .replace("{amount}", format_money(amount, "VND"))
-            .replace("{desc}", description)
-        )
-        caption += extra_caption
-        kb = InlineKeyboardBuilder()
-        approval_url = str(pay_data.get("approval_url") or "").strip()
-        if approval_url:
-            kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BINANCE_PAY_CHECKOUT", "🏦 Mở Binance Pay"), url=approval_url))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 Đã chuyển khoản"), callback_data=f"check_{order_id}"))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
             chat_id=callback.message.chat.id,
             text=caption,
@@ -459,7 +419,7 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="",
 
 def payment_meta(pay_data):
     provider = str(pay_data.get("provider") or "PAYOS").upper()
-    default_currency = "VND" if provider in {"PAYOS", "BINANCE_PAY"} else "USDT" if provider == "TRON_USDT" else "USD"
+    default_currency = "VND" if provider == "PAYOS" else "USDT" if provider == "TRON_USDT" else "USD"
     return {
         "payment_provider": provider,
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
@@ -476,7 +436,7 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     if len(providers) <= 1:
         return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "NOWPAYMENTS": "₿ Crypto / NOWPayments", "TRON_USDT": "₮ USDT TRC20", "BINANCE_PAY": "🏦 Binance Pay"}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
     for provider in providers:
         callback_data = f"{prefix}|{provider}|{action}"
@@ -1273,8 +1233,8 @@ async def manual_check_payment(callback: CallbackQuery):
 
     order = supabase_store.get_order(order_id) if supabase_store.enabled else None
     provider = str((order or {}).get("payment_provider") or "PAYOS").upper()
-    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "NOWPAYMENTS_TTL_SECONDS" if provider == "NOWPAYMENTS" else "QR_TTL_SECONDS"
-    ttl_default = 7200 if provider == "TRON_USDT" else 3600 if provider == "NOWPAYMENTS" else 300
+    ttl_key = "TRON_USDT_TTL_SECONDS" if provider == "TRON_USDT" else "QR_TTL_SECONDS"
+    ttl_default = 7200 if provider == "TRON_USDT" else 300
     qr_ttl_seconds = max(60, parse_int_config(ttl_key, ttl_default))
     try:
         if int(time.time()) - int(order_id) > qr_ttl_seconds:
