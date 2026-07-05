@@ -523,6 +523,16 @@ async def smart_display(event, text, reply_markup, img=None):
             await event.answer()
                 
     except TelegramBadRequest as e:
+        error_text = str(e).lower()
+        if "wrong file identifier" in error_text or "http url specified" in error_text or "can't parse file" in error_text:
+            print(f"⚠️ Ảnh hiển thị không hợp lệ, fallback sang text-only: {e}")
+            fallback_text = strip_html_tags(final_text)
+            if isinstance(event, Message):
+                await event.answer(fallback_text, reply_markup=reply_markup, parse_mode=None)
+            else:
+                await event.message.answer(fallback_text, reply_markup=reply_markup, parse_mode=None)
+                await event.answer()
+            return
         if "parse entities" in str(e).lower() or "can't parse entities" in str(e).lower() or "tag" in str(e).lower():
             fallback_text = strip_html_tags(final_text)
             if isinstance(event, Message):
