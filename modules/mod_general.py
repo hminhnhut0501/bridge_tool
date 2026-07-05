@@ -32,12 +32,29 @@ def language_from_start_payload(payload: str) -> str | None:
     normalized = str(payload or "").strip().lower()
     if not normalized:
         return None
-    for part in normalized.split("_"):
+    direct_aliases = {
+        "en": "en",
+        "english": "en",
+        "lang_en": "en",
+        "l_en": "en",
+        "vi": "vi",
+        "vietnamese": "vi",
+        "lang_vi": "vi",
+        "l_vi": "vi",
+    }
+    if normalized in direct_aliases:
+        return direct_aliases[normalized]
+    for part in normalized.replace("-", "_").split("_"):
         if part == "len":
             return "en"
         if part == "lvi":
             return "vi"
     return None
+
+
+def is_language_only_start_payload(payload: str) -> bool:
+    normalized = str(payload or "").strip().lower()
+    return normalized in {"en", "english", "lang_en", "l_en", "vi", "vietnamese", "lang_vi", "l_vi"}
 
 
 def render_cfg(key, default, values=None):
@@ -563,6 +580,17 @@ async def cmd_start(message: Message):
             inferred_language = language_from_start_payload(normalized)
             if inferred_language:
                 set_user_language(message.from_user.id, inferred_language)
+                if is_language_only_start_payload(normalized):
+                    await record_start_event(
+                        message,
+                        normalized,
+                        "start_language",
+                    )
+                    rendered = await render_page(message, "main_menu")
+                    if rendered:
+                        return
+                    await _send_start_fallback("render_page returned False for language payload")
+                    return
             classified = classify_private_message(message)
             if classified["kind"] == "other" and classified["reason"] == "start_source":
                 print(f"🚀 cmd_start source payload user={message.from_user.id} source_ref={normalized[4:].strip()}")

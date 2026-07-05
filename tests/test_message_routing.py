@@ -28,6 +28,7 @@ def test_support_inbox_skips_coupon_and_hidden_messages(monkeypatch):
     monkeypatch.setattr(mod_support_inbox, "supabase_store", SimpleNamespace(enabled=True))
     monkeypatch.setattr(mod_support_inbox, "has_open_support_ticket", lambda user_id: True)
     monkeypatch.setattr(mod_support_inbox, "classify_private_message", lambda msg: {"kind": "coupon", "reason": "coupon_prefix"})
+    monkeypatch.setattr(mod_support_inbox, "support_inbox_enabled", lambda: True)
 
     assert not mod_support_inbox._is_support_inbox_private_message(message)
 
@@ -42,6 +43,7 @@ def test_support_inbox_accepts_plain_text_when_ticket_open(monkeypatch):
     monkeypatch.setattr(mod_support_inbox, "supabase_store", SimpleNamespace(enabled=True))
     monkeypatch.setattr(mod_support_inbox, "has_open_support_ticket", lambda user_id: True)
     monkeypatch.setattr(mod_support_inbox, "classify_private_message", lambda msg: {"kind": "support", "reason": "plain_text"})
+    monkeypatch.setattr(mod_support_inbox, "support_inbox_enabled", lambda: True)
 
     assert mod_support_inbox._is_support_inbox_private_message(message)
 
@@ -62,6 +64,7 @@ def test_coupon_auto_handler_ignores_plain_text(monkeypatch):
     monkeypatch.setattr(mod_coupon, "check_protection", AsyncMock(return_value=True))
     monkeypatch.setattr(mod_coupon, "config_enabled", lambda key, default="OFF": True)
     monkeypatch.setattr(mod_coupon, "classify_private_message", lambda msg, coupon_prefixes=None: {"kind": "support", "reason": "plain_text"})
+    monkeypatch.setattr(mod_coupon, "coupon_auto_prefixes", lambda: ["HANGCU_"])
 
     asyncio.run(mod_coupon.coupon_auto_code_received(message))
 
@@ -84,6 +87,7 @@ def test_coupon_auto_handler_routes_coupon_codes(monkeypatch):
     monkeypatch.setattr(mod_coupon, "check_protection", AsyncMock(return_value=True))
     monkeypatch.setattr(mod_coupon, "config_enabled", lambda key, default="OFF": True)
     monkeypatch.setattr(mod_coupon, "classify_private_message", lambda msg, coupon_prefixes=None: {"kind": "coupon", "code": "HANGCU_DEMO", "reason": "coupon_prefix"})
+    monkeypatch.setattr(mod_coupon, "coupon_auto_prefixes", lambda: ["HANGCU_"])
 
     asyncio.run(mod_coupon.coupon_auto_code_received(message))
 
@@ -115,6 +119,34 @@ def test_start_activation_payload_routes_to_activation_delivery(monkeypatch):
     asyncio.run(mod_general.cmd_start(message))
 
     assert calls == ["manual_123"]
+
+
+def test_start_language_payload_can_force_english(monkeypatch):
+    message = SimpleNamespace(
+        text="/start en",
+        from_user=SimpleNamespace(id=789, username="user789", full_name="User 789"),
+        chat=SimpleNamespace(id=789),
+        entities=[],
+        answer=AsyncMock(),
+    )
+    set_calls = []
+
+    async def fake_deliver(message_obj, code):
+        raise AssertionError("activation delivery should not run for language payload")
+
+    monkeypatch.setattr(mod_general, "cleanup_welcome", AsyncMock())
+    monkeypatch.setattr(mod_general.db, "reload_config", lambda force=False: None)
+    monkeypatch.setattr(mod_general, "record_start_event", AsyncMock())
+    monkeypatch.setattr(mod_general, "send_sale_announcement", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "render_page", AsyncMock(return_value=True))
+    monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=True))
+    monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "")
+    monkeypatch.setattr(mod_general, "deliver_activation_order", fake_deliver)
+    monkeypatch.setattr(mod_general, "set_user_language", lambda user_id, language: set_calls.append((user_id, language)) or language)
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    assert set_calls == [(789, "en")]
 
 
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
