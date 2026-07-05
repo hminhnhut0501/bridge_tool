@@ -608,7 +608,7 @@ const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgco
 type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
-type BotToolsSubTab = "menuPrivate" | "menuGroup" | "commandsVi" | "commandsEn" | "groupCommands" | "alertsVi" | "alertsEn";
+type BotToolsSubTab = "commands";
 type MenuLanguage = "vi" | "en";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "paid" | "other";
@@ -2677,7 +2677,7 @@ export default function Home() {
   const [contentTab, setContentTab] = useState<ContentSubTab>("bot");
   const [botViTab, setBotViTab] = useState<BotUiSubTab>("plans");
   const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
-  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("menuPrivate");
+  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("commands");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
   const [orders, setOrders] = useState<Order[]>(isDevPreview ? DEMO_ORDERS : []);
@@ -7213,43 +7213,25 @@ export default function Home() {
         {tab === "botTools" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Lệnh & cảnh báo Bot" subtitle="Tách riêng khỏi nội dung UI để dễ kiểm soát các lệnh Telegram và alert ngắn." />
-              <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="menuPrivate" label="Menu private" />
-                <Tab value="menuGroup" label="Menu group" />
-                <Tab value="groupCommands" label="Lệnh group" />
-                <Tab value="commandsVi" label="Lệnh tiếng Việt" />
-                <Tab value="commandsEn" label="Lệnh tiếng Anh" />
-                <Tab value="alertsVi" label="Cảnh báo tiếng Việt" />
-                <Tab value="alertsEn" label="Cảnh báo tiếng Anh" />
-              </Tabs>
+              <PanelHead title="Cấu hình lệnh bot" subtitle="Tất cả setting liên quan đến menu, scope private/group, mô tả lệnh và alert đều nằm ở đây." />
             </section>
-            {botToolsTab === "menuPrivate" ? <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "menuGroup" ? <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "groupCommands" ? (
-              <div className="stack">
-                <section className="panel">
-                  <PanelHead
-                    title="Lệnh trong group"
-                    subtitle="Bật/tắt phản hồi group và chỉnh câu nhắc ngắn cho 4 lệnh chính."
-                  />
-                  <div className="grid">
-                    <Metric label="Group commands" value={String(getConfigValue(config, "BOT_GROUP_COMMANDS_ENABLED", "ON"))} accent={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
-                    <Metric label="/start" value={getConfigValue(config, "BOT_COMMAND_DESC_START", "Trang chủ / Mua gói") || "Trang chủ / Mua gói"} accent="blue" icon={<MessageSquare size={16} />} />
-                    <Metric label="/support" value={getConfigValue(config, "BOT_COMMAND_DESC_SUPPORT", "Nhắn admin trợ giúp") || "Nhắn admin trợ giúp"} accent="cyan" icon={<MessageSquare size={16} />} />
-                  </div>
-                  <Box sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    <Button variant="outlined" size="small" onClick={() => setBotToolsTab("commandsVi")} startIcon={<Settings size={16} />}>Mở mô tả lệnh</Button>
-                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Nhóm hỗ trợ</Button>
-                  </Box>
-                </section>
-                <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              </div>
-            ) : null}
-            {botToolsTab === "commandsVi" ? <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "commandsEn" ? <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "alertsVi" ? <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "alertsEn" ? <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            <div className="stack">
+              <section className="panel">
+                <PanelHead title="Tổng quan" subtitle="Trạng thái nhanh của menu private, menu group và phản hồi group." />
+                <div className="grid">
+                  <Metric label="Private menu" value={configIsOn(config, "BOT_MENU_PRIVATE_START_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_MENU_PRIVATE_START_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
+                  <Metric label="Group menu" value={configIsOn(config, "BOT_MENU_GROUP_START_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_MENU_GROUP_START_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
+                  <Metric label="Group replies" value={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "emerald" : "amber"} icon={<MessageSquare size={16} />} />
+                </div>
+              </section>
+              <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+            </div>
           </div>
         ) : null}
 
