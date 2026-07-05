@@ -28,6 +28,7 @@ async def set_commands():
 
     commands = [
         BotCommand(command="start", description=command_desc("BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")),
+        BotCommand(command="lang", description=command_desc("BOT_COMMAND_DESC_LANG", "Đổi ngôn ngữ")),
         BotCommand(command="me", description=command_desc("BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")),
         BotCommand(command="support", description=command_desc("BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")),
         BotCommand(command="policy", description=command_desc("BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")),

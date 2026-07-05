@@ -1410,6 +1410,7 @@ const SYSTEM_FIELDS: ConfigField[] = [
 
 const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_START", label: "Mô tả /start", placeholder: "Trang chủ / Mua gói", help: "Mô tả lệnh Telegram." },
+  { key: "BOT_COMMAND_DESC_LANG", label: "Mô tả /lang", placeholder: "Đổi ngôn ngữ", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_ME", label: "Mô tả /me", placeholder: "Kiểm tra gói & Hạn dùng", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Nhắn admin trợ giúp", help: "Mô tả lệnh Telegram." },
