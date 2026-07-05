@@ -7217,20 +7217,27 @@ export default function Home() {
             </section>
             <div className="stack">
               <section className="panel">
-                <PanelHead title="Tổng quan" subtitle="Trạng thái nhanh của menu private, menu group và phản hồi group." />
+                <PanelHead title="Menu & scope" subtitle="Bật/tắt menu private, menu group và phản hồi group trong cùng một cụm." />
                 <div className="grid">
                   <Metric label="Private menu" value={configIsOn(config, "BOT_MENU_PRIVATE_START_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_MENU_PRIVATE_START_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
                   <Metric label="Group menu" value={configIsOn(config, "BOT_MENU_GROUP_START_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_MENU_GROUP_START_ENABLED", "ON") ? "emerald" : "amber"} icon={<Settings size={16} />} />
                   <Metric label="Group replies" value={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "ON" : "OFF"} accent={configIsOn(config, "BOT_GROUP_COMMANDS_ENABLED", "ON") ? "emerald" : "amber"} icon={<MessageSquare size={16} />} />
                 </div>
+                <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+                  <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                  <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                  <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                </Box>
               </section>
-              <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              <section className="panel">
+                <PanelHead title="Mô tả & cảnh báo" subtitle="Text hiển thị trong menu lệnh Telegram và các alert ngắn." />
+                <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+                  <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                  <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                  <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                  <ConfigEditor title="Cảnh báo tiếng Anh" subtitle="Alert ngắn khi khách tiếng Anh thao tác." fields={ALERT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                </Box>
+              </section>
             </div>
           </div>
         ) : null}
