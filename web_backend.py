@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -164,6 +165,38 @@ def _backend_parse_datetime(value):
 def _backend_humanize_event_type(value):
     text = _backend_text(value).replace("_", " ").strip()
     return text[:1].upper() + text[1:] if text else "event"
+
+
+def _looks_like_public_image_url(value: str) -> bool:
+    text = _backend_text(value)
+    return bool(re.match(r"^https?://", text, re.IGNORECASE))
+
+
+async def _validate_img_me_value(value: str) -> tuple[bool, str]:
+    text = _backend_text(value)
+    if not text:
+        return True, ""
+    if _looks_like_public_image_url(text):
+        try:
+            def _probe():
+                req = urllib.request.Request(text)
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    content_type = str(resp.headers.get("Content-Type", "")).lower()
+                    if content_type and not content_type.startswith("image/"):
+                        return False, "URL không phải ảnh"
+                    return True, ""
+
+            return await asyncio.to_thread(_probe)
+        except Exception as exc:
+            return False, f"URL ảnh không hợp lệ: {exc}"
+    try:
+        await bot.get_file(text)
+        return True, ""
+    except Exception as exc:
+        error_text = str(exc).lower()
+        if "wrong file identifier" in error_text or "http url specified" in error_text or "can't parse file" in error_text:
+            return False, str(exc)
+        return False, str(exc)
 
 
 async def retry_telegram_webhook_background(*, initial_delay=0):
@@ -1812,6 +1845,7 @@ async def admin_customer_search(q: str = "", limit: int = 30):
 @app.get("/admin-api/config", dependencies=[Depends(require_admin)])
 async def admin_config():
     rows = canonicalize_config_rows(supabase_store.get_config())
+    img_me_row = None
     for row in rows or []:
         if canonical_config_key(row.get("key")) == "MANUAL_ORDER_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
@@ -1819,6 +1853,14 @@ async def admin_config():
             row["value"] = normalize_manual_order_join_template(row.get("value"))
         if canonical_config_key(row.get("key")) == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
+        if canonical_config_key(row.get("key")) == "IMG_ME":
+            img_me_row = row
+    if img_me_row is not None:
+        ok, _reason = await _validate_img_me_value(img_me_row.get("value", ""))
+        if not ok:
+            supabase_store.delete_config("IMG_ME")
+            db.cache_config.pop("IMG_ME", None)
+            img_me_row["value"] = ""
     return {"data": rows}
 
 
@@ -1833,6 +1875,10 @@ async def admin_set_config(key: str, request: Request):
         value = normalize_manual_order_join_template(value)
     if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
+    if normalized_key == "IMG_ME":
+        ok, _reason = await _validate_img_me_value(value)
+        if not ok:
+            value = ""
     data = supabase_store.set_configs(config_write_items(normalized_key, value))
     for row in data or []:
         row_key = canonical_config_key(row.get("key"))
@@ -1859,6 +1905,10 @@ async def admin_set_config_batch(request: Request):
             normalized_item["value"] = normalize_manual_order_join_template(normalized_item.get("value", ""))
         if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
+        if normalized_key == "IMG_ME":
+            ok, _reason = await _validate_img_me_value(normalized_item.get("value", ""))
+            if not ok:
+                normalized_item["value"] = ""
         normalized_items.append(normalized_item)
         expanded_items.extend(config_write_items(normalized_key, normalized_item.get("value", "")))
     deduped_items = list({str(item.get("key") or "").strip().upper(): item for item in expanded_items if str(item.get("key") or "").strip()}.values())
