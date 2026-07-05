@@ -594,7 +594,7 @@ def auto_payment_gate_message(user_id, preferred_language=None):
             "MSG_MANUAL_SUPPORT_REDIRECT_EN",
             db.get_config(
                 "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
-                "👋 Auto payment is turned off for this account.\nPlease tap the button below and we’ll handle it manually.",
+                "👋 Auto payment is off for this account.\nTap the button below and we’ll handle it manually.",
             ),
         )
     return t(
@@ -602,7 +602,7 @@ def auto_payment_gate_message(user_id, preferred_language=None):
         "MSG_MANUAL_SUPPORT_REDIRECT",
         db.get_config(
             "MSG_NEW_CUSTOMER_MANUAL_ONLY",
-            "👋 Thanh toán tự động đang tắt cho tài khoản này.\nVui lòng nhấn nút bên dưới để chuyển sang bot hỗ trợ xử lý thủ công.",
+            "👋 Auto payment đang tắt cho tài khoản này.\nNhấn nút bên dưới để bot hỗ trợ xử lý thủ công.",
         ),
     )
 
@@ -641,7 +641,7 @@ def manual_support_bot_url(user_id=None, action="", provider="", preferred_langu
 
 
 def manual_support_bot_label():
-    return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Mở bot hỗ trợ") or "💬 Mở bot hỗ trợ").strip()
+    return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Liên hệ hỗ trợ") or "💬 Liên hệ hỗ trợ").strip()
 
 
 def manual_support_bot_label_en():
@@ -808,7 +808,7 @@ async def process_early_renew(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -973,7 +973,7 @@ async def process_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -1054,7 +1054,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return
@@ -1133,7 +1133,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng."),
+                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
                 reply_markup=keyboard,
             )
             return

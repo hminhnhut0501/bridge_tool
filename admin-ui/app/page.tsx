@@ -796,7 +796,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "PAYOS_PAYMENT_ENABLED",
     label: "Bật thanh toán PayOS",
     placeholder: "ON",
-    help: "PayOS/VietQR dành cho thanh toán VND tại Việt Nam.",
+    help: "PayOS/VietQR for VND payments in Vietnam.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
@@ -804,7 +804,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "PAYPAL_PAYMENT_ENABLED",
     label: "Bật thanh toán PayPal",
     placeholder: "OFF",
-    help: "Chỉ hoạt động khi Render đã có PAYPAL_CLIENT_ID và PAYPAL_CLIENT_SECRET.",
+    help: "Only works when Render has PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET set.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
@@ -812,7 +812,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "TRON_USDT_PAYMENT_ENABLED",
     label: "Bật USDT TRC20 tự quét",
     placeholder: "OFF",
-    help: "Cổng tự build: bot hiển thị ví USDT TRC20 và tự quét TronGrid. Cần cấu hình ví nhận.",
+    help: "Custom gateway: the bot shows a TRC20 wallet and auto-checks TronGrid. You must configure the receiving wallet.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
@@ -820,13 +820,13 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
     placeholder: "PAYOS,PAYPAL,TRON_USDT",
-    help: "Có thể dùng PAYOS,PAYPAL,TRON_USDT. PayPal/USDT dùng bảng giá USD riêng.",
+    help: "Available providers: PAYOS,PAYPAL,TRON_USDT. PayPal and USDT use separate USD pricing.",
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
     label: "Các cổng cho tiếng Anh",
     placeholder: "PAYPAL,TRON_USDT",
-    help: "Khuyến nghị dùng PAYPAL,TRON_USDT. PayOS chỉ nhận giá VNĐ.",
+    help: "Recommended providers: PAYPAL,TRON_USDT. PayOS only supports VND pricing.",
   },
   {
     key: "PAYPAL_BRAND_NAME",
@@ -838,13 +838,13 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "TRON_USDT_WALLET_ADDRESS",
     label: "Ví nhận USDT TRC20",
     placeholder: "T...",
-    help: "Địa chỉ ví TRON nhận USDT TRC20. Không nhập seed/private key vào đây.",
+    help: "TRON wallet address for receiving USDT TRC20. Do not enter seed or private key here.",
   },
   {
     key: "TRON_USDT_UNIQUE_AMOUNT_ENABLED",
     label: "Tạo số USDT riêng cho từng đơn",
     placeholder: "ON",
-    help: "Bật để bot thêm phần lẻ 0.000001-0.000999 vào số USDT, giúp phân biệt nhiều khách mua cùng giá.",
+    help: "Turn ON to add a 0.000001-0.000999 suffix to each USDT amount so identical orders are easy to match.",
     kind: "select",
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
@@ -852,7 +852,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
     key: "TRON_USDT_TTL_SECONDS",
     label: "Thời gian chờ USDT",
     placeholder: "7200",
-    help: "Số giây bot giữ đơn USDT ở trạng thái chờ. Mặc định 2 giờ.",
+    help: "Seconds the bot keeps a USDT order pending. Default is 2 hours.",
   },
 ];
 
@@ -974,14 +974,14 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_SUPPORT_BOT_LABEL",
     label: "Text nút bot hỗ trợ",
-    placeholder: "💬 Contact support",
+    placeholder: "💬 Liên hệ hỗ trợ",
     help: "Tên nút dẫn sang bot hỗ trợ thủ công.",
   },
   {
     key: "MSG_MANUAL_SUPPORT_REDIRECT",
     label: "Tin chuyển sang bot hỗ trợ",
-    placeholder: "⚠️ Thanh toán tự động hiện không hoạt động! Vui lòng liên hệ nhân viên hỗ trợ để mua gói VIP 👑",
-    help: "Tin đi kèm nút bot hỗ trợ khi auto payment bị chặn.",
+    placeholder: "⚠️ Auto payment is currently unavailable.\nPlease contact support to continue your VIP purchase 👑",
+    help: "Message shown with the support button when auto payment is blocked.",
     kind: "textarea",
   },
 ];
@@ -1008,7 +1008,7 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
   {
     key: "MSG_MANUAL_SUPPORT_REDIRECT_EN",
     label: "Support redirect text (EN)",
-    placeholder: "👋 Auto payment is turned off for this account.\nTap the button below and we’ll handle it manually.",
+    placeholder: "👋 Auto payment is off for this account.\nTap the button below and we’ll handle it manually.",
     help: "Message shown together with the support button when auto payment is blocked.",
     kind: "textarea",
   },
@@ -1799,35 +1799,35 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_BILL_TEMPLATE",
     label: "Nội dung bill QR",
-    placeholder: "Mã Đơn: {desc}\\nSố tiền: {amount}\\nNgân hàng: {bank}",
+    placeholder: "🧾 Mã đơn: {desc}\\n💵 Số tiền: {amount}\\n🏦 Ngân hàng: {bank}",
     help: "Dùng biến {plan}, {amount}, {bank}, {name}, {stk}, {desc}.",
     kind: "textarea",
   },
   {
     key: "MSG_PAYPAL_BILL_TEMPLATE",
     label: "Nội dung bill PayPal",
-    placeholder: "💳 <b>PAYPAL PAYMENT</b>\\n\\n🎁 Plan: <b>{plan}</b>\\n💵 Amount: <b>${paypal_amount} USD</b>\\n🧾 Order: <code>{desc}</code>",
+    placeholder: "💳 <b>THANH TOÁN PAYPAL</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <b>${paypal_amount} USD</b>\\n🧾 Đơn: <code>{desc}</code>",
     help: "Dùng biến {plan}, {amount}, {paypal_amount}, {desc}.",
     kind: "textarea",
   },
   {
     key: "MSG_TRON_USDT_BILL_TEMPLATE",
     label: "Nội dung bill USDT TRC20",
-    placeholder: "₮ <b>THANH TOÁN USDT TRC20</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <code>{usdt_amount} USDT</code>\\n🌐 Network: <b>TRC20</b>\\n👛 Ví nhận:\\n<code>{wallet}</code>\\n🧾 Đơn: <code>{desc}</code>\\n\\nVui lòng chuyển đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền sau khi giao dịch xác nhận.",
+    placeholder: "₮ <b>THANH TOÁN USDT TRC20</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <code>{usdt_amount} USDT</code>\\n🌐 Mạng: <b>TRC20</b>\\n👛 Ví nhận:\\n<code>{wallet}</code>\\n🧾 Đơn: <code>{desc}</code>\\n\\nVui lòng gửi đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền ngay khi giao dịch được xác nhận.",
     help: "Dùng biến {plan}, {amount}, {usdt_amount}, {wallet}, {desc}.",
     kind: "textarea",
   },
   {
     key: "MSG_CHOOSE_PAYMENT_PROVIDER",
     label: "Tin chọn phương thức thanh toán",
-    placeholder: "Chọn phương thức thanh toán. VietQR dùng VNĐ; PayPal và Crypto dùng giá USD riêng.",
+    placeholder: "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng.",
     help: "Tin bot gửi khi một gói có nhiều phương thức thanh toán được bật.",
     kind: "textarea",
   },
   {
     key: "MSG_NEW_CUSTOMER_MANUAL_ONLY",
     label: "Tin chặn khách mới auto payment",
-    placeholder: "Đây là đơn mua đầu tiên của bạn, nên hệ thống đang xử lý thủ công để tránh thanh toán tự động cho khách mới. Vui lòng nhắn admin để được hỗ trợ.",
+    placeholder: "Đây là đơn mua đầu tiên của bạn, nên bot đang chuyển sang xử lý thủ công để an toàn hơn. Vui lòng nhắn admin để được hỗ trợ.",
     help: "Tin hiển thị khi khách mới bị chặn auto payment.",
     kind: "textarea",
   },
@@ -1848,14 +1848,14 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_DELIVERY",
     label: "Tin gửi link sau thanh toán",
-    placeholder: "Thanh toán thành công!\\nGói: {plan}\\nHạn dùng: {date}\\n{links}",
-    help: "Dùng biến {plan}, {date}, {links}. Tin QR sẽ được xóa trước khi gửi link.",
+    placeholder: "✅ Thanh toán thành công!\\n\\n🎁 Gói: {plan}\\n📅 Hạn dùng: {date}\\n\\n🔗 Link của bạn:\\n{links}\\n\\n💬 Nhóm hỗ trợ: {support}",
+    help: "Dùng biến {plan}, {date}, {links}, {support}. Tin QR sẽ được xóa trước khi gửi link.",
     kind: "textarea",
   },
   {
     key: "MSG_COUPON_SUCCESS",
     label: "Tin kích hoạt coupon thành công",
-    placeholder: "Mã: {code}\\nGói: {plan}\\nHạn: {expire}\\n{links}",
+    placeholder: "✅ Mã: {code}\\n🎁 Gói: {plan}\\n📅 Hạn: {expire}\\n{links}",
     help: "Dùng biến {code}, {plan}, {expire}, {links}.",
     kind: "textarea",
   },
@@ -1895,13 +1895,13 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_WAIT_QR",
     label: "Tin đang tạo QR",
-    placeholder: "⏳ Đang tạo mã QR...",
+    placeholder: "⏳ Đang tạo mã QR cho đơn của bạn...",
     help: "Tin tạm khi bot gọi PayOS.",
   },
   {
     key: "MSG_QR_ERROR",
     label: "Tin lỗi tạo QR",
-    placeholder: "❌ Lỗi cổng thanh toán!",
+    placeholder: "❌ Không tạo được mã thanh toán. Vui lòng thử lại sau.",
     help: "Tin gửi khi PayOS không tạo được đơn.",
   },
   {
@@ -2262,7 +2262,162 @@ const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
 const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
 const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
-const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key));
+const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>> = {
+  MSG_BILL_TEMPLATE: {
+    placeholder: "Order ID: {desc}\nAmount: {amount}\nBank: {bank}",
+    help: "Use {plan}, {amount}, {bank}, {name}, {stk}, {desc}.",
+  },
+  MSG_PAYPAL_BILL_TEMPLATE: {
+    placeholder: "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+    help: "Use {plan}, {amount}, {paypal_amount}, {desc}.",
+  },
+  MSG_TRON_USDT_BILL_TEMPLATE: {
+    placeholder: "₮ <b>USDT TRC20 PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <code>{usdt_amount} USDT</code>\n🌐 Network: <b>TRC20</b>\n👛 Receiving wallet:\n<code>{wallet}</code>\n🧾 Order: <code>{desc}</code>\n\nPlease send the exact USDT amount shown above. The bot will monitor the blockchain and grant access once the transaction is confirmed.",
+    help: "Use {plan}, {amount}, {usdt_amount}, {wallet}, {desc}.",
+  },
+  MSG_CHOOSE_PAYMENT_PROVIDER: {
+    placeholder: "Choose a payment method. VietQR uses VND; PayPal and Crypto use separate USD pricing.",
+    help: "Sent when a plan has multiple enabled payment methods.",
+  },
+  MSG_NEW_CUSTOMER_MANUAL_ONLY: {
+    placeholder: "This is your first purchase, so the order is handled manually to avoid auto payment for new users. Please contact admin for help.",
+    help: "Shown when a new user is blocked from auto payment.",
+  },
+  MSG_RETURNING_CUSTOMER_AUTO_DISABLED: {
+    placeholder: "You have bought VIP before, but auto payment is currently turned off. Please contact admin for manual handling.",
+    help: "Shown when a returning user is blocked from auto payment.",
+  },
+  MSG_TIMEOUT_QR: {
+    placeholder: "⏳ Your QR code expired after {minutes} minutes. Please create a new order to pay.",
+    help: "Use {minutes}. Sent after the auto-check timer expires.",
+  },
+  MSG_DELIVERY: {
+    placeholder: "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
+    help: "Use {plan}, {date}, {links}, {support}. QR message is removed before delivery.",
+  },
+  MSG_COUPON_SUCCESS: {
+    placeholder: "Code: {code}\nPlan: {plan}\nValid until: {expire}\n{links}",
+    help: "Use {code}, {plan}, {expire}, {links}.",
+  },
+  MSG_COUPON_PROMPT: {
+    placeholder: "<b>Enter your discount code / activation code</b>\n\nSend the code you received here.",
+    help: "Shown when the user taps coupon entry.",
+  },
+  MSG_COUPON_DISCOUNT_OPTIONS: {
+    placeholder: "Code: {code}\nDiscount: {percent}%\nChoose the plan you want below.",
+    help: "Use {code}, {percent}.",
+  },
+  MSG_COUPON_GROUP_OPTIONS: {
+    placeholder: "Code: {code}\nDuration: {duration_label}\nChoose the collection you want to activate below.",
+    help: "Use {code}, {days}, {duration_label}.",
+  },
+  MSG_WAIT_QR: {
+    placeholder: "⏳ Generating your QR code...",
+    help: "Temporary text while the bot calls PayOS.",
+  },
+  MSG_QR_ERROR: {
+    placeholder: "❌ Payment gateway error!",
+    help: "Shown when PayOS cannot create an order.",
+  },
+  MSG_ME_TITLE: {
+    placeholder: "👤 <b>YOUR CURRENT PLAN(S):</b>\n\n",
+    help: "Header for the account page.",
+  },
+  MSG_ME_EMPTY: {
+    placeholder: "❌ You do not have any VIP plan yet.",
+    help: "Shown when the customer has no PAID order.",
+  },
+  MSG_ME_ITEM: {
+    placeholder: "🎁 Plan: <b>{plan}</b>\n📅 Valid until: <code>{date}</code>\n\n",
+    help: "Use {plan}, {date}.",
+  },
+  MSG_POLICY: {
+    placeholder: "Policy is being updated...",
+    help: "Used when policy_page menu page is missing.",
+  },
+  MSG_SUPPORT: {
+    placeholder: "Support is being updated...",
+    help: "Used when the support menu page is missing.",
+  },
+  MSG_UPDATING: {
+    placeholder: "🌟 <b>UPDATING CONTENT...</b>",
+    help: "Fallback when a page has no content.",
+  },
+  MSG_RELOAD_DONE: {
+    placeholder: "🔄 Refreshed all bot data and UI from the system!",
+    help: "Returned when admin runs /reload.",
+  },
+  MSG_ADMIN_ONLY: {
+    placeholder: "⚠️ This command is for admins only.",
+    help: "Used when a regular user calls an admin command.",
+  },
+  MSG_CHECK_EXPIRY_STARTED: {
+    placeholder: "⏳ Running expiry check now...",
+    help: "Returned when admin runs /check_expiry.",
+  },
+  MSG_CHECK_EXPIRY_DONE: {
+    placeholder: "✅ Finished one expiry scan.",
+    help: "Returned when /check_expiry completes.",
+  },
+  MSG_EARLY_RENEW_STATUS: {
+    placeholder: "EARLY_RENEW status: <b>{status}</b>\nUse: /early_renew on or /early_renew off",
+    help: "Use {status}.",
+  },
+  MSG_EARLY_RENEW_ON: {
+    placeholder: "✅ EARLY_RENEW is now ON. Renewal reminders will include a discount when eligible.",
+    help: "Returned when admin enables /early_renew.",
+  },
+  MSG_EARLY_RENEW_OFF: {
+    placeholder: "✅ EARLY_RENEW is now OFF. Renewal reminders will use the normal renewal text and button.",
+    help: "Returned when admin disables /early_renew.",
+  },
+  MSG_EARLY_RENEW_USAGE: {
+    placeholder: "Usage: /early_renew on or /early_renew off",
+    help: "Returned when /early_renew is used with a wrong syntax.",
+  },
+  MSG_COUPON_NO_SELECTABLE_GROUPS: {
+    placeholder: "❌ The code is valid, but no selectable collection has been configured yet.",
+    help: "Used when coupon selection is enabled but no collection is configured.",
+  },
+  MSG_COUPON_PLAN_NOT_CONFIGURED: {
+    placeholder: "❌ The code is valid, but this plan has no collection configured for link delivery.",
+    help: "Used when a coupon is valid but no collection link can be generated.",
+  },
+  MSG_COUPON_PRIVATE_ONLY: {
+    placeholder: "Please DM the bot to enter the code so it does not leak in the group.",
+    help: "Shown when the user enters a coupon in a group.",
+  },
+  MSG_COUPON_INVALID_FORMAT: {
+    placeholder: "Invalid code. Please enter the code you received again.",
+    help: "Shown when the code is too short or empty.",
+  },
+  MSG_HIDDEN_VALID_TITLE: {
+    placeholder: "✅ Hidden code is valid",
+    help: "Title shown when a hidden code is valid.",
+  },
+  MSG_HIDDEN_VALID_BODY: {
+    placeholder: "Choose a plan below to buy:",
+    help: "Description shown when a hidden code is valid.",
+  },
+  MSG_HIDDEN_GROUP_TEMPLATE: {
+    placeholder: "• <b>{name}</b>\n  {description}",
+    help: "Template for each hidden group in the catalog. Uses {name}, {description}.",
+  },
+  BTN_HIDDEN_BUY_TEMPLATE: {
+    placeholder: "Buy {duration_label} - {name} - {price}",
+    help: "Template for hidden group purchase buttons. Uses {duration_label}, {name}, {price}, {days}, {group_id}.",
+  },
+  MSG_HIDDEN_NOT_FOUND: {
+    placeholder: "Hidden code not found.",
+    help: "Shown when the user enters an invalid code.",
+  },
+  MSG_HIDDEN_INACTIVE: {
+    placeholder: "This hidden code is disabled.",
+    help: "Shown when the code is turned off.",
+  },
+};
+const MESSAGE_EN_FIELDS_WITH_DEFAULTS = MESSAGE_EN_FIELDS.map((field) => ({ ...field, ...MESSAGE_EN_PAYMENT_OVERRIDES[field.key] }));
+const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS_WITH_DEFAULTS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key));
 const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
 const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN");
 const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");

@@ -11,7 +11,7 @@ from bot_instance import bot
 from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
 from payment import payment_manager
 from supabase_store import supabase_store
-from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, unmute_member
+from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, support_group_name, unmute_member
 from i18n import t
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
@@ -268,8 +268,12 @@ async def process_successful_payment(order_code: str):
         )
 
         # Gửi tin nhắn thành công
-        msg_template = t(user_id, "MSG_DELIVERY", "✅ <b>THANH TOÁN THÀNH CÔNG!</b>\n\nGói: {plan}\nHạn dùng: {date}\n\nLink tham gia của bạn:\n{links}").replace("\\n", "\n")
-        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name, user_id))).replace("{date}", expire_date).replace("{links}", links_msg)
+        msg_template = t(
+            user_id,
+            "MSG_DELIVERY",
+            "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
+        ).replace("\\n", "\n")
+        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name, user_id))).replace("{date}", expire_date).replace("{links}", links_msg).replace("{support}", escape_html(support_group_name()))
         
         # Tạo nút điều hướng về UI chính bằng cơ chế mới
         kb = InlineKeyboardBuilder()
