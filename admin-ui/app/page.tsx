@@ -6410,6 +6410,7 @@ export default function Home() {
               <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} accent="violet" icon={<ShieldCheck size={16} />} />
               <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} accent="blue" icon={<Activity size={16} />} />
               <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} accent="cyan" icon={<Users size={16} />} />
+              <Metric label="Mode hỗ trợ" value={String(getConfigValue(config, "SUPPORT_GROUP_MODE", "group")).toUpperCase()} accent="indigo" icon={<Settings size={16} />} />
             </div>
             <section className="panel">
               <PanelHead
@@ -6417,7 +6418,7 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
+                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt mode / link</Button>
                     <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }
