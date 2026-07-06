@@ -5,6 +5,7 @@ from aiogram.exceptions import TelegramBadRequest
 from bot_instance import bot
 from database import db
 from i18n import t
+from i18n import get_user_language
 from supabase_store import supabase_store
 from helpers import safe_delete_private_message
 
@@ -811,13 +812,21 @@ async def revoke_support_invite_link(chat_id, invite_link):
 async def add_support_join_button(keyboard_builder, user_id):
     link, error = await create_support_invite_link(user_id)
     if link:
+        language = get_user_language(user_id)
+        default_label = "💬 Join support group" if language == "en" else "💬 Join nhóm hỗ trợ"
         keyboard_builder.row(InlineKeyboardButton(
-            text=t(user_id, "SUPPORT_GROUP_BUTTON_TEXT", "💬 Join nhóm hỗ trợ"),
+            text=t(user_id, "SUPPORT_GROUP_BUTTON_TEXT", default_label),
             url=link,
         ))
         return ""
     if error:
-        template = t(user_id, "MSG_SUPPORT_LINK_ERROR", "\n💬 <b>{group}</b>: <i>Không tạo được link hỗ trợ ({error})</i>\n")
+        language = get_user_language(user_id)
+        default_error = (
+            "\n💬 <b>{group}</b>: <i>Unable to create support link ({error})</i>\n"
+            if language == "en"
+            else "\n💬 <b>{group}</b>: <i>Không tạo được link hỗ trợ ({error})</i>\n"
+        )
+        template = t(user_id, "MSG_SUPPORT_LINK_ERROR", default_error)
         return template.replace("{group}", escape_html(support_group_name())).replace("{error}", escape_html(error))
     return ""
 
