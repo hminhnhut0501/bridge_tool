@@ -105,7 +105,7 @@ export function AnalyticsSection(props: any) {
 }
 
 export function OrdersSection(props: any) {
-  const { filteredOrders, filteredOrdersBase, exportOrdersCsv, query, setQuery, orderTab, setOrderTab, orderPeriod, setOrderPeriod, pagedOrders, changeOrderStatus, removeOrder, saving, orderPage, totalOrderPages, setOrderPage, isWithinPeriod } = props;
+  const { filteredOrders, filteredOrdersBase, exportOrdersCsv, query, setQuery, orderTab, setOrderTab, orderPeriod, setOrderPeriod, pagedOrders, changeOrderStatus, removeOrder, openOrderEditor, saving, orderPage, totalOrderPages, setOrderPage, isWithinPeriod } = props;
   const paidCount = filteredOrdersBase.filter((item: any) => item.status === "PAID").length;
   const remainingCount = filteredOrdersBase.length - paidCount;
   const todayCount = filteredOrdersBase.filter((item: any) => isWithinPeriod(item.created_at, "today")).length;
@@ -182,7 +182,7 @@ export function OrdersSection(props: any) {
           <Tab value="other" label={<Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}><span>Trạng thái còn lại</span><Chip size="small" label={String(remainingCount)} sx={{ height: 22 }} /></Box>} />
         </Tabs>
 
-        <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} saving={saving} />
+        <OrdersTable orders={pagedOrders} onStatusChange={changeOrderStatus} onDeleteOrder={removeOrder} onEditOrder={openOrderEditor} saving={saving} />
         <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} />
       </AppSection>
     </Stack>

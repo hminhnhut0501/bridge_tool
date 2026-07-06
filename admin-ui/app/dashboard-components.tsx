@@ -647,7 +647,7 @@ export function Pagination({ page, totalPages, totalItems, onPage, label = "đơ
   );
 }
 
-export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; saving: string }) {
+export function OrdersTable({ orders, onStatusChange, onDeleteOrder, onEditOrder, saving }: { orders: Order[]; onStatusChange: (orderId: string, status: string) => void; onDeleteOrder: (orderId: string, label?: string) => Promise<void>; onEditOrder?: (order: Order) => void; saving: string }) {
   const statusChip = (status: string) => {
     const normalized = String(status || "").toUpperCase();
     const label = orderStatusLabel(status);
@@ -666,7 +666,12 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
       </TableHead>
       <TableBody>
         {orders.map((order) => (
-          <TableRow key={order.order_id}>
+          <TableRow
+            key={order.order_id}
+            hover={Boolean(onEditOrder)}
+            onClick={onEditOrder ? () => onEditOrder(order) : undefined}
+            sx={{ cursor: onEditOrder ? "pointer" : "default" }}
+          >
             <TableCell>{order.order_id}</TableCell>
             <TableCell><Typography sx={{ fontWeight: 700 }}>{order.full_name || "-"}</Typography><Typography variant="caption" color="text.secondary">{order.telegram_user_id}</Typography></TableCell>
             <TableCell>{order.plan_name}</TableCell>
@@ -676,12 +681,12 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, saving }: {
             <TableCell>{statusChip(order.status)}</TableCell>
             <TableCell>{dateText(order.created_at)}</TableCell>
             <TableCell>
-              <Select size="small" value={order.status} onChange={(event) => onStatusChange(order.order_id, String(event.target.value))} fullWidth>
+              <Select size="small" value={order.status} onChange={(event) => onStatusChange(order.order_id, String(event.target.value))} onClick={(event) => event.stopPropagation()} fullWidth>
                 <MenuItem value="PENDING">PENDING</MenuItem><MenuItem value="PAID">PAID</MenuItem><MenuItem value="CANCELLED">CANCELLED</MenuItem><MenuItem value="EXPIRED">EXPIRED</MenuItem>
               </Select>
             </TableCell>
             <TableCell>
-              <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={() => onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id)} disabled={saving === `order-delete-${order.order_id}`}>
+              <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={(event) => { event.stopPropagation(); onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id); }} disabled={saving === `order-delete-${order.order_id}`}>
                 <Trash2 size={16} />
               </Button>
             </TableCell>

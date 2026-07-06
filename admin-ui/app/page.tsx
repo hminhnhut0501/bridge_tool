@@ -3023,6 +3023,16 @@ export default function Home() {
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   const [orderSettingsOpen, setOrderSettingsOpen] = useState(false);
+  const [orderEditorOpen, setOrderEditorOpen] = useState(false);
+  const [orderEditorOrderId, setOrderEditorOrderId] = useState("");
+  const [orderEditorForm, setOrderEditorForm] = useState({
+    status: "PENDING",
+    plan_name: "",
+    expire_at: "",
+    paid_at: "",
+    coupon_code: "",
+    note: "",
+  });
   const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
@@ -4568,6 +4578,40 @@ export default function Home() {
     await runAction(`order-note-${orderId}`, async () => {
       await updateOrder(savedSecret, orderId, { note });
       await loadAll();
+    });
+  }
+
+  function openOrderEditor(order: Order) {
+    setOrderEditorOrderId(order.order_id);
+    setOrderEditorForm({
+      status: String(order.status || "PENDING").toUpperCase(),
+      plan_name: String(order.plan_name || ""),
+      expire_at: orderExpireValue(order.expire_at || ""),
+      paid_at: orderExpireValue(order.paid_at || ""),
+      coupon_code: String(order.coupon_code || ""),
+      note: String(order.note || ""),
+    });
+    setOrderEditorOpen(true);
+  }
+
+  async function saveOrderEditor() {
+    if (!orderEditorOrderId) return;
+    const nextPlanName = orderEditorForm.plan_name.trim();
+    const nextCouponCode = orderEditorForm.coupon_code.trim().toUpperCase();
+    const nextNote = orderEditorForm.note.trim();
+    const nextStatus = String(orderEditorForm.status || "").toUpperCase();
+    const payload: Parameters<typeof updateOrder>[2] = {
+      status: nextStatus,
+      plan_name: nextPlanName,
+      coupon_code: nextCouponCode || null,
+      note: nextNote,
+    };
+    if (orderEditorForm.expire_at) payload.expire_at = orderEditorForm.expire_at;
+    if (orderEditorForm.paid_at) payload.paid_at = orderEditorForm.paid_at;
+    await runAction(`order-edit-${orderEditorOrderId}`, async () => {
+      await updateOrder(savedSecret, orderEditorOrderId, payload);
+      await loadAll();
+      setOrderEditorOpen(false);
     });
   }
 
@@ -6526,6 +6570,7 @@ export default function Home() {
             pagedOrders={pagedOrders}
             changeOrderStatus={changeOrderStatus}
             removeOrder={removeOrder}
+            openOrderEditor={openOrderEditor}
             saving={saving}
             orderPage={orderPage}
             totalOrderPages={totalOrderPages}
@@ -8284,6 +8329,68 @@ export default function Home() {
                 <Button variant="outlined" onClick={() => saveChannelPost("schedule")} disabled={saving.startsWith("channel-post") || !channelPostForm.scheduled_at} startIcon={<CalendarClock size={16} />}>Lên lịch</Button>
                 <Button variant="contained" onClick={() => saveChannelPost("send_now")} disabled={saving.startsWith("channel-post")} startIcon={saving.startsWith("channel-post") ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>Đăng ngay</Button>
               </Stack>
+          </MuiDialogShell>
+        ) : null}
+
+        {orderEditorOpen ? (
+          <MuiDialogShell
+            open
+            title={`Sửa đơn ${orderEditorOrderId}`}
+            subtitle="Mở từ bảng đơn để sửa nhanh mà không phải đi vòng qua customer modal."
+            onClose={() => setOrderEditorOpen(false)}
+            maxWidth="md"
+          >
+            <Box sx={{ display: "grid", gap: 2, p: 2 }}>
+              <Alert severity={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "success" : "warning"} variant="outlined">
+                {String(orderEditorForm.status || "").toUpperCase() === "PAID"
+                  ? "Đơn PAID: có thể chỉnh đầy đủ các trường quan trọng."
+                  : "Đơn chưa PAID: ưu tiên sửa trạng thái, tên gói, coupon và ghi chú; hạn/paid_at đang khóa để tránh lệch luồng."}
+              </Alert>
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+                <TextField select label="Trạng thái" value={orderEditorForm.status} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, status: event.target.value })} size="small" fullWidth>
+                  <MenuItem value="PENDING">PENDING</MenuItem>
+                  <MenuItem value="PAID">PAID</MenuItem>
+                  <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                  <MenuItem value="EXPIRED">EXPIRED</MenuItem>
+                </TextField>
+                <TextField label="Tên gói" value={orderEditorForm.plan_name} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, plan_name: event.target.value })} size="small" fullWidth helperText="Tên gói hiển thị trong báo cáo và lịch sử." />
+                <TextField
+                  label="Ngày paid"
+                  type="datetime-local"
+                  value={orderEditorForm.paid_at}
+                  onChange={(event) => setOrderEditorForm({ ...orderEditorForm, paid_at: event.target.value })}
+                  size="small"
+                  fullWidth
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  disabled={String(orderEditorForm.status || "").toUpperCase() !== "PAID"}
+                  helperText={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "Dùng khi cần sửa thời điểm ghi nhận đã trả tiền." : "Chỉ mở khi đổi trạng thái sang PAID."}
+                />
+                <TextField
+                  label="Ngày hết hạn"
+                  type="datetime-local"
+                  value={orderEditorForm.expire_at}
+                  onChange={(event) => setOrderEditorForm({ ...orderEditorForm, expire_at: event.target.value })}
+                  size="small"
+                  fullWidth
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  disabled={String(orderEditorForm.status || "").toUpperCase() !== "PAID"}
+                  helperText={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "Giữ đồng bộ với thời hạn cấp quyền." : "Chỉ mở khi đơn đã PAID."}
+                />
+                <TextField label="Coupon code" value={orderEditorForm.coupon_code} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, coupon_code: event.target.value.toUpperCase() })} size="small" fullWidth helperText="Mã coupon gắn với đơn nếu có." />
+                <TextField label="Ghi chú nội bộ" value={orderEditorForm.note} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, note: event.target.value })} size="small" fullWidth multiline minRows={3} helperText="Thông tin riêng cho admin / đối soát." />
+              </Box>
+            </Box>
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", px: 2, pb: 2 }}>
+              <Button variant="outlined" onClick={() => setOrderEditorOpen(false)}>Đóng</Button>
+              <Button
+                variant="contained"
+                onClick={saveOrderEditor}
+                disabled={saving === `order-edit-${orderEditorOrderId}`}
+                startIcon={saving === `order-edit-${orderEditorOrderId}` ? <Loader2 size={16} className="spin" /> : <Save size={16} />}
+              >
+                Lưu thay đổi
+              </Button>
+            </Stack>
           </MuiDialogShell>
         ) : null}
 
