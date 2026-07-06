@@ -606,10 +606,11 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBuilder" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
-type BotToolsSubTab = "menuPrivate" | "menuGroup" | "groupReplies" | "descriptions" | "alerts";
+type BotToolsSubTab = "groupReplies" | "alerts";
+type MenuBotSubTab = "pages" | "language" | "commands";
 type MenuLanguage = "vi" | "en";
 type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expired" | "paid" | "coupon";
 type CustomerOrderTab = "paid" | "other";
@@ -748,17 +749,6 @@ const BOT_FIELDS: ConfigField[] = [
     ],
   },
   {
-    key: "LANGUAGE_SWITCH_ENABLED",
-    label: "Hiện nút đổi ngôn ngữ",
-    placeholder: "ON",
-    help: "Turn ON to show English/Vietnamese switching in the main menu. When OFF, menu-builder set_lang buttons are hidden too.",
-    kind: "select",
-    options: [
-      { label: "Tắt", value: "OFF" },
-      { label: "Bật", value: "ON" },
-    ],
-  },
-  {
     key: "BOT_ACTIVE_HOURS",
     label: "Khung giờ bot hoạt động",
     placeholder: "08:00-23:00",
@@ -789,6 +779,31 @@ const BOT_FIELDS: ConfigField[] = [
     label: "Số group tối đa",
     placeholder: "20",
     help: "Số lượng G1, G2... dashboard và bot sẽ quét. Tăng nếu bạn bán hơn 20 nhóm.",
+  },
+];
+
+const MENU_LANGUAGE_FIELDS: ConfigField[] = [
+  {
+    key: "LANGUAGE_SWITCH_ENABLED",
+    label: "Hiện nút đổi ngôn ngữ",
+    placeholder: "ON",
+    help: "Bật để hiện nút đổi English/Vietnamese trong menu chính. Khi tắt, các nút set_lang trong Menu Builder cũng bị ẩn.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "DEFAULT_LANGUAGE",
+    label: "Ngôn ngữ mặc định",
+    placeholder: "vi",
+    help: "Ngôn ngữ dùng cho user mới khi chưa tự chọn. Giá trị hợp lệ: vi hoặc en.",
+    kind: "select",
+    options: [
+      { label: "Tiếng Việt", value: "vi" },
+      { label: "English", value: "en" },
+    ],
   },
 ];
 
@@ -2884,7 +2899,8 @@ export default function Home() {
   const [contentTab, setContentTab] = useState<ContentSubTab>("bot");
   const [botViTab, setBotViTab] = useState<BotUiSubTab>("plans");
   const [botEnTab, setBotEnTab] = useState<BotUiSubTab>("plans");
-  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("menuPrivate");
+  const [botToolsTab, setBotToolsTab] = useState<BotToolsSubTab>("groupReplies");
+  const [menuBotTab, setMenuBotTab] = useState<MenuBotSubTab>("pages");
   const [menuLanguage, setMenuLanguage] = useState<MenuLanguage>("vi");
   const [overviewTrendRange, setOverviewTrendRange] = useState<"month" | "year">("month");
   const [orders, setOrders] = useState<Order[]>(isDevPreview ? DEMO_ORDERS : []);
@@ -3066,7 +3082,7 @@ export default function Home() {
     config.forEach((item) => {
       nextValues[item.key] = item.value;
     });
-    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...PRIVATE_MENU_FIELDS, ...GROUP_MENU_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...GROUP_COMMAND_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
+    [...ADMIN_FIELDS, ...SUPPORT_GROUP_FIELDS, ...SUPPORT_INBOX_FIELDS, ...SUPPORT_INBOX_EFFECT_FIELDS, ...ORDER_FIELDS, ...CURRENCY_FIELDS, ...BOT_FIELDS, ...MENU_LANGUAGE_FIELDS, ...PAYMENT_FIELDS, ...AUTO_PAYMENT_VI_FIELDS, ...AUTO_PAYMENT_EN_FIELDS, ...AUTO_PAYMENT_SUPPORT_FIELDS, ...AUTO_PAYMENT_SUPPORT_EN_FIELDS, ...RENEWAL_FIELDS, ...SECURITY_FIELDS, ...SYSTEM_FIELDS, ...PRIVATE_MENU_FIELDS, ...GROUP_MENU_FIELDS, ...COMMAND_FIELDS, ...COMMAND_EN_FIELDS, ...GROUP_COMMAND_FIELDS, ...MESSAGE_FIELDS, ...MESSAGE_EN_FIELDS, ...BUTTON_FIELDS, ...BUTTON_EN_FIELDS, ...ALERT_FIELDS, ...ALERT_EN_FIELDS, ...SALE_CONTENT_FIELDS, ...SALE_CONTENT_EN_FIELDS, ...PLAN_FIELDS, ...PLAN_EN_FIELDS].forEach((field) => {
       if (!(field.key in nextValues)) nextValues[field.key] = "";
     });
     Object.keys(nextValues).forEach((key) => {
@@ -3388,7 +3404,7 @@ export default function Home() {
       const needsOrders = !light && shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
       const needsUsers = !light && shouldLoad("overview", "analytics");
       const needsConfig = !light;
-      const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBuilder");
+      const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
       const needsSales = !light && shouldLoad("sales");
       const needsCoupons = !light && shouldLoad("overview", "coupons");
       const needsActivationCodes = !light && shouldLoad("activationCodes");
@@ -6157,7 +6173,7 @@ export default function Home() {
               <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
               <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
               <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="menuBuilder" icon={<FileText size={16} />} iconPosition="start" label="Menu Builder" />
+              <Tab value="menuBot" icon={<FileText size={16} />} iconPosition="start" label="Menu Bot" />
               <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
@@ -7420,24 +7436,13 @@ export default function Home() {
         {tab === "botTools" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Cấu hình lệnh bot" subtitle="Mỗi tab là một cụm riêng để chỉnh nhanh, không phải cuộn quá dài." />
+              <PanelHead title="Lệnh & cảnh báo" subtitle="Chỉ giữ phản hồi lệnh trong group và các alert ngắn. Menu command đã chuyển sang Menu Bot." />
               <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="menuPrivate" label="Menu private" />
-                <Tab value="menuGroup" label="Menu group" />
                 <Tab value="groupReplies" label="Group replies" />
-                <Tab value="descriptions" label="Mô tả lệnh" />
                 <Tab value="alerts" label="Cảnh báo" />
               </Tabs>
             </section>
-            {botToolsTab === "menuPrivate" ? <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "menuGroup" ? <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "groupReplies" ? <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botToolsTab === "descriptions" ? (
-              <div className="stack">
-                <ConfigEditor title="Lệnh Telegram tiếng Việt" subtitle="Mô tả lệnh hiển thị cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-                <ConfigEditor title="Lệnh Telegram tiếng Anh" subtitle="Mô tả lệnh hiển thị cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-              </div>
-            ) : null}
             {botToolsTab === "alerts" ? (
               <div className="stack">
                 <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
@@ -7447,15 +7452,25 @@ export default function Home() {
           </div>
         ) : null}
 
-        {tab === "menuBuilder" ? (
+        {tab === "menuBot" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Menu Builder" subtitle="Trang tiếng Việt và tiếng Anh được tách riêng. Trang tiếng Anh dùng hậu tố _en." />
-              <Tabs value={menuLanguage} onChange={(_, next) => { setMenuLanguage(next); resetMenuForm(); }} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="vi" label="Trang tiếng Việt" />
-                <Tab value="en" label="Trang tiếng Anh" />
+              <PanelHead title="Menu Bot" subtitle="Một nơi để quản lý page menu, nút đổi ngôn ngữ và command menu private/group." />
+              <Tabs value={menuBotTab} onChange={(_, next) => setMenuBotTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="pages" label="Trang menu" />
+                <Tab value="language" label="Ngôn ngữ" />
+                <Tab value="commands" label="Command menu" />
               </Tabs>
             </section>
+            {menuBotTab === "pages" ? (
+              <div className="stack">
+                <section className="panel content-hub">
+                  <PanelHead title="Menu Builder" subtitle="Trang tiếng Việt và tiếng Anh được tách riêng. Trang tiếng Anh dùng hậu tố _en." />
+                  <Tabs value={menuLanguage} onChange={(_, next) => { setMenuLanguage(next); resetMenuForm(); }} textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                    <Tab value="vi" label="Trang tiếng Việt" />
+                    <Tab value="en" label="Trang tiếng Anh" />
+                  </Tabs>
+                </section>
               <section className="panel">
                 <PanelHead
                   title={menuLanguage === "en" ? "Menu Builder tiếng Anh" : "Menu Builder tiếng Việt"}
@@ -7481,6 +7496,19 @@ export default function Home() {
                   )}
                 />
               </section>
+              </div>
+            ) : null}
+            {menuBotTab === "language" ? (
+              <ConfigEditor title="Ngôn ngữ menu bot" subtitle="Bật/tắt nút đổi ngôn ngữ và chọn ngôn ngữ mặc định cho user mới." fields={MENU_LANGUAGE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+            ) : null}
+            {menuBotTab === "commands" ? (
+              <div className="stack">
+                <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Mô tả lệnh tiếng Việt" subtitle="Mô tả command hiển thị trong Telegram menu cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Mô tả lệnh tiếng Anh" subtitle="Mô tả command hiển thị trong Telegram menu cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+              </div>
+            ) : null}
           </div>
         ) : null}
 
