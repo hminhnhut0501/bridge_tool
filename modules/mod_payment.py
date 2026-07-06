@@ -1,5 +1,6 @@
-import time
 import asyncio
+import time
+from collections import deque
 import urllib.parse
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardButton
@@ -56,7 +57,8 @@ def vietqr_show_account_name():
     return str(db.get_config("PAYOS_VIETQR_SHOW_ACCOUNT_NAME", "OFF") or "OFF").strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 # 🛡 BIẾN LƯU TRỮ CHỐNG SPAM
-user_cooldowns = {}
+payment_spam_attempts = {}
+payment_spam_block_until = {}
 
 
 def payment_cooldown_key(user_id, action, provider):
@@ -66,12 +68,38 @@ def payment_cooldown_key(user_id, action, provider):
 async def enforce_payment_cooldown(callback, action, provider):
     key = payment_cooldown_key(callback.from_user.id, action, provider)
     current_time = time.time()
-    last_time = user_cooldowns.get(key, 0)
-    if current_time - last_time < 15:
-        fallback = "⏳ Please wait 15 seconds before creating this payment again." if get_user_language(callback.from_user.id) == "en" else "⏳ Thao tác quá nhanh! Vui lòng chờ 15s."
+    window_seconds = max(5, parse_int_config("PAYMENT_SPAM_WINDOW_SECONDS", 10))
+    max_attempts = max(1, parse_int_config("PAYMENT_SPAM_MAX_ATTEMPTS", 2))
+    block_seconds = max(5, parse_int_config("PAYMENT_SPAM_BLOCK_SECONDS", 15))
+
+    blocked_until = float(payment_spam_block_until.get(key, 0) or 0)
+    if blocked_until > current_time:
+        remaining = max(1, int(blocked_until - current_time))
+        fallback = (
+            f"⏳ Slow down a bit. Too many payment attempts in a short time. Please wait {remaining}s."
+            if get_user_language(callback.from_user.id) == "en"
+            else f"⏳ Thao tác quá nhanh! Hãy chờ {remaining}s rồi thử lại."
+        )
         await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", fallback), show_alert=True)
         return False
-    user_cooldowns[key] = current_time
+
+    bucket = payment_spam_attempts.get(key)
+    if bucket is None:
+        bucket = deque()
+        payment_spam_attempts[key] = bucket
+    while bucket and current_time - bucket[0] > window_seconds:
+        bucket.popleft()
+    bucket.append(current_time)
+    if len(bucket) >= max_attempts:
+        payment_spam_block_until[key] = current_time + block_seconds
+        bucket.clear()
+        fallback = (
+            f"⏳ Slow down a bit. Too many payment attempts in a short time. Please wait {block_seconds}s."
+            if get_user_language(callback.from_user.id) == "en"
+            else f"⏳ Thao tác quá nhanh! Hãy chờ {block_seconds}s rồi thử lại."
+        )
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", fallback), show_alert=True)
+        return False
     return True
 
 def safe_int(value_str):

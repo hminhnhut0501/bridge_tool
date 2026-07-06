@@ -854,6 +854,24 @@ const PAYMENT_FIELDS: ConfigField[] = [
     placeholder: "7200",
     help: "Seconds the bot keeps a USDT order pending. Default is 2 hours.",
   },
+  {
+    key: "PAYMENT_SPAM_WINDOW_SECONDS",
+    label: "Cửa sổ chống spam payment",
+    placeholder: "10",
+    help: "Xét số lần bấm trong khoảng N giây gần nhất trước khi kết luận spam.",
+  },
+  {
+    key: "PAYMENT_SPAM_MAX_ATTEMPTS",
+    label: "Số lần bấm tối đa",
+    placeholder: "2",
+    help: "Bấm đến lần này trong cùng cửa sổ thì bot sẽ coi là spam và chặn tạm.",
+  },
+  {
+    key: "PAYMENT_SPAM_BLOCK_SECONDS",
+    label: "Thời gian chặn spam",
+    placeholder: "15",
+    help: "Số giây bot sẽ khóa tạm khi vượt ngưỡng spam.",
+  },
 ];
 
 const AUTO_PAYMENT_VI_FIELDS: ConfigField[] = [
@@ -2198,6 +2216,101 @@ const ALERT_FIELDS: ConfigField[] = [
   { key: "ALERT_DISCOUNT_ZERO_AMOUNT", label: "Coupon về 0đ", placeholder: "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá.", help: "Chặn coupon giảm giá làm đơn còn 0đ." },
 ];
 
+const ALERT_EN_OVERRIDES: Partial<Record<string, Partial<ConfigField>>> = {
+  ALERT_SPAM: {
+    placeholder: "⏳ Please slow down a bit.",
+    help: "Shown when the user taps too quickly.",
+  },
+  ALERT_SPAM_QR: {
+    placeholder: "⏳ Slow down a bit. Please wait 15 seconds before creating this payment again.",
+    help: "Shown when the user creates payment too quickly.",
+  },
+  ALERT_MAINTENANCE: {
+    placeholder: "🛠 The bot is under maintenance. Please come back later.",
+    help: "Shown while the bot is in maintenance mode.",
+  },
+  ALERT_QR_EXPIRED: {
+    placeholder: "⏳ Your QR code has expired. Please create a new order.",
+    help: "Shown when the user checks an expired QR.",
+  },
+  ALERT_PAID_SUCCESS: {
+    placeholder: "✅ Payment received successfully!",
+    help: "Shown when the gateway confirms PAID.",
+  },
+  ALERT_NOT_PAID: {
+    placeholder: "⏳ We have not received the payment yet.",
+    help: "Shown when the user checks payment but the gateway is not PAID yet.",
+  },
+  ALERT_CANCELLED: {
+    placeholder: "🚫 The order has been cancelled.",
+    help: "Shown when the user cancels the QR order.",
+  },
+  ALERT_EARLY_RENEW_OFF: {
+    placeholder: "Early renewal is currently off. Please renew at the regular price.",
+    help: "Shown when the early renew offer is disabled.",
+  },
+  ALERT_POLICY_UNAVAILABLE: {
+    placeholder: "The policy page is unavailable right now.",
+    help: "Shown when the policy page cannot be opened.",
+  },
+  ALERT_SUPPORT_UNAVAILABLE: {
+    placeholder: "The support page is unavailable right now.",
+    help: "Shown when the support page cannot be opened.",
+  },
+  ALERT_COUPON_MENU_DISABLED: {
+    placeholder: "The coupon entry feature is hidden in the menu.",
+    help: "Shown when the coupon menu is disabled.",
+  },
+  ALERT_COUPON_PRIVATE_ONLY: {
+    placeholder: "Please DM the bot to enter the code.",
+    help: "Shown when coupon entry is blocked in group chat.",
+  },
+  ALERT_COUPON_SELECTION_INVALID: {
+    placeholder: "Invalid coupon selection.",
+    help: "Shown when coupon selection callback format is invalid.",
+  },
+  ALERT_COUPON_NOT_GROUP_SELECT: {
+    placeholder: "This is not a collection-selection coupon.",
+    help: "Shown when the callback does not match a selectable-group coupon.",
+  },
+  ALERT_COUPON_GROUP_OUT_OF_SCOPE: {
+    placeholder: "This collection is outside the coupon scope.",
+    help: "Shown when a coupon does not apply to the selected collection.",
+  },
+  ALERT_RENEW_CODE_INVALID: {
+    placeholder: "Invalid renewal code.",
+    help: "Shown when renewal callback format is invalid.",
+  },
+  ALERT_RENEW_OFFER_INVALID: {
+    placeholder: "The renewal offer is no longer valid.",
+    help: "Shown when the renewal offer data is missing or stale.",
+  },
+  ALERT_RENEW_NOT_OWNER: {
+    placeholder: "This offer does not belong to your account.",
+    help: "Shown when a user taps someone else's offer.",
+  },
+  ALERT_RENEW_EXPIRED: {
+    placeholder: "This early-renew offer has expired or is no longer valid.",
+    help: "Shown when the offer is no longer eligible.",
+  },
+  ALERT_DISCOUNT_INVALID: {
+    placeholder: "Invalid discount code.",
+    help: "Shown when the discount callback format is invalid.",
+  },
+  ALERT_DISCOUNT_NOT_APPLICABLE: {
+    placeholder: "This code does not apply to the selected plan.",
+    help: "Shown when the coupon does not match the plan.",
+  },
+  ALERT_DISCOUNT_PLAN_INVALID: {
+    placeholder: "Invalid plan for this coupon.",
+    help: "Shown when the plan key cannot be read.",
+  },
+  ALERT_DISCOUNT_ZERO_AMOUNT: {
+    placeholder: "This discount would reduce the order to 0. Use an activation coupon instead.",
+    help: "Shown when a discount coupon would make the order free.",
+  },
+};
+
 const SALE_CONTENT_FIELDS: ConfigField[] = [
   {
     key: "SALE_ANNOUNCE_ENABLED",
@@ -2262,6 +2375,7 @@ const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
 const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
 const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
+const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN").map((field) => ({ ...field, ...ALERT_EN_OVERRIDES[field.key] }));
 const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>> = {
   MSG_BILL_TEMPLATE: {
     placeholder: "Order ID: {desc}\nAmount: {amount}\nBank: {bank}",
@@ -2419,7 +2533,6 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
 const MESSAGE_EN_FIELDS_WITH_DEFAULTS = MESSAGE_EN_FIELDS.map((field) => ({ ...field, ...MESSAGE_EN_PAYMENT_OVERRIDES[field.key] }));
 const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS_WITH_DEFAULTS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key));
 const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
-const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN");
 const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");
 
 const PRICE_KEY_OPTIONS = [
