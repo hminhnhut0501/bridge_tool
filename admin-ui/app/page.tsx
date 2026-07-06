@@ -862,9 +862,9 @@ const PAYMENT_FIELDS: ConfigField[] = [
   },
   {
     key: "PAYMENT_SPAM_MAX_ATTEMPTS",
-    label: "Số lần bấm tối đa",
+    label: "Số lần được phép",
     placeholder: "2",
-    help: "Bấm đến lần này trong cùng cửa sổ thì bot sẽ coi là spam và chặn tạm.",
+    help: "Số lần bấm hợp lệ trong cùng cửa sổ trước khi bot chặn tạm ở lần kế tiếp.",
   },
   {
     key: "PAYMENT_SPAM_BLOCK_SECONDS",

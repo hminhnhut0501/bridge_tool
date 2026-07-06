@@ -61,12 +61,13 @@ payment_spam_attempts = {}
 payment_spam_block_until = {}
 
 
-def payment_cooldown_key(user_id, action, provider):
-    return f"{user_id}:{str(provider or '').upper()}:{str(action or '')}"
+def payment_cooldown_key(user_id, action, provider, message_id=""):
+    return f"{user_id}:{str(provider or '').upper()}:{str(action or '')}:{str(message_id or '')}"
 
 
 async def enforce_payment_cooldown(callback, action, provider):
-    key = payment_cooldown_key(callback.from_user.id, action, provider)
+    message_id = getattr(getattr(callback, "message", None), "message_id", "") or ""
+    key = payment_cooldown_key(callback.from_user.id, action, provider, message_id=message_id)
     current_time = time.time()
     window_seconds = max(5, parse_int_config("PAYMENT_SPAM_WINDOW_SECONDS", 10))
     max_attempts = max(1, parse_int_config("PAYMENT_SPAM_MAX_ATTEMPTS", 2))
@@ -90,7 +91,7 @@ async def enforce_payment_cooldown(callback, action, provider):
     while bucket and current_time - bucket[0] > window_seconds:
         bucket.popleft()
     bucket.append(current_time)
-    if len(bucket) >= max_attempts:
+    if len(bucket) > max_attempts:
         payment_spam_block_until[key] = current_time + block_seconds
         bucket.clear()
         fallback = (
