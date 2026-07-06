@@ -1106,7 +1106,7 @@ class SupabaseStore:
         return rows[0] if rows else None
 
     def list_support_tickets(self, limit=100, status=None):
-        params = {"select": "*", "order": "created_at.desc", "limit": str(limit)}
+        params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
         if status:
             params["status"] = f"eq.{_clean_text(status)}"
         return self._request("GET", "support_tickets", params=params)

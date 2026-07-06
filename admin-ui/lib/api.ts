@@ -740,7 +740,7 @@ export async function regenerateActivationCode(secret: string, code: string) {
   });
 }
 
-export async function sendAdminReply(secret: string, payload: { telegram_user_id: string; text: string; source_log_id?: string; source_text?: string; full_name?: string }) {
+export async function sendAdminReply(secret: string, payload: { telegram_user_id: string; text: string; ticket_id?: string; source_log_id?: string; source_text?: string; full_name?: string }) {
   return request<{ data: { ok: boolean; message_id?: number | null } }>("/admin-api/admin-replies", secret, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -768,9 +768,17 @@ export async function getSupportEvents(secret: string, limit = 5000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
 }
 
-export async function searchSupportCases(secret: string, query = "", limit = 20) {
+export async function searchSupportCases(secret: string, query = "", limit = 20, status = "") {
   const params = new URLSearchParams({ query, limit: String(limit) });
+  if (status) params.set("status", status);
   return request<{ data: SupportCase[] }>(`/admin-api/support-cases?${params.toString()}`, secret);
+}
+
+export async function updateSupportCase(secret: string, ticketId: string, payload: { status: "open" | "closed" }) {
+  return request<{ data: SupportCase["ticket"] | null }>(`/admin-api/support-cases/${encodeURIComponent(ticketId)}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getKickAudit(secret: string, live = false) {

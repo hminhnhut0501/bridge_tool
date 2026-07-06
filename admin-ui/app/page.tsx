@@ -144,6 +144,7 @@ import {
   Order,
   SaleRule,
   type SupportCase,
+  type SupportCaseMessage,
   type SupportInboxCheck,
   SupportEvent,
   UserRow,
@@ -209,6 +210,7 @@ import {
   updateMenuPage,
   updateOrder,
   updateOrderStatus,
+  updateSupportCase,
   updateActivationCode,
   upsertBlacklist,
   upsertHiddenCode,
@@ -2903,6 +2905,15 @@ function configIsOn(config: ConfigRow[], key: string, fallback = "OFF") {
   return ["ON", "TRUE", "YES", "1", "BẬT", "BAT"].includes(String(getConfigValue(config, key, fallback) || fallback).trim().toUpperCase());
 }
 
+function supportCaseMessageText(message: SupportCaseMessage) {
+  if (message.text) return message.text;
+  const payload = message.payload;
+  if (payload && typeof payload === "object" && "message" in payload && typeof (payload as { message?: unknown }).message === "string") {
+    return (payload as { message: string }).message;
+  }
+  return "";
+}
+
 export default function Home() {
   const isDevPreview = process.env.NODE_ENV !== "production";
   const [secret, setSecret] = useState("");
@@ -3003,9 +3014,11 @@ export default function Home() {
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
   const [supportCaseQuery, setSupportCaseQuery] = useState("");
+  const [supportCaseStatus, setSupportCaseStatus] = useState<"open" | "closed" | "all">("open");
   const [supportCaseLoading, setSupportCaseLoading] = useState(false);
   const [supportCaseSearched, setSupportCaseSearched] = useState(false);
-  const [selectedSupportCaseUserId, setSelectedSupportCaseUserId] = useState("");
+  const [selectedSupportCaseId, setSelectedSupportCaseId] = useState("");
+  const [supportReplyText, setSupportReplyText] = useState("");
   const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
@@ -3111,6 +3124,11 @@ export default function Home() {
       .then((res) => setBlacklist(res.data || []))
       .catch(() => undefined);
   }, [blacklist.length, customerQuickLookupOpen, savedSecret]);
+
+  useEffect(() => {
+    if (tab !== "supportInbox" || supportInboxTab !== "inbox" || !savedSecret) return;
+    void loadSupportInbox(supportCaseQuery, supportCaseStatus);
+  }, [savedSecret, supportCaseStatus, supportInboxTab, tab]);
 
   useEffect(() => {
     const query = customerQuickLookupQuery.trim();
@@ -3940,18 +3958,15 @@ export default function Home() {
     });
   }
 
-  async function runSupportCaseSearch(query = supportCaseQuery.trim()) {
+  async function loadSupportInbox(query = supportCaseQuery.trim(), status = supportCaseStatus) {
+    if (!savedSecret) return;
     const search = query.trim();
-    if (!savedSecret || !search) {
-      setSupportCases([]);
-      setSupportCaseSearched(false);
-      return;
-    }
     setSupportCaseLoading(true);
     try {
-      const res = await searchSupportCases(savedSecret, search, 10);
-      setSupportCases(res.data || []);
-      setSelectedSupportCaseUserId((current) => current || String(res.data?.[0]?.ticket?.telegram_user_id || "").trim());
+      const res = await searchSupportCases(savedSecret, search, 30, status === "all" ? "" : status);
+      const cases = res.data || [];
+      setSupportCases(cases);
+      setSelectedSupportCaseId((current) => cases.some((item) => item.ticket?.id === current) ? current : String(cases[0]?.ticket?.id || ""));
       setSupportCaseSearched(true);
     } catch (error) {
       console.error(error);
@@ -3960,6 +3975,10 @@ export default function Home() {
     } finally {
       setSupportCaseLoading(false);
     }
+  }
+
+  async function runSupportCaseSearch(query = supportCaseQuery.trim()) {
+    await loadSupportInbox(query, supportCaseStatus);
   }
 
   function escapeCsvCell(value: unknown) {
@@ -4116,6 +4135,37 @@ export default function Home() {
       setAdminReplyText("");
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
+    });
+  }
+
+  async function submitSupportCaseReply() {
+    if (!selectedSupportCase || !savedSecret) return;
+    const text = supportReplyText.trim();
+    if (!text) {
+      showNotice("error", "Nội dung trả lời đang trống.");
+      return;
+    }
+    await runAction("support-case-reply", async () => {
+      await sendAdminReply(savedSecret, {
+        ticket_id: selectedSupportCase.ticket.id,
+        telegram_user_id: selectedSupportCase.ticket.telegram_user_id,
+        text,
+        source_log_id: selectedSupportCase.ticket.ticket_no,
+        source_text: selectedSupportCase.messages.slice(-1).map(supportCaseMessageText).find(Boolean) || "",
+        full_name: selectedSupportCase.ticket.full_name || "",
+      });
+      setSupportReplyText("");
+      await loadSupportInbox(supportCaseQuery, supportCaseStatus);
+      showNotice("ok", "Đã gửi trả lời cho khách.");
+    });
+  }
+
+  async function changeSupportCaseStatus(status: "open" | "closed") {
+    if (!selectedSupportCase || !savedSecret) return;
+    await runAction(`support-case-${status}`, async () => {
+      await updateSupportCase(savedSecret, selectedSupportCase.ticket.id, { status });
+      await loadSupportInbox(supportCaseQuery, supportCaseStatus);
+      showNotice("ok", status === "closed" ? "Đã đóng ticket." : "Đã mở lại ticket.");
     });
   }
 
@@ -5218,10 +5268,10 @@ export default function Home() {
     ]);
   }, [supportGroupEvents, supportTab, supportCustomerName]);
   const selectedSupportCase = useMemo(() => {
-    const target = String(selectedSupportCaseUserId || "").trim();
+    const target = String(selectedSupportCaseId || "").trim();
     if (!target) return supportCases[0] || null;
-    return supportCases.find((item) => String(item.ticket?.telegram_user_id || "").trim() === target) || supportCases[0] || null;
-  }, [selectedSupportCaseUserId, supportCases]);
+    return supportCases.find((item) => String(item.ticket?.id || "").trim() === target) || supportCases[0] || null;
+  }, [selectedSupportCaseId, supportCases]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
   const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
   const pagedSupportRows = useMemo(() => {
@@ -6737,128 +6787,95 @@ export default function Home() {
               </Tabs>
             </Box>
             {supportInboxTab === "inbox" ? (
-              <>
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead
-                title="Tin nhắn bot"
-                subtitle="Khối riêng cho user ↔ admin. Không liên quan đến nhóm hỗ trợ."
-                action={
-                  <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
-                    <Button variant="outlined" size="small" onClick={() => { selectTab("content"); setContentTab("admin"); }} startIcon={<Users size={16} />}>Nhân viên hỗ trợ</Button>
-                    <Button variant="contained" size="small" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading || !supportCaseQuery.trim()} startIcon={<Search size={16} />}>Tìm case</Button>
-                  </div>
-                }
-              />
-              <Stack spacing={1.25} sx={{ p: 2 }}>
-                <Box className="overview-health-card warning">
-                  <strong>Bot nhận tin</strong>
-                  <span>Luồng user nhắn bot, bấm mua hoặc auto payment tắt sẽ đẩy case về inbox admin.</span>
-                </Box>
-                <Box className="overview-health-card good">
-                  <strong>Trả lời & xử lý</strong>
-                  <span>Admin reply trong thread để bot gửi ngược cho user. Có /close, /reopen, /delete.</span>
-                </Box>
-                <Box className="overview-health-card">
-                  <strong>Nhân sự hỗ trợ</strong>
-                  <span>Quyền xử lý case vẫn theo danh sách admin hệ thống, nhưng tên hiển thị gửi cho khách chỉ dùng 1 tên mặc định ở cấu hình bot.</span>
-                </Box>
-              </Stack>
-            </Card>
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead
-                title="Cài đặt bot"
-                subtitle="Các cấu hình cho inbox user ↔ admin. Không bao gồm khối deep link auto payment."
-                action={
-                  <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Mở cấu hình bot</Button>
-                  </div>
-                }
-              />
-              <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                <div className="overview-health-card warning">
-                  <strong>Bot nhận tin</strong>
-                  <span>Chỉ quản lý luồng inbox, trả lời khách và case admin. Deep link auto payment nằm ở tab Auto payment.</span>
-                </div>
-                <SimpleTable
-                  headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
-                  rows={supportStaffRows.map((item) => [
-                    <Box key={`${item.id}-avatar`} sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: item.tone === "good" ? "rgba(34,197,94,0.12)" : item.tone === "bad" ? "rgba(239,68,68,0.12)" : "rgba(148,163,184,0.12)", color: item.tone === "good" ? "success.main" : item.tone === "bad" ? "error.main" : "text.secondary", border: "1px solid rgba(148,163,184,0.16)", fontWeight: 800 }}>
-                        {item.avatar}
-                      </Box>
-                      <Box>
-                        <strong>{item.alias}</strong>
-                        <div className="muted">{item.id === "-" ? "Chưa có staff" : "Nhân viên bot"}</div>
-                      </Box>
-                    </Box>,
-                    item.id,
-                    <span key={`${item.id}-status`} className={`overview-pill ${item.tone}`}>{item.status}</span>,
-                    item.note,
-                  ])}
+              <section className="panel">
+                <PanelHead
+                  title="Tin nhắn bot"
+                  subtitle="Inbox ticket từ user nhắn riêng với bot. Chọn ticket để xem timeline và trả lời ngay."
+                  action={
+                    <div className="panel-actions">
+                      <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
+                      <Button variant="outlined" size="small" onClick={() => void loadSupportInbox(supportCaseQuery, supportCaseStatus)} disabled={supportCaseLoading} startIcon={supportCaseLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Tải lại</Button>
+                    </div>
+                  }
                 />
-              </Box>
-            </Card>
-            <section className="panel">
-              <PanelHead
-                title="Tra cứu case"
-                subtitle="Kênh user ↔ admin qua bot. Tìm theo user ID là chính, ticket chỉ là mã phụ."
-              />
-              <Box sx={{ display: "grid", gap: 1.25, p: 2 }}>
-                <TextField value={supportCaseQuery} onChange={(event) => setSupportCaseQuery(event.target.value)} placeholder="Nhập Telegram ID, tên, ticket..." size="small" fullWidth onKeyDown={(event) => { if (event.key === "Enter") void runSupportCaseSearch(); }} />
-                {supportCaseLoading ? <div className="muted">Đang tìm case...</div> : null}
-                {supportCaseSearched && !supportCases.length && !supportCaseLoading ? <div className="muted">Không tìm thấy case nào.</div> : null}
-                {supportCases.length ? (
-                  <SimpleTable
-                    headers={["Khách", "User ID", "Trạng thái", "Lần cập nhật", "Case"]}
-                    rows={supportCases.map((item) => [
-                      <span key={`${item.ticket.id}-name`}><strong>{item.ticket.full_name || item.ticket.username || item.ticket.telegram_user_id}</strong><div className="muted">{item.ticket.username ? `@${item.ticket.username}` : "-"}</div></span>,
-                      item.ticket.telegram_user_id,
-                      item.ticket.status,
-                      dateText(item.ticket.updated_at),
-                      item.ticket.ticket_no,
-                    ])}
-                  />
-                ) : null}
-              </Box>
-              {selectedSupportCase ? (
-                <Box sx={{ borderTop: 1, borderColor: "divider", p: 2, display: "grid", gap: 1.25 }}>
-                  <div><strong>Case hiện tại</strong></div>
-                  <SimpleTable
-                    headers={["Trường", "Giá trị"]}
-                    rows={[
-                      ["Khách", `${selectedSupportCase.ticket.full_name || "-"} ${selectedSupportCase.ticket.username ? `(@${selectedSupportCase.ticket.username})` : ""}`.trim()],
-                      ["Telegram ID", selectedSupportCase.ticket.telegram_user_id],
-                      ["Trạng thái", selectedSupportCase.ticket.status],
-                      ["Subject", selectedSupportCase.ticket.subject || "-"],
-                      ["Source", selectedSupportCase.ticket.source || "-"],
-                      ["Cập nhật", dateText(selectedSupportCase.ticket.updated_at)],
-                    ]}
-                  />
-                  <div className="stack" style={{ gap: 8 }}>
-                    <strong>Messages gần nhất</strong>
-                    {selectedSupportCase.messages.length ? selectedSupportCase.messages.slice(-10).map((msg) => (
-                      <Box key={msg.id} sx={{ p: 1.25, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                          <strong>{String(msg.direction || "").replaceAll("_", " ")}</strong>
-                          <span className="muted">{dateText(msg.created_at)}</span>
-                        </div>
-                        <div className="muted" style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
-                          {msg.text || (() => {
-                            const payload = msg.payload;
-                            if (payload && typeof payload === "object" && "message" in payload && typeof (payload as { message?: unknown }).message === "string") {
-                              return (payload as { message: string }).message;
-                            }
-                            return "";
-                          })() || "-"}
-                        </div>
+                <Box sx={{ p: 2, display: "grid", gap: 2 }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 180px auto" }, gap: 1 }}>
+                    <TextField value={supportCaseQuery} onChange={(event) => setSupportCaseQuery(event.target.value)} placeholder="Tìm Telegram ID, tên, username, ticket..." size="small" fullWidth onKeyDown={(event) => { if (event.key === "Enter") void runSupportCaseSearch(); }} />
+                    <TextField select value={supportCaseStatus} onChange={(event) => setSupportCaseStatus(event.target.value as "open" | "closed" | "all")} size="small" label="Trạng thái">
+                      <MenuItem value="open">Open</MenuItem>
+                      <MenuItem value="closed">Closed</MenuItem>
+                      <MenuItem value="all">All</MenuItem>
+                    </TextField>
+                    <Button variant="contained" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading} startIcon={supportCaseLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}>Tìm</Button>
+                  </Box>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "360px minmax(0, 1fr)" }, gap: 2, alignItems: "stretch" }}>
+                    <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden", bgcolor: "background.paper" }}>
+                      <Box sx={{ px: 1.5, py: 1, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <strong>Ticket</strong>
+                        <span className="muted">{supportCases.length} case</span>
                       </Box>
-                    )) : <div className="muted">Chưa có message nào.</div>}
-                  </div>
+                      <Box sx={{ maxHeight: 620, overflow: "auto" }}>
+                        {supportCaseLoading ? <Box sx={{ p: 2 }} className="muted">Đang tải inbox...</Box> : null}
+                        {supportCaseSearched && !supportCases.length && !supportCaseLoading ? <Box sx={{ p: 2 }} className="muted">Không có ticket phù hợp.</Box> : null}
+                        {supportCases.map((item) => {
+                          const lastText = item.messages.slice(-1).map(supportCaseMessageText).find(Boolean) || item.ticket.subject || "-";
+                          const active = selectedSupportCase?.ticket?.id === item.ticket.id;
+                          return (
+                            <ButtonBase key={item.ticket.id} onClick={() => setSelectedSupportCaseId(item.ticket.id)} sx={{ width: "100%", display: "block", textAlign: "left", px: 1.5, py: 1.25, borderBottom: "1px solid", borderColor: "divider", bgcolor: active ? "rgba(59,130,246,0.08)" : "transparent" }}>
+                              <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
+                                <strong>{item.ticket.full_name || item.ticket.username || item.ticket.telegram_user_id}</strong>
+                                <Chip size="small" label={item.ticket.status} sx={statusChipSx(item.ticket.status === "open" ? "success" : "muted")} />
+                              </Box>
+                              <div className="muted">{item.ticket.username ? `@${item.ticket.username}` : item.ticket.telegram_user_id} · {item.ticket.ticket_no}</div>
+                              <div className="muted" style={{ marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastText}</div>
+                              <div className="muted" style={{ marginTop: 4 }}>{dateText(item.ticket.updated_at)}</div>
+                            </ButtonBase>
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                    <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden", bgcolor: "background.paper", minHeight: 520, display: "grid", gridTemplateRows: "auto 1fr auto" }}>
+                      {selectedSupportCase ? (
+                        <>
+                          <Box sx={{ p: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                            <Box>
+                              <strong>{selectedSupportCase.ticket.full_name || selectedSupportCase.ticket.username || selectedSupportCase.ticket.telegram_user_id}</strong>
+                              <div className="muted">{selectedSupportCase.ticket.telegram_user_id} · {selectedSupportCase.ticket.ticket_no} · {selectedSupportCase.ticket.subject || "-"}</div>
+                            </Box>
+                            <Stack direction="row" spacing={1}>
+                              <Button size="small" variant="outlined" onClick={() => void changeSupportCaseStatus(selectedSupportCase.ticket.status === "closed" ? "open" : "closed")} disabled={saving === "support-case-open" || saving === "support-case-closed"}>
+                                {selectedSupportCase.ticket.status === "closed" ? "Mở lại" : "Đóng ticket"}
+                              </Button>
+                            </Stack>
+                          </Box>
+                          <Box sx={{ p: 2, overflow: "auto", display: "grid", gap: 1.25, alignContent: "start" }}>
+                            {selectedSupportCase.messages.length ? selectedSupportCase.messages.map((msg) => {
+                              const outgoing = String(msg.direction || "").includes("support_to_user");
+                              return (
+                                <Box key={msg.id} sx={{ justifySelf: outgoing ? "end" : "start", maxWidth: "82%", p: 1.25, borderRadius: 2, bgcolor: outgoing ? "rgba(59,130,246,0.10)" : "rgba(15,23,42,0.04)", border: "1px solid", borderColor: outgoing ? "rgba(59,130,246,0.18)" : "divider" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                                    <strong>{outgoing ? "Admin" : "User"}</strong>
+                                    <span className="muted">{dateText(msg.created_at)}</span>
+                                  </div>
+                                  <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{supportCaseMessageText(msg) || "-"}</div>
+                                </Box>
+                              );
+                            }) : <div className="muted">Chưa có message nào trong ticket.</div>}
+                          </Box>
+                          <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider", display: "grid", gap: 1 }}>
+                            <TextField value={supportReplyText} onChange={(event) => setSupportReplyText(event.target.value)} placeholder="Nhập tin trả lời khách..." multiline minRows={3} fullWidth size="small" helperText={`${supportReplyText.trim().length}/3500 ký tự`} />
+                            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+                              <Button variant="contained" onClick={submitSupportCaseReply} disabled={saving === "support-case-reply" || !supportReplyText.trim()} startIcon={saving === "support-case-reply" ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>Gửi trả lời</Button>
+                            </Stack>
+                          </Box>
+                        </>
+                      ) : (
+                        <Box sx={{ p: 2 }} className="muted">Chọn một ticket để xem hội thoại và trả lời.</Box>
+                      )}
+                    </Box>
+                  </Box>
                 </Box>
-              ) : null}
-            </section>
-              </>
+              </section>
             ) : null}
 
             {supportInboxTab === "settings" ? (

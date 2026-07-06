@@ -2141,9 +2141,19 @@ async def admin_support_events(limit: int = 5000):
 
 
 @app.get("/admin-api/support-cases", dependencies=[Depends(require_admin)])
-async def admin_support_cases(query: str = "", limit: int = 20):
+async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""):
     try:
-        rows = supabase_store.search_support_tickets(query, limit=limit)
+        safe_limit = max(1, min(int(limit or 20), 50))
+        normalized_status = str(status or "").strip().lower()
+        if normalized_status not in {"open", "closed"}:
+            normalized_status = ""
+        rows = (
+            supabase_store.search_support_tickets(query, limit=safe_limit)
+            if str(query or "").strip()
+            else supabase_store.list_support_tickets(limit=safe_limit, status=normalized_status or None)
+        )
+        if normalized_status and str(query or "").strip():
+            rows = [row for row in rows if str(row.get("status") or "").strip().lower() == normalized_status]
         data = []
         for row in rows:
             messages = supabase_store.list_support_messages(row.get("id"), limit=20)
@@ -2155,6 +2165,26 @@ async def admin_support_cases(query: str = "", limit: int = 20):
         else:
             print(f"⚠️ Không đọc được support cases: {exc}")
         return {"data": []}
+
+
+@app.patch("/admin-api/support-cases/{ticket_id}", dependencies=[Depends(require_admin)])
+async def admin_update_support_case(ticket_id: str, request: Request):
+    body = await request.json()
+    status = str(body.get("status") or "").strip().lower()
+    if status not in {"open", "closed"}:
+        raise HTTPException(status_code=400, detail="Trạng thái ticket không hợp lệ.")
+    payload = {
+        "status": status,
+        "updated_at": datetime.now().isoformat(),
+        "closed_at": datetime.now().isoformat() if status == "closed" else None,
+    }
+    try:
+        updated = supabase_store.update_support_ticket(ticket_id, payload)
+        return {"data": updated[0] if updated else None}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "support_tickets"):
+            warn_missing_table_once("support_tickets", exc)
+        raise HTTPException(status_code=500, detail=f"Không cập nhật được ticket: {exc}")
 
 
 @app.get("/admin-api/kick-audit", dependencies=[Depends(require_admin)])
@@ -2458,6 +2488,7 @@ async def admin_activity_log(
 @app.post("/admin-api/admin-replies", dependencies=[Depends(require_admin)])
 async def admin_reply_to_customer(request: Request):
     body = await request.json()
+    ticket_id = str(body.get("ticket_id") or "").strip()
     telegram_user_id = str(body.get("telegram_user_id") or "").strip()
     text = str(body.get("text") or "").strip()
     source_log_id = str(body.get("source_log_id") or "").strip()
@@ -2470,6 +2501,16 @@ async def admin_reply_to_customer(request: Request):
         raise HTTPException(status_code=400, detail="Nội dung trả lời đang trống.")
     if len(text) > 3500:
         raise HTTPException(status_code=400, detail="Nội dung trả lời quá dài, tối đa 3500 ký tự.")
+
+    ticket = None
+    if ticket_id:
+        try:
+            ticket = supabase_store.get_support_ticket_by_id(ticket_id)
+            if ticket:
+                telegram_user_id = str(ticket.get("telegram_user_id") or telegram_user_id).strip()
+                full_name = str(ticket.get("full_name") or full_name).strip()
+        except Exception as exc:
+            print(f"⚠️ Không đọc được support ticket {ticket_id} trước khi reply: {exc}")
 
     try:
         sent = await bot.send_message(chat_id=int(telegram_user_id), text=text, disable_web_page_preview=True)
@@ -2491,6 +2532,28 @@ async def admin_reply_to_customer(request: Request):
         raise HTTPException(status_code=500, detail=f"Không gửi được tin nhắn cho khách: {exc}")
 
     try:
+        if ticket:
+            supabase_store.create_support_message(
+                {
+                    "ticket_id": str(ticket.get("id") or ticket_id),
+                    "direction": "support_to_user",
+                    "telegram_message_id": getattr(sent, "message_id", None),
+                    "text": text,
+                    "payload": {
+                        "source": "admin_cp",
+                        "source_log_id": source_log_id,
+                        "source_text": source_text,
+                    },
+                }
+            )
+            supabase_store.update_support_ticket(
+                str(ticket.get("id") or ticket_id),
+                {
+                    "status": "open",
+                    "last_message_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat(),
+                },
+            )
         supabase_store.record_support_event(
             "admin_reply_sent",
             telegram_user_id,
