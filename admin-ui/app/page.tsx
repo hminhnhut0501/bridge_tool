@@ -860,14 +860,6 @@ const PAYMENT_FIELDS: ConfigField[] = [
     help: "Recommended providers: PAYPAL,TRON_USDT. PayOS only supports VND pricing.",
   },
   {
-    key: "PAYMENT_LANGUAGE_SWITCH_ENABLED",
-    label: "Hiện nút đổi ngôn ngữ trong payment",
-    placeholder: "ON",
-    help: "Bật để hiện nút chuyển VI/EN ngay trong khối chọn phương thức thanh toán. Hữu ích khi autopay tắt hoặc khách cần chuyển sang English để thanh toán.",
-    kind: "select",
-    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
-  },
-  {
     key: "PAYPAL_BRAND_NAME",
     label: "Tên shop trên PayPal",
     placeholder: "Hang Cú VIP",
@@ -1061,6 +1053,14 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
     label: "Text nút bot hỗ trợ (EN)",
     placeholder: "💬 Contact support",
     help: "Tên nút dẫn sang bot hỗ trợ thủ công cho khách tiếng Anh.",
+  },
+  {
+    key: "MANUAL_SUPPORT_REDIRECT_LANGUAGE_SWITCH_ENABLED",
+    label: "Hiện nút đổi ngôn ngữ ở redirect",
+    placeholder: "ON",
+    help: "Bật để hiển thị nút đổi VI/EN chỉ trong tin MSG_MANUAL_SUPPORT_REDIRECT khi autopay bị chặn.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
     key: "MSG_MANUAL_SUPPORT_REDIRECT_EN",

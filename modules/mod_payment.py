@@ -469,16 +469,7 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     if not providers:
         return None, "__NONE__"
     if len(providers) <= 1:
-        provider = providers[0] if providers else ""
-        kb = InlineKeyboardBuilder()
-        if payment_language_switch_enabled():
-            kb.row(InlineKeyboardButton(
-                text=language_switch_label(language),
-                callback_data="set_lang:en" if language != "en" else "set_lang:vi",
-            ))
-            kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
-            return kb.as_markup(), provider
-        return None, provider
+        return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
     labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
@@ -489,23 +480,8 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
             added += 1
     if not added:
         return None, providers[0]
-    if payment_language_switch_enabled():
-        kb.row(InlineKeyboardButton(
-            text=language_switch_label(language),
-            callback_data="set_lang:en" if language != "en" else "set_lang:vi",
-        ))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
-
-
-def payment_language_switch_enabled():
-    return str(db.get_config("PAYMENT_LANGUAGE_SWITCH_ENABLED", "ON") or "ON").strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
-
-
-def language_switch_label(language):
-    if str(language or "").lower() == "en":
-        return str(db.get_config("LANGUAGE_SWITCH_LABEL_VI", "🇻🇳 Vietnamese") or "🇻🇳 Vietnamese").strip()
-    return str(db.get_config("LANGUAGE_SWITCH_LABEL_EN", "🇬🇧 English") or "🇬🇧 English").strip()
 
 
 def truthy_config(key, default="OFF"):
@@ -713,7 +689,17 @@ def manual_support_bot_label_en():
     ).strip()
 
 
-def manual_support_keyboard(user_id=None, action="", provider="", preferred_language=None):
+def manual_support_language_switch_enabled():
+    return str(db.get_config("MANUAL_SUPPORT_REDIRECT_LANGUAGE_SWITCH_ENABLED", "ON") or "ON").strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def manual_support_language_switch_label(language):
+    if str(language or "").lower() == "en":
+        return str(db.get_config("LANGUAGE_SWITCH_LABEL_VI", "🇻🇳 Vietnamese") or "🇻🇳 Vietnamese").strip()
+    return str(db.get_config("LANGUAGE_SWITCH_LABEL_EN", "🇬🇧 English") or "🇬🇧 English").strip()
+
+
+def manual_support_keyboard(user_id=None, action="", provider="", preferred_language=None, include_language_switch=False):
     language = resolve_user_language(user_id, preferred_language)
     url = manual_support_bot_url(user_id, action, provider, preferred_language=language)
     if not url:
@@ -721,6 +707,11 @@ def manual_support_keyboard(user_id=None, action="", provider="", preferred_lang
     kb = InlineKeyboardBuilder()
     label = manual_support_bot_label_en() if language == "en" else manual_support_bot_label()
     kb.row(InlineKeyboardButton(text=label, url=url))
+    if include_language_switch and manual_support_language_switch_enabled():
+        kb.row(InlineKeyboardButton(
+            text=manual_support_language_switch_label(language),
+            callback_data="set_lang:en" if language != "en" else "set_lang:vi",
+        ))
     return kb.as_markup()
 
 
@@ -732,7 +723,7 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
     ):
         return True
     callback_action = action or getattr(callback, "data", "")
-    keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language)
+    keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language, include_language_switch=True)
     if not support_inbox_enabled():
         try:
             gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
