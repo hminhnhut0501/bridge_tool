@@ -546,17 +546,26 @@ class SupabaseStore:
         metadata=None,
         note="",
     ):
+        amount_value = _parse_number(amount)
+        original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
+        if str(payment_currency or "").strip().upper() in {"USD", "USDT"}:
+            if not float(amount_value).is_integer():
+                amount_value = int(round(float(amount_value) * 100))
+            if not float(original_amount_value).is_integer():
+                original_amount_value = int(round(float(original_amount_value) * 100))
         payload = {
             "order_id": str(order_id),
             "telegram_user_id": str(telegram_user_id),
             "full_name": _clean_text(full_name),
             "plan_name": _clean_text(plan_name),
-            "amount": _parse_number(amount),
+            "amount": amount_value,
             "status": "PENDING",
-            "note": _clean_text(note),
             "sale_id": _clean_text(sale_id),
-            "original_amount": _parse_number(original_amount if original_amount is not None else amount),
+            "original_amount": original_amount_value,
         }
+        note_text = _clean_text(note)
+        if note_text:
+            payload["metadata"] = {"note": note_text}
         if coupon_code:
             payload["coupon_code"] = _clean_text(coupon_code).upper()
             payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
@@ -619,13 +628,13 @@ class SupabaseStore:
                 legacy_metadata["payment_approval_url"] = _clean_text(payment_approval_url)
             if payment_currency:
                 legacy_metadata["payment_currency"] = _clean_text(payment_currency).upper()
+            if note_text:
+                legacy_metadata["note"] = note_text
             if legacy_metadata:
                 legacy_payload["metadata"] = legacy_metadata
             for optional_column in ("plan_token", "plan_category", "source_type", "source_ref", "metadata"):
                 if optional_column in str(exc):
                     legacy_payload.pop(optional_column, None)
-            if "note" in str(exc):
-                legacy_payload.pop("note", None)
             return self._request(
                 "POST",
                 "orders",

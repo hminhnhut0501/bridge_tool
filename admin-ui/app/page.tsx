@@ -103,6 +103,7 @@ import {
   orderExpireValue,
   orderLifecycleLabel,
   orderPlanKind,
+  orderAmountValue,
   orderMoney,
   payloadText,
   providerRevenueFormat,
@@ -2749,7 +2750,7 @@ function stripHtml(value: string) {
 function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount" = "amount") {
   const totals = orders.reduce((sum, order) => {
     const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
-    sum[currency] = (sum[currency] || 0) + Number(order[field] || 0);
+    sum[currency] = (sum[currency] || 0) + orderAmountValue(order, order[field]);
     return sum;
   }, {} as Record<string, number>);
   const parts = Object.entries(totals).map(([currency, total]) => formatRevenueCurrency(currency, total));
@@ -2759,7 +2760,7 @@ function ordersMoney(orders: Order[], field: "amount" | "coupon_discount_amount"
 function ordersAverageMoney(orders: Order[]) {
   const paid = orders.filter((order) => order.status === "PAID");
   const groups = groupRevenueByCurrency(paid);
-  const parts = Object.entries(groups).map(([currency, items]) => formatRevenueCurrency(currency, items.reduce((sum, order) => sum + Number(order.amount || 0), 0) / items.length));
+  const parts = Object.entries(groups).map(([currency, items]) => formatRevenueCurrency(currency, items.reduce((sum, order) => sum + orderAmountValue(order), 0) / items.length));
   return parts.join(" + ") || money(0);
 }
 function groupRevenueByCurrency(orders: Order[]) {
@@ -4597,7 +4598,7 @@ export default function Home() {
   const metrics = useMemo(() => {
     const paid = orders.filter((item) => item.status === "PAID").length;
     const pending = orders.filter((item) => item.status === "PENDING").length;
-    const revenue = orders.filter((item) => item.status === "PAID").reduce((sum, item) => sum + (item.amount || 0), 0);
+    const revenue = orders.filter((item) => item.status === "PAID").reduce((sum, item) => sum + orderAmountValue(item), 0);
     return { paid, pending, revenue, users: users.length, coupons: coupons.length, menu: menuPages.length };
   }, [orders, users, coupons, menuPages]);
   const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
@@ -4608,7 +4609,7 @@ export default function Home() {
   const paidRevenueByProvider = useMemo(() => {
     return paidOrders.reduce((sum, order) => {
       const provider = inferOrderProvider(order);
-      sum[provider] = (sum[provider] || 0) + Number(order.amount || 0);
+      sum[provider] = (sum[provider] || 0) + orderAmountValue(order);
       return sum;
     }, {} as Record<string, number>);
   }, [paidOrders]);
@@ -4628,7 +4629,7 @@ export default function Home() {
     }
     return Array.from(groupMap.entries()).map(([label, items]) => ({
       label,
-      value: items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      value: items.reduce((sum, item) => sum + orderAmountValue(item), 0),
       vip: new Set(items.map((item) => item.telegram_user_id)).size,
     }));
   }, [orders, overviewTrendRange]);
@@ -4716,7 +4717,7 @@ export default function Home() {
       const coupons = uniqueValues(customer.orders.map(orderCouponCode));
       const groups = uniqueValues(customer.orders.flatMap(groupNamesForOrder));
       const plans = uniqueValues(customer.orders.map((item) => item.plan_name));
-      const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const revenue = paidOrders.reduce((sum, item) => sum + orderAmountValue(item), 0);
       const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
       const hasLifetimeSvip = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name) && String(item.plan_name || "").toLowerCase().includes("svip"));
       const hasLifetimeOrder = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name));
@@ -9235,7 +9236,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
                   <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.25 }}>
-                  <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{Number(order.amount || 0) === 0 ? "Free" : money(order.coupon_discount_amount || 0)})</span> : "Không coupon"}
+                  <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{orderAmountValue(order) === 0 ? "Free" : orderMoney(order, order.coupon_discount_amount)})</span> : "Không coupon"}
                 </Typography>
               </Box>
 

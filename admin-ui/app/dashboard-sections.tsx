@@ -5,6 +5,7 @@ import { Box, Button, Chip, Stack, Tab, Tabs, TextField, Typography } from "@mui
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Settings } from "lucide-react";
 import { AppSection, AppToolbar, RevenueBarChart, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 import { Metric } from "./metric-card";
+import { orderAmountValue } from "./dashboard-helpers";
 
 export function AnalyticsSection(props: any) {
   const { orders, monthStats, paidRevenueByCurrency, paidRevenueByProvider, isWithinPeriod } = props;
@@ -25,9 +26,9 @@ export function AnalyticsSection(props: any) {
     { label: "EXPIRED", value: monthStats.expired },
   ];
   const currencyBreakdown = [
-    { label: "VND", value: (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
-    { label: "USD", value: (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
-    { label: "CRYPTO", value: (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) },
+    { label: "VND", value: (paidRevenueByCurrency.VND || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + orderAmountValue(item), 0) },
+    { label: "USD", value: (paidRevenueByCurrency.USD || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + orderAmountValue(item), 0) },
+    { label: "CRYPTO", value: (paidRevenueByCurrency.CRYPTO || []).filter((item: any) => isWithinPeriod(item.created_at, "month")).reduce((sum: number, item: any) => sum + orderAmountValue(item), 0) },
   ].filter((item) => item.value > 0);
   const providerBreakdown = [
     { label: "PayOS", value: paidRevenueByProvider.PAYOS || 0 },

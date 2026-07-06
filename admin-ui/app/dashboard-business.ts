@@ -1,4 +1,5 @@
 import type { ConfigRow, Order } from "@/lib/api";
+import { orderAmountValue } from "./dashboard-helpers";
 
 export type GroupMode = "none" | "day" | "month";
 
@@ -96,8 +97,8 @@ export function uniquePaidCustomers(orders: Order[]) {
 
 export function orderStats(orders: Order[]) {
   const paidOrders = orders.filter((item) => item.status === "PAID");
-  const revenue = paidOrders.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const discount = paidOrders.reduce((sum, item) => sum + (item.coupon_discount_amount || 0), 0);
+  const revenue = paidOrders.reduce((sum, item) => sum + orderAmountValue(item), 0);
+  const discount = paidOrders.reduce((sum, item) => sum + orderAmountValue(item, item.coupon_discount_amount), 0);
   return {
     total: orders.length,
     paid: paidOrders.length,

@@ -184,6 +184,13 @@ export function formatRevenueCurrency(currency: string, value: number) {
   return money(value || 0);
 }
 
+export function orderAmountValue(order: Order, value: number | string | null | undefined = order.amount) {
+  const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
+  const numeric = Number(value || 0);
+  if (currency === "USD" || currency === "USDT" || currency === "CRYPTO") return numeric / 100;
+  return numeric;
+}
+
 export function providerRevenueFormat(provider: string, value: number) {
   return `${provider}: ${groupedNumber(value)}đ`;
 }
@@ -440,9 +447,9 @@ export function hiddenValidityText(code: { valid_from?: string | null; valid_unt
   return [code.valid_from ? `Từ ${dateText(code.valid_from)}` : "", code.valid_until ? `Đến ${dateText(code.valid_until)}` : ""].filter(Boolean).join(" • ") || "-";
 }
 
-export function orderMoney(order: Order, value = order.amount) {
+export function orderMoney(order: Order, value: number | string | null | undefined = order.amount) {
   const currency = inferOrderCurrency(order);
-  if (currency === "USD") return `${groupedNumber(value)} USD`;
-  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${groupedNumber(value)} ${currency.replace("_TRC20", "")}`;
-  return money(value || 0);
+  if (currency === "USD") return `${groupedNumber(orderAmountValue(order, value))} USD`;
+  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${groupedNumber(orderAmountValue(order, value))} ${currency.replace("_TRC20", "")}`;
+  return money(orderAmountValue(order, value));
 }

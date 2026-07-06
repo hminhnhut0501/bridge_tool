@@ -59,6 +59,7 @@ def vietqr_show_account_name():
 # 🛡 BIẾN LƯU TRỮ CHỐNG SPAM
 payment_spam_attempts = {}
 payment_spam_block_until = {}
+payment_spam_inflight = set()
 
 
 def payment_cooldown_key(user_id, action, provider, message_id=""):
@@ -102,6 +103,11 @@ async def enforce_payment_cooldown(callback, action, provider):
         await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", fallback), show_alert=True)
         return False
     return True
+
+
+def payment_spam_inflight_key(callback, action, provider):
+    message_id = getattr(getattr(callback, "message", None), "message_id", "") or ""
+    return payment_cooldown_key(callback.from_user.id, action, provider, message_id=message_id)
 
 def safe_int(value_str):
     """Hàm thông minh: Tự động loại bỏ dấu chấm, dấu phẩy, chữ Đ để chống crash ValueError"""
@@ -888,46 +894,54 @@ async def process_early_renew(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_RENEW_EXPIRED", "Ưu đãi gia hạn sớm đã hết hạn hoặc không còn hợp lệ."), show_alert=True)
         return
 
-    if not await enforce_payment_cooldown(callback, action, provider):
+    inflight_key = payment_spam_inflight_key(callback, action, provider)
+    if inflight_key in payment_spam_inflight:
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Please wait a moment. I’m still creating your previous payment."), show_alert=True)
         return
+    payment_spam_inflight.add(inflight_key)
+    try:
+        if not await enforce_payment_cooldown(callback, action, provider):
+            return
 
-    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
-    order_id = int(time.time())
-    description = f"PRIVE{order_id}"[-20:]
-    amount = offer["renew_price"]
+        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        order_id = int(time.time())
+        description = f"PRIVE{order_id}"[-20:]
+        amount = offer["renew_price"]
 
-    pay_data = create_payment_for_user(
-        callback.from_user.id,
-        order_id,
-        amount,
-        description,
-        provider,
-        preferred_language=resolve_user_language(callback.from_user.id),
-    )
-    if not pay_data:
-        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
-        return
+        pay_data = create_payment_for_user(
+            callback.from_user.id,
+            order_id,
+            amount,
+            description,
+            provider,
+            preferred_language=resolve_user_language(callback.from_user.id),
+        )
+        if not pay_data:
+            await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+            return
 
-    create_pending_order(
-        order_id=order_id,
-        user_id=callback.from_user.id,
-        full_name=callback.from_user.full_name,
-        plan_name=offer["plan_name"],
-        amount=amount,
-        sale_id=offer["offer_id"],
-        original_amount=offer["original_price"],
-        **payment_meta(pay_data),
-    )
+        create_pending_order(
+            order_id=order_id,
+            user_id=callback.from_user.id,
+            full_name=callback.from_user.full_name,
+            plan_name=offer["plan_name"],
+            amount=amount,
+            sale_id=offer["offer_id"],
+            original_amount=offer["original_price"],
+            **payment_meta(pay_data),
+        )
 
-    extra_caption = (
-        f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_money(offer['original_price'], currency)}</s> → "
-        f"<b>{format_money(amount, currency)}</b> (-{offer['discount_percent']}%)"
-        f"\n⏳ Ưu đãi hết khi VIP hết hạn: <code>{offer['expire_at'].strftime('%d/%m/%Y %H:%M:%S')}</code>"
-    )
-    await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
-    await safe_delete_private_message(msg_wait)
-    await safe_delete_private_message(callback.message)
-    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="renew_offer")
+        extra_caption = (
+            f"\n🔥 <b>ƯU ĐÃI GIA HẠN SỚM:</b> <s>{format_money(offer['original_price'], currency)}</s> → "
+            f"<b>{format_money(amount, currency)}</b> (-{offer['discount_percent']}%)"
+            f"\n⏳ Ưu đãi hết khi VIP hết hạn: <code>{offer['expire_at'].strftime('%d/%m/%Y %H:%M:%S')}</code>"
+        )
+        await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
+        await safe_delete_private_message(msg_wait)
+        await safe_delete_private_message(callback.message)
+        create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="renew_offer")
+    finally:
+        payment_spam_inflight.discard(inflight_key)
 
 @router.callback_query(F.data.startswith("group_"))
 async def view_group_detail(callback: CallbackQuery):
@@ -1013,55 +1027,63 @@ async def process_buy_request(callback: CallbackQuery):
     if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
-    # 🛡 LOGIC CHỐNG SPAM (15 GIÂY)
-    if not await enforce_payment_cooldown(callback, action, provider):
+    inflight_key = payment_spam_inflight_key(callback, action, provider)
+    if inflight_key in payment_spam_inflight:
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Please wait a moment. I’m still creating your previous payment."), show_alert=True)
         return
+    payment_spam_inflight.add(inflight_key)
 
-    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
-    
-    offer = resolve_purchase_offer(action, callback.from_user.id, provider)
-    plan_name = offer["plan_name"]
-    amount = offer["amount"]
-    sale_info = offer["sale_info"]
-    original_amount = offer["original_amount"]
-    if amount <= 0:
-        await callback.answer(t(callback.from_user.id, "ALERT_PRICE_NOT_CONFIGURED", "Gói này chưa được cấu hình giá cho phương thức thanh toán đã chọn."), show_alert=True)
-        return
+    try:
+        if not await enforce_payment_cooldown(callback, action, provider):
+            return
 
-    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
-    order_id = int(time.time())
-    description = f"PRIVE{order_id}"[-20:]
-    
-    pay_data = create_payment_for_user(
-        callback.from_user.id,
-        order_id,
-        amount,
-        description,
-        provider,
-        preferred_language=resolve_user_language(callback.from_user.id),
-    )
-    
-    if pay_data:
-        sale_id = sale_info["sale_id"] if sale_info else ""
-        create_pending_order(
-            order_id=order_id,
-            user_id=callback.from_user.id,
-            full_name=callback.from_user.full_name,
-            plan_name=plan_name,
-            amount=amount,
-            sale_id=sale_id,
-            original_amount=original_amount or amount,
-            **payment_meta(pay_data),
+        await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
+        
+        offer = resolve_purchase_offer(action, callback.from_user.id, provider)
+        plan_name = offer["plan_name"]
+        amount = offer["amount"]
+        sale_info = offer["sale_info"]
+        original_amount = offer["original_amount"]
+        if amount <= 0:
+            await callback.answer(t(callback.from_user.id, "ALERT_PRICE_NOT_CONFIGURED", "Gói này chưa được cấu hình giá cho phương thức thanh toán đã chọn."), show_alert=True)
+            return
+
+        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        order_id = int(time.time())
+        description = f"PRIVE{order_id}"[-20:]
+        
+        pay_data = create_payment_for_user(
+            callback.from_user.id,
+            order_id,
+            amount,
+            description,
+            provider,
+            preferred_language=resolve_user_language(callback.from_user.id),
         )
-        extra_caption = sale_caption(sale_info, original_amount, amount, offer["currency"])
+        
+        if pay_data:
+            sale_id = sale_info["sale_id"] if sale_info else ""
+            create_pending_order(
+                order_id=order_id,
+                user_id=callback.from_user.id,
+                full_name=callback.from_user.full_name,
+                plan_name=plan_name,
+                amount=amount,
+                sale_id=sale_id,
+                original_amount=original_amount or amount,
+                **payment_meta(pay_data),
+            )
+            extra_caption = sale_caption(sale_info, original_amount, amount, offer["currency"])
 
-        await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption)
-            
-        await safe_delete_private_message(msg_wait)
-        await safe_delete_private_message(callback.message)
-            
-        create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="buy_request")
-    else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+            await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data, extra_caption)
+                
+            await safe_delete_private_message(msg_wait)
+            await safe_delete_private_message(callback.message)
+                
+            create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="buy_request")
+        else: await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+    finally:
+        payment_spam_inflight.discard(inflight_key)
 
 
 @router.callback_query(F.data.startswith("hgbuy|") | F.data.startswith("payhgbuy|"))
@@ -1094,53 +1116,61 @@ async def process_hidden_buy_request(callback: CallbackQuery):
     if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
-    if not await enforce_payment_cooldown(callback, action, provider):
+    inflight_key = payment_spam_inflight_key(callback, action, provider)
+    if inflight_key in payment_spam_inflight:
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Please wait a moment. I’m still creating your previous payment."), show_alert=True)
         return
+    payment_spam_inflight.add(inflight_key)
+    try:
+        if not await enforce_payment_cooldown(callback, action, provider):
+            return
 
-    await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
+        await cleanup_welcome(callback.from_user.id, callback.message.chat.id)
 
-    offer = hidden_offer_for_action(action, callback.from_user.id, provider)
-    if offer.get("error"):
-        await callback.answer(str(offer["error"]), show_alert=True)
-        return
+        offer = hidden_offer_for_action(action, callback.from_user.id, provider)
+        if offer.get("error"):
+            await callback.answer(str(offer["error"]), show_alert=True)
+            return
 
-    plan_name = offer["plan_name"]
-    amount = offer["amount"]
-    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
-    order_id = int(time.time())
-    description = f"PRIVE{order_id}"[-20:]
+        plan_name = offer["plan_name"]
+        amount = offer["amount"]
+        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        order_id = int(time.time())
+        description = f"PRIVE{order_id}"[-20:]
 
-    pay_data = create_payment_for_user(
-        callback.from_user.id,
-        order_id,
-        amount,
-        description,
-        provider,
-        preferred_language=resolve_user_language(callback.from_user.id),
-    )
-    if not pay_data:
-        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
-        return
+        pay_data = create_payment_for_user(
+            callback.from_user.id,
+            order_id,
+            amount,
+            description,
+            provider,
+            preferred_language=resolve_user_language(callback.from_user.id),
+        )
+        if not pay_data:
+            await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+            return
 
-    create_pending_order(
-        order_id=order_id,
-        user_id=callback.from_user.id,
-        full_name=callback.from_user.full_name,
-        plan_name=plan_name,
-        amount=amount,
-        original_amount=offer["original_amount"],
-        plan_token=offer.get("plan_token", ""),
-        plan_category="HIDDEN",
-        source_type="HIDDEN_CODE",
-        source_ref=offer.get("source_ref", ""),
-        metadata=offer.get("metadata"),
-        **payment_meta(pay_data),
-    )
+        create_pending_order(
+            order_id=order_id,
+            user_id=callback.from_user.id,
+            full_name=callback.from_user.full_name,
+            plan_name=plan_name,
+            amount=amount,
+            original_amount=offer["original_amount"],
+            plan_token=offer.get("plan_token", ""),
+            plan_category="HIDDEN",
+            source_type="HIDDEN_CODE",
+            source_ref=offer.get("source_ref", ""),
+            metadata=offer.get("metadata"),
+            **payment_meta(pay_data),
+        )
 
-    await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data)
-    await safe_delete_private_message(msg_wait)
-    await safe_delete_private_message(callback.message)
-    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="hidden_buy_request")
+        await send_payment_bill(callback, order_id, plan_name, amount, description, pay_data)
+        await safe_delete_private_message(msg_wait)
+        await safe_delete_private_message(callback.message)
+        create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="hidden_buy_request")
+    finally:
+        payment_spam_inflight.discard(inflight_key)
 
 
 @router.callback_query(F.data.startswith("couponbuy|") | F.data.startswith("paycoupon|"))
@@ -1198,62 +1228,69 @@ async def process_coupon_buy_request(callback: CallbackQuery):
         await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_NOT_APPLICABLE", "Mã này không áp dụng cho gói đã chọn."), show_alert=True)
         return
 
-    if not await enforce_payment_cooldown(callback, action, provider):
+    inflight_key = payment_spam_inflight_key(callback, action, provider)
+    if inflight_key in payment_spam_inflight:
+        await callback.answer(t(callback.from_user.id, "ALERT_SPAM_QR", "⏳ Please wait a moment. I’m still creating your previous payment."), show_alert=True)
         return
+    payment_spam_inflight.add(inflight_key)
+    try:
+        if not await enforce_payment_cooldown(callback, action, provider):
+            return
+        buy_data = buy_data_from_plan_key(plan_key)
+        if not buy_data:
+            await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
+            return
 
-    buy_data = buy_data_from_plan_key(plan_key)
-    if not buy_data:
-        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_PLAN_INVALID", "Gói áp dụng không hợp lệ."), show_alert=True)
-        return
+        offer = resolve_purchase_offer(buy_data, callback.from_user.id, provider)
+        percent = coupon_discount_percent(coupon)
+        before_coupon = offer["amount"]
+        discount_amount = round(before_coupon * percent / 100, 2) if offer["currency"] == "USD" else int(round(before_coupon * percent / 100))
+        amount = max(0, before_coupon - discount_amount)
+        if amount <= 0:
+            await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
+            return
 
-    offer = resolve_purchase_offer(buy_data, callback.from_user.id, provider)
-    percent = coupon_discount_percent(coupon)
-    before_coupon = offer["amount"]
-    discount_amount = round(before_coupon * percent / 100, 2) if offer["currency"] == "USD" else int(round(before_coupon * percent / 100))
-    amount = max(0, before_coupon - discount_amount)
-    if amount <= 0:
-        await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
-        return
+        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        order_id = int(time.time())
+        description = f"PRIVE{order_id}"[-20:]
+        pay_data = create_payment_for_user(
+            callback.from_user.id,
+            order_id,
+            amount,
+            description,
+            provider,
+            preferred_language=resolve_user_language(callback.from_user.id),
+        )
 
-    msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
-    order_id = int(time.time())
-    description = f"PRIVE{order_id}"[-20:]
-    pay_data = create_payment_for_user(
-        callback.from_user.id,
-        order_id,
-        amount,
-        description,
-        provider,
-        preferred_language=resolve_user_language(callback.from_user.id),
-    )
+        if not pay_data:
+            await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
+            return
 
-    if not pay_data:
-        await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
-        return
+        sale_info = offer["sale_info"]
+        sale_id = sale_info["sale_id"] if sale_info else ""
+        create_pending_order(
+            order_id=order_id,
+            user_id=callback.from_user.id,
+            full_name=callback.from_user.full_name,
+            plan_name=offer["plan_name"],
+            amount=amount,
+            sale_id=sale_id,
+            original_amount=offer["original_amount"],
+            coupon_code=code,
+            coupon_discount_percent=percent,
+            coupon_discount_amount=discount_amount,
+            **payment_meta(pay_data),
+        )
+        extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon, offer["currency"])
+        extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_money(discount_amount, offer['currency'])})"
+        extra_caption += f"\n💳 <b>Cần thanh toán:</b> {format_money(amount, offer['currency'])}"
 
-    sale_info = offer["sale_info"]
-    sale_id = sale_info["sale_id"] if sale_info else ""
-    create_pending_order(
-        order_id=order_id,
-        user_id=callback.from_user.id,
-        full_name=callback.from_user.full_name,
-        plan_name=offer["plan_name"],
-        amount=amount,
-        sale_id=sale_id,
-        original_amount=offer["original_amount"],
-        coupon_code=code,
-        coupon_discount_percent=percent,
-        coupon_discount_amount=discount_amount,
-        **payment_meta(pay_data),
-    )
-    extra_caption = sale_caption(sale_info, offer["original_amount"], before_coupon, offer["currency"])
-    extra_caption += f"\n🎟 <b>COUPON {code}:</b> -{percent}% (-{format_money(discount_amount, offer['currency'])})"
-    extra_caption += f"\n💳 <b>Cần thanh toán:</b> {format_money(amount, offer['currency'])}"
-
-    await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
-    await safe_delete_private_message(msg_wait)
-    await safe_delete_private_message(callback.message)
-    create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="coupon_buy_request")
+        await send_payment_bill(callback, order_id, offer["plan_name"], amount, description, pay_data, extra_caption)
+        await safe_delete_private_message(msg_wait)
+        await safe_delete_private_message(callback.message)
+        create_background_task(auto_check_loop(order_id, callback.from_user.id), name=f"auto_check_loop_{order_id}", context="coupon_buy_request")
+    finally:
+        payment_spam_inflight.discard(inflight_key)
 
 @router.callback_query(F.data.startswith("check_"))
 async def manual_check_payment(callback: CallbackQuery):
