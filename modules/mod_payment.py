@@ -23,7 +23,7 @@ from hidden_group_utils import (
 from supabase_store import supabase_store
 
 from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message, create_background_task
-from i18n import get_user_language, t
+from i18n import get_user_language, localized_default, t
 from modules.mod_engine import render_page
 from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
 from renewal_utils import build_early_renew_offer, is_early_renew_enabled
@@ -339,8 +339,8 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         kb = InlineKeyboardBuilder()
         if pay_data.get("approval_url"):
             kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_TRONSCAN_ADDRESS", "🔎 Xem ví trên Tronscan"), url=str(pay_data.get("approval_url"))))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 Tôi đã chuyển USDT"), callback_data=f"check_{order_id}"))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Hủy"), callback_data=f"cancel_order_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã chuyển USDT", "🔄 I've sent the USDT")), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel order")), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
             chat_id=callback.message.chat.id,
             text=caption,
@@ -369,8 +369,8 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         kb = InlineKeyboardBuilder()
         checkout_label = t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal")
         kb.row(InlineKeyboardButton(text=checkout_label, url=approval_url))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", "🔄 I've paid"), callback_data=f"check_{order_id}"))
-        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", "❌ Cancel"), callback_data=f"cancel_order_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
             chat_id=callback.message.chat.id,
             text=caption,
@@ -480,7 +480,7 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
             added += 1
     if not added:
         return None, providers[0]
-    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
 
 
@@ -958,8 +958,8 @@ async def view_group_detail(callback: CallbackQuery):
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_30D', '💎 COLLECTION 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_LIFE', '👑 COLLECTION TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang All Access Page
-    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_ALL_ACCESS_PAGE", "🌟 XEM ALL ACCESS"), callback_data="view_all_access_page"))
-    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_ALL_ACCESS_PAGE", localized_default(callback.from_user.id, "🌟 XEM ALL ACCESS", "🌟 View All Access")), callback_data="view_all_access_page"))
+    kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_BACK", localized_default(callback.from_user.id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     
     await smart_display(callback, desc, kb.as_markup(), img=db.get_config(f"IMG_G{num}"))
 
@@ -985,7 +985,7 @@ async def show_all_access_page(callback: CallbackQuery):
     btn_life_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_LIFE", "🔥 MUA ALL ACCESS TRỌN ĐỜI")
     btn_30d_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_30D", "💎 MUA ALL ACCESS 30 NGÀY")
     
-    btn_back_text = t(callback.from_user.id, "BTN_BACK", "🔙 Quay lại")
+    btn_back_text = t(callback.from_user.id, "BTN_BACK", localized_default(callback.from_user.id, "🔙 Quay lại", "🔙 Back to menu"))
 
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI

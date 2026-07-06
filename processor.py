@@ -12,7 +12,7 @@ from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_pla
 from payment import payment_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, support_group_name, unmute_member
-from i18n import t
+from i18n import localized_default, t
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -138,7 +138,7 @@ async def expire_pending_payment(order_code, user_id):
     ).replace("\\n", "\n")
     qr_ttl_seconds = parse_int_config("QR_TTL_SECONDS", 300)
     msg_timeout = msg_timeout.replace("{minutes}", str(max(1, qr_ttl_seconds // 60)))
-    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+    kb_timeout = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
     try:
         await bot.send_message(chat_id=user_id, text=msg_timeout, reply_markup=kb_timeout.as_markup(), parse_mode="HTML")
     except Exception:
@@ -280,7 +280,7 @@ async def process_successful_payment(order_code: str):
         support_error = await add_support_join_button(kb, user_id)
         if support_error:
             final_msg += support_error
-        kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
 
         try:
             await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)

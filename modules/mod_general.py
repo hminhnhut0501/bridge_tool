@@ -15,7 +15,7 @@ from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
 from message_classifier_utils import classify_private_message
 from support_utils import create_support_invite_link
-from i18n import get_user_language, set_user_language, t
+from i18n import get_user_language, localized_default, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
@@ -787,7 +787,7 @@ async def view_policy(event):
 
     try:
         text = t(event.from_user.id, "MSG_POLICY", "Chính sách đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại", "🔙 Back")), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_POLICY"))
     except Exception as e:
         print(f"❌ Lỗi fallback /policy: {e}")
@@ -825,7 +825,7 @@ async def view_support(event):
 
     try:
         text = t(event.from_user.id, "MSG_SUPPORT", "Hỗ trợ đang cập nhật...")
-        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+        kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại", "🔙 Back")), callback_data="back_main"))
         await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_SUPPORT"))
     except Exception as e:
         print(f"❌ Lỗi fallback /support: {e}")
@@ -885,19 +885,19 @@ async def cmd_me(event):
         if is_lifetime_plan_name(latest_plan_name):
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
         elif any(token in latest_plan_name.lower() for token in ("svip", "full", "all access", "allaccess")):
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên All Access Trọn đời"), callback_data="buy_full_life"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
         else:
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_ALL_ACCESS", "🌟 Xem gói All Access"), callback_data="view_all_access_page"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
     else:
-        kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", "🔙 Quay lại Menu"), callback_data="back_main"))
+        kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
     
     await smart_display(event, text, kb.as_markup(), img=db.get_config("IMG_ME", ""))
 

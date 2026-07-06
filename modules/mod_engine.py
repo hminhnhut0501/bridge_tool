@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
-from i18n import get_user_language, localize_page_id, t_for_lang
+from i18n import get_user_language, localize_page_id, localized_default, t_for_lang
 from sale_utils import format_price_label, localized_price_key, sale_banner, sale_placeholder
 
 router = Router()
@@ -101,6 +101,10 @@ def should_add_language_switch(requested_page_id, layout):
         and config_enabled("LANGUAGE_SWITCH_ENABLED", "ON")
         and "set_lang:" not in str(layout or "")
     )
+
+
+def language_switch_label(language):
+    return "🇻🇳 Vietnamese" if str(language or "").lower() == "en" else "🇬🇧 English"
 
 def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -207,9 +211,9 @@ async def render_page(target, page_id):
     kb = InlineKeyboardBuilder.from_markup(build_dynamic_keyboard(page['layout'], language))
     if should_add_language_switch(requested_page_id, page.get("layout")):
         if language == "en":
-            kb.row(InlineKeyboardButton(text="🇻🇳 Tiếng Việt", callback_data="set_lang:vi"))
+            kb.row(InlineKeyboardButton(text=language_switch_label(language), callback_data="set_lang:vi"))
         else:
-            kb.row(InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang:en"))
+            kb.row(InlineKeyboardButton(text=language_switch_label(language), callback_data="set_lang:en"))
     kb_markup = kb.as_markup()
     img_url = page['img']
 
@@ -236,7 +240,7 @@ async def render_static_fallback(callback: CallbackQuery, page_id):
     language = get_user_language(callback.from_user.id if callback.from_user else None)
     text = t_for_lang(language, text_key, default_text).replace("\\n", "\n")
     img_url = db.get_config(img_key, "")
-    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=t_for_lang(language, "BTN_BACK", "🔙 Quay lại"), callback_data="back_main"))
+    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=localized_default(callback.from_user.id if callback.from_user else None, "🔙 Quay lại", "🔙 Back to menu"), callback_data="back_main"))
 
     await safe_delete_private_message(callback.message)
 

@@ -43,7 +43,7 @@ from support_utils import (
     support_inbox_group_name,
 )
 from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_risk_rows
-from config_aliases import canonical_config_key, canonicalize_config_rows, config_write_items
+from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 from manual_order_helpers import should_skip_manual_active_code
@@ -1932,9 +1932,16 @@ async def admin_set_config_batch(request: Request):
 
 @app.delete("/admin-api/config/{key}", dependencies=[Depends(require_admin)])
 async def admin_delete_config(key: str):
-    data = supabase_store.delete_config(key)
-    db.cache_config.pop(str(key).strip().upper(), None)
-    refresh_auto_payment_schedule_if_needed([key])
+    lookup_keys = config_lookup_keys(key)
+    data = []
+    for item_key in lookup_keys:
+        try:
+            data.extend(supabase_store.delete_config(item_key) or [])
+        except Exception:
+            pass
+    for item_key in lookup_keys:
+        db.cache_config.pop(str(item_key).strip().upper(), None)
+    refresh_auto_payment_schedule_if_needed(lookup_keys)
     return {"data": data}
 
 

@@ -93,6 +93,11 @@ def t(user_or_id, key, default=""):
     return t_for_lang(get_user_language(user_id), key, default)
 
 
+def localized_default(user_or_id, vi_default, en_default):
+    language = get_user_language(getattr(user_or_id, "id", user_or_id))
+    return en_default if language == "en" else vi_default
+
+
 def localize_page_id(page_id, language):
     page_id = str(page_id or "").strip()
     language = normalize_language(language)

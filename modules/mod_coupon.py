@@ -29,7 +29,7 @@ from hidden_group_utils import (
     resolve_plan_groups,
     validate_hidden_code_for_user,
 )
-from i18n import get_user_language, t
+from i18n import get_user_language, localized_default, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
@@ -523,7 +523,7 @@ def build_discount_coupon_keyboard(code, coupon, user_id=None):
             text=f"{discount_plan_label(plan_key, user_id=user_id)} (-{coupon_discount_percent(coupon)}%)",
             callback_data=f"couponbuy|{code}|{plan_key}",
         ))
-    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "Quay lại Menu", "Back to menu")), callback_data="back_main"))
     return kb.as_markup()
 
 
@@ -553,7 +553,7 @@ def build_activation_group_keyboard(code, coupon, user_id=None):
             text=activation_coupon_button_label(plan_key, coupon, user_id=user_id),
             callback_data=f"cact|{code}|{plan_key}",
         ))
-    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "Quay lại Menu", "Back to menu")), callback_data="back_main"))
     return kb.as_markup()
 
 
@@ -851,7 +851,7 @@ async def redeem_activation_coupon(message: Message, user, code, coupon, coupons
     support_error = await add_support_join_button(kb, user.id)
     if support_error:
         text += support_error
-    kb.row(InlineKeyboardButton(text=t(user.id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))
+    kb.row(InlineKeyboardButton(text=t(user.id, "BTN_BACK", localized_default(user.id, "Quay lại Menu", "Back to menu")), callback_data="back_main"))
     await message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
 
 
@@ -864,7 +864,7 @@ async def send_coupon_prompt(target, state: FSMContext):
         "<b>Nhập mã giảm giá / mã kích hoạt</b>\\n\\nGửi mã bạn nhận được vào đây. Ví dụ: <code>VIP2026</code>",
     ).replace("\\n", "\n")
     kb = InlineKeyboardBuilder().row(
-        InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main")
+        InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "Quay lại Menu", "Back to menu")), callback_data="back_main")
     )
     if isinstance(target, CallbackQuery):
         await target.message.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
