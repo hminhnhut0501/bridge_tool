@@ -25,7 +25,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
+import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Pencil, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
 import { type ReactNode, useId, useState, useEffect } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
@@ -661,7 +661,7 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, onEditOrder
     <Table size="small">
       <TableHead>
         <TableRow>
-          <TableCell>Mã đơn</TableCell><TableCell>Khách</TableCell><TableCell>Gói</TableCell><TableCell>Ghi chú</TableCell><TableCell>Tiền</TableCell><TableCell>Coupon</TableCell><TableCell>Trạng thái</TableCell><TableCell>Tạo lúc</TableCell><TableCell>Đổi trạng thái</TableCell><TableCell>Xóa</TableCell>
+          <TableCell>Mã đơn</TableCell><TableCell>Khách</TableCell><TableCell>Gói</TableCell><TableCell>Ghi chú</TableCell><TableCell>Tiền</TableCell><TableCell>Coupon</TableCell><TableCell>Trạng thái</TableCell><TableCell>Tạo lúc</TableCell><TableCell>Đổi trạng thái</TableCell><TableCell>Sửa</TableCell><TableCell>Xóa</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -684,6 +684,11 @@ export function OrdersTable({ orders, onStatusChange, onDeleteOrder, onEditOrder
               <Select size="small" value={order.status} onChange={(event) => onStatusChange(order.order_id, String(event.target.value))} onClick={(event) => event.stopPropagation()} fullWidth>
                 <MenuItem value="PENDING">PENDING</MenuItem><MenuItem value="PAID">PAID</MenuItem><MenuItem value="CANCELLED">CANCELLED</MenuItem><MenuItem value="EXPIRED">EXPIRED</MenuItem>
               </Select>
+            </TableCell>
+            <TableCell>
+              <Button variant="outlined" size="small" sx={statusButtonSx("muted")} onClick={(event) => { event.stopPropagation(); onEditOrder?.(order); }} disabled={!onEditOrder}>
+                <Pencil size={16} />
+              </Button>
             </TableCell>
             <TableCell>
               <Button variant="outlined" size="small" sx={statusButtonSx("error")} onClick={(event) => { event.stopPropagation(); onDeleteOrder(order.order_id, order.full_name || order.telegram_user_id); }} disabled={saving === `order-delete-${order.order_id}`}>

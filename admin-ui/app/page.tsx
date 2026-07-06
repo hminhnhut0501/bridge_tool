@@ -4905,6 +4905,48 @@ export default function Home() {
   const selectedCustomer = useMemo(() => {
     return customerSummaries.find((item) => item.id === selectedCustomerId) || null;
   }, [customerSummaries, selectedCustomerId]);
+  const selectedOrderForEditor = useMemo(() => {
+    if (!orderEditorOrderId) return null;
+    return orders.find((item) => item.order_id === orderEditorOrderId) || null;
+  }, [orders, orderEditorOrderId]);
+  const orderEditorHistoryRows = useMemo(() => {
+    if (!selectedOrderForEditor) return [];
+    const orderId = selectedOrderForEditor.order_id;
+    const userId = String(selectedOrderForEditor.telegram_user_id || "").trim();
+    const sameOrderEvents = supportEvents
+      .filter((event) => {
+        const rawData = (event.raw_data && typeof event.raw_data === "object") ? (event.raw_data as Record<string, unknown>) : null;
+        return event.order_id === orderId || String(rawData?.order_id || "") === orderId || String(rawData?.source_order_id || "") === orderId;
+      })
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
+    const timeline = [
+      {
+        at: selectedOrderForEditor.created_at,
+        title: "Đơn được tạo",
+        detail: `${selectedOrderForEditor.plan_name} • ${orderStatusLabel(selectedOrderForEditor.status)}`,
+      },
+      selectedOrderForEditor.paid_at ? {
+        at: selectedOrderForEditor.paid_at,
+        title: "Đã thanh toán",
+        detail: `${orderMoney(selectedOrderForEditor)} • ${selectedOrderForEditor.payment_provider || "-"} • ${selectedOrderForEditor.payment_currency || "-"}`,
+      } : null,
+      selectedOrderForEditor.expire_at ? {
+        at: selectedOrderForEditor.expire_at,
+        title: "Hạn hiện tại",
+        detail: dateText(selectedOrderForEditor.expire_at),
+      } : null,
+      ...sameOrderEvents.map((event) => ({
+        at: event.created_at,
+        title: event.event_type,
+        detail: (() => {
+          const rawData = (event.raw_data && typeof event.raw_data === "object") ? (event.raw_data as Record<string, unknown>) : null;
+          const parts = [event.plan_name || "", String(rawData?.note || ""), String(rawData?.deleted_at || "")].filter(Boolean);
+          return parts.join(" • ") || `${event.telegram_user_id || userId || "-"}${event.order_id ? ` • ${event.order_id}` : ""}`;
+        })(),
+      })),
+    ].filter(Boolean) as { at: string; title: string; detail: string }[];
+    return timeline.sort((a, b) => (safeDateMillis(b.at) ?? 0) - (safeDateMillis(a.at) ?? 0)).slice(0, 10);
+  }, [orderEditorOrderId, orders, selectedOrderForEditor, supportEvents]);
   const selectedCustomerOrders = useMemo(() => {
     if (!selectedCustomer) return [];
     const score = (order: Order) => {
@@ -8332,15 +8374,16 @@ export default function Home() {
           </MuiDialogShell>
         ) : null}
 
-        {orderEditorOpen ? (
-          <MuiDialogShell
-            open
-            title={`Sửa đơn ${orderEditorOrderId}`}
-            subtitle="Mở từ bảng đơn để sửa nhanh mà không phải đi vòng qua customer modal."
-            onClose={() => setOrderEditorOpen(false)}
-            maxWidth="md"
-          >
-            <Box sx={{ display: "grid", gap: 2, p: 2 }}>
+        <Drawer anchor="right" open={orderEditorOpen} onClose={() => setOrderEditorOpen(false)}>
+          <Box sx={{ width: { xs: "100vw", sm: 560 }, maxWidth: "100vw", height: "100%", display: "flex", flexDirection: "column" }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>Sửa đơn {orderEditorOrderId}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Chỉnh nhanh từ bảng đơn, không cần mở modal khách.</Typography>
+              </Box>
+              <IconButton onClick={() => setOrderEditorOpen(false)}><XCircle size={20} /></IconButton>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "grid", gap: 2 }}>
               <Alert severity={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "success" : "warning"} variant="outlined">
                 {String(orderEditorForm.status || "").toUpperCase() === "PAID"
                   ? "Đơn PAID: có thể chỉnh đầy đủ các trường quan trọng."
@@ -8379,8 +8422,24 @@ export default function Home() {
                 <TextField label="Coupon code" value={orderEditorForm.coupon_code} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, coupon_code: event.target.value.toUpperCase() })} size="small" fullWidth helperText="Mã coupon gắn với đơn nếu có." />
                 <TextField label="Ghi chú nội bộ" value={orderEditorForm.note} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, note: event.target.value })} size="small" fullWidth multiline minRows={3} helperText="Thông tin riêng cho admin / đối soát." />
               </Box>
+              <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider" }}>
+                <Typography sx={{ fontWeight: 800, mb: 1 }}>Lịch sử thay đổi</Typography>
+                {orderEditorHistoryRows.length ? (
+                  <Stack spacing={1}>
+                    {orderEditorHistoryRows.map((row, idx) => (
+                      <Box key={`${row.at}-${idx}`} sx={{ p: 1.25, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: idx === 0 ? "rgba(59,130,246,0.04)" : "background.default" }}>
+                        <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{row.title}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{row.detail}</Typography>
+                        <Typography variant="caption" color="text.secondary">{dateText(row.at)}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Alert severity="info" variant="outlined">Chưa thấy event lịch sử nào khớp order này trong support_events.</Alert>
+                )}
+              </Box>
             </Box>
-            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", px: 2, pb: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider", bgcolor: "background.paper" }}>
               <Button variant="outlined" onClick={() => setOrderEditorOpen(false)}>Đóng</Button>
               <Button
                 variant="contained"
@@ -8391,8 +8450,8 @@ export default function Home() {
                 Lưu thay đổi
               </Button>
             </Stack>
-          </MuiDialogShell>
-        ) : null}
+          </Box>
+        </Drawer>
 
         {renewalSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt gia hạn" subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên." fields={RENEWAL_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setRenewalSettingsOpen(false)} />
