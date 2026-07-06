@@ -469,7 +469,16 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     if not providers:
         return None, "__NONE__"
     if len(providers) <= 1:
-        return None, providers[0] if providers else ""
+        provider = providers[0] if providers else ""
+        kb = InlineKeyboardBuilder()
+        if payment_language_switch_enabled():
+            kb.row(InlineKeyboardButton(
+                text=language_switch_label(language),
+                callback_data="set_lang:en" if language != "en" else "set_lang:vi",
+            ))
+            kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
+            return kb.as_markup(), provider
+        return None, provider
     kb = InlineKeyboardBuilder()
     labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
@@ -480,8 +489,23 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
             added += 1
     if not added:
         return None, providers[0]
+    if payment_language_switch_enabled():
+        kb.row(InlineKeyboardButton(
+            text=language_switch_label(language),
+            callback_data="set_lang:en" if language != "en" else "set_lang:vi",
+        ))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
+
+
+def payment_language_switch_enabled():
+    return str(db.get_config("PAYMENT_LANGUAGE_SWITCH_ENABLED", "ON") or "ON").strip().upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def language_switch_label(language):
+    if str(language or "").lower() == "en":
+        return str(db.get_config("LANGUAGE_SWITCH_LABEL_VI", "🇻🇳 Vietnamese") or "🇻🇳 Vietnamese").strip()
+    return str(db.get_config("LANGUAGE_SWITCH_LABEL_EN", "🇬🇧 English") or "🇬🇧 English").strip()
 
 
 def truthy_config(key, default="OFF"):
