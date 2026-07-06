@@ -35,6 +35,7 @@ import {
   TrendingUp,
   XCircle,
   ChevronRight,
+  Copy,
 } from "lucide-react";
 import {
   AppBar,
@@ -3033,6 +3034,7 @@ export default function Home() {
     coupon_code: "",
     note: "",
   });
+  const orderEditorPlanInputRef = useRef<HTMLInputElement | null>(null);
   const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
@@ -4592,6 +4594,35 @@ export default function Home() {
       note: String(order.note || ""),
     });
     setOrderEditorOpen(true);
+  }
+
+  useEffect(() => {
+    if (!orderEditorOpen) return;
+    window.setTimeout(() => {
+      orderEditorPlanInputRef.current?.focus();
+      orderEditorPlanInputRef.current?.select?.();
+    }, 50);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOrderEditorOpen(false);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void saveOrderEditor();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [orderEditorOpen, saveOrderEditor]);
+
+  async function copyOrderId(orderId: string) {
+    try {
+      await navigator.clipboard.writeText(orderId);
+      showNotice("ok", `Đã copy order ID ${orderId}.`);
+    } catch {
+      showNotice("error", "Không copy được order ID.");
+    }
   }
 
   async function saveOrderEditor() {
@@ -8381,7 +8412,12 @@ export default function Home() {
                 <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>Sửa đơn {orderEditorOrderId}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Chỉnh nhanh từ bảng đơn, không cần mở modal khách.</Typography>
               </Box>
-              <IconButton onClick={() => setOrderEditorOpen(false)}><XCircle size={20} /></IconButton>
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+                <IconButton onClick={() => copyOrderId(orderEditorOrderId)} title="Copy order ID">
+                  <Copy size={18} />
+                </IconButton>
+                <IconButton onClick={() => setOrderEditorOpen(false)}><XCircle size={20} /></IconButton>
+              </Stack>
             </Box>
             <Box sx={{ flex: 1, overflowY: "auto", p: 2, display: "grid", gap: 2 }}>
               <Alert severity={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "success" : "warning"} variant="outlined">
@@ -8396,7 +8432,15 @@ export default function Home() {
                   <MenuItem value="CANCELLED">CANCELLED</MenuItem>
                   <MenuItem value="EXPIRED">EXPIRED</MenuItem>
                 </TextField>
-                <TextField label="Tên gói" value={orderEditorForm.plan_name} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, plan_name: event.target.value })} size="small" fullWidth helperText="Tên gói hiển thị trong báo cáo và lịch sử." />
+                <TextField
+                  label="Tên gói"
+                  value={orderEditorForm.plan_name}
+                  onChange={(event) => setOrderEditorForm({ ...orderEditorForm, plan_name: event.target.value })}
+                  size="small"
+                  fullWidth
+                  helperText="Tên gói hiển thị trong báo cáo và lịch sử."
+                  slotProps={{ input: { ref: orderEditorPlanInputRef } }}
+                />
                 <TextField
                   label="Ngày paid"
                   type="datetime-local"
@@ -8425,12 +8469,16 @@ export default function Home() {
               <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider" }}>
                 <Typography sx={{ fontWeight: 800, mb: 1 }}>Lịch sử thay đổi</Typography>
                 {orderEditorHistoryRows.length ? (
-                  <Stack spacing={1}>
+                  <Stack spacing={1.1} sx={{ position: "relative", pl: 0.5 }}>
+                    <Box sx={{ position: "absolute", left: 13, top: 6, bottom: 6, width: 2, borderRadius: 999, bgcolor: "rgba(59,130,246,0.16)" }} />
                     {orderEditorHistoryRows.map((row, idx) => (
-                      <Box key={`${row.at}-${idx}`} sx={{ p: 1.25, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: idx === 0 ? "rgba(59,130,246,0.04)" : "background.default" }}>
-                        <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{row.title}</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{row.detail}</Typography>
-                        <Typography variant="caption" color="text.secondary">{dateText(row.at)}</Typography>
+                      <Box key={`${row.at}-${idx}`} sx={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 1, alignItems: "flex-start" }}>
+                        <Box sx={{ width: 18, height: 18, mt: 0.35, borderRadius: 999, bgcolor: idx === 0 ? "primary.main" : idx % 2 ? "warning.main" : "success.main", boxShadow: `0 0 0 4px ${idx === 0 ? "rgba(59,130,246,0.10)" : idx % 2 ? "rgba(245,158,11,0.10)" : "rgba(16,185,129,0.10)"}` }} />
+                        <Box sx={{ p: 1.25, borderRadius: 2.5, border: 1, borderColor: idx === 0 ? "primary.light" : "divider", bgcolor: idx === 0 ? "rgba(59,130,246,0.04)" : "background.default" }}>
+                          <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{row.title}</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{row.detail}</Typography>
+                          <Typography variant="caption" color="text.secondary">{dateText(row.at)}</Typography>
+                        </Box>
                       </Box>
                     ))}
                   </Stack>
