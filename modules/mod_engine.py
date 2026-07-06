@@ -96,15 +96,18 @@ def is_reply_markup_error(exc):
     return "button_data_invalid" in text or "button_url_invalid" in text or "reply markup" in text
 
 def should_add_language_switch(requested_page_id, layout):
+    normalized_page_id = normalize_key(requested_page_id)
     return (
-        requested_page_id == "main_menu"
+        normalized_page_id in {"main_menu", "main_menu_en"}
         and config_enabled("LANGUAGE_SWITCH_ENABLED", "ON")
         and "set_lang:" not in str(layout or "")
     )
 
 
 def language_switch_label(language):
-    return "🇻🇳 Vietnamese" if str(language or "").lower() == "en" else "🇬🇧 English"
+    if str(language or "").lower() == "en":
+        return str(db.get_config("LANGUAGE_SWITCH_LABEL_VI", "🇻🇳 Vietnamese") or "🇻🇳 Vietnamese").strip()
+    return str(db.get_config("LANGUAGE_SWITCH_LABEL_EN", "🇬🇧 English") or "🇬🇧 English").strip()
 
 def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -124,6 +127,8 @@ def build_dynamic_keyboard(layout_str, language=None):
             # 🔥 Dịch các biến {PRICE...} trong Tên Nút
             final_text = process_dynamic_text(raw_text.strip(), language)
             action = action.strip()
+            if action.startswith("set_lang:") and not config_enabled("LANGUAGE_SWITCH_ENABLED", "ON"):
+                continue
             if not menu_action_enabled(action):
                 continue
             

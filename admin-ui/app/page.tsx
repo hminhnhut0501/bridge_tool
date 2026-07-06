@@ -805,6 +805,18 @@ const MENU_LANGUAGE_FIELDS: ConfigField[] = [
       { label: "English", value: "en" },
     ],
   },
+  {
+    key: "LANGUAGE_SWITCH_LABEL_EN",
+    label: "Nhãn nút chuyển sang English",
+    placeholder: "🇬🇧 English",
+    help: "Nút này hiện khi khách đang ở giao diện tiếng Việt.",
+  },
+  {
+    key: "LANGUAGE_SWITCH_LABEL_VI",
+    label: "Nhãn nút chuyển sang Vietnamese",
+    placeholder: "🇻🇳 Vietnamese",
+    help: "Nút này hiện khi khách đang ở giao diện tiếng Anh.",
+  },
 ];
 
 const PAYMENT_FIELDS: ConfigField[] = [
