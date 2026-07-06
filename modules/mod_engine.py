@@ -78,7 +78,7 @@ def strip_html_tags(text):
     return unescape(re.sub(r"<[^>]*>", "", str(text or "")))
 
 def config_enabled(key, default="OFF"):
-    return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
+    return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
 
 def menu_action_enabled(action):
     coupon_actions = {"coupon_enter", "coupon_code", "redeem_code"}
@@ -95,12 +95,11 @@ def is_reply_markup_error(exc):
     text = str(exc).lower()
     return "button_data_invalid" in text or "button_url_invalid" in text or "reply markup" in text
 
-def should_add_language_switch(requested_page_id, layout):
+def should_add_language_switch(requested_page_id):
     normalized_page_id = normalize_key(requested_page_id)
     return (
-        normalized_page_id in {"main_menu", "main_menu_en"}
+        normalized_page_id in {"MAIN_MENU", "MAIN_MENU_EN"}
         and config_enabled("LANGUAGE_SWITCH_ENABLED", "ON")
-        and "set_lang:" not in str(layout or "")
     )
 
 
@@ -108,6 +107,14 @@ def language_switch_label(language):
     if str(language or "").lower() == "en":
         return str(db.get_config("LANGUAGE_SWITCH_LABEL_VI", "🇻🇳 Vietnamese") or "🇻🇳 Vietnamese").strip()
     return str(db.get_config("LANGUAGE_SWITCH_LABEL_EN", "🇬🇧 English") or "🇬🇧 English").strip()
+
+
+def keyboard_has_language_switch(reply_markup):
+    for row in getattr(reply_markup, "inline_keyboard", None) or []:
+        for button in row:
+            if str(getattr(button, "callback_data", "") or "").startswith("set_lang:"):
+                return True
+    return False
 
 def build_dynamic_keyboard(layout_str, language=None):
     """Trình dịch cú pháp: Nút bấm => hành_động"""
@@ -214,7 +221,7 @@ async def render_page(target, page_id):
     text = process_dynamic_text(raw_text, language)
     
     kb = InlineKeyboardBuilder.from_markup(build_dynamic_keyboard(page['layout'], language))
-    if should_add_language_switch(requested_page_id, page.get("layout")):
+    if should_add_language_switch(requested_page_id) and not keyboard_has_language_switch(kb.as_markup()):
         if language == "en":
             kb.row(InlineKeyboardButton(text=language_switch_label(language), callback_data="set_lang:vi"))
         else:
