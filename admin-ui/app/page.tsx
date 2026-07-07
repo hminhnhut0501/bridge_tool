@@ -106,6 +106,7 @@ import {
   orderPlanKind,
   orderAmountValue,
   orderMoney,
+  orderNoteText,
   payloadText,
   providerRevenueFormat,
   safeDateMillis,
@@ -4637,7 +4638,7 @@ export default function Home() {
       expire_at: orderExpireValue(order.expire_at || ""),
       paid_at: orderExpireValue(order.paid_at || ""),
       coupon_code: String(order.coupon_code || ""),
-      note: String(order.note || ""),
+      note: orderNoteText(order),
     });
     setOrderEditorOpen(true);
   }
@@ -4701,7 +4702,7 @@ export default function Home() {
     setCustomerRenewForm({
       order_id: defaultOrder?.order_id || "",
       plan_name: defaultPlanName,
-      note: String(defaultOrder?.note || ""),
+      note: orderNoteText(defaultOrder || ({} as Order)),
       amount: defaultOrder ? String(defaultOrder.amount || "") : "",
       duration_days: defaultDuration,
       payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
@@ -5001,7 +5002,7 @@ export default function Home() {
       {
         at: selectedOrderForEditor.created_at,
         title: "Đơn được tạo",
-        detail: `${selectedOrderForEditor.plan_name} • ${orderStatusLabel(selectedOrderForEditor.status)}`,
+        detail: `${orderPlanKind(selectedOrderForEditor)} • ${orderStatusLabel(selectedOrderForEditor.status)}${orderNoteText(selectedOrderForEditor) ? ` • ${orderNoteText(selectedOrderForEditor)}` : ""}`,
       },
       selectedOrderForEditor.paid_at ? {
         at: selectedOrderForEditor.paid_at,
@@ -6049,7 +6050,7 @@ export default function Home() {
       ...current,
       order_id: matchedOrder?.order_id || "",
       plan_name: nextPlan,
-      note: String(matchedOrder?.note || current.note || ""),
+      note: matchedOrder ? orderNoteText(matchedOrder) : current.note,
       amount: matchedOrder ? String(matchedOrder.amount || "") : current.amount,
       duration_days: lifetime ? "0" : "30",
       payment_currency: String(matchedOrder?.payment_currency || current.payment_currency || "VND").toUpperCase(),
@@ -9635,7 +9636,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
 
               {/* Cột 2: Gói & Nhóm */}
               <Box sx={{ flexGrow: 1, minWidth: 0, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" }, display: "flex", flexDirection: "column", gap: 0.5 }}>
-                <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)" }}>{order.plan_name}</Typography>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)" }}>{orderPlanKind(order)}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                   <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
                 </Typography>
@@ -9697,7 +9698,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
               <Box sx={{ ...customerInnerCardSx, gridColumn: { xs: "1 / -1", md: "1 / -1" } }}>
                 <Typography variant="body2" color="text.secondary">Ghi chú nội bộ</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "flex-start" }}>
-                  <TextField defaultValue={String(order.note || "")} id={`note-${order.order_id}`} size="small" fullWidth multiline minRows={2} sx={customerPopupInputSx} placeholder="Ví dụ: khách quen, cần follow riêng, đổi gói theo yêu cầu..." />
+                  <TextField defaultValue={orderNoteText(order)} id={`note-${order.order_id}`} size="small" fullWidth multiline minRows={2} sx={customerPopupInputSx} placeholder="Ví dụ: khách quen, cần follow riêng, đổi gói theo yêu cầu..." />
                   <Button variant="contained" size="small" disabled={saving === `order-note-${order.order_id}`} onClick={() => {
                     const input = document.getElementById(`note-${order.order_id}`) as HTMLInputElement | HTMLTextAreaElement | null;
                     onNoteChange(order.order_id, input?.value || "");

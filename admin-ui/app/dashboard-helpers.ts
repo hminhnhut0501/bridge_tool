@@ -102,6 +102,10 @@ export function displayText(value: unknown) {
   return text === "undefined" || text === "null" ? "" : text;
 }
 
+export function stripPlanToken(value: string) {
+  return displayText(value).replace(/\s*\[PT:[^\]]+\]\s*$/i, "").trim();
+}
+
 export function isLifetimeText(value: string | null | undefined) {
   const text = displayText(value).toLowerCase();
   return ["trọn đời", "tron doi", "lifetime", "long life"].some((part) => text.includes(part)) || /\blife\b/i.test(text);
@@ -129,7 +133,7 @@ export function orderCouponCode(order: Order) {
 
 export function orderPlanKind(order: Order) {
   if (isLifetimeText(order.plan_name)) return "Trọn đời";
-  return String(order.plan_name || "-");
+  return displayText(stripPlanToken(String(order.plan_name || ""))) || "-";
 }
 
 export function isOrderActive(order: Order) {
@@ -148,9 +152,16 @@ export function daysUntil(value: string | null | undefined) {
 export function groupNamesForOrder(order: Order) {
   const groups = String(order.plan_name || "")
     .split(/[,|/]/)
-    .map((item) => item.trim())
+    .map((item) => stripPlanToken(item).trim())
     .filter(Boolean);
   return groups.length ? groups : [orderPlanKind(order)];
+}
+
+export function orderNoteText(order: Order) {
+  const note = displayText(order.note || "");
+  if (note) return note;
+  const metadata = order.metadata && typeof order.metadata === "object" ? order.metadata as Record<string, unknown> : null;
+  return displayText(metadata?.note);
 }
 
 export function uniqueValues(values: string[]) {
@@ -185,9 +196,7 @@ export function formatRevenueCurrency(currency: string, value: number) {
 }
 
 export function orderAmountValue(order: Order, value: number | string | null | undefined = order.amount) {
-  const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
   const numeric = Number(value || 0);
-  if (currency === "USD" || currency === "USDT" || currency === "CRYPTO") return numeric / 100;
   return numeric;
 }
 

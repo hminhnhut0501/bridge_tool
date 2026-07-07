@@ -101,8 +101,12 @@ def _normalize_payment_provider(order):
     provider = _clean_text(order.get("payment_provider")).upper()
     if provider:
         order["payment_provider"] = provider
-        return order
     metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+    metadata_note = _clean_text(metadata.get("note") if isinstance(metadata, dict) else "")
+    if not _clean_text(order.get("note")) and metadata_note:
+        order["note"] = metadata_note
+    if provider:
+        return order
     metadata_provider = _clean_text(
         metadata.get("payment_provider")
         or metadata.get("payment_method")
@@ -565,6 +569,7 @@ class SupabaseStore:
         }
         note_text = _clean_text(note)
         if note_text:
+            payload["note"] = note_text
             payload["metadata"] = {"note": note_text}
         if coupon_code:
             payload["coupon_code"] = _clean_text(coupon_code).upper()
@@ -588,6 +593,11 @@ class SupabaseStore:
             payload["source_ref"] = _clean_text(source_ref)
         if metadata is not None:
             payload["metadata"] = metadata
+            if note_text:
+                if isinstance(payload["metadata"], dict):
+                    payload["metadata"]["note"] = note_text
+                else:
+                    payload["metadata"] = {"note": note_text}
         try:
             return self._request(
                 "POST",
@@ -632,6 +642,8 @@ class SupabaseStore:
                 legacy_metadata["note"] = note_text
             if legacy_metadata:
                 legacy_payload["metadata"] = legacy_metadata
+            if note_text:
+                legacy_payload["note"] = note_text
             for optional_column in ("plan_token", "plan_category", "source_type", "source_ref", "metadata"):
                 if optional_column in str(exc):
                     legacy_payload.pop(optional_column, None)
@@ -851,6 +863,8 @@ class SupabaseStore:
             payload["source_type"] = _clean_text(raw.get("source_type")).upper()
         if "source_ref" in raw:
             payload["source_ref"] = _clean_text(raw.get("source_ref"))
+        if "note" in raw:
+            payload["note"] = _clean_text(raw.get("note"))
         if "metadata" in raw:
             payload["metadata"] = raw.get("metadata")
         if "payment_provider" in raw:
