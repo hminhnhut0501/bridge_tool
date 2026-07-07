@@ -3055,6 +3055,7 @@ export default function Home() {
   const [groupPrice1mUsd, setGroupPrice1mUsd] = useState("");
   const [groupPriceLifeUsd, setGroupPriceLifeUsd] = useState("");
   const groupAliasRef = useRef<HTMLTextAreaElement | null>(null);
+  const [groupAliasFocusKey, setGroupAliasFocusKey] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [menuModalOpen, setMenuModalOpen] = useState(false);
@@ -3862,6 +3863,24 @@ export default function Home() {
     fillGroupForm(nextGroupNo);
     setGroupModalOpen(true);
   }
+
+  function openGroupAliasEditor(nextGroupNo: string) {
+    const normalized = normalizeGroupNo(nextGroupNo);
+    if (!normalized) return;
+    setGroupAliasFocusKey(normalized);
+    openEditGroupModal(normalized);
+  }
+
+  useEffect(() => {
+    if (!groupModalOpen) return;
+    if (!groupAliasFocusKey || groupAliasFocusKey !== normalizeGroupNo(groupNo)) return;
+    const timer = window.setTimeout(() => {
+      groupAliasRef.current?.focus();
+      groupAliasRef.current?.select?.();
+      setGroupAliasFocusKey("");
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [groupModalOpen, groupAliasFocusKey, groupNo]);
 
   async function saveGroupConfig() {
     await runAction("group", async () => {
@@ -5078,19 +5097,23 @@ export default function Home() {
   const vipGroupAuditMismatchRows = useMemo(() => {
     return vipGroupAudit
       .filter((item) => item.status === "UNMAPPED" || Boolean(item.latest_error) || ((item.candidate_group_names || []).length > 0 && (item.current_group_ids || []).length === 0))
-      .map((item) => [
-        <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id}</div></>,
-        <><strong>{item.order_id || "-"}</strong><div className="muted">{dateText(item.expire_at || "")}</div></>,
-        <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.current_group_names?.join(" • ") || item.group_name || "-"}</div></>,
-        <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "không có group_id"}</div></>,
-        <div>
-          <div>{(item.candidate_group_names || []).length ? (item.candidate_group_names || []).join(" • ") : "—"}</div>
-          <div className="muted">{(item.candidate_groups || []).length ? (item.candidate_groups || []).map((group) => `${group.group_name}${group.alias_text ? ` [${group.alias_text}]` : ""}`).join(" • ") : "Không có gợi ý alias"}</div>
-        </div>,
-        <Tooltip title={item.latest_error || "Không có lỗi"} arrow>
-          <span>{item.latest_error || item.status_label || item.status || "-"}</span>
-        </Tooltip>,
-      ]);
+      .map((item) => ({
+        auditId: item.audit_id,
+        targetGroupNo: String(item.candidate_groups?.[0]?.group_no || item.current_group_ids?.[0] || ""),
+        row: [
+          <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id}</div></>,
+          <><strong>{item.order_id || "-"}</strong><div className="muted">{dateText(item.expire_at || "")}</div></>,
+          <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.current_group_names?.join(" • ") || item.group_name || "-"}</div></>,
+          <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "không có group_id"}</div></>,
+          <div>
+            <div>{(item.candidate_group_names || []).length ? (item.candidate_group_names || []).join(" • ") : "—"}</div>
+            <div className="muted">{(item.candidate_groups || []).length ? (item.candidate_groups || []).map((group) => `${group.group_name}${group.alias_text ? ` [${group.alias_text}]` : ""}`).join(" • ") : "Không có gợi ý alias"}</div>
+          </div>,
+          <Tooltip title={item.latest_error || "Không có lỗi"} arrow>
+            <span>{item.latest_error || item.status_label || item.status || "-"}</span>
+          </Tooltip>,
+        ],
+      }));
   }, [vipGroupAudit]);
   const selectedCustomerGroupAuditRows = useMemo(() => {
     if (!selectedCustomer) return [];
@@ -7943,7 +7966,21 @@ export default function Home() {
               />
               <SimpleTable
                 headers={["Khách", "Đơn", "Gói", "Group hiện tại", "Alias / gợi ý", "Lỗi"]}
-                rows={vipGroupAuditMismatchRows}
+                rows={vipGroupAuditMismatchRows.map((item) => item.row)}
+                actions={(idx) => {
+                  const item = vipGroupAuditMismatchRows[idx];
+                  if (!item?.targetGroupNo) return null;
+                  return (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={(event) => { event.stopPropagation(); openGroupAliasEditor(item.targetGroupNo); }}
+                      startIcon={<Settings size={14} />}
+                    >
+                      Sửa alias
+                    </Button>
+                  );
+                }}
               />
             </section>
           </div>
