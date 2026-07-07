@@ -22,10 +22,9 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import { Activity, BadgeDollarSign, CheckCircle2, Coins, CreditCard, Loader2, Pencil, Save, ShieldCheck, Trash2, TrendingUp, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Pencil, Save, Trash2, XCircle } from "lucide-react";
 import { type ReactNode, useId, useState, useEffect } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
