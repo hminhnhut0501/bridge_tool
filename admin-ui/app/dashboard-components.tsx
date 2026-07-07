@@ -95,10 +95,10 @@ export function statusButtonSx(kind: keyof typeof statusPalette) {
 
 
 
-export function PanelHead({ title, subtitle, action, accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
-  const tone = sectionAccentTone(accent);
+export function PanelHead({ title, subtitle, action, accent: _accent = "blue" }: { title: string; subtitle?: string; action?: ReactNode; accent?: SectionTone }) {
+  const tone = sectionAccentTone(_accent);
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 2.25, py: 1.75, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper", boxShadow: `inset 0 2px 0 ${tone.main}14` }}>
       <Box sx={{ position: "relative" }}>
         <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, lineHeight: 1.45 }}>{subtitle}</Typography> : null}

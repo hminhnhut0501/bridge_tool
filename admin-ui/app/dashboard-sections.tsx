@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Box, Button, Chip, Stack, Tab, Tabs, TextField, Typography } from "@mui/material";
+import { Box, Button, Chip, Stack, Tab, Tabs, TextField } from "@mui/material";
 import { Download, Plus, Users, BadgeDollarSign, CalendarClock, ShieldCheck, TrendingUp, CreditCard, Settings } from "lucide-react";
 import { AppSection, AppToolbar, RevenueBarChart, BreakdownChart, DonutChart, Pagination, OrdersTable, TrendTable } from "./dashboard-components";
 import { Metric } from "./metric-card";
