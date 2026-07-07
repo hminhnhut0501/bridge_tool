@@ -3037,6 +3037,7 @@ export default function Home() {
   const [orderEditorForm, setOrderEditorForm] = useState({
     status: "PENDING",
     plan_name: "",
+    amount: "",
     expire_at: "",
     paid_at: "",
     coupon_code: "",
@@ -4632,6 +4633,7 @@ export default function Home() {
     setOrderEditorForm({
       status: String(order.status || "PENDING").toUpperCase(),
       plan_name: String(order.plan_name || ""),
+      amount: String(order.amount ?? ""),
       expire_at: orderExpireValue(order.expire_at || ""),
       paid_at: orderExpireValue(order.paid_at || ""),
       coupon_code: String(order.coupon_code || ""),
@@ -4681,6 +4683,7 @@ export default function Home() {
       coupon_code: nextCouponCode || null,
       note: nextNote,
     };
+    if (String(orderEditorForm.amount || "").trim() !== "") payload.amount = Number(String(orderEditorForm.amount).replace(/,/g, "."));
     if (orderEditorForm.expire_at) payload.expire_at = orderEditorForm.expire_at;
     if (orderEditorForm.paid_at) payload.paid_at = orderEditorForm.paid_at;
     await runAction(`order-edit-${orderEditorOrderId}`, async () => {
@@ -8561,6 +8564,15 @@ export default function Home() {
                   fullWidth
                   helperText="Tên gói hiển thị trong báo cáo và lịch sử."
                   slotProps={{ input: { ref: orderEditorPlanInputRef } }}
+                />
+                <TextField
+                  label="Số tiền"
+                  value={orderEditorForm.amount}
+                  onChange={(event) => setOrderEditorForm({ ...orderEditorForm, amount: event.target.value })}
+                  size="small"
+                  fullWidth
+                  inputMode="decimal"
+                  helperText="Số tiền thực tế của đơn. Chỉ đổi khi cần sửa đối soát."
                 />
                 <TextField
                   label="Ngày paid"

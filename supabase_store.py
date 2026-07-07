@@ -837,6 +837,12 @@ class SupabaseStore:
             payload["plan_name"] = _clean_text(raw.get("plan_name"))
         if "coupon_code" in raw:
             payload["coupon_code"] = _clean_text(raw.get("coupon_code")).upper()
+        if "amount" in raw:
+            amount = raw.get("amount")
+            try:
+                payload["amount"] = int(float(str(amount).replace(",", ".").strip())) if str(amount).strip() else 0
+            except Exception:
+                payload["amount"] = amount
         if "plan_token" in raw:
             payload["plan_token"] = _clean_text(raw.get("plan_token"))
         if "plan_category" in raw:
