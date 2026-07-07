@@ -82,6 +82,58 @@ def group_label_for_chat_id(chat_id):
     return target or "-"
 
 
+def _group_profile(group_no):
+    name = str(db.get_config(f"BTN_G{group_no}", "") or "").strip()
+    name_en = str(db.get_config(f"BTN_G{group_no}_EN", "") or "").strip()
+    aliases = []
+    for suffix in ("", "_EN"):
+        raw = str(db.get_config(f"BTN_G{group_no}_ALIASES{suffix}", "") or "").strip()
+        if not raw:
+            continue
+        for item in re.split(r"[\n,;|]+", raw):
+            token = normalize_match_text(item)
+            if token and token not in aliases:
+                aliases.append(token)
+    return {
+        "group_no": str(group_no),
+        "group_id": _normalize_chat_id(db.get_config(f"ID_G{group_no}", "")),
+        "name": name,
+        "name_en": name_en,
+        "aliases": aliases,
+    }
+
+
+def group_audit_candidates(plan_name):
+    plan_text = normalize_match_text(plan_name)
+    candidates = []
+    for group_no in range(1, 101):
+        profile = _group_profile(group_no)
+        label = profile["name"] or profile["name_en"] or f"G{group_no}"
+        matched_reason = ""
+        btn_text = normalize_match_text(profile["name"])
+        btn_en_text = normalize_match_text(profile["name_en"])
+        if btn_text and (btn_text in plan_text or plan_text in btn_text):
+            matched_reason = "name"
+        elif btn_en_text and (btn_en_text in plan_text or plan_text in btn_en_text):
+            matched_reason = "name_en"
+        else:
+            for alias in profile["aliases"]:
+                if alias and (alias in plan_text or plan_text in alias):
+                    matched_reason = "alias"
+                    break
+        if matched_reason:
+            alias_text = ", ".join(profile["aliases"][:4])
+            candidates.append({
+                "group_no": profile["group_no"],
+                "group_id": profile["group_id"],
+                "group_name": label,
+                "matched_reason": matched_reason,
+                "aliases": profile["aliases"],
+                "alias_text": alias_text,
+            })
+    return candidates
+
+
 def vip_group_ids():
     ids = []
     seen = set()
@@ -236,6 +288,9 @@ async def build_vip_group_audit_rows(live=False, order_id_filter="", user_id_fil
 
         current_group_ids = [str(item) for item in plan_group_ids(plan_name)]
         active_group_ids = {str(item) for item in user_active_group_ids(user_id, order_id, users_data, now)}
+        candidate_groups = group_audit_candidates(plan_name)
+        current_group_names = [group_label_for_chat_id(gid) for gid in current_group_ids]
+        candidate_group_names = [f"G{item['group_no']}: {item['group_name']}" for item in candidate_groups]
 
         for gid in current_group_ids:
             normalized_gid = _normalize_chat_id(gid)
@@ -281,6 +336,36 @@ async def build_vip_group_audit_rows(live=False, order_id_filter="", user_id_fil
                 "live_present": live_state["present"],
                 "order_active_group_ids": sorted(active_group_ids),
                 "current_group_ids": current_group_ids,
+                "current_group_names": current_group_names,
+                "candidate_group_names": candidate_group_names,
+                "candidate_groups": candidate_groups,
+                "mapping_reason": "alias" if any(normalized_gid == item["group_id"] for item in candidate_groups) else "name",
+            })
+
+        if not current_group_ids:
+            rows.append({
+                "audit_id": f"{order_id}:UNMAPPED",
+                "customer_name": display_name,
+                "telegram_user_id": user_id,
+                "order_id": order_id,
+                "plan_name": plan_name,
+                "expire_at": order.get("expire_at"),
+                "group_id": "",
+                "group_name": "Không map được group",
+                "status": "UNMAPPED",
+                "status_label": "Không map được group",
+                "needs_action": True,
+                "latest_kick_at": "",
+                "latest_error": "Tên gói không khớp BTN_G/ID_G.",
+                "live_checked": False,
+                "live_status": "",
+                "live_present": None,
+                "order_active_group_ids": sorted(active_group_ids),
+                "current_group_ids": current_group_ids,
+                "current_group_names": current_group_names,
+                "candidate_group_names": candidate_group_names,
+                "candidate_groups": candidate_groups,
+                "mapping_reason": "none",
             })
 
     priority = {"LEFT_GROUP": 0, "WAITING_CHECK": 1, "KICKED": 2, "ACTIVE_RETAINED": 3}

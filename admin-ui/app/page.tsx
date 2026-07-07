@@ -3048,11 +3048,13 @@ export default function Home() {
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
   const [groupNameEn, setGroupNameEn] = useState("");
+  const [groupAliases, setGroupAliases] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groupPrice1m, setGroupPrice1m] = useState("");
   const [groupPriceLife, setGroupPriceLife] = useState("");
   const [groupPrice1mUsd, setGroupPrice1mUsd] = useState("");
   const [groupPriceLifeUsd, setGroupPriceLifeUsd] = useState("");
+  const groupAliasRef = useRef<HTMLTextAreaElement | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [menuForm, setMenuForm] = useState({ page_id: "main_menu", image_url: "", body: "", layout: "" });
   const [menuModalOpen, setMenuModalOpen] = useState(false);
@@ -3810,6 +3812,7 @@ export default function Home() {
   function clearGroupFields() {
     setGroupName("");
     setGroupNameEn("");
+    setGroupAliases("");
     setGroupId("");
     setGroupPrice1m("");
     setGroupPriceLife("");
@@ -3832,6 +3835,7 @@ export default function Home() {
     }
     setGroupName(getConfigValue(config, `BTN_G${normalized}`));
     setGroupNameEn(getConfigValue(config, `BTN_G${normalized}_EN`));
+    setGroupAliases(getConfigValue(config, `BTN_G${normalized}_ALIASES`));
     setGroupId(getConfigValue(config, `ID_G${normalized}`));
     setGroupPrice1m(getConfigValue(config, `PRICE_G${normalized}_1M`));
     setGroupPriceLife(getConfigValue(config, `PRICE_G${normalized}_LIFE`));
@@ -3868,14 +3872,16 @@ export default function Home() {
       }
       const currentName = getConfigValue(config, `BTN_G${normalizedGroupNo}`);
       const currentNameEn = getConfigValue(config, `BTN_G${normalizedGroupNo}_EN`);
+      const currentAliases = String(getConfigValue(config, `BTN_G${normalizedGroupNo}_ALIASES`, "") || "");
       const aliasValues = new Set(
-        String(getConfigValue(config, `BTN_G${normalizedGroupNo}_ALIASES`, "") || "")
+        currentAliases
           .split(/[\n,;|]+/)
           .map((value) => value.trim())
           .filter(Boolean),
       );
       if (currentName && currentName.trim() && currentName.trim() !== groupName.trim()) aliasValues.add(currentName.trim());
       if (currentNameEn && currentNameEn.trim() && currentNameEn.trim() !== groupNameEn.trim()) aliasValues.add(currentNameEn.trim());
+      String(groupAliases || "").split(/[\n,;|]+/).map((value) => value.trim()).filter(Boolean).forEach((value) => aliasValues.add(value));
       await updateConfigs(savedSecret, [
         { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}`), value: groupName },
         { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}_EN`), value: groupNameEn },
@@ -5069,6 +5075,23 @@ export default function Home() {
       currentGroups: selectedCustomerActiveGroups.length,
     };
   }, [selectedCustomer, vipGroupAudit, kickAudit, selectedCustomerActiveGroups.length]);
+  const vipGroupAuditMismatchRows = useMemo(() => {
+    return vipGroupAudit
+      .filter((item) => item.status === "UNMAPPED" || Boolean(item.latest_error) || ((item.candidate_group_names || []).length > 0 && (item.current_group_ids || []).length === 0))
+      .map((item) => [
+        <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.telegram_user_id}</div></>,
+        <><strong>{item.order_id || "-"}</strong><div className="muted">{dateText(item.expire_at || "")}</div></>,
+        <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.current_group_names?.join(" • ") || item.group_name || "-"}</div></>,
+        <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id || "không có group_id"}</div></>,
+        <div>
+          <div>{(item.candidate_group_names || []).length ? (item.candidate_group_names || []).join(" • ") : "—"}</div>
+          <div className="muted">{(item.candidate_groups || []).length ? (item.candidate_groups || []).map((group) => `${group.group_name}${group.alias_text ? ` [${group.alias_text}]` : ""}`).join(" • ") : "Không có gợi ý alias"}</div>
+        </div>,
+        <Tooltip title={item.latest_error || "Không có lỗi"} arrow>
+          <span>{item.latest_error || item.status_label || item.status || "-"}</span>
+        </Tooltip>,
+      ]);
+  }, [vipGroupAudit]);
   const selectedCustomerGroupAuditRows = useMemo(() => {
     if (!selectedCustomer) return [];
     const customerId = selectedCustomer.id;
@@ -6612,6 +6635,7 @@ export default function Home() {
                 {visibleGroups.length ? visibleGroups.map((item) => {
                   const name = getConfigValue(config, `BTN_G${item}`);
                   const id = getConfigValue(config, `ID_G${item}`);
+                  const aliases = String(getConfigValue(config, `BTN_G${item}_ALIASES`, "") || "").split(/[\n,;|]+/).map((value) => value.trim()).filter(Boolean);
                   const isOk = name && id;
                   return (
                     <button className="bento-card" key={item} onClick={() => openEditGroupModal(String(item))}>
@@ -6623,9 +6647,13 @@ export default function Home() {
                         </div>
                         <h4 className="bento-title">{name || "Chưa đặt tên nhóm"}</h4>
                         <div className="bento-id"><Users size={14} /> ID: {id || "---"}</div>
+                        <div className="bento-id" style={{ whiteSpace: "normal", lineHeight: 1.4 }}>
+                          <ClipboardList size={14} />
+                          Alias: {aliases.length ? aliases.join(" • ") : "—"}
+                        </div>
                         
-                        <div className="bento-action">
-                          <Settings size={16} /> Cấu hình
+                        <div className="bento-action" onClick={(event) => { event.stopPropagation(); openEditGroupModal(String(item)); setTimeout(() => groupAliasRef.current?.focus(), 50); }}>
+                          <Settings size={16} /> Cấu hình / Thêm alias
                         </div>
                       </div>
                       
@@ -7907,6 +7935,17 @@ export default function Home() {
                 ])}
               />
             </section>
+            <section className="panel">
+              <PanelHead
+                title="Đơn lệch tên group"
+                subtitle="Các đơn đang báo lỗi map group hoặc không còn khớp BTN_G/ID_G. Bảng này hiển thị luôn alias gợi ý để sửa nhanh trong CP."
+                action={<Button variant="outlined" size="small" onClick={() => refreshVipGroupAudit(true)} startIcon={<RefreshCw size={16} />}>Quét lại</Button>}
+              />
+              <SimpleTable
+                headers={["Khách", "Đơn", "Gói", "Group hiện tại", "Alias / gợi ý", "Lỗi"]}
+                rows={vipGroupAuditMismatchRows}
+              />
+            </section>
           </div>
         ) : null}
 
@@ -8024,6 +8063,20 @@ export default function Home() {
                 </Box>
                 <TextField className="field" label="Tên nhóm tiếng Việt" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}`) || "VD: Hang Cú Prime"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Tên nhóm tiếng Anh" value={groupNameEn} onChange={(event) => setGroupNameEn(event.target.value)} placeholder={getConfigValue(config, `BTN_G${groupNo}_EN`) || "VD: Prime Group"} fullWidth size="small" sx={popupFieldSx} />
+                <TextField
+                  className="field wide"
+                  label="Alias cũ / thủ công"
+                  value={groupAliases}
+                  onChange={(event) => setGroupAliases(event.target.value)}
+                  placeholder="Mỗi alias một dòng hoặc ngăn bằng dấu phẩy"
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  size="small"
+                  sx={popupFieldSx}
+                  inputRef={groupAliasRef}
+                  helperText="Dùng để giữ đơn cũ không vỡ khi đổi tên group, và cho phép map lại đơn báo lỗi."
+                />
                 <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} />

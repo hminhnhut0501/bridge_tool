@@ -272,6 +272,10 @@ export type KickAuditRow = {
   live_present: boolean | null;
   retained_reason?: string | null;
   retained_orders?: string[] | null;
+  current_group_names?: string[] | null;
+  candidate_group_names?: string[] | null;
+  candidate_groups?: { group_no: string; group_id: string; group_name: string; matched_reason?: string; aliases?: string[] | null; alias_text?: string }[] | null;
+  mapping_reason?: string | null;
 };
 
 export type VipGroupAuditRow = {
@@ -293,6 +297,10 @@ export type VipGroupAuditRow = {
   live_present: boolean | null;
   order_active_group_ids?: string[] | null;
   current_group_ids?: string[] | null;
+  current_group_names?: string[] | null;
+  candidate_group_names?: string[] | null;
+  candidate_groups?: { group_no: string; group_id: string; group_name: string; matched_reason?: string; aliases?: string[] | null; alias_text?: string }[] | null;
+  mapping_reason?: string | null;
 };
 
 export type VipMemberAuditRow = {
