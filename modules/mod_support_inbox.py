@@ -10,6 +10,7 @@ from helpers import create_background_task, has_open_support_ticket, is_admin_us
 from message_classifier_utils import classify_private_message
 from support_utils import (
     copy_support_message_to_group,
+    create_support_case_from_private_message,
     post_support_ticket_to_group,
     prepare_support_group_delivery,
     render_support_group_header,
@@ -198,7 +199,7 @@ def _is_support_inbox_private_message(message: Message) -> bool:
         )
         return False
     try:
-        return bool(has_open_support_ticket(message.from_user.id))
+        return True if classified["kind"] == "support" else bool(has_open_support_ticket(message.from_user.id))
     except Exception:
         return False
 
@@ -374,7 +375,14 @@ async def support_private_inbox(message: Message):
         ticket = supabase_store.get_open_support_ticket_by_user(message.from_user.id)
     except Exception as exc:
         print(f"⚠️ Không đọc được ticket support đang mở cho user {message.from_user.id}: {exc}")
-        return
+    if not ticket:
+        try:
+            ticket, ticket_error = await create_support_case_from_private_message(message, source="private_user_message")
+            if ticket_error:
+                print(f"⚠️ Không tự tạo support ticket từ tin nhắn private: {ticket_error}")
+        except Exception as exc:
+            print(f"⚠️ Không tạo được support ticket từ private message: {exc}")
+            return
     if not ticket:
         return
     await _forward_private_message_to_group(message, ticket)
