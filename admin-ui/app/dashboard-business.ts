@@ -70,7 +70,7 @@ export function getConfigValue(config: ConfigRow[], key: string, fallback = "") 
 }
 
 export function groupConfigKeys(groupNo: string) {
-  return [`BTN_G${groupNo}`, `BTN_G${groupNo}_EN`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `DESC_G${groupNo}_EN`, `IMG_G${groupNo}`];
+  return [`BTN_G${groupNo}`, `BTN_G${groupNo}_EN`, `BTN_G${groupNo}_ALIASES`, `ID_G${groupNo}`, `PRICE_G${groupNo}_1M`, `PRICE_G${groupNo}_LIFE`, `PRICE_G${groupNo}_1M_USD`, `PRICE_G${groupNo}_LIFE_USD`, `DESC_G${groupNo}`, `DESC_G${groupNo}_EN`, `IMG_G${groupNo}`];
 }
 
 export function isGroupConfigured(config: ConfigRow[], groupNo: number) {

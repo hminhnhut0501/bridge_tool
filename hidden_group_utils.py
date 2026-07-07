@@ -114,6 +114,20 @@ def _config_text_with_alias(key, default=""):
     return default
 
 
+def _group_aliases(group_no):
+    aliases = []
+    for suffix in ("", "_EN"):
+        key = f"BTN_G{group_no}_ALIASES{suffix}"
+        raw = normalize_text(_db().get_config(key, ""))
+        if not raw:
+            continue
+        for item in re.split(r"[\n,;|]+", raw):
+            clean = normalize_match_text(item)
+            if clean and clean not in aliases:
+                aliases.append(clean)
+    return aliases
+
+
 def ensure_hidden_supabase_enabled():
     if not supabase_store.enabled:
         raise RuntimeError("Nhóm ẩn yêu cầu Supabase. Hãy chạy migration SQL mới nhất và cấu hình SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.")
@@ -129,6 +143,9 @@ def main_group_matches_plan(group_no, plan_name):
     plan_text = normalize_match_text(plan_name)
     btn_text = normalize_match_text(btn_name)
     if btn_text and (btn_text in plan_text or plan_text in btn_text):
+        return True
+    alias_tokens = _group_aliases(group_no)
+    if any(alias and (alias in plan_text or plan_text in alias) for alias in alias_tokens):
         return True
     plan_tokens = set(significant_group_tokens(plan_name))
     btn_tokens = set(significant_group_tokens(btn_name))
@@ -216,7 +233,8 @@ def _resolve_group_number_from_plan_name(plan_name):
     for group_no in range(1, _group_count() + 1):
         vi_name = _config_text_with_alias(f"BTN_G{group_no}", f"Nhóm {group_no}")
         en_name = _config_text_with_alias(f"BTN_G{group_no}_EN", vi_name)
-        for candidate in {normalize_match_text(vi_name), normalize_match_text(en_name)}:
+        candidates = {normalize_match_text(vi_name), normalize_match_text(en_name), *_group_aliases(group_no)}
+        for candidate in candidates:
             if candidate and (candidate == suffix_text or candidate in plan_text):
                 return str(group_no)
     return ""

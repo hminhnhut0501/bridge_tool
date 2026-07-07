@@ -142,6 +142,10 @@ def significant_group_tokens(value):
     }
     return [token for token in normalize_match_text(value).split() if token and token not in ignored and not token.isdigit()]
 
+def group_alias_tokens(group_no):
+    raw = str(db.get_config(f"BTN_G{group_no}_ALIASES", "") or "")
+    return [normalize_match_text(item) for item in re.split(r"[\n,;|]+", raw) if normalize_match_text(item)]
+
 def group_matches_plan(group_no, plan_name):
     btn_name = db.get_config(f"BTN_G{group_no}", f"Nhóm {group_no}")
     plan_upper = str(plan_name or "").upper()
@@ -153,6 +157,9 @@ def group_matches_plan(group_no, plan_name):
     plan_text = normalize_match_text(plan_name)
     btn_text = normalize_match_text(btn_name)
     if btn_text and (btn_text in plan_text or plan_text in btn_text):
+        return True
+    alias_tokens = group_alias_tokens(group_no)
+    if any(alias and (alias in plan_text or plan_text in alias) for alias in alias_tokens):
         return True
 
     plan_tokens = set(significant_group_tokens(plan_name))

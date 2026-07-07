@@ -3866,9 +3866,20 @@ export default function Home() {
         showNotice("error", "Vui lòng nhập số nhóm hợp lệ.");
         return;
       }
+      const currentName = getConfigValue(config, `BTN_G${normalizedGroupNo}`);
+      const currentNameEn = getConfigValue(config, `BTN_G${normalizedGroupNo}_EN`);
+      const aliasValues = new Set(
+        String(getConfigValue(config, `BTN_G${normalizedGroupNo}_ALIASES`, "") || "")
+          .split(/[\n,;|]+/)
+          .map((value) => value.trim())
+          .filter(Boolean),
+      );
+      if (currentName && currentName.trim() && currentName.trim() !== groupName.trim()) aliasValues.add(currentName.trim());
+      if (currentNameEn && currentNameEn.trim() && currentNameEn.trim() !== groupNameEn.trim()) aliasValues.add(currentNameEn.trim());
       await updateConfigs(savedSecret, [
         { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}`), value: groupName },
         { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}_EN`), value: groupNameEn },
+        { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}_ALIASES`), value: Array.from(aliasValues).join("\n") },
         { key: canonicalConfigKey(`ID_G${normalizedGroupNo}`), value: groupId },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_1M`), value: groupPrice1m },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_LIFE`), value: groupPriceLife },
