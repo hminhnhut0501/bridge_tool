@@ -1,3 +1,5 @@
+import re
+
 from bot_instance import bot
 from database import db
 from scheduler import now_local, parse_expire_datetime, plan_group_ids, user_active_group_ids
@@ -9,6 +11,10 @@ def _normalize_chat_id(value):
     if raw.endswith(".0"):
         raw = raw[:-2]
     return raw
+
+
+def normalize_match_text(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower().replace("đ", "d")).strip()
 
 
 def support_event_time(event):
