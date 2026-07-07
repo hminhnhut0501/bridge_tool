@@ -642,11 +642,13 @@ class SupabaseStore:
                 legacy_metadata["note"] = note_text
             if legacy_metadata:
                 legacy_payload["metadata"] = legacy_metadata
-            if note_text:
+            if note_text and "note" not in str(exc):
                 legacy_payload["note"] = note_text
             for optional_column in ("plan_token", "plan_category", "source_type", "source_ref", "metadata"):
                 if optional_column in str(exc):
                     legacy_payload.pop(optional_column, None)
+            if "note" in str(exc):
+                legacy_payload.pop("note", None)
             return self._request(
                 "POST",
                 "orders",
@@ -875,7 +877,21 @@ class SupabaseStore:
             payload["payment_approval_url"] = _clean_text(raw.get("payment_approval_url"))
         if not payload:
             return []
-        return self.patch_order(order_id, payload)
+        try:
+            return self.patch_order(order_id, payload)
+        except RuntimeError as exc:
+            if "note" not in str(exc):
+                raise
+            fallback_payload = dict(payload)
+            note_text = _clean_text(fallback_payload.pop("note", ""))
+            existing_metadata = fallback_payload.get("metadata") if isinstance(fallback_payload.get("metadata"), dict) else {}
+            if note_text:
+                existing_metadata["note"] = note_text
+            if existing_metadata:
+                fallback_payload["metadata"] = existing_metadata
+            if not fallback_payload:
+                return []
+            return self.patch_order(order_id, fallback_payload)
 
     def mark_order_paid(self, order_id, paid_at, expire_at):
         return self.update_order_status(order_id, "PAID", paid_at=paid_at, expire_at=expire_at)
