@@ -7,6 +7,13 @@ function groupedNumber(value: number) {
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value || 0);
 }
 
+function decimalMoney(value: number, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  }).format(value || 0);
+}
+
 function parseLooseDateParts(value: string) {
   const text = value.trim();
   const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(text);
@@ -190,13 +197,17 @@ export function normalizeRevenueCurrency(value: string | null | undefined) {
 
 export function formatRevenueCurrency(currency: string, value: number) {
   const normalized = normalizeRevenueCurrency(currency);
-  if (normalized === "USD") return `${groupedNumber(value)} USD`;
-  if (normalized === "USDT" || normalized === "CRYPTO") return `${groupedNumber(value)} ${normalized}`;
+  if (normalized === "USD") return `${decimalMoney(value)} USD`;
+  if (normalized === "USDT" || normalized === "CRYPTO") return `${decimalMoney(value, 6)} ${normalized}`;
   return money(value || 0);
 }
 
 export function orderAmountValue(order: Order, value: number | string | null | undefined = order.amount) {
   const numeric = Number(value || 0);
+  const currency = normalizeRevenueCurrency(inferOrderCurrency(order));
+  if ((currency === "USD" || currency === "USDT" || currency === "CRYPTO") && Number.isInteger(numeric) && Math.abs(numeric) >= 100) {
+    return numeric / 100;
+  }
   return numeric;
 }
 
@@ -460,7 +471,7 @@ export function hiddenValidityText(code: { valid_from?: string | null; valid_unt
 
 export function orderMoney(order: Order, value: number | string | null | undefined = order.amount) {
   const currency = inferOrderCurrency(order);
-  if (currency === "USD") return `${groupedNumber(orderAmountValue(order, value))} USD`;
-  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${groupedNumber(orderAmountValue(order, value))} ${currency.replace("_TRC20", "")}`;
+  if (currency === "USD") return `${decimalMoney(orderAmountValue(order, value))} USD`;
+  if (currency === "USDT" || currency.includes("TRC20") || currency.includes("CRYPTO")) return `${decimalMoney(orderAmountValue(order, value), 6)} ${currency.replace("_TRC20", "")}`;
   return money(orderAmountValue(order, value));
 }
