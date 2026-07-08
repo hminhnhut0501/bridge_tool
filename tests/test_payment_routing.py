@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from payment import payment_manager
-from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message
+from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message, auto_payment_gate_snapshot
 from modules.mod_auto_payment_schedule import auto_payment_schedule_active, apply_auto_payment_schedule
 
 
@@ -290,7 +290,7 @@ def test_english_customer_uses_separate_auto_payment_flow():
     config = {
         "AUTO_PAYMENT_EN_RETURNING_ENABLED": "ON",
         "AUTO_PAYMENT_EN_RETURNING_SCHEDULE_ENABLED": "ON",
-        "AUTO_PAYMENT_EN_RETURNING_WINDOWS": "22:00-06:00",
+        "AUTO_PAYMENT_EN_RETURNING_WINDOWS": "00:00-23:59",
     }
 
     with patch("modules.mod_payment.supabase_store", Store), patch(
@@ -308,6 +308,35 @@ def test_english_customer_uses_separate_auto_payment_flow():
     ):
         assert has_prior_paid_vip_order("42") is True
         assert should_allow_auto_payment("42") is True
+
+
+def test_english_new_customer_can_use_auto_payment_when_enabled():
+    class Store:
+        enabled = True
+
+        @staticmethod
+        def list_paid_orders_for_user(user_id, limit=500):
+            return []
+
+    config = {
+        "AUTO_PAYMENT_VI_NEW_ENABLED": "OFF",
+        "AUTO_PAYMENT_EN_NEW_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_NEW_SCHEDULE_ENABLED": "ON",
+        "AUTO_PAYMENT_EN_NEW_WINDOWS": "00:00-23:59",
+    }
+
+    with patch("modules.mod_payment.supabase_store", Store), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch(
+        "modules.mod_auto_payment_schedule.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ):
+        snapshot = auto_payment_gate_snapshot("42", preferred_language="en")
+        assert snapshot["segment"] == "en"
+        assert snapshot["tier"] == "new"
+        assert snapshot["allowed"] is True
+        assert should_allow_auto_payment("42", preferred_language="en") is True
 
 
 def test_auto_payment_gate_can_use_explicit_language_override():
@@ -444,13 +473,13 @@ def test_enforce_auto_payment_gate_hides_supabase_disabled_ticket_error():
             self.alerts.append((text, show_alert))
 
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.resolve_user_language",
+        return_value="vi",
+    ), patch(
         "modules.mod_payment.manual_support_keyboard", return_value="keyboard"
     ), patch(
         "modules.mod_payment.auto_payment_gate_message",
         return_value="redirect text",
-    ), patch(
-        "modules.mod_payment.create_support_ticket_for_user",
-        return_value=(None, ""),
     ):
         from modules.mod_payment import enforce_auto_payment_gate
 
@@ -487,6 +516,9 @@ def test_enforce_auto_payment_gate_uses_admin_redirect_when_support_inbox_disabl
             self.alerts.append((text, show_alert))
 
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=False), patch(
+        "modules.mod_payment.resolve_user_language",
+        return_value="vi",
+    ), patch(
         "modules.mod_payment.support_inbox_enabled",
         return_value=False,
     ), patch(
@@ -495,10 +527,8 @@ def test_enforce_auto_payment_gate_uses_admin_redirect_when_support_inbox_disabl
         "modules.mod_payment.auto_payment_gate_message",
         return_value="redirect text",
     ), patch(
-        "modules.mod_payment.create_support_ticket_for_user",
-    ) as create_ticket, patch(
         "modules.mod_payment.record_support_event",
-    ):
+    ) as record_event:
         from modules.mod_payment import enforce_auto_payment_gate
 
         cb = Callback()
@@ -507,7 +537,8 @@ def test_enforce_auto_payment_gate_uses_admin_redirect_when_support_inbox_disabl
         ok = asyncio.run(enforce_auto_payment_gate(cb))
         assert ok is False
         assert cb.message.sent == [("redirect text", "keyboard")]
-        create_ticket.assert_not_called()
+        assert record_event.call_args.args[0] == "auto_payment_redirect"
+        assert record_event.call_args.kwargs["raw_data"]["support_inbox_enabled"] is False
 
 
 def test_manual_support_bot_url_uses_deep_link_payload():

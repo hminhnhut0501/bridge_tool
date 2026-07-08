@@ -428,7 +428,11 @@ def _payment_provider_fallbacks(user_id, provider=""):
 def create_payment_for_user(user_id, order_id, amount, description, provider="", preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
     if not should_allow_auto_payment(user_id, preferred_language=language):
-        print(f"⛔ Chặn tạo QR cho user {user_id}: {auto_payment_gate_message(user_id, preferred_language=language)}")
+        try:
+            gate_snapshot = auto_payment_gate_snapshot(user_id, preferred_language=language)
+        except Exception as exc:
+            gate_snapshot = {"allowed": False, "reason": f"snapshot_error:{exc}", "segment": language}
+        print(f"⛔ Chặn tạo payment cho user {user_id}: gate={gate_snapshot}")
         return None
     attempts = _payment_provider_fallbacks(user_id, provider or payment_manager.preferred_provider(language))
     last_error = ""
@@ -607,6 +611,12 @@ def should_allow_auto_payment(user_id, preferred_language=None):
     return auto_payment_allowed_for_user(user_id, preferred_language=preferred_language)
 
 
+def auto_payment_gate_snapshot(user_id, preferred_language=None):
+    from modules.mod_auto_payment_schedule import auto_payment_gate_snapshot_for_user
+
+    return auto_payment_gate_snapshot_for_user(user_id, preferred_language=preferred_language)
+
+
 def resolve_user_language(user_id=None, preferred_language=None):
     language = str(preferred_language or "").strip().lower()
     if language in {"vi", "en"}:
@@ -716,39 +726,33 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
     ):
         return True
     callback_action = action or getattr(callback, "data", "")
+    try:
+        gate_snapshot = auto_payment_gate_snapshot(callback.from_user.id, preferred_language=language)
+    except Exception as exc:
+        gate_snapshot = {"allowed": False, "reason": f"snapshot_error:{exc}", "segment": language}
     keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language, include_language_switch=True)
-    if not support_inbox_enabled():
-        try:
-            gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
-            await callback.message.answer(gate_text, reply_markup=keyboard)
-        except Exception as exc:
-            print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
-        try:
-            record_support_event(
-                "support_inbox_disabled_redirect",
-                callback.from_user.id,
-                username=callback.from_user.username or "",
-                full_name=callback.from_user.full_name or "",
-                chat_id=str(callback.message.chat.id if callback.message else ""),
-                raw_data={
-                    "action": callback_action,
-                    "provider": provider,
-                    "language": language,
-                },
-            )
-        except Exception:
-            pass
-        try:
-            await callback.answer()
-        except Exception:
-            pass
-        return False
-
     if callback.message:
         try:
             await callback.message.answer(auto_payment_gate_message(callback.from_user.id, preferred_language=language), reply_markup=keyboard)
         except Exception as exc:
             print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
+    try:
+        record_support_event(
+            "auto_payment_redirect",
+            callback.from_user.id,
+            username=callback.from_user.username or "",
+            full_name=callback.from_user.full_name or "",
+            chat_id=str(callback.message.chat.id if callback.message else ""),
+            raw_data={
+                "action": callback_action,
+                "provider": provider,
+                "language": language,
+                "support_inbox_enabled": support_inbox_enabled(),
+                "gate": gate_snapshot,
+            },
+        )
+    except Exception:
+        pass
     try:
         await callback.answer()
     except Exception:

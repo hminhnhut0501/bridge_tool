@@ -311,6 +311,8 @@ export function supportEventLabel(type: string) {
     vip_muted: "Đã tắt tiếng VIP",
     vip_unmuted: "Đã bật tiếng VIP",
     vip_kicked: "Đã xóa khỏi group VIP",
+    auto_payment_redirect: "Auto payment chuyển hỗ trợ",
+    support_inbox_disabled_redirect: "Auto payment chuyển hỗ trợ",
     admin_reply_sent: "Admin đã trả lời",
     admin_reply_failed: "Trả lời lỗi",
     manual_activation_link_generated: "Kích hoạt đơn",

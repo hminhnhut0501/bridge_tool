@@ -3747,11 +3747,19 @@ export default function Home() {
       const items = fields.map((field) => ({ key: field.key, value: values[field.key] || "" }));
       const res = await updateConfigs(savedSecret, items);
       const changedKeys = new Set(items.map((item) => item.key));
+      const returnedKeys = new Set((res.data || []).map((item) => item.key));
       setConfig((current) => [
-        ...current.filter((item) => !changedKeys.has(item.key)),
+        ...current.filter((item) => !changedKeys.has(item.key) && !returnedKeys.has(item.key)),
         ...res.data,
       ]);
+      setFieldValues((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.key, item.value])) }));
     });
+  }
+
+  function autoPaymentUiValue(key: string, fallback = "", legacyKey = "") {
+    const localValue = String(fieldValues[key] || "").trim();
+    if (localValue) return localValue;
+    return getConfigValue(config, key, legacyKey ? getConfigValue(config, legacyKey, fallback) : fallback);
   }
 
   async function quickSetAutoPaymentWindow(enabled: boolean) {
@@ -3776,6 +3784,7 @@ export default function Home() {
         ...current.filter((item) => !changedKeys.has(item.key)),
         ...res.data,
       ]);
+      setFieldValues((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.key, item.value])) }));
       showNotice("ok", enabled ? "Đã bật lịch auto payment cho khách Việt." : "Đã tắt auto payment cho khách Việt.");
     });
   }
@@ -3802,6 +3811,7 @@ export default function Home() {
         ...current.filter((item) => !changedKeys.has(item.key)),
         ...res.data,
       ]);
+      setFieldValues((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.key, item.value])) }));
       showNotice("ok", enabled ? "Đã bật lịch auto payment cho khách nước ngoài." : "Đã tắt auto payment cho khách nước ngoài.");
     });
   }
@@ -7461,10 +7471,10 @@ export default function Home() {
               </div>
             </section>
             <div className="grid">
-              <Metric label="VI khách mới" value={getConfigValue(config, "AUTO_PAYMENT_VI_NEW_ENABLED", getConfigValue(config, "AUTO_PAYMENT_NEW_ENABLED", "OFF"))} accent="blue" icon={<CalendarClock size={16} />} />
-              <Metric label="VI khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_VI_RETURNING_ENABLED", getConfigValue(config, "AUTO_PAYMENT_RETURNING_ENABLED", "ON"))} accent="emerald" icon={<Settings size={16} />} />
-              <Metric label="EN khách mới" value={getConfigValue(config, "AUTO_PAYMENT_EN_NEW_ENABLED", "OFF")} accent="amber" icon={<Clock3 size={16} />} />
-              <Metric label="EN khách cũ" value={getConfigValue(config, "AUTO_PAYMENT_EN_RETURNING_ENABLED", "ON")} accent="violet" icon={<CheckCircle2 size={16} />} />
+              <Metric label="VI khách mới" value={autoPaymentUiValue("AUTO_PAYMENT_VI_NEW_ENABLED", "OFF", "AUTO_PAYMENT_NEW_ENABLED")} accent="blue" icon={<CalendarClock size={16} />} />
+              <Metric label="VI khách cũ" value={autoPaymentUiValue("AUTO_PAYMENT_VI_RETURNING_ENABLED", "ON", "AUTO_PAYMENT_RETURNING_ENABLED")} accent="emerald" icon={<Settings size={16} />} />
+              <Metric label="EN khách mới" value={autoPaymentUiValue("AUTO_PAYMENT_EN_NEW_ENABLED", "OFF")} accent="amber" icon={<Clock3 size={16} />} />
+              <Metric label="EN khách cũ" value={autoPaymentUiValue("AUTO_PAYMENT_EN_RETURNING_ENABLED", "ON")} accent="violet" icon={<CheckCircle2 size={16} />} />
             </div>
             <section className="panel">
               <PanelHead title="Audit gần nhất" subtitle="Worker ghi lại trạng thái mới nhất của từng tệp theo ngôn ngữ để admin kiểm tra nhanh." />
