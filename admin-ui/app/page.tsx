@@ -9422,6 +9422,15 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   const [draftValue, setDraftValue] = useState("");
   const [savingField, setSavingField] = useState(false);
 
+  function displayFieldValue(field: ConfigField) {
+    const currentValue = String(values[field.key] || "").trim();
+    if (!currentValue) return "Chưa thiết lập";
+    if (field.kind === "select") {
+      return field.options?.find((item) => item.value === currentValue)?.label || currentValue;
+    }
+    return currentValue;
+  }
+
   function openField(field: ConfigField) {
     setEditingField(field);
     setDraftValue(values[field.key] || "");
@@ -9482,9 +9491,7 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
                 overflowWrap: "anywhere",
               }}
             >
-              {field.kind === "select"
-                ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder
-                : values[field.key] || "Chưa thiết lập"}
+              {displayFieldValue(field)}
             </Box>
           </ButtonBase>
         ))}
@@ -9517,11 +9524,14 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
                 <TextField
                   select
                   autoFocus
-                  value={draftValue || editingField.placeholder}
+                  value={draftValue}
                   onChange={(event) => setDraftValue(event.target.value)}
                   fullWidth
                   sx={popupFieldSx}
                 >
+                  <MenuItem value="" disabled>
+                    Chưa thiết lập
+                  </MenuItem>
                   {(editingField.options || []).map((item) => (
                     <MenuItem key={item.value} value={item.value}>
                       {item.label}
