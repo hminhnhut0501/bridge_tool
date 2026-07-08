@@ -77,15 +77,19 @@ def localized_key(key, language):
     return f"{key}_{normalize_language(language).upper()}"
 
 
+def render_i18n_text(value):
+    return str(value or "").replace("\\n", "\n")
+
+
 def t_for_lang(language, key, default=""):
     language = normalize_language(language)
     localized_value = db.get_config(localized_key(key, language), "")
     if str(localized_value).strip():
-        return localized_value
+        return render_i18n_text(localized_value)
     base_value = db.get_config(key, "")
     if str(base_value).strip():
-        return base_value
-    return default
+        return render_i18n_text(base_value)
+    return render_i18n_text(default)
 
 
 def t(user_or_id, key, default=""):

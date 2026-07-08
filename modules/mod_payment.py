@@ -22,7 +22,7 @@ from hidden_group_utils import (
 )
 from supabase_store import supabase_store
 
-from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message, create_background_task
+from helpers import check_protection, format_currency, smart_display, cleanup_welcome, safe_delete_private_message, create_background_task, strip_html_tags
 from i18n import get_user_language, localized_default, t
 from modules.mod_engine import render_page
 from sale_utils import format_currency as format_money, format_price_label, get_price, localized_price_key, parse_price, sale_banner
@@ -732,10 +732,15 @@ async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider
         gate_snapshot = {"allowed": False, "reason": f"snapshot_error:{exc}", "segment": language}
     keyboard = manual_support_keyboard(callback.from_user.id, callback_action, provider, preferred_language=language, include_language_switch=True)
     if callback.message:
+        gate_text = auto_payment_gate_message(callback.from_user.id, preferred_language=language)
         try:
-            await callback.message.answer(auto_payment_gate_message(callback.from_user.id, preferred_language=language), reply_markup=keyboard)
+            await callback.message.answer(gate_text, reply_markup=keyboard, parse_mode="HTML")
         except Exception as exc:
-            print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {exc}")
+            print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ dạng HTML: {exc}")
+            try:
+                await callback.message.answer(strip_html_tags(gate_text), reply_markup=keyboard)
+            except Exception as fallback_exc:
+                print(f"⚠️ Không gửi được nút chuyển sang bot hỗ trợ: {fallback_exc}")
     try:
         record_support_event(
             "auto_payment_redirect",
