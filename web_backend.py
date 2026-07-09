@@ -80,6 +80,31 @@ def webhook_reset_backoff_cap_seconds():
         return 1800
 
 
+def webhook_runtime_failure_limit():
+    try:
+        value = int(str(os.getenv("WEBHOOK_RUNTIME_FAILURE_LIMIT", "3") or "3").strip())
+        return max(1, value)
+    except Exception:
+        return 3
+
+
+def webhook_runtime_error_is_transient(exc) -> bool:
+    text = str(exc or "").lower()
+    transient_markers = (
+        "timeout",
+        "timed out",
+        "request timeout",
+        "temporarily unavailable",
+        "connection reset",
+        "connection aborted",
+        "server disconnected",
+        "network is unreachable",
+        "name or service not known",
+        "cannot connect",
+    )
+    return any(marker in text for marker in transient_markers)
+
+
 def _parse_retry_after_seconds(error_text: str) -> int:
     text = str(error_text or "")
     match = re.search(r"retry in (\d+) seconds?", text, re.IGNORECASE)
@@ -96,6 +121,7 @@ def webhook_reset_state_meta():
         "block_until": _webhook_reset_block_until.isoformat() if _webhook_reset_block_until else "",
         "backoff_seconds": int(_webhook_reset_backoff_seconds or 0),
         "wait_seconds": webhook_reset_wait_seconds(),
+        "runtime_failure_limit": webhook_runtime_failure_limit(),
     }
 
 
@@ -214,11 +240,12 @@ async def retry_telegram_webhook_background(*, initial_delay=0):
 
             reason = str(result.get("reason") or "").strip()
             wait_seconds = webhook_retry_wait_seconds()
-            set_runtime_maintenance_override(
-                True,
-                reason=f"Webhook retry pending ({reason}). Retry after {wait_seconds}s.",
-                source="webhook",
-            )
+            if result.get("maintenance_required"):
+                set_runtime_maintenance_override(
+                    True,
+                    reason=f"Webhook retry pending ({reason}). Retry after {wait_seconds}s.",
+                    source="webhook",
+                )
             print(f"🕒 Telegram webhook retry pending reason={reason} retry_in={wait_seconds}s")
             await asyncio.sleep(wait_seconds)
         except TelegramRetryAfter as exc:
@@ -233,11 +260,12 @@ async def retry_telegram_webhook_background(*, initial_delay=0):
             await asyncio.sleep(_backoff)
         except Exception as exc:
             wait_seconds = webhook_retry_wait_seconds()
-            set_runtime_maintenance_override(
-                True,
-                reason=f"Webhook retry error: {exc}",
-                source="webhook",
-            )
+            if not webhook_runtime_error_is_transient(exc) or _webhook_failure_streak >= webhook_runtime_failure_limit():
+                set_runtime_maintenance_override(
+                    True,
+                    reason=f"Webhook retry error: {exc}",
+                    source="webhook",
+                )
             print(f"⚠️ Telegram webhook retry error: {exc}. Retry in {wait_seconds}s.")
             await asyncio.sleep(wait_seconds)
 
@@ -301,6 +329,8 @@ def webhook_watch_interval_seconds():
 
 
 def webhook_problem_reason(info, expected_url: str):
+    if not info:
+        return "unavailable"
     actual_url = str(getattr(info, "url", "") or "").strip()
     if not actual_url:
         return "missing_url"
@@ -313,6 +343,17 @@ def webhook_problem_reason(info, expected_url: str):
     if last_error_message and pending_update_count > 0:
         return "telegram_error"
     return ""
+
+
+def empty_webhook_info(error_message=""):
+    return {
+        "url": "",
+        "has_custom_certificate": False,
+        "pending_update_count": 0,
+        "last_error_message": str(error_message or ""),
+        "max_connections": 0,
+        "allowed_updates": [],
+    }
 
 
 async def ensure_telegram_webhook(*, force=False):
@@ -336,21 +377,27 @@ async def ensure_telegram_webhook(*, force=False):
 
         if reason and reason not in webhook_auto_heal_reasons():
             _webhook_failure_streak += 1
-            set_runtime_maintenance_override(
-                True,
-                reason=f"Webhook unhealthy ({reason}). Auto-reset skipped to avoid SetWebhook spam.",
-                source="webhook",
-            )
-            return {"ok": False, "reason": reason, "info": info}
+            maintenance_required = _webhook_failure_streak >= webhook_runtime_failure_limit()
+            if maintenance_required:
+                set_runtime_maintenance_override(
+                    True,
+                    reason=f"Webhook unhealthy ({reason}). Auto-reset skipped to avoid SetWebhook spam.",
+                    source="webhook",
+                )
+            else:
+                set_runtime_maintenance_override(False, source="webhook")
+            return {"ok": False, "reason": reason, "info": info, "maintenance_required": maintenance_required}
 
         if _webhook_reset_block_until and now < _webhook_reset_block_until:
             wait_seconds = max(1, int((_webhook_reset_block_until - now).total_seconds()))
-            set_runtime_maintenance_override(
-                True,
-                reason=f"Webhook reset cooldown active. Retry after {wait_seconds}s.",
-                source="webhook",
-            )
-            return {"ok": False, "reason": f"cooldown:{wait_seconds}", "info": info}
+            maintenance_required = _webhook_failure_streak >= webhook_runtime_failure_limit()
+            if maintenance_required:
+                set_runtime_maintenance_override(
+                    True,
+                    reason=f"Webhook reset cooldown active. Retry after {wait_seconds}s.",
+                    source="webhook",
+                )
+            return {"ok": False, "reason": f"cooldown:{wait_seconds}", "info": info, "maintenance_required": maintenance_required}
 
         await bot.delete_webhook(drop_pending_updates=False)
         await bot.set_webhook(
@@ -386,8 +433,24 @@ async def ensure_telegram_webhook(*, force=False):
             max(base_backoff, (_webhook_reset_backoff_seconds * 2) if _webhook_reset_backoff_seconds else base_backoff),
         )
         _webhook_reset_block_until = datetime.now() + timedelta(seconds=_webhook_reset_backoff_seconds)
-        set_runtime_maintenance_override(True, reason=f"Webhook runtime error: {exc}", source="webhook")
-        raise
+        is_transient = webhook_runtime_error_is_transient(exc)
+        maintenance_required = (not is_transient) or _webhook_failure_streak >= webhook_runtime_failure_limit()
+        if maintenance_required:
+            set_runtime_maintenance_override(True, reason=f"Webhook runtime error: {exc}", source="webhook")
+        else:
+            set_runtime_maintenance_override(False, source="webhook")
+            print(
+                "⚠️ Telegram webhook transient error; keep bot online "
+                f"streak={_webhook_failure_streak}/{webhook_runtime_failure_limit()} "
+                f"retry_in={_webhook_reset_backoff_seconds}s error={exc}"
+            )
+        return {
+            "ok": False,
+            "reason": "transient_runtime_error" if is_transient else "runtime_error",
+            "info": None,
+            "error": str(exc),
+            "maintenance_required": maintenance_required,
+        }
 
 
 async def webhook_watch_worker():
@@ -1160,14 +1223,19 @@ async def root():
 
 @app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])
 async def admin_webhook_info():
-    info = await bot.get_webhook_info()
+    info_error = ""
+    try:
+        info = await bot.get_webhook_info()
+    except Exception as exc:
+        info_error = str(exc)
+        info = empty_webhook_info(info_error)
     return {
         "data": info,
         "meta": {
             "expected_url": str(os.getenv("WEBHOOK_URL") or "").strip(),
             "last_reset_reason": _last_webhook_reset_reason,
             "failure_streak": _webhook_failure_streak,
-            "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
+            "problem_reason": f"info_unavailable: {info_error}" if info_error else webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
             "maintenance_override": runtime_maintenance_override(),
             "reset_state": webhook_reset_state_meta(),
         },
@@ -1212,14 +1280,19 @@ async def admin_webhook_clear_maintenance():
     if wait_seconds > 0:
         raise HTTPException(status_code=409, detail=f"Webhook cooldown still active. Retry after {wait_seconds}s.")
     set_runtime_maintenance_override(False, reason="", source="webhook")
-    info = await bot.get_webhook_info()
+    info_error = ""
+    try:
+        info = await bot.get_webhook_info()
+    except Exception as exc:
+        info_error = str(exc)
+        info = empty_webhook_info(info_error)
     return {
         "data": info,
         "meta": {
             "expected_url": str(os.getenv("WEBHOOK_URL") or "").strip(),
             "last_reset_reason": _last_webhook_reset_reason,
             "failure_streak": _webhook_failure_streak,
-            "problem_reason": webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
+            "problem_reason": f"info_unavailable: {info_error}" if info_error else webhook_problem_reason(info, str(os.getenv("WEBHOOK_URL") or "").strip()),
             "maintenance_override": runtime_maintenance_override(),
             "reset_state": webhook_reset_state_meta(),
         },
