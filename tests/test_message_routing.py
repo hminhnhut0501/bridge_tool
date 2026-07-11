@@ -149,6 +149,28 @@ def test_start_language_payload_can_force_english(monkeypatch):
     assert set_calls == [(789, "en")]
 
 
+def test_start_falls_back_when_protection_blocks(monkeypatch):
+    message = SimpleNamespace(
+        text="/start",
+        from_user=SimpleNamespace(id=789, username="user789", full_name="User 789"),
+        chat=SimpleNamespace(id=789, type="private"),
+        entities=[SimpleNamespace(type="bot_command")],
+        answer=AsyncMock(),
+    )
+
+    monkeypatch.setattr(mod_general, "cleanup_welcome", AsyncMock())
+    monkeypatch.setattr(mod_general.db, "reload_config", lambda force=False: None)
+    monkeypatch.setattr(mod_general, "record_start_event", AsyncMock())
+    monkeypatch.setattr(mod_general, "send_sale_announcement", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "render_page", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=False))
+    monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "")
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    assert message.answer.await_count == 1
+
+
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
     message = SimpleNamespace(
         text="/start actmsg_manual_456",

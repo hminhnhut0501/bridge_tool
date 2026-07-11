@@ -621,10 +621,14 @@ async def cmd_start(message: Message):
     )
 
     async def _send_start_fallback(reason: str = ""):
-        fallback_text = db.get_config(
-            "MSG_START_FALLBACK",
-            "👋 Chào mừng bạn quay lại bot.\nDùng /menu để mở trang chính hoặc /support nếu cần hỗ trợ.",
-        ).replace("\\n", "\n")
+        fallback_text = "👋 Chào mừng bạn quay lại bot.\nDùng /menu để mở trang chính hoặc /support nếu cần hỗ trợ."
+        try:
+            fallback_text = db.get_config(
+                "MSG_START_FALLBACK",
+                fallback_text,
+            ).replace("\\n", "\n")
+        except Exception as exc:
+            print(f"⚠️ /start fallback config unavailable for user {message.from_user.id}: {exc}")
         if reason:
             print(f"⚠️ /start fallback for user {message.from_user.id}: {reason}")
         try:
@@ -767,6 +771,7 @@ async def cmd_start(message: Message):
 
         if not await check_protection(message):
             print(f"🚀 cmd_start stopped by protection user={message.from_user.id}")
+            await _send_start_fallback("check_protection returned False")
             return
         if await send_sale_announcement(message):
             print(f"🚀 cmd_start sale announcement sent user={message.from_user.id}")
