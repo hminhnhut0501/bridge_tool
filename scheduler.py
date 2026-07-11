@@ -229,6 +229,58 @@ def user_has_active_membership(user_id, current_order_id, users_data, now):
             return True
     return False
 
+def build_users_index(users_data):
+    users_index = {}
+    for row in users_data:
+        user_id = row_value(row, 1)
+        if not user_id:
+            continue
+        users_index.setdefault(user_id, []).append(row)
+    return users_index
+
+def build_user_membership_cache(users_index, now):
+    cache = {}
+    for user_id, rows in users_index.items():
+        active_orders = []
+        active_group_ids = set()
+        support_active = False
+        for row in rows:
+            order_id = row_value(row, 0)
+            status = row_value(row, 5).upper()
+            if status != "PAID":
+                continue
+            plan_name = row_value(row, 3)
+            expire_raw = row_value(row, 7)
+            expired = False
+            if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
+                expired = False
+            else:
+                expire_date = parse_expire_datetime(expire_raw)
+                if expire_date and expire_date <= now:
+                    expired = True
+                elif expire_raw and not expire_date:
+                    expired = False
+                else:
+                    expired = False
+            if not expired:
+                active_orders.append(order_id)
+                if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
+                    support_active = True
+                else:
+                        expire_date = parse_expire_datetime(expire_raw)
+                        if expire_date and expire_date > now:
+                            support_active = True
+                active_group_ids.update(plan_group_ids(plan_name))
+        if not active_orders:
+            support_active = False
+        cache[user_id] = {
+            "active_orders": set(active_orders),
+            "active_group_ids": active_group_ids,
+            "has_active_membership": bool(active_orders),
+            "support_active": support_active,
+        }
+    return cache
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -455,7 +507,17 @@ async def ensure_member_kicked(
             run_kick_cache.add(run_kick_key)
         return False
 
-async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None):
+async def process_vip_kicks_for_expired_order(
+    user_id,
+    order_id,
+    plan_name,
+    expire_str,
+    users_data,
+    now,
+    run_kick_cache=None,
+    run_presence_cache=None,
+    user_cache=None,
+):
     current_group_ids = plan_group_ids(plan_name)
     if not current_group_ids:
         logging.warning(
@@ -468,7 +530,10 @@ async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expi
         )
         return [], []
 
-    active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
+    if user_cache and user_id in user_cache:
+        active_group_ids = set(user_cache[user_id].get("active_group_ids") or set()) & set(current_group_ids)
+    else:
+        active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
     retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
     expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
 
@@ -506,8 +571,9 @@ async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expi
             kick_errors.append(gid)
     return expired_group_ids, kick_errors
 
-async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None):
-    if user_has_active_membership(user_id, order_id, users_data, now):
+async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None, user_cache=None):
+    has_active_membership = user_cache[user_id]["has_active_membership"] if user_cache and user_id in user_cache else user_has_active_membership(user_id, order_id, users_data, now)
+    if has_active_membership:
         await ensure_support_group_unmuted(user_id, order_id, plan_name)
         return
     gid = support_group_id()
@@ -597,6 +663,8 @@ async def check_expirations_professional():
         summary = {"expired": 0, "expired_notice": 0, "reminded": 0, "skipped_not_due": 0, "invalid": 0}
         run_kick_cache = set()
         run_presence_cache = {}
+        users_index = build_users_index(users_data)
+        user_membership_cache = build_user_membership_cache(users_index, now)
         
         # Duyệt danh sách đơn PAID từ Supabase hoặc các dòng Users từ Sheet.
         for offset, row in enumerate(users_data, start=0):
@@ -620,8 +688,8 @@ async def check_expirations_professional():
                         plan_name,
                     )
                     continue
-                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache)
-                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache)
+                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
+                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
                 continue
 
             if status != "PAID" or not expire_str: 
@@ -656,10 +724,10 @@ async def check_expirations_professional():
                         plan_name,
                     )
                     continue
-                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache)
+                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
 
                 if not expired_group_ids:
-                    if not user_has_active_membership(user_id, order_id, users_data, now):
+                    if not user_membership_cache.get(user_id, {}).get("has_active_membership"):
                         await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
                     try:
                         if use_supabase:
@@ -674,7 +742,7 @@ async def check_expirations_professional():
                     logging.error(f"⏭ Chưa đóng EXPIRED đơn/dòng {offer_ref} vì còn lỗi kick: {kick_errors}")
                     continue
 
-                if not user_has_active_membership(user_id, order_id, users_data, now):
+                if not user_membership_cache.get(user_id, {}).get("has_active_membership"):
                     await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
 
                 if config_enabled("EXPIRED_NOTICE_ENABLED", "ON") and not should_skip_expired_notice(row):
