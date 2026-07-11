@@ -49,7 +49,7 @@ async def set_commands():
     add_if(group_commands, "BOT_MENU_GROUP_POLICY_ENABLED", "policy", "BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")
 
     if coupon_enabled and enabled("BOT_MENU_PRIVATE_COUPON_ENABLED", "ON"):
-        private_commands.insert(2, BotCommand(command="coupon", description=command_desc("BOT_COMMAND_DESC_COUPON", "Nhập mã giảm giá / mã kích hoạt")))
+        private_commands.insert(2, BotCommand(command="coupon", description=command_desc("BOT_COMMAND_DESC_COUPON", "Nhập mã kích hoạt / Enter activation code")))
 
     await bot.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())

@@ -10,11 +10,9 @@ from message_classifier_utils import classify_message_text
 
 
 def test_routing_classifier_maps_start_coupon_hidden_and_support(monkeypatch):
-    monkeypatch.setattr("message_classifier_utils.get_hidden_code", lambda code: {"code": code} if code == "HIDEVIP" else None)
-
     assert classify_message_text("/start act_ABC123")["kind"] == "activation"
-    assert classify_message_text("HANGCU_DEMO", coupon_prefixes=["HANGCU_"])["kind"] == "coupon"
-    assert classify_message_text("HIDEVIP")["kind"] == "hidden"
+    assert classify_message_text("HANGCU_DEMO", coupon_prefixes=["HANGCU_"])["kind"] == "support"
+    assert classify_message_text("HIDEVIP")["kind"] == "support"
     assert classify_message_text("Xin chào admin")["kind"] == "support"
 
 
@@ -86,12 +84,12 @@ def test_coupon_auto_handler_routes_coupon_codes(monkeypatch):
     monkeypatch.setattr(mod_coupon, "redeem_coupon", fake_redeem)
     monkeypatch.setattr(mod_coupon, "check_protection", AsyncMock(return_value=True))
     monkeypatch.setattr(mod_coupon, "config_enabled", lambda key, default="OFF": True)
-    monkeypatch.setattr(mod_coupon, "classify_private_message", lambda msg, coupon_prefixes=None: {"kind": "coupon", "code": "HANGCU_DEMO", "reason": "coupon_prefix"})
+    monkeypatch.setattr(mod_coupon, "classify_private_message", lambda msg, coupon_prefixes=None: {"kind": "support", "code": "HANGCU_DEMO", "reason": "plain_text"})
     monkeypatch.setattr(mod_coupon, "coupon_auto_prefixes", lambda: ["HANGCU_"])
 
     asyncio.run(mod_coupon.coupon_auto_code_received(message))
 
-    assert calls == ["HANGCU_DEMO"]
+    assert calls == []
 
 
 def test_start_activation_payload_routes_to_activation_delivery(monkeypatch):

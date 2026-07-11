@@ -68,10 +68,20 @@ import helpers  # noqa: E402
 
 def test_middleware_auto_opens_support_case_when_bot_is_down():
     middleware = helpers.BotAvailabilityMiddleware()
-    event = SimpleNamespace(
+    class FakeMessage(SimpleNamespace):
+        pass
+
+    event = FakeMessage(
         from_user=SimpleNamespace(id=123, is_bot=False),
         chat=SimpleNamespace(type="private"),
         text="hello",
+        caption="",
+        photo=None,
+        document=None,
+        video=None,
+        voice=None,
+        audio=None,
+        sticker=None,
         answer=AsyncMock(),
     )
     handler = AsyncMock(return_value="handled")
@@ -79,11 +89,17 @@ def test_middleware_auto_opens_support_case_when_bot_is_down():
     helpers.bot_unavailable_reason = lambda now=None: "maintenance"
     helpers.is_admin_user = lambda user_id: False
     helpers.has_open_support_ticket = lambda user_id: False
+    helpers.is_private_user_content_message = lambda event: True
+    helpers.is_private_interaction = lambda event: True
+    helpers.check_protection = AsyncMock(return_value=True)
+    helpers.Message = FakeMessage
+    support_utils_mod = sys.modules["support_utils"]
+    support_utils_mod.create_support_case_from_private_message = AsyncMock(
+        return_value=({"ticket_no": "SUP001"}, "")
+    )
 
     result = asyncio.run(middleware(handler, event, {}))
 
     assert result is None
     handler.assert_not_awaited()
-    support_utils_mod = sys.modules["support_utils"]
     support_utils_mod.create_support_case_from_private_message.assert_awaited_once()
-

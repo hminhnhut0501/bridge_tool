@@ -865,7 +865,7 @@ async def send_coupon_prompt(target, state: FSMContext):
     text = t(
         user_id,
         "MSG_COUPON_PROMPT",
-        "<b>Nhập mã giảm giá / mã kích hoạt</b>\\n\\nGửi mã bạn nhận được vào đây. Ví dụ: <code>VIP2026</code>",
+        "<b>Nhập mã kích hoạt / Enter activation code</b>\\n\\nGửi mã bạn nhận được vào đây. Ví dụ: <code>VIP2026</code>",
     ).replace("\\n", "\n")
     kb = InlineKeyboardBuilder().row(
         InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "Quay lại Menu", "Back to menu")), callback_data="back_main")

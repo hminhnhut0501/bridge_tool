@@ -44,16 +44,6 @@ def classify_private_message(message, *, coupon_prefixes=None):
     if not code:
         return {"kind": "support", "text": text, "code": "", "reason": "plain_text"}
 
-    if coupon_prefixes:
-        if any(code.startswith(prefix) for prefix in coupon_prefixes):
-            return {"kind": "coupon", "text": text, "code": code, "reason": "coupon_prefix"}
-
-    try:
-        if get_hidden_code(code):
-            return {"kind": "hidden", "text": text, "code": code, "reason": "hidden_match"}
-    except Exception:
-        pass
-
     return {"kind": "support", "text": text, "code": code, "reason": "plain_text"}
 
 
