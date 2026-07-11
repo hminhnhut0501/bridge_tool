@@ -238,9 +238,12 @@ def build_users_index(users_data):
         users_index.setdefault(user_id, []).append(row)
     return users_index
 
-def build_user_membership_cache(users_index, now):
+def build_user_membership_cache(users_index, now, user_ids=None):
     cache = {}
+    target_user_ids = set(str(user_id) for user_id in user_ids) if user_ids is not None else None
     for user_id, rows in users_index.items():
+        if target_user_ids is not None and user_id not in target_user_ids:
+            continue
         active_orders = []
         active_group_ids = set()
         support_active = False
@@ -664,119 +667,86 @@ async def check_expirations_professional():
         run_kick_cache = set()
         run_presence_cache = {}
         users_index = build_users_index(users_data)
-        user_membership_cache = build_user_membership_cache(users_index, now)
-        
-        # Duyệt danh sách đơn PAID từ Supabase hoặc các dòng Users từ Sheet.
-        for offset, row in enumerate(users_data, start=0):
-            if len(row) < 8: continue
+        if users_index:
+            expiring_user_ids = set()
+            for row in users_data:
+                if len(row) < 8:
+                    continue
+                status = str(row[5]).strip().upper()
+                if status not in {"EXPIRED", "PAID"}:
+                    continue
+                user_id = str(row[1]).strip()
+                expire_str = str(row[7]).strip()
+                if not user_id or not expire_str:
+                    continue
+                if status == "EXPIRED":
+                    expiring_user_ids.add(user_id)
+                    continue
+                if is_lifetime_plan(str(row[3]).strip()):
+                    continue
+                expire_date = parse_expire_datetime(expire_str)
+                if not expire_date:
+                    summary["invalid"] += 1
+                    continue
+                if 0 <= (expire_date.date() - now.date()).days <= days_notice:
+                    expiring_user_ids.add(user_id)
+            user_membership_cache = build_user_membership_cache(users_index, now, user_ids=expiring_user_ids)
+        else:
+            user_membership_cache = {}
 
+        expired_rows = []
+        reminder_rows = []
+        for offset, row in enumerate(users_data, start=0):
+            if len(row) < 8:
+                continue
+            status = str(row[5]).strip().upper()
+            if status not in {"EXPIRED", "PAID"}:
+                continue
+            expire_str = str(row[7]).strip()
+            if not expire_str:
+                continue
+            if status == "EXPIRED":
+                expired_rows.append((offset, row))
+            else:
+                reminder_rows.append((offset, row))
+
+        # Pass 1: xử lý EXPIRED trước để kick/mute đúng ngay.
+        for offset, row in expired_rows:
             row_number = offset + 2
             order_id = row_value(row, 0)
             offer_ref = order_id if use_supabase else row_number
-            
             user_id = str(row[1]).strip()
             plan_name = str(row[3]).strip()
-            status = str(row[5]).strip().upper()
             expire_str = str(row[7]).strip()
-
-            if status == "EXPIRED" and expire_str:
-                if not is_lifetime_plan(plan_name) and not plan_group_ids(plan_name):
-                    logging.error(
-                        "⏭ Bỏ qua xử lý đơn EXPIRED %s vì plan_name='%s' không map được group VIP; "
-                        "không mute/kick support để tránh xử lý nhầm.",
-                        offer_ref,
-                        plan_name,
-                    )
-                    continue
-                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
-                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
+            if not expire_str:
                 continue
-
-            if status != "PAID" or not expire_str: 
+            if not is_lifetime_plan(plan_name) and not plan_group_ids(plan_name):
+                logging.error(
+                    "⏭ Bỏ qua xử lý đơn EXPIRED %s vì plan_name='%s' không map được group VIP; không mute/kick support để tránh xử lý nhầm.",
+                    offer_ref,
+                    plan_name,
+                )
                 continue
-                
-            # Khách VIP Trọn đời thì bỏ qua luôn, không bao giờ lo hết hạn hoặc bị xử lý support.
-            if is_lifetime_plan(plan_name):
-                continue
+            await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
+            await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
 
+        # Pass 2: xử lý PAID reminder.
+        for offset, row in reminder_rows:
+            row_number = offset + 2
+            order_id = row_value(row, 0)
+            offer_ref = order_id if use_supabase else row_number
+            user_id = str(row[1]).strip()
+            plan_name = str(row[3]).strip()
+            expire_str = str(row[7]).strip()
             expire_date = parse_expire_datetime(expire_str)
             if not expire_date:
                 summary["invalid"] += 1
                 logging.warning(f"⚠️ Bỏ qua đơn/dòng {offer_ref}: không đọc được ngày hết hạn '{expire_str}' cho user {user_id}.")
                 continue
-
+            if is_lifetime_plan(plan_name):
+                continue
             days_remaining = (expire_date.date() - now.date()).days
             notif_key = f"{user_id}_{offer_ref}_{today_str}"
-
-            # ==========================================
-            # 1. HẾT HẠN -> KICK NGAY KHỎI GROUP VIP CHÍNH
-            # SUPPORT_GROUP_GRACE_DAYS chỉ áp dụng cho group hỗ trợ/bảo hành.
-            # plan_group_ids() đã loại support group, nên các group ở đây là group VIP chính.
-            # ==========================================
-            if expire_date <= now:
-                summary["expired"] += 1
-                logging.info(f"🚫 User {user_id} đã hết hạn gói {plan_name} từ {expire_date:%Y-%m-%d %H:%M:%S}.")
-                if not plan_group_ids(plan_name):
-                    logging.error(
-                        "⏭ Chưa đóng EXPIRED đơn/dòng %s vì plan_name='%s' không map được group VIP. "
-                        "Cần sửa tên gói hoặc BTN_G/ID_G trước khi kick.",
-                        offer_ref,
-                        plan_name,
-                    )
-                    continue
-                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
-
-                if not expired_group_ids:
-                    if not user_membership_cache.get(user_id, {}).get("has_active_membership"):
-                        await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
-                    try:
-                        if use_supabase:
-                            supabase_store.mark_order_expired(order_id, expired_notice_at=row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S"))
-                        else:
-                            db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), row_value(row, 11) or now.strftime("%Y-%m-%d %H:%M:%S")]])
-                    except Exception as e:
-                        logging.error(f"❌ Lỗi đóng đơn cũ đã được gia hạn {offer_ref}: {e}")
-                    continue
-
-                if kick_errors:
-                    logging.error(f"⏭ Chưa đóng EXPIRED đơn/dòng {offer_ref} vì còn lỗi kick: {kick_errors}")
-                    continue
-
-                if not user_membership_cache.get(user_id, {}).get("has_active_membership"):
-                    await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
-
-                if config_enabled("EXPIRED_NOTICE_ENABLED", "ON") and not should_skip_expired_notice(row):
-                    msg_expired = (
-                        db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn. Bạn đã bị tắt quyền gửi tin trong nhóm.\n\nBạn có <b>{grace_days} ngày</b> để gia hạn. Nếu không gia hạn, hệ thống sẽ mời bạn ra khỏi nhóm.")
-                        .replace("\\n", "\n")
-                        .replace("{plan}", plan_name)
-                        .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
-                        .replace("{grace_days}", str(support_group_grace_days()))
-                    )
-                    kb = InlineKeyboardBuilder().row(InlineKeyboardButton(text=db.get_config("BTN_RENEW", "🔄 Gia hạn ngay"), callback_data="nav:main_menu"))
-
-                    try:
-                        await send_html_message(user_id, msg_expired, kb.as_markup())
-                        record_support_event("expired_notice_sent", user_id, order_id=order_id, plan_name=plan_name, raw_data={"expire_at": expire_str})
-                        summary["expired_notice"] += 1
-                        logging.info(f"📩 Đã gửi thông báo hết hạn cho User {user_id}")
-                    except Exception as e:
-                        logging.error(f"❌ Lỗi gửi thông báo hết hạn cho {user_id}: {e}")
-
-                processed_at = now.strftime("%Y-%m-%d %H:%M:%S")
-                try:
-                    if use_supabase:
-                        supabase_store.mark_order_expired(order_id, expired_notice_at=processed_at)
-                    else:
-                        db.users_sheet.update(f"F{row_number}:L{row_number}", [["EXPIRED", row_value(row, 6), row_value(row, 7), row_value(row, 8), row_value(row, 9), row_value(row, 10), processed_at]])
-                    logging.info(f"✅ Đã cập nhật EXPIRED tại đơn/dòng {offer_ref}.")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi cập nhật EXPIRED đơn/dòng {offer_ref}: {e}")
-                continue
-
-            # ==========================================
-            # 2. NHẮC NHỞ SẮP HẾT HẠN (GỬI 1 LẦN/NGÀY)
-            # ==========================================
             if config_enabled("REMINDER_ENABLED", "ON") and 0 <= days_remaining <= days_notice and notif_key not in notified_users and not should_skip_reminder(row, today_str):
                 msg_reminder = (
                     db.get_config("MSG_REMINDER", "⏰ Gói <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa!\n\n👇 Nhấn nút bên dưới để gia hạn ngay nhé:")
@@ -788,24 +758,18 @@ async def check_expirations_professional():
                 renew_currency = "USD" if get_user_language(user_id) == "en" else "VND"
                 early_renew_offer = build_early_renew_offer(row, offer_ref, now, currency=renew_currency)
                 msg_reminder += build_early_renew_block(early_renew_offer)
-                
-                # Trỏ thẳng về các trang UI mới để khách mua hàng
                 kb = InlineKeyboardBuilder()
                 if early_renew_offer:
                     callback_data = f"renew_order_{order_id}" if use_supabase else f"renew_{row_number}"
-                    kb.row(InlineKeyboardButton(
-                        text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"),
-                        callback_data=callback_data,
-                    ))
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"), callback_data=callback_data))
                 elif "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
                 else:
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
-
                 try:
                     await send_html_message(user_id, msg_reminder, kb.as_markup())
                     record_support_event("renewal_reminder_sent", user_id, order_id=order_id, plan_name=plan_name, raw_data={"days_remaining": days_remaining, "expire_at": expire_str})
-                    notified_users.add(notif_key) # Lưu nháp để hôm nay không nhắc lại nữa
+                    notified_users.add(notif_key)
                     summary["reminded"] += 1
                     if use_supabase:
                         supabase_store.mark_reminder_sent(order_id, today_str)

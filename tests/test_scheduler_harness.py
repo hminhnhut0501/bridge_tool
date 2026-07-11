@@ -187,6 +187,9 @@ class SchedulerHarnessTests(unittest.IsolatedAsyncioTestCase):
         scheduler.db = _FAKE_DB
         scheduler.supabase_store = _FAKE_STORE
         scheduler.bot = _FAKE_BOT
+        scheduler.resolve_plan_groups = sys.modules["hidden_group_utils"].resolve_plan_groups
+        scheduler.is_lifetime_order = sys.modules["hidden_group_utils"].is_lifetime_order
+        scheduler.record_support_event = sys.modules["support_utils"].record_support_event
         scheduler.recent_kicks.clear()
         _FAKE_STORE.events.clear()
         _FAKE_BOT.kicked.clear()
