@@ -69,6 +69,21 @@ class FakeStore:
         self.full_query_called = True
         return list(self.orders)
 
+    def list_scheduler_expired_due_orders(self, limit=5000):
+        self.due_query_called = True
+        return [order for order in self.orders if str(order.get("status", "")).upper() == "EXPIRED"][:limit]
+
+    def list_scheduler_reminder_due_orders(self, due_before, limit=5000):
+        self.due_query_called = True
+        cutoff = scheduler.parse_expire_datetime(due_before)
+        rows = []
+        for order in self.orders:
+            status = str(order.get("status", "")).upper()
+            expire_at = scheduler.parse_expire_datetime(order.get("expire_at"))
+            if status == "PAID" and expire_at and cutoff and expire_at <= cutoff:
+                rows.append(order)
+        return rows[:limit]
+
     def list_scheduler_due_orders(self, due_before, limit=5000):
         self.due_query_called = True
         cutoff = scheduler.parse_expire_datetime(due_before)
@@ -82,6 +97,18 @@ class FakeStore:
 
     def list_paid_orders(self, limit=1000):
         return [order for order in self.orders if str(order.get("status", "")).upper() == "PAID"][:limit]
+
+    def list_paid_orders_for_user(self, telegram_user_id, limit=100):
+        rows = [
+            order
+            for order in self.orders
+            if str(order.get("telegram_user_id")) == str(telegram_user_id)
+            and str(order.get("status", "")).upper() == "PAID"
+        ]
+        return rows[:limit]
+
+    def list_order_activation_codes(self, limit=5000):
+        return []
 
     def order_to_sheet_row(self, order):
         return [

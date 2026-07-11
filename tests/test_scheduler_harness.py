@@ -49,6 +49,15 @@ def _install_stub_modules():
                 **kwargs,
             })
 
+        def list_scheduler_expired_due_orders(self, limit=5000):
+            return []
+
+        def list_scheduler_reminder_due_orders(self, due_before, limit=5000):
+            return []
+
+        def list_order_activation_codes(self, limit=5000):
+            return []
+
     class FakeBot:
         def __init__(self):
             self.kicked = []

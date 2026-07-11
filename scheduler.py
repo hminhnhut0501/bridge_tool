@@ -284,6 +284,77 @@ def build_user_membership_cache(users_index, now, user_ids=None):
         }
     return cache
 
+def build_user_membership_cache_from_rows(rows_by_user, now):
+    cache = {}
+    for user_id, rows in rows_by_user.items():
+        active_orders = []
+        active_group_ids = set()
+        support_active = False
+        for row in rows:
+            order_id = row_value(row, 0)
+            status = row_value(row, 5).upper()
+            if status != "PAID":
+                continue
+            plan_name = row_value(row, 3)
+            expire_raw = row_value(row, 7)
+            if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
+                active_orders.append(order_id)
+                support_active = True
+                active_group_ids.update(plan_group_ids(plan_name))
+                continue
+            expire_date = parse_expire_datetime(expire_raw)
+            if expire_date and expire_date > now:
+                active_orders.append(order_id)
+                support_active = True
+                active_group_ids.update(plan_group_ids(plan_name))
+            elif expire_raw and not expire_date:
+                active_orders.append(order_id)
+                support_active = True
+                active_group_ids.update(plan_group_ids(plan_name))
+                logging.warning(
+                    "⚠️ User %s có đơn PAID %s cùng group nhưng expire_at không đọc được ('%s'); giữ quyền để tránh kick nhầm.",
+                    user_id,
+                    order_id,
+                    expire_raw,
+                )
+        cache[user_id] = {
+            "active_orders": set(active_orders),
+            "active_group_ids": active_group_ids,
+            "has_active_membership": bool(active_orders),
+            "support_active": support_active,
+        }
+    return cache
+
+def split_scheduler_rows(rows, now, days_notice):
+    expired_rows = []
+    reminder_rows = []
+    expiring_user_ids = set()
+    for offset, row in enumerate(rows, start=0):
+        if len(row) < 8:
+            continue
+        status = str(row[5]).strip().upper()
+        if status not in {"EXPIRED", "PAID"}:
+            continue
+        user_id = str(row[1]).strip()
+        expire_str = str(row[7]).strip()
+        if not user_id or not expire_str:
+            continue
+        if status == "EXPIRED":
+            expired_rows.append((offset, row))
+            expiring_user_ids.add(user_id)
+            continue
+        plan_name = str(row[3]).strip()
+        if is_lifetime_plan(plan_name):
+            continue
+        expire_date = parse_expire_datetime(expire_str)
+        if not expire_date:
+            continue
+        days_remaining = (expire_date.date() - now.date()).days
+        if 0 <= days_remaining <= days_notice:
+            reminder_rows.append((offset, row))
+            expiring_user_ids.add(user_id)
+    return expired_rows, reminder_rows, expiring_user_ids
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -639,19 +710,19 @@ async def check_expirations_professional():
             order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
             due_before = now + timedelta(days=days_notice)
             try:
-                due_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
+                expired_due_orders = supabase_store.list_scheduler_expired_due_orders(limit=order_limit)
             except Exception as exc:
-                logging.warning("⚠️ Không dùng được query tối ưu scheduler, fallback quét rộng: %s", exc)
-                due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
+                logging.warning("⚠️ Không dùng được query expired_due, fallback quét rộng: %s", exc)
+                expired_due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
             try:
-                active_orders = supabase_store.list_paid_orders(limit=order_limit)
+                reminder_due_orders = supabase_store.list_scheduler_reminder_due_orders(due_before, limit=order_limit)
             except Exception as exc:
-                logging.warning("⚠️ Không lấy được danh sách PAID để bảo vệ kick nhầm, dùng lại tập due: %s", exc)
-                active_orders = []
+                logging.warning("⚠️ Không dùng được query reminder_due, fallback quét rộng: %s", exc)
+                reminder_due_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
             merged_orders = {}
-            for order in [*active_orders, *due_orders]:
+            for order in [*expired_due_orders, *reminder_due_orders]:
                 order_id = str(order.get("order_id") or "")
-                if order_id:
+                if order_id and order_id not in merged_orders:
                     merged_orders[order_id] = order
             users_data = [supabase_store.order_to_sheet_row(order) for order in merged_orders.values()]
         else:
@@ -667,48 +738,26 @@ async def check_expirations_professional():
         run_kick_cache = set()
         run_presence_cache = {}
         users_index = build_users_index(users_data)
-        if users_index:
-            expiring_user_ids = set()
-            for row in users_data:
-                if len(row) < 8:
-                    continue
-                status = str(row[5]).strip().upper()
-                if status not in {"EXPIRED", "PAID"}:
-                    continue
-                user_id = str(row[1]).strip()
-                expire_str = str(row[7]).strip()
-                if not user_id or not expire_str:
-                    continue
-                if status == "EXPIRED":
-                    expiring_user_ids.add(user_id)
-                    continue
-                if is_lifetime_plan(str(row[3]).strip()):
-                    continue
-                expire_date = parse_expire_datetime(expire_str)
-                if not expire_date:
-                    summary["invalid"] += 1
-                    continue
-                if 0 <= (expire_date.date() - now.date()).days <= days_notice:
-                    expiring_user_ids.add(user_id)
+        expired_rows, reminder_rows, expiring_user_ids = split_scheduler_rows(users_data, now, days_notice)
+        user_membership_cache = {}
+        if use_supabase and expiring_user_ids:
+            user_rows_by_id = {}
+            for user_id in expiring_user_ids:
+                try:
+                    user_rows = supabase_store.list_paid_orders_for_user(user_id, limit=order_limit)
+                except Exception as exc:
+                    logging.warning("⚠️ Không lấy được paid orders cho user %s để giữ quyền kick: %s", user_id, exc)
+                    user_rows = []
+                combined = list(users_index.get(user_id, []))
+                seen_order_ids = {row_value(row, 0) for row in combined}
+                for order in user_rows:
+                    order_row = supabase_store.order_to_sheet_row(order)
+                    if row_value(order_row, 0) not in seen_order_ids:
+                        combined.append(order_row)
+                user_rows_by_id[user_id] = combined
+            user_membership_cache = build_user_membership_cache_from_rows(user_rows_by_id, now)
+        elif users_index:
             user_membership_cache = build_user_membership_cache(users_index, now, user_ids=expiring_user_ids)
-        else:
-            user_membership_cache = {}
-
-        expired_rows = []
-        reminder_rows = []
-        for offset, row in enumerate(users_data, start=0):
-            if len(row) < 8:
-                continue
-            status = str(row[5]).strip().upper()
-            if status not in {"EXPIRED", "PAID"}:
-                continue
-            expire_str = str(row[7]).strip()
-            if not expire_str:
-                continue
-            if status == "EXPIRED":
-                expired_rows.append((offset, row))
-            else:
-                reminder_rows.append((offset, row))
 
         # Pass 1: xử lý EXPIRED trước để kick/mute đúng ngay.
         for offset, row in expired_rows:

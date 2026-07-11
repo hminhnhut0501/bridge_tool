@@ -292,7 +292,7 @@ class SupabaseStore:
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
                 "status": "eq.PAID",
                 "order": "expire_at.asc",
                 "limit": str(limit),
@@ -305,7 +305,7 @@ class SupabaseStore:
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
                 "status": "eq.PENDING",
                 "order": "created_at.asc",
                 "limit": str(limit),
@@ -318,7 +318,7 @@ class SupabaseStore:
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
                 "status": "in.(PAID,EXPIRED)",
                 "order": "expire_at.asc",
                 "limit": str(limit),
@@ -328,11 +328,12 @@ class SupabaseStore:
 
     def list_scheduler_due_orders(self, due_before, limit=1000):
         due_value = _parse_datetime(due_before) or str(due_before)
+        select_fields = "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata"
         paid_rows = self._request(
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": select_fields,
                 "status": "eq.PAID",
                 "expire_at": f"lte.{due_value}",
                 "order": "expire_at.asc",
@@ -347,7 +348,7 @@ class SupabaseStore:
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": select_fields,
                 "status": "eq.EXPIRED",
                 "order": "expire_at.asc",
                 "limit": str(remaining),
@@ -362,10 +363,38 @@ class SupabaseStore:
             "GET",
             "orders",
             params={
-                "select": "*",
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
                 "telegram_user_id": f"eq.{telegram_user_id}",
                 "status": "eq.PAID",
                 "order": "expire_at.desc",
+                "limit": str(limit),
+            },
+        )
+        return [_normalize_payment_provider(row) for row in rows]
+
+    def list_scheduler_expired_due_orders(self, limit=1000):
+        rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
+                "status": "eq.EXPIRED",
+                "order": "expire_at.asc",
+                "limit": str(limit),
+            },
+        )
+        return [_normalize_payment_provider(row) for row in rows]
+
+    def list_scheduler_reminder_due_orders(self, due_before, limit=1000):
+        due_value = _parse_datetime(due_before) or str(due_before)
+        rows = self._request(
+            "GET",
+            "orders",
+            params={
+                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
+                "status": "eq.PAID",
+                "expire_at": f"lte.{due_value}",
+                "order": "expire_at.asc",
                 "limit": str(limit),
             },
         )
