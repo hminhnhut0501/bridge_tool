@@ -1,0 +1,530 @@
+from __future__ import annotations
+
+import html
+import os
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+import requests
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from bot_instance import bot
+from config_utils import group_numbers
+from database import db
+from helpers import is_admin_user
+from hidden_group_utils import list_hidden_groups
+
+router = Router()
+
+ORDER_FIELDS = [
+    "telegram_user_id",
+    "full_name",
+    "plan_name",
+    "amount",
+    "duration_days",
+    "payment_currency",
+    "payment_provider",
+    "note",
+    "coupon_code",
+    "expire_at",
+    "activation_code",
+]
+
+FIELD_HINTS = {
+    "telegram_user_id": "Telegram ID",
+    "full_name": "Tên khách",
+    "plan_name": "Tên gói",
+    "amount": "Số tiền",
+    "duration_days": "Số ngày",
+    "payment_currency": "Currency",
+    "payment_provider": "Provider",
+    "note": "Ghi chú",
+    "coupon_code": "Coupon",
+    "expire_at": "Hạn dùng",
+    "activation_code": "Active code",
+}
+
+
+def _cfg(key: str, default: str = "") -> str:
+    try:
+        return str(db.get_config(key, default) or default).strip()
+    except Exception:
+        return default
+
+
+def _backend_base_url() -> str:
+    return _cfg("ADMIN_API_BASE_URL", os.getenv("ADMIN_API_BASE_URL", "http://127.0.0.1:8000"))
+
+
+def _admin_secret() -> str:
+    return _cfg("ADMIN_SECRET", os.getenv("ADMIN_SECRET", ""))
+
+
+def _http_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    secret = _admin_secret()
+    if secret:
+        headers["x-admin-secret"] = secret
+    return headers
+
+
+def _normalize_text(value: Any) -> str:
+    return html.escape(str(value or "").strip())
+
+
+def _parse_amount(text: str) -> float:
+    raw = str(text or "").strip().replace(",", ".")
+    return float(raw)
+
+
+def _parse_bool(text: str) -> bool:
+    return str(text or "").strip().lower() in {"1", "true", "yes", "on", "y", "có", "co"}
+
+
+def _field_index(field: str) -> int:
+    try:
+        return ORDER_FIELDS.index(field)
+    except ValueError:
+        return 0
+
+
+def _next_field(field: str) -> str:
+    idx = _field_index(field)
+    return ORDER_FIELDS[min(idx + 1, len(ORDER_FIELDS) - 1)]
+
+
+def _prev_field(field: str) -> str:
+    idx = _field_index(field)
+    return ORDER_FIELDS[max(idx - 1, 0)]
+
+
+def _field_label(field: str) -> str:
+    return FIELD_HINTS.get(field, field.replace("_", " ").title())
+
+
+def _forward_origin_user(message: Message):
+    forward_origin = getattr(message, "forward_origin", None)
+    if forward_origin and getattr(forward_origin, "sender_user", None):
+        return forward_origin.sender_user
+    return getattr(message, "forward_from", None)
+
+
+def _forward_origin_chat(message: Message):
+    forward_origin = getattr(message, "forward_origin", None)
+    if forward_origin and getattr(forward_origin, "chat", None):
+        return forward_origin.chat
+    return getattr(message, "forward_from_chat", None)
+
+
+def _smart_forward_text(message: Message) -> str:
+    parts: list[str] = []
+    user = _forward_origin_user(message)
+    if user:
+        uid = getattr(user, "id", None)
+        if uid is not None:
+            parts.append(f"ID: {uid}")
+        name = " ".join(
+            part
+            for part in [
+                str(getattr(user, "first_name", "") or "").strip(),
+                str(getattr(user, "last_name", "") or "").strip(),
+            ]
+            if part
+        ).strip()
+        if name:
+            parts.append(f"Name: {name}")
+        username = str(getattr(user, "username", "") or "").strip()
+        if username:
+            parts.append(f"@{username}")
+
+    chat = _forward_origin_chat(message)
+    if chat:
+        title = str(getattr(chat, "title", "") or getattr(chat, "first_name", "") or "").strip()
+        if title:
+            parts.append(title)
+        chat_id = getattr(chat, "id", None)
+        if chat_id is not None:
+            parts.append(f"ChatID: {chat_id}")
+
+    raw = str(message.text or message.caption or "").strip()
+    if raw:
+        parts.append(raw)
+
+    return " | ".join(parts)
+
+
+def _plan_candidates() -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str):
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            candidates.append(text)
+
+    try:
+        for group_no in group_numbers():
+            add(db.get_config(f"BTN_G{group_no}", ""))
+    except Exception:
+        pass
+
+    try:
+        for hidden_group in list_hidden_groups(include_inactive=False):
+            add(hidden_group.get("name") or "")
+    except Exception:
+        pass
+
+    return candidates
+
+
+@dataclass
+class OrderDraft:
+    admin_id: int
+    source_chat_id: int | None = None
+    source_message_id: int | None = None
+    customer_text: str = ""
+    telegram_user_id: str = ""
+    full_name: str = ""
+    plan_name: str = ""
+    amount: str = ""
+    duration_days: str = "30"
+    payment_currency: str = ""
+    payment_provider: str = ""
+    note: str = ""
+    coupon_code: str = ""
+    skip_join_link: bool = False
+    skip_active_code: bool = True
+    activation_code: str = ""
+    expire_at: str = ""
+    sale_id: str = "MANUAL"
+    step: str = "telegram_user_id"
+    created_at: float = field(default_factory=time.time)
+
+
+_DRAFTS: dict[int, OrderDraft] = {}
+
+
+def _get_draft(admin_id: int) -> OrderDraft | None:
+    return _DRAFTS.get(admin_id)
+
+
+def _set_draft(admin_id: int, draft: OrderDraft | None):
+    if draft is None:
+        _DRAFTS.pop(admin_id, None)
+    else:
+        _DRAFTS[admin_id] = draft
+
+
+def _fmt_customer_preview(text: str) -> str:
+    text = str(text or "").strip()
+    return text if len(text) <= 300 else text[:297] + "..."
+
+
+def _ensure_plan_name_hint(draft: OrderDraft):
+    candidates = _plan_candidates()
+    if not candidates:
+        return
+    if not draft.plan_name.strip():
+        draft.plan_name = candidates[0]
+
+
+def _advance_after_field(draft: OrderDraft, field: str):
+    if field in {"telegram_user_id", "full_name"}:
+        draft.step = "plan_name"
+    else:
+        draft.step = _next_field(field)
+
+
+def _apply_skip(draft: OrderDraft):
+    draft.step = _next_field(draft.step)
+
+
+def _set_field(draft: OrderDraft, field: str, text: str):
+    if field == "telegram_user_id":
+        draft.telegram_user_id = text
+    elif field == "full_name":
+        draft.full_name = text
+    elif field == "plan_name":
+        draft.plan_name = text
+    elif field == "amount":
+        draft.amount = str(_parse_amount(text))
+    elif field == "duration_days":
+        draft.duration_days = str(int(float(text)))
+    elif field == "payment_currency":
+        draft.payment_currency = text.upper()
+    elif field == "payment_provider":
+        draft.payment_provider = text.upper()
+    elif field == "note":
+        draft.note = text
+    elif field == "coupon_code":
+        draft.coupon_code = text.upper()
+    elif field == "expire_at":
+        draft.expire_at = text
+    elif field == "activation_code":
+        draft.skip_active_code = False
+        draft.activation_code = text.upper()
+    else:
+        draft.note = text
+
+
+def _draft_summary(draft: OrderDraft) -> str:
+    rows = [
+        "🧾 <b>Admin order wizard</b>",
+        f"• Forward text: <code>{_normalize_text(draft.customer_text or '-')}</code>",
+        f"• Telegram ID: <code>{_normalize_text(draft.telegram_user_id or '-')}</code>",
+        f"• Tên khách: <code>{_normalize_text(draft.full_name or '-')}</code>",
+        f"• Gói: <code>{_normalize_text(draft.plan_name or '-')}</code>",
+        f"• Số tiền: <code>{_normalize_text(draft.amount or '-')}</code>",
+        f"• Số ngày: <code>{_normalize_text(draft.duration_days or '-')}</code>",
+        f"• Provider: <code>{_normalize_text(draft.payment_provider or '-')}</code>",
+        f"• Currency: <code>{_normalize_text(draft.payment_currency or '-')}</code>",
+        f"• Note: <code>{_normalize_text(draft.note or '-')}</code>",
+        f"• Coupon: <code>{_normalize_text(draft.coupon_code or '-')}</code>",
+        f"• Bỏ join link: <code>{'YES' if draft.skip_join_link else 'NO'}</code>",
+        f"• Gen active code: <code>{'YES' if not draft.skip_active_code else 'NO'}</code>",
+        f"• Bước hiện tại: <code>{_normalize_text(draft.step)}</code>",
+    ]
+    candidates = _plan_candidates()
+    if candidates:
+        rows.append(f"• Gợi ý gói: <code>{_normalize_text(', '.join(candidates[:5]))}</code>")
+    return "\n".join(rows)
+
+
+def _keyboard(draft: OrderDraft):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Back", callback_data="admin_order:back")
+    kb.button(text="Skip", callback_data="admin_order:skip")
+    kb.button(text="ID", callback_data="admin_order:set:telegram_user_id")
+    kb.button(text="Tên", callback_data="admin_order:set:full_name")
+    kb.button(text="Gói", callback_data="admin_order:set:plan_name")
+    kb.button(text="Gợi ý gói", callback_data="admin_order:pick_plan")
+    kb.button(text="Tiền", callback_data="admin_order:set:amount")
+    kb.button(text="Ngày", callback_data="admin_order:set:duration_days")
+    kb.button(text="Provider", callback_data="admin_order:set:payment_provider")
+    kb.button(text="Currency", callback_data="admin_order:set:payment_currency")
+    kb.button(text="Note", callback_data="admin_order:set:note")
+    kb.button(text="Coupon", callback_data="admin_order:set:coupon_code")
+    kb.button(text="Hạn dùng", callback_data="admin_order:set:expire_at")
+    kb.button(text="Active code", callback_data="admin_order:set:activation_code")
+    kb.button(text="Toggle join", callback_data="admin_order:toggle:skip_join_link")
+    kb.button(text="Toggle active", callback_data="admin_order:toggle:skip_active_code")
+    kb.button(text="Tạo đơn", callback_data="admin_order:create")
+    kb.button(text="Hủy", callback_data="admin_order:cancel")
+    kb.adjust(2, 2, 2, 2, 2, 2, 2, 2, 2)
+    return kb.as_markup()
+
+
+async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""):
+    text = _draft_summary(draft)
+    prompt = f"• Đang nhập: <b>{_normalize_text(_field_label(draft.step))}</b>"
+    if notice:
+        text = f"{notice}\n\n{text}\n\n{prompt}"
+    else:
+        text = f"{text}\n\n{prompt}"
+    markup = _keyboard(draft)
+    if isinstance(message_or_callback, CallbackQuery):
+        try:
+            await message_or_callback.message.edit_text(text, reply_markup=markup)
+        except TelegramBadRequest:
+            await message_or_callback.message.answer(text, reply_markup=markup)
+        await message_or_callback.answer()
+    else:
+        await message_or_callback.answer(text, reply_markup=markup)
+
+
+def _start_draft_from_message(message: Message) -> OrderDraft:
+    user = _forward_origin_user(message)
+    chat = _forward_origin_chat(message)
+    forward_text = _smart_forward_text(message)
+    first_name = str(getattr(user, "first_name", "") or "").strip()
+    last_name = str(getattr(user, "last_name", "") or "").strip()
+    full_name = " ".join(part for part in [first_name, last_name] if part).strip()
+    if not full_name:
+        full_name = str(getattr(user, "username", "") or "").strip()
+    if not full_name and chat:
+        full_name = str(getattr(chat, "title", "") or getattr(chat, "first_name", "") or "").strip()
+
+    return OrderDraft(
+        admin_id=message.from_user.id,
+        source_chat_id=getattr(chat, "id", None),
+        source_message_id=getattr(message, "forward_from_message_id", None),
+        customer_text=_fmt_customer_preview(forward_text),
+        telegram_user_id=str(getattr(user, "id", "") or "").strip(),
+        full_name=full_name,
+    )
+
+
+async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
+    payload = {
+        "telegram_user_id": draft.telegram_user_id,
+        "full_name": draft.full_name,
+        "plan_name": draft.plan_name,
+        "amount": draft.amount,
+        "duration_days": draft.duration_days,
+        "payment_currency": draft.payment_currency,
+        "payment_provider": draft.payment_provider,
+        "note": draft.note,
+        "coupon_code": draft.coupon_code,
+        "skip_join_link": draft.skip_join_link,
+        "skip_active_code": draft.skip_active_code,
+        "activation_code": draft.activation_code,
+        "expire_at": draft.expire_at,
+        "sale_id": draft.sale_id,
+    }
+    resp = requests.post(
+        f"{_backend_base_url().rstrip('/')}/admin-api/manual-orders",
+        json=payload,
+        headers=_http_headers(),
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json().get("data") or {}
+
+
+@router.message(Command("admin_order"))
+async def cmd_admin_order(message: Message):
+    if not message.from_user or not is_admin_user(message.from_user.id):
+        return
+    draft = OrderDraft(admin_id=message.from_user.id)
+    _ensure_plan_name_hint(draft)
+    _set_draft(message.from_user.id, draft)
+    await _render_draft(message, draft, "Bắt đầu luồng tạo đơn thủ công.")
+
+
+@router.message(F.chat.type == "private", F.forward_date)
+async def admin_forward_to_order(message: Message):
+    if not message.from_user or not is_admin_user(message.from_user.id):
+        return
+    draft = _start_draft_from_message(message)
+    _ensure_plan_name_hint(draft)
+    _set_draft(message.from_user.id, draft)
+    await _render_draft(message, draft, "Đã nhận tin forward, bắt đầu nhập dữ liệu.")
+
+
+@router.callback_query(F.data.startswith("admin_order:"))
+async def admin_order_actions(callback: CallbackQuery):
+    if not callback.from_user or not is_admin_user(callback.from_user.id):
+        return
+    draft = _get_draft(callback.from_user.id)
+    if not draft:
+        await callback.answer("Không có draft nào đang mở.", show_alert=True)
+        return
+
+    _, action, *rest = (callback.data or "").split(":")
+
+    if action == "cancel":
+        _set_draft(callback.from_user.id, None)
+        await callback.message.edit_text("Đã hủy luồng tạo đơn.")
+        await callback.answer()
+        return
+
+    if action == "toggle":
+        field = rest[0] if rest else ""
+        if field == "skip_join_link":
+            draft.skip_join_link = not draft.skip_join_link
+        elif field == "skip_active_code":
+            draft.skip_active_code = not draft.skip_active_code
+        await _render_draft(callback, draft, "Đã cập nhật tuỳ chọn.")
+        return
+
+    if action == "back":
+        draft.step = _prev_field(draft.step)
+        await _render_draft(callback, draft, "Đã lùi về bước trước.")
+        return
+
+    if action == "skip":
+        skipped = draft.step
+        _apply_skip(draft)
+        await _render_draft(callback, draft, f"Đã bỏ qua bước <b>{_normalize_text(_field_label(skipped))}</b>.")
+        return
+
+    if action == "set":
+        draft.step = rest[0] if rest else "telegram_user_id"
+        if draft.step == "plan_name":
+            _ensure_plan_name_hint(draft)
+        await _render_draft(callback, draft, f"Nhập giá trị cho: <b>{_normalize_text(_field_label(draft.step))}</b>.")
+        return
+
+    if action == "pick_plan":
+        candidates = _plan_candidates()
+        if not candidates:
+            await callback.answer("Chưa có gói nào để gợi ý.", show_alert=True)
+            return
+        kb = InlineKeyboardBuilder()
+        for idx, plan_name in enumerate(candidates[:12]):
+            kb.button(text=plan_name, callback_data=f"admin_order:use_plan:{idx}")
+        kb.button(text="Back", callback_data="admin_order:back_to_main")
+        kb.adjust(1)
+        await callback.message.edit_text("Chọn plan_name có sẵn:", reply_markup=kb.as_markup())
+        await callback.answer()
+        return
+
+    if action == "back_to_main":
+        await _render_draft(callback, draft, "Quay lại wizard chính.")
+        return
+
+    if action == "use_plan":
+        idx = int(rest[0]) if rest and rest[0].isdigit() else -1
+        candidates = _plan_candidates()
+        if idx < 0 or idx >= len(candidates):
+            await callback.answer("Gói không hợp lệ.", show_alert=True)
+            return
+        draft.plan_name = candidates[idx]
+        draft.step = _next_field("plan_name")
+        await _render_draft(callback, draft, f"Đã chọn gói: <b>{_normalize_text(draft.plan_name)}</b>.")
+        return
+
+    if action == "create":
+        missing = [
+            label
+            for label, value in [
+                ("telegram_user_id", draft.telegram_user_id),
+                ("plan_name", draft.plan_name),
+            ]
+            if not str(value or "").strip()
+        ]
+        if missing:
+            await callback.answer(f"Thiếu: {', '.join(missing)}", show_alert=True)
+            return
+        try:
+            result = await _create_manual_order(draft)
+        except Exception as exc:
+            await callback.answer(f"Lỗi tạo đơn: {exc}", show_alert=True)
+            return
+        _set_draft(callback.from_user.id, None)
+        await callback.message.edit_text(
+            "✅ Đã tạo đơn.\n\n"
+            f"Order ID: <code>{_normalize_text(result.get('order_id') or '-')}</code>\n"
+            f"Activation: <code>{_normalize_text(result.get('activation_code') or '-')}</code>\n"
+            f"URL: <code>{_normalize_text(result.get('activation_url') or '-')}</code>"
+        )
+        await callback.answer()
+        return
+
+
+@router.message(F.chat.type == "private", ~F.forward_date)
+async def admin_order_capture(message: Message):
+    if not message.from_user or not is_admin_user(message.from_user.id):
+        return
+    draft = _get_draft(message.from_user.id)
+    if not draft:
+        return
+    text = str(message.text or message.caption or "").strip()
+    if not text or text.startswith("/"):
+        return
+
+    field = draft.step
+    try:
+        _set_field(draft, field, text)
+    except Exception as exc:
+        await message.answer(f"Giá trị không hợp lệ cho `{field}`: {exc}")
+        return
+
+    _advance_after_field(draft, field)
+    await _render_draft(message, draft, f"Đã cập nhật <b>{_normalize_text(field)}</b>.")

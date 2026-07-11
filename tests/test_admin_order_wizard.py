@@ -1,0 +1,76 @@
+from types import SimpleNamespace
+import asyncio
+
+import modules.mod_admin_order as mod_admin_order
+
+
+def test_admin_forward_starts_draft(monkeypatch):
+    message = SimpleNamespace(
+        text="Khách hỏi đơn",
+        caption="",
+        from_user=SimpleNamespace(id=887869657),
+        forward_date=1,
+        forward_origin=SimpleNamespace(
+            type="user",
+            sender_user=SimpleNamespace(id=555, first_name="An", last_name="Nguyen", username="an_n"),
+        ),
+    )
+    draft = mod_admin_order._start_draft_from_message(message)
+
+    assert draft.telegram_user_id == "555"
+    assert draft.full_name == "An Nguyen"
+    assert "ID: 555" in draft.customer_text
+    assert draft.step == "telegram_user_id"
+
+
+def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
+    monkeypatch.setattr(mod_admin_order, "_plan_candidates", lambda: ["VIP 30 Ngày", "SVIP+ 1 Tháng"])
+
+    draft = mod_admin_order.OrderDraft(admin_id=1, step="plan_name")
+    mod_admin_order._advance_after_field(draft, "telegram_user_id")
+    assert draft.step == "plan_name"
+
+    mod_admin_order._apply_skip(draft)
+    assert draft.step == "amount"
+
+    assert mod_admin_order._prev_field("plan_name") == "full_name"
+    assert mod_admin_order._next_field("plan_name") == "amount"
+    mod_admin_order._ensure_plan_name_hint(draft)
+    assert draft.plan_name == "VIP 30 Ngày"
+
+
+def test_admin_order_toggle_and_payload(monkeypatch):
+    draft = mod_admin_order.OrderDraft(
+        admin_id=1,
+        telegram_user_id="123",
+        full_name="User A",
+        plan_name="VIP 30 Ngày",
+        amount="100000",
+    )
+
+    monkeypatch.setattr(mod_admin_order, "_backend_base_url", lambda: "http://backend")
+    monkeypatch.setattr(mod_admin_order, "_admin_secret", lambda: "secret")
+
+    captured = {}
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": {"order_id": "1", "activation_code": "ABC123"}}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        return FakeResp()
+
+    monkeypatch.setattr(mod_admin_order.requests, "post", fake_post)
+
+    result = asyncio.run(mod_admin_order._create_manual_order(draft))
+
+    assert result["order_id"] == "1"
+    assert captured["url"] == "http://backend/admin-api/manual-orders"
+    assert captured["json"]["telegram_user_id"] == "123"
+    assert captured["headers"]["x-admin-secret"] == "secret"
