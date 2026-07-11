@@ -25,6 +25,8 @@ def test_admin_forward_starts_draft(monkeypatch):
 
 def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
     monkeypatch.setattr(mod_admin_order, "_plan_candidates", lambda: ["VIP 30 Ngày", "SVIP+ 1 Tháng"])
+    monkeypatch.setattr(mod_admin_order, "main_group_matches_plan", lambda no, name: str(no) == "1")
+    monkeypatch.setattr(mod_admin_order, "get_price", lambda price_key, default=0, currency="VND": (150000, None))
 
     draft = mod_admin_order.OrderDraft(admin_id=1, step="plan_name")
     mod_admin_order._advance_after_field(draft, "telegram_user_id")
@@ -37,6 +39,31 @@ def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
     assert mod_admin_order._next_field("plan_name") == "amount"
     mod_admin_order._ensure_plan_name_hint(draft)
     assert draft.plan_name == "VIP 30 Ngày"
+    assert draft.amount == "150000" or draft.amount == ""
+
+
+def test_plan_pricing_inference_autofills_hidden_or_main_plan(monkeypatch):
+    monkeypatch.setattr(mod_admin_order, "main_group_matches_plan", lambda no, name: False)
+    monkeypatch.setattr(mod_admin_order, "hidden_plan_group_id", lambda token: "prime_x")
+    monkeypatch.setattr(mod_admin_order, "hidden_plan_duration_key", lambda token: "LIFE")
+    monkeypatch.setattr(mod_admin_order, "is_hidden_plan_token", lambda token: True)
+    monkeypatch.setattr(mod_admin_order, "extract_plan_token", lambda name: "HG:prime_x:LIFE")
+    monkeypatch.setattr(mod_admin_order, "list_hidden_groups", lambda include_inactive=False: [{
+        "id": "prime_x",
+        "name": "Prime X",
+        "price_1m_vnd": 150000,
+        "price_life_vnd": 900000,
+        "price_1m_usd": 9.99,
+        "price_life_usd": 49.99,
+        "duration_1m_days": 30,
+        "lifetime_days": 3650,
+    }])
+
+    pricing = mod_admin_order._resolve_plan_pricing("Hidden - Prime X - Trọn Đời [PT:HG:prime_x:LIFE]", "PAYOS")
+
+    assert pricing["payment_currency"] == "VND"
+    assert pricing["duration_days"] == "3650"
+    assert pricing["amount"] == "900000"
 
 
 def test_admin_order_toggle_and_payload(monkeypatch):

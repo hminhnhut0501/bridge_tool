@@ -18,22 +18,19 @@ from config_utils import group_numbers
 from database import db
 from helpers import is_admin_user
 from hidden_group_utils import list_hidden_groups
+from sale_utils import get_price, localized_price_key
+from hidden_group_utils import (
+    build_hidden_plan_name,
+    extract_plan_token,
+    hidden_duration_days,
+    hidden_duration_price,
+    hidden_plan_duration_key,
+    hidden_plan_group_id,
+    is_hidden_plan_token,
+    main_group_matches_plan,
+)
 
 router = Router()
-
-ORDER_FIELDS = [
-    "telegram_user_id",
-    "full_name",
-    "plan_name",
-    "amount",
-    "duration_days",
-    "payment_currency",
-    "payment_provider",
-    "note",
-    "coupon_code",
-    "expire_at",
-    "activation_code",
-]
 
 FIELD_HINTS = {
     "telegram_user_id": "Telegram ID",
@@ -88,23 +85,28 @@ def _parse_bool(text: str) -> bool:
 
 def _field_index(field: str) -> int:
     try:
-        return ORDER_FIELDS.index(field)
+        return ALL_FIELDS.index(field)
     except ValueError:
         return 0
 
 
 def _next_field(field: str) -> str:
     idx = _field_index(field)
-    return ORDER_FIELDS[min(idx + 1, len(ORDER_FIELDS) - 1)]
+    return ALL_FIELDS[min(idx + 1, len(ALL_FIELDS) - 1)]
 
 
 def _prev_field(field: str) -> str:
     idx = _field_index(field)
-    return ORDER_FIELDS[max(idx - 1, 0)]
+    return ALL_FIELDS[max(idx - 1, 0)]
 
 
 def _field_label(field: str) -> str:
     return FIELD_HINTS.get(field, field.replace("_", " ").title())
+
+
+QUICK_FIELDS = ["telegram_user_id", "full_name", "plan_name"]
+EXTRA_FIELDS = ["payment_provider", "note", "coupon_code", "expire_at", "activation_code"]
+ALL_FIELDS = QUICK_FIELDS + ["amount", "duration_days", "payment_currency"] + EXTRA_FIELDS
 
 
 def _forward_origin_user(message: Message):
@@ -192,6 +194,60 @@ def _plan_candidates() -> list[str]:
     return candidates
 
 
+def _guess_lifetime(plan_name: str) -> bool:
+    text = str(plan_name or "").upper()
+    return any(token in text for token in {"TRỌN ĐỜI", "TRON DOI", "LIFE", "LIFETIME"})
+
+
+def _resolve_plan_pricing(plan_name: str, provider: str = "") -> dict[str, Any]:
+    text = str(plan_name or "").strip()
+    if not text:
+        return {"amount": "", "duration_days": "", "payment_currency": ""}
+
+    currency = "USD" if str(provider or "").upper() == "PAYPAL" else "VND"
+    token = extract_plan_token(text)
+
+    if is_hidden_plan_token(token):
+        group_id = hidden_plan_group_id(token)
+        duration_key = hidden_plan_duration_key(token) or ("LIFE" if _guess_lifetime(text) else "1M")
+        try:
+            hidden_group = next((item for item in list_hidden_groups(include_inactive=False) if str(item.get("id") or "") == group_id), None)
+            if hidden_group:
+                resolved_currency = currency
+                amount = hidden_duration_price(hidden_group, duration_key, resolved_currency)
+                days = hidden_duration_days(hidden_group, duration_key)
+                if amount > 0:
+                    return {
+                        "amount": str(amount),
+                        "duration_days": str(days),
+                        "payment_currency": resolved_currency,
+                    }
+        except Exception:
+            pass
+        return {"amount": "", "duration_days": "", "payment_currency": currency}
+
+    group_no = None
+    for no in group_numbers():
+        if main_group_matches_plan(no, text):
+            group_no = no
+            break
+    if group_no is None:
+        return {"amount": "", "duration_days": "", "payment_currency": currency}
+
+    life = _guess_lifetime(text)
+    price_key = localized_price_key(f"PRICE_G{group_no}_{'LIFE' if life else '1M'}", currency)
+    try:
+        amount, _sale = get_price(price_key, 0, currency)
+    except Exception:
+        amount = 0
+    duration_days = 3650 if life else 30
+    return {
+        "amount": str(amount) if amount else "",
+        "duration_days": str(duration_days),
+        "payment_currency": currency,
+    }
+
+
 @dataclass
 class OrderDraft:
     admin_id: int
@@ -241,6 +297,13 @@ def _ensure_plan_name_hint(draft: OrderDraft):
         return
     if not draft.plan_name.strip():
         draft.plan_name = candidates[0]
+    pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
+    if not draft.amount.strip() and pricing.get("amount"):
+        draft.amount = str(pricing["amount"])
+    if not draft.duration_days.strip() and pricing.get("duration_days"):
+        draft.duration_days = str(pricing["duration_days"])
+    if not draft.payment_currency.strip() and pricing.get("payment_currency"):
+        draft.payment_currency = str(pricing["payment_currency"])
 
 
 def _advance_after_field(draft: OrderDraft, field: str):
@@ -261,6 +324,13 @@ def _set_field(draft: OrderDraft, field: str, text: str):
         draft.full_name = text
     elif field == "plan_name":
         draft.plan_name = text
+        pricing = _resolve_plan_pricing(text, draft.payment_provider)
+        if pricing.get("amount") and not draft.amount.strip():
+            draft.amount = str(pricing["amount"])
+        if pricing.get("duration_days") and not draft.duration_days.strip():
+            draft.duration_days = str(pricing["duration_days"])
+        if pricing.get("payment_currency") and not draft.payment_currency.strip():
+            draft.payment_currency = str(pricing["payment_currency"])
     elif field == "amount":
         draft.amount = str(_parse_amount(text))
     elif field == "duration_days":
@@ -301,18 +371,26 @@ def _draft_summary(draft: OrderDraft) -> str:
     ]
     candidates = _plan_candidates()
     if candidates:
-        rows.append(f"• Gợi ý gói: <code>{_normalize_text(', '.join(candidates[:5]))}</code>")
+        rows.append(f"• Gợi ý gói: <code>{_normalize_text(', '.join(candidates[:3]))}</code>")
     return "\n".join(rows)
 
 
 def _keyboard(draft: OrderDraft):
     kb = InlineKeyboardBuilder()
-    kb.button(text="Back", callback_data="admin_order:back")
-    kb.button(text="Skip", callback_data="admin_order:skip")
+    kb.button(text="Chọn gói", callback_data="admin_order:pick_plan")
+    kb.button(text="Tạo đơn", callback_data="admin_order:create")
+    kb.button(text="More", callback_data="admin_order:more")
+    kb.button(text="Hủy", callback_data="admin_order:cancel")
+    kb.adjust(2, 2)
+    return kb.as_markup()
+
+
+def _more_keyboard():
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Back", callback_data="admin_order:back_to_main")
     kb.button(text="ID", callback_data="admin_order:set:telegram_user_id")
     kb.button(text="Tên", callback_data="admin_order:set:full_name")
     kb.button(text="Gói", callback_data="admin_order:set:plan_name")
-    kb.button(text="Gợi ý gói", callback_data="admin_order:pick_plan")
     kb.button(text="Tiền", callback_data="admin_order:set:amount")
     kb.button(text="Ngày", callback_data="admin_order:set:duration_days")
     kb.button(text="Provider", callback_data="admin_order:set:payment_provider")
@@ -323,15 +401,13 @@ def _keyboard(draft: OrderDraft):
     kb.button(text="Active code", callback_data="admin_order:set:activation_code")
     kb.button(text="Toggle join", callback_data="admin_order:toggle:skip_join_link")
     kb.button(text="Toggle active", callback_data="admin_order:toggle:skip_active_code")
-    kb.button(text="Tạo đơn", callback_data="admin_order:create")
-    kb.button(text="Hủy", callback_data="admin_order:cancel")
-    kb.adjust(2, 2, 2, 2, 2, 2, 2, 2, 2)
+    kb.adjust(2, 2, 2, 2, 2, 2, 2)
     return kb.as_markup()
 
 
 async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""):
     text = _draft_summary(draft)
-    prompt = f"• Đang nhập: <b>{_normalize_text(_field_label(draft.step))}</b>"
+    prompt = f"• Chờ: <b>{_normalize_text(_field_label(draft.step))}</b>"
     if notice:
         text = f"{notice}\n\n{text}\n\n{prompt}"
     else:
@@ -443,6 +519,14 @@ async def admin_order_actions(callback: CallbackQuery):
         await _render_draft(callback, draft, f"Đã bỏ qua bước <b>{_normalize_text(_field_label(skipped))}</b>.")
         return
 
+    if action == "more":
+        await callback.message.edit_text(
+            "Chọn trường nâng cao khi cần:",
+            reply_markup=_more_keyboard(),
+        )
+        await callback.answer()
+        return
+
     if action == "set":
         draft.step = rest[0] if rest else "telegram_user_id"
         if draft.step == "plan_name":
@@ -480,16 +564,20 @@ async def admin_order_actions(callback: CallbackQuery):
         return
 
     if action == "create":
-        missing = [
-            label
-            for label, value in [
-                ("telegram_user_id", draft.telegram_user_id),
-                ("plan_name", draft.plan_name),
-            ]
-            if not str(value or "").strip()
-        ]
+        _ensure_plan_name_hint(draft)
+        missing = [label for label, value in [("telegram_user_id", draft.telegram_user_id), ("plan_name", draft.plan_name)] if not str(value or "").strip()]
         if missing:
             await callback.answer(f"Thiếu: {', '.join(missing)}", show_alert=True)
+            return
+        pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
+        if not draft.amount.strip() and pricing.get("amount"):
+            draft.amount = str(pricing["amount"])
+        if not draft.duration_days.strip() and pricing.get("duration_days"):
+            draft.duration_days = str(pricing["duration_days"])
+        if not draft.payment_currency.strip() and pricing.get("payment_currency"):
+            draft.payment_currency = str(pricing["payment_currency"])
+        if not draft.amount.strip() or not draft.duration_days.strip() or not draft.payment_currency.strip():
+            await callback.answer("Thiếu dữ liệu suy luận từ gói. Mở More để nhập tay.", show_alert=True)
             return
         try:
             result = await _create_manual_order(draft)
@@ -515,8 +603,15 @@ async def admin_order_capture(message: Message):
     if _is_forwarded_message(message):
         draft = _start_draft_from_message(message)
         _ensure_plan_name_hint(draft)
+        pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
+        if pricing.get("amount"):
+            draft.amount = str(pricing["amount"])
+        if pricing.get("duration_days"):
+            draft.duration_days = str(pricing["duration_days"])
+        if pricing.get("payment_currency"):
+            draft.payment_currency = str(pricing["payment_currency"])
         _set_draft(message.from_user.id, draft)
-        await _render_draft(message, draft, "Đã nhận tin forward, bắt đầu nhập dữ liệu.")
+        await _render_draft(message, draft, "Đã nhận tin forward. Chỉ cần kiểm tra rồi bấm tạo.")
         return
 
     draft = _get_draft(message.from_user.id)
