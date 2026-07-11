@@ -34,6 +34,7 @@ from processor import escape_html, find_current_expire, find_current_expire_from
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_support_group, unmute_member
 from message_classifier_utils import classify_private_message
+from sale_utils import format_currency as format_money
 
 router = Router()
 log = logging.getLogger(__name__)
@@ -644,11 +645,11 @@ def hidden_buy_buttons(user_id, code, groups):
         price_1m = hidden_duration_price(group, "1M", currency)
         price_life = hidden_duration_price(group, "LIFE", currency)
         if price_1m > 0:
-            price_text = f"${price_1m}" if currency == "USD" else f"{int(price_1m):,}đ".replace(",", ".")
+            price_text = format_money(price_1m, currency)
             button_text = template.replace("{duration_label}", label_1m).replace("{name}", str(label)).replace("{price}", price_text).replace("{days}", str(hidden_duration_days(group, "1M"))).replace("{group_id}", str(group.get("id") or ""))
             kb.row(InlineKeyboardButton(text=button_text, callback_data=f"hgbuy|{code}|{group.get('id')}|1M"))
         if price_life > 0:
-            price_text = f"${price_life}" if currency == "USD" else f"{int(price_life):,}đ".replace(",", ".")
+            price_text = format_money(price_life, currency)
             button_text = template.replace("{duration_label}", label_life).replace("{name}", str(label)).replace("{price}", price_text).replace("{days}", str(hidden_duration_days(group, "LIFE"))).replace("{group_id}", str(group.get("id") or ""))
             kb.row(InlineKeyboardButton(text=button_text, callback_data=f"hgbuy|{code}|{group.get('id')}|LIFE"))
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", "Quay lại Menu"), callback_data="back_main"))

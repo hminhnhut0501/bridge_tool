@@ -45,13 +45,6 @@ def parse_datetime(value):
     return None
 
 
-def format_currency(amount):
-    try:
-        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
-    except (TypeError, ValueError):
-        return f"{amount}Đ"
-
-
 def format_duration(delta):
     total_seconds = max(0, int(delta.total_seconds()))
     days, remainder = divmod(total_seconds, 86400)

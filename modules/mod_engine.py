@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db, normalize_key
 from helpers import safe_delete_private_message
 from i18n import get_user_language, localize_page_id, localized_default, t_for_lang
-from sale_utils import format_price_label, localized_price_key, sale_banner, sale_placeholder
+from sale_utils import format_currency as format_money, format_price_label, localized_price_key, sale_banner, sale_placeholder
 
 router = Router()
 
@@ -19,13 +19,6 @@ async def safe_callback_answer(callback: CallbackQuery, text=None, show_alert=Fa
             print(f"⚠️ Bỏ qua callback answer quá hạn: {exc}")
             return
         raise
-
-def format_currency(amount):
-    """Định dạng tiền tệ VNĐ (VD: 3000 -> 3.000Đ)"""
-    try:
-        return "{:,.0f}Đ".format(float(amount)).replace(",", ".")
-    except:
-        return f"{amount}Đ"
 
 def process_dynamic_text(text, language=None):
     """Hàm quét và thay thế biến {KEY} thành giá trị thật từ tab Config"""
@@ -44,7 +37,7 @@ def process_dynamic_text(text, language=None):
             val = t_for_lang(language, key, "???") if language else db.get_config(key, "???")
             # Nếu biến đó là Giá tiền (chứa chữ PRICE), tự động làm đẹp số
             if "PRICE" in key and val != "???":
-                val = format_currency(val)
+                val = format_money(val, currency)
         text = text.replace(f"{{{key}}}", val)
     return text
 

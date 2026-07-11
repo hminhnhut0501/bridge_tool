@@ -76,8 +76,12 @@ def parse_datetime(value):
 def format_currency(amount, currency="VND"):
     try:
         value = float(amount)
-        if str(currency or "VND").upper() == "USD":
+        normalized = str(currency or "VND").upper()
+        if normalized == "USD":
             return f"${value:,.2f} USD"
+        if normalized in {"USDT", "TRC20", "USDT_TRC20", "CRYPTO"}:
+            label = normalized.replace("_TRC20", "")
+            return f"{value:,.6f}".rstrip("0").rstrip(".") + f" {label}"
         style = str(db.get_config("DISPLAY_CURRENCY_STYLE", "VND_LOWER")).strip().upper()
         suffix = str(db.get_config("DISPLAY_CURRENCY_SUFFIX", "đ"))
         compact_decimals = int(float(str(db.get_config("DISPLAY_CURRENCY_COMPACT_DECIMALS", "0")).strip()))

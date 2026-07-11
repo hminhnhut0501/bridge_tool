@@ -362,12 +362,13 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption = t(
             callback.from_user.id,
             "MSG_PAYPAL_BILL_TEMPLATE",
-            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>",
         ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
             .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or "USD")))
             .replace("{paypal_amount}", str(pay_data.get("paypal_amount") or ""))
+            .replace("${paypal_amount} USD", format_money(amount, str(pay_data.get("currency_code") or "USD")))
             .replace("{desc}", description)
         )
         caption += extra_caption

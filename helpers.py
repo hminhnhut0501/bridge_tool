@@ -11,6 +11,7 @@ import time
 from zoneinfo import ZoneInfo
 
 from database import db
+from sale_utils import format_currency as format_money
 from bot_instance import bot, is_spamming
 from i18n import t
 from supabase_store import supabase_store
@@ -483,21 +484,10 @@ def setup_bot_availability(dp):
     dp.message.outer_middleware(middleware)
     dp.callback_query.outer_middleware(middleware)
 
-def format_currency(amount):
-    """Định dạng tiền hiển thị. Số tiền gửi PayOS vẫn luôn là VND integer ở payment flow."""
+def format_currency(amount, currency="VND"):
+    """Định dạng tiền hiển thị dùng chung cho runtime."""
     try:
-        value = float(amount)
-        style = str(db.get_config("DISPLAY_CURRENCY_STYLE", "VND_LOWER")).strip().upper()
-        suffix = str(db.get_config("DISPLAY_CURRENCY_SUFFIX", "đ"))
-        compact_decimals = int(float(str(db.get_config("DISPLAY_CURRENCY_COMPACT_DECIMALS", "0")).strip()))
-        if style == "VND_TEXT":
-            return "{:,.0f} VNĐ".format(value).replace(",", ".")
-        if style == "COMPACT_K":
-            compact = value / 1000
-            return f"{compact:,.{compact_decimals}f}K".replace(",", ".")
-        if style == "CUSTOM_SUFFIX":
-            return "{:,.0f} {}".format(value, suffix).replace(",", ".")
-        return "{:,.0f}đ".format(value).replace(",", ".")
+        return format_money(amount, currency)
     except Exception:
         return f"{amount}Đ"
 

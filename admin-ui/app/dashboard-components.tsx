@@ -28,7 +28,7 @@ import { CheckCircle2, Loader2, Pencil, Save, Trash2, XCircle } from "lucide-rea
 import { type ReactNode, useId, useState, useEffect } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order } from "@/lib/api";
-import { dateText, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
+import { dateText, formatDisplayCurrency, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
 import { styleGuide } from "./style-guide";
 
 const statusPalette = {
@@ -258,7 +258,7 @@ export function RevenueBarChart({ title, subtitle, accent = "blue", items }: { t
       return (
         <Box sx={{ bgcolor: "rgba(15,23,42,0.9)", color: "#fff", p: 1.5, borderRadius: 2, boxShadow: "0 10px 25px rgba(0,0,0,0.2)", minWidth: 160 }}>
           <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.7)", mb: 1, fontWeight: 600 }}>{data.label}</Typography>
-          <Typography variant="body2" sx={{ fontWeight: 800, mb: 0.5, color: tone.main }}>{data.revenue.toLocaleString("vi-VN")}đ</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 800, mb: 0.5, color: tone.main }}>{formatDisplayCurrency(data.revenue, "VND")}</Typography>
           <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.8)" }}>Khách: {data.customers}</Typography>
           <Typography variant="caption" sx={{ display: "block", color: "rgba(255,255,255,0.8)" }}>AOV: {data.aov}</Typography>
         </Box>

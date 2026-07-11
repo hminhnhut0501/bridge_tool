@@ -83,6 +83,7 @@ import {
   isoDayKey,
   describeActivityEvent,
   displayText,
+  formatDisplayCurrency,
   formatRevenueCurrency,
   groupNamesForOrder,
   hiddenCodeSeed,
@@ -2441,11 +2442,11 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
     help: "Use {plan}, {amount}, {bank}, {name}, {stk}, {desc}.",
   },
   MSG_PAYPAL_BILL_TEMPLATE: {
-    placeholder: "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>${paypal_amount} USD</b>\n🧾 Order: <code>{desc}</code>",
+    placeholder: "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>",
     help: "Use {plan}, {amount}, {paypal_amount}, {desc}.",
   },
   MSG_TRON_USDT_BILL_TEMPLATE: {
-    placeholder: "₮ <b>USDT TRC20 PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <code>{usdt_amount} USDT</code>\n🌐 Network: <b>TRC20</b>\n👛 Receiving wallet:\n<code>{wallet}</code>\n🧾 Order: <code>{desc}</code>\n\nPlease send the exact USDT amount shown above. The bot will monitor the blockchain and grant access once the transaction is confirmed.",
+    placeholder: "₮ <b>USDT TRC20 PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <code>{amount}</code>\n🌐 Network: <b>TRC20</b>\n👛 Receiving wallet:\n<code>{wallet}</code>\n🧾 Order: <code>{desc}</code>\n\nPlease send the exact amount shown above. The bot will monitor the blockchain and grant access once the transaction is confirmed.",
     help: "Use {plan}, {amount}, {usdt_amount}, {wallet}, {desc}.",
   },
   MSG_CHOOSE_PAYMENT_PROVIDER: {
@@ -6701,13 +6702,13 @@ export default function Home() {
                   <div className="pricing-body">
                     <div className="pricing-tier">
                       <div className="tier-label">Gói 30 Ngày</div>
-                      <div className="tier-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0))}đ</div>
+                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0), "VND")}</div>
                       <div className="tier-desc">Cấp quyền VIP 1 tháng</div>
                     </div>
                     <div className="pricing-divider" />
                     <div className="pricing-tier highlight">
                       <div className="tier-label">Gói Trọn Đời</div>
-                      <div className="tier-price">{money(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0))}đ</div>
+                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0), "VND")}</div>
                       <div className="tier-desc">Cấp quyền VIP vĩnh viễn</div>
                     </div>
                   </div>
@@ -6726,13 +6727,13 @@ export default function Home() {
                   <div className="pricing-body">
                     <div className="pricing-tier">
                       <div className="tier-label">Gói 30 Ngày</div>
-                      <div className="tier-price">{getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "-") || "-"} USD</div>
+                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "0") || 0), "USD")}</div>
                       <div className="tier-desc">Thanh toán quốc tế 1 tháng</div>
                     </div>
                     <div className="pricing-divider" />
                     <div className="pricing-tier highlight">
                       <div className="tier-label">Gói Trọn Đời</div>
-                      <div className="tier-price">{getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "-") || "-"} USD</div>
+                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "0") || 0), "USD")}</div>
                       <div className="tier-desc">Thanh toán quốc tế vĩnh viễn</div>
                     </div>
                   </div>
@@ -6777,11 +6778,11 @@ export default function Home() {
                       <div className="bento-bottom">
                         <div className="bento-price-row">
                           <span className="price-label">Gói 30 ngày</span>
-                          <span className="price-value">{getConfigValue(config, `PRICE_G${item}_1M`, "-")}đ</span>
+                          <span className="price-value">{formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_1M`, "0") || 0), "VND")}</span>
                         </div>
                         <div className="bento-price-row">
                           <span className="price-label">Gói Trọn đời</span>
-                          <span className="price-value">{getConfigValue(config, `PRICE_G${item}_LIFE`, "-")}đ</span>
+                          <span className="price-value">{formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_LIFE`, "0") || 0), "VND")}</span>
                         </div>
                       </div>
                     </button>
@@ -7661,9 +7662,9 @@ export default function Home() {
                           <em>{item.chat_id || "Chưa có group ID"} • {hiddenRequirementLabel(item.requirement_type)} • {hiddenCodeUsageByGroup.get(item.id) || 0} mã đang trỏ vào</em>
                           <div className="tag-list">
                             <span>{item.is_active ? "Đang bán" : "Tạm tắt"}</span>
-                            <span>30 ngày {money(item.price_1m_vnd || 0)}</span>
-                            <span>Trọn đời {money(item.price_life_vnd || 0)}</span>
-                            <span>USD {Number(item.price_1m_usd || 0).toFixed(2)} / {Number(item.price_life_usd || 0).toFixed(2)}</span>
+                            <span>30 ngày {formatDisplayCurrency(Number(item.price_1m_vnd || 0), "VND")}</span>
+                            <span>Trọn đời {formatDisplayCurrency(Number(item.price_life_vnd || 0), "VND")}</span>
+                            <span>{formatDisplayCurrency(Number(item.price_1m_usd || 0), "USD")} / {formatDisplayCurrency(Number(item.price_life_usd || 0), "USD")}</span>
                             <span>{item.duration_1m_days}d / {item.lifetime_days}d</span>
                           </div>
                         </div>
@@ -9134,7 +9135,7 @@ export default function Home() {
                       </Box>
                       <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Doanh thu</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", mt: 0.5 }}>{money(selectedCustomer.revenue)}</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", mt: 0.5 }}>{formatDisplayCurrency(Number(selectedCustomer.revenue || 0), "VND")}</Typography>
                       </Box>
                     </Box>
 
@@ -9812,13 +9813,13 @@ function SummaryTable({ groups }: { groups: { label: string; items: Order[]; sta
           {groups.length ? groups.map((group) => (
             <tr key={group.label}>
               <td><strong>{group.label}</strong><div className="muted">{group.items.length} đơn</div></td>
-              <td>{money(group.stats.revenue)}</td>
+              <td>{formatDisplayCurrency(Number(group.stats.revenue || 0), "VND")}</td>
               <td>{group.stats.paid}</td>
               <td>{group.stats.pending}</td>
               <td>{group.stats.cancelled + group.stats.expired}</td>
               <td>{group.stats.customers}</td>
-              <td>{money(group.stats.averageOrder)}</td>
-              <td>{money(group.stats.discount)}</td>
+              <td>{formatDisplayCurrency(Number(group.stats.averageOrder || 0), "VND")}</td>
+              <td>{formatDisplayCurrency(Number(group.stats.discount || 0), "VND")}</td>
               <td>{group.stats.conversion}%</td>
             </tr>
           )) : (
