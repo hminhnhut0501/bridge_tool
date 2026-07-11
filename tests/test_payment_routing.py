@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from payment import payment_manager
-from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message, auto_payment_gate_snapshot
+from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message, auto_payment_gate_snapshot, resolve_purchase_offer
 from modules.mod_auto_payment_schedule import auto_payment_schedule_active, apply_auto_payment_schedule
 
 
@@ -277,6 +277,17 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
     ):
         assert has_prior_paid_vip_order("42") is True
         assert should_allow_auto_payment("42") is True
+
+
+def test_english_lifetime_all_access_keeps_lifetime_label_when_config_missing():
+    with patch("modules.mod_payment.localized_default", side_effect=lambda user_id, vi_default, en_default: en_default), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": default,
+    ):
+        offer = resolve_purchase_offer("buy_full_life", user_id="42", provider="PAYPAL")
+
+    assert "Lifetime" in offer["plan_name"]
+    assert offer["price_key"] == "PRICE_ALL_ACCESS_LIFE"
 
 
 def test_english_customer_uses_separate_auto_payment_flow():

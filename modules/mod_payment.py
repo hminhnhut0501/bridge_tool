@@ -278,14 +278,22 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         original_amount = max(0, parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_LIFE", currency), default_group), default_group, currency) - parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_1M", currency), default_group), default_group, currency))
     elif "full" in data:
         is_1m = "1m" in data
-        plan_name = config_text(user_id, "PLAN_ALL_ACCESS_30D" if is_1m else "PLAN_ALL_ACCESS_LIFE", "All Access")
+        plan_name = config_text(
+            user_id,
+            "PLAN_ALL_ACCESS_30D" if is_1m else "PLAN_ALL_ACCESS_LIFE",
+            localized_default(
+                user_id,
+                "All Access 30 Ngày" if is_1m else "All Access Trọn Đời",
+                "All Access 30 Days" if is_1m else "All Access Lifetime",
+            ),
+        )
         price_key = "PRICE_ALL_ACCESS_30D" if is_1m else "PRICE_ALL_ACCESS_LIFE"
         amount, sale_info = get_price(price_key, default_svip, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_svip), default_svip, currency)
     else:
         parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
-        plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_LIFE', 'Collection')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_LIFE', localized_default(user_id, 'Collection 30 Ngày', 'Collection 30 Days' if type_p == '1M' else 'Collection Lifetime'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
         price_key = f"PRICE_G{num}_{type_p}"
         amount, sale_info = get_price(price_key, default_group, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_group), default_group, currency)
