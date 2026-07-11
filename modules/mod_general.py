@@ -1,5 +1,6 @@
 import asyncio
 import html
+import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiogram import Router, F
@@ -13,6 +14,7 @@ from bot_links import normalize_bot_link_template
 from hidden_group_utils import display_plan_name, validate_hidden_code_for_user
 from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
+from helpers import bot_runtime_state
 from message_classifier_utils import classify_private_message
 from support_utils import create_support_invite_link
 from i18n import get_user_language, localized_default, set_user_language, t
@@ -98,6 +100,13 @@ def render_cfg(key, default, values=None):
     for item_key, item_value in (values or {}).items():
         text = text.replace(f"{{{item_key}}}", str(item_value or ""))
     return text.replace("\\n", "\n")
+
+
+def _compact_runtime_log(data: dict[str, object]) -> str:
+    try:
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, ensure_ascii=False, separators=(",", ":"))
 
 
 def normalize_manual_order_link_template(template: str) -> str:
@@ -752,10 +761,12 @@ async def cmd_start(message: Message):
             return
         unavailable_reason = bot_unavailable_reason()
         if unavailable_reason and not is_admin_user(message.from_user.id):
+            runtime_state = bot_runtime_state()
             print(
                 "🚀 cmd_start blocked "
                 f"user={message.from_user.id} reason={unavailable_reason} "
-                f"source=runtime unavailable_reason={unavailable_reason}"
+                f"runtime={_compact_runtime_log(runtime_state)} "
+                f"blocked_state={_compact_runtime_log({'reason': unavailable_reason})}"
             )
             if unavailable_reason == "schedule":
                 notice = db.get_config(
@@ -806,7 +817,13 @@ async def cmd_menu(message: Message):
 async def cmd_ping(message: Message):
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
-    await message.answer("pong")
+    runtime_state = bot_runtime_state()
+    unavailable_reason = bot_unavailable_reason()
+    await message.answer(
+        "pong\n"
+        f"runtime={_compact_runtime_log(runtime_state)}\n"
+        f"unavailable_reason={_compact_runtime_log({'reason': unavailable_reason})}"
+    )
 
 @router.message(Command("lang"))
 @router.message(Command("language"))

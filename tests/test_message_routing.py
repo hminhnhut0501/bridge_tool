@@ -165,6 +165,7 @@ def test_start_falls_back_when_protection_blocks(monkeypatch):
     monkeypatch.setattr(mod_general, "render_page", AsyncMock(return_value=False))
     monkeypatch.setattr(mod_general, "check_protection", AsyncMock(return_value=False))
     monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "")
+    monkeypatch.setattr(mod_general, "bot_runtime_state", lambda now=None: {"active": True, "source": "always"})
 
     asyncio.run(mod_general.cmd_start(message))
 
@@ -186,12 +187,16 @@ def test_ping_only_responds_for_admin(monkeypatch):
     )
 
     monkeypatch.setattr(mod_general, "is_admin_user", lambda user_id: user_id == 887869657)
+    monkeypatch.setattr(mod_general, "bot_runtime_state", lambda now=None: {"active": True, "source": "always"})
+    monkeypatch.setattr(mod_general, "bot_unavailable_reason", lambda now=None: "")
 
     asyncio.run(mod_general.cmd_ping(admin_message))
     asyncio.run(mod_general.cmd_ping(user_message))
 
     assert admin_message.answer.await_count == 1
     assert user_message.answer.await_count == 0
+    assert "runtime=" in admin_message.answer.await_args.args[0]
+    assert "unavailable_reason=" in admin_message.answer.await_args.args[0]
 
 
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
