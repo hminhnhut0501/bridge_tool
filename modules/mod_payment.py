@@ -262,7 +262,11 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     data = data.replace("confirm_", "buy_")
 
     if "upsell_full" in data:
-        plan_name = config_text(user_id, "PLAN_UPSELL_ALL_ACCESS", "All Access Trọn Đời (Nâng cấp)")
+        plan_name = config_text(
+            user_id,
+            "PLAN_UPSELL_ALL_ACCESS",
+            localized_default(user_id, "All Access Trọn Đời (Nâng cấp)", "All Access Lifetime (Upgrade)"),
+        )
         price_life, sale_life = get_price("PRICE_ALL_ACCESS_LIFE", default_svip, currency)
         price_1m, sale_1m = get_price("PRICE_ALL_ACCESS_30D", default_svip, currency)
         amount = max(0, price_life - price_1m)
@@ -270,7 +274,7 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         original_amount = max(0, parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_LIFE", currency), default_svip), default_svip, currency) - parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_30D", currency), default_svip), default_svip, currency))
     elif "upsell_G" in data:
         num = data.split("_")[1][1:]
-        plan_name = f"{config_text(user_id, 'PLAN_UPSELL_COLLECTION', 'Collection Trọn Đời (Nâng cấp)')} - {config_text(user_id, f'BTN_G{num}', f'Nhóm {num}')}"
+        plan_name = f"{config_text(user_id, 'PLAN_UPSELL_COLLECTION', localized_default(user_id, 'Collection Trọn Đời (Nâng cấp)', 'Collection Lifetime (Upgrade)'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
         price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", default_group, currency)
         price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", default_group, currency)
         amount = max(0, price_life - price_1m)

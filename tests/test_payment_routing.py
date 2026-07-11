@@ -290,6 +290,17 @@ def test_english_lifetime_all_access_keeps_lifetime_label_when_config_missing():
     assert offer["price_key"] == "PRICE_ALL_ACCESS_LIFE"
 
 
+def test_english_all_access_upsell_keeps_lifetime_label_when_config_missing():
+    with patch("modules.mod_payment.localized_default", side_effect=lambda user_id, vi_default, en_default: en_default), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": default,
+    ):
+        offer = resolve_purchase_offer("upsell_full", user_id="42", provider="PAYPAL")
+
+    assert "Lifetime" in offer["plan_name"]
+    assert offer["amount"] >= 0
+
+
 def test_english_customer_uses_separate_auto_payment_flow():
     class Store:
         enabled = True
