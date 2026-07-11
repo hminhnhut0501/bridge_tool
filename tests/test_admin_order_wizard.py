@@ -22,6 +22,15 @@ def test_admin_forward_starts_draft(monkeypatch):
     assert draft.step == "telegram_user_id"
 
 
+def test_admin_new_command_starts_empty_draft():
+    draft = mod_admin_order.OrderDraft(admin_id=1)
+
+    assert draft.telegram_user_id == ""
+    assert draft.plan_name == ""
+    assert draft.note == ""
+    assert draft.step == "telegram_user_id"
+
+
 def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
     monkeypatch.setattr(mod_admin_order, "_plan_candidates", lambda: ["VIP 30 Ngày", "SVIP+ 1 Tháng"])
     monkeypatch.setattr(mod_admin_order, "main_group_matches_plan", lambda no, name: str(no) == "1")
