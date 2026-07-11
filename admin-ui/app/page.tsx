@@ -1006,7 +1006,7 @@ const AUTO_PAYMENT_SUPPORT_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL",
     label: "Link chuyển sang hỗ trợ",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Ưu tiên để link nick admin hoặc link hỗ trợ thủ công. Dùng {payload}; backend sẽ tự tạo payload act_ có gói VIP, số tiền và ngôn ngữ. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
+    help: "Ưu tiên để link nick admin hoặc link hỗ trợ thủ công. Dùng {payload}; backend sẽ tự tạo payload act_ đồng bộ cho link kích hoạt. Nếu cấu hình dạng ...?start=act_ thì backend sẽ tự nối phần sau act_.",
   },
   {
     key: "MANUAL_SUPPORT_CONTACT_URL",
@@ -1042,7 +1042,7 @@ const AUTO_PAYMENT_SUPPORT_EN_FIELDS: ConfigField[] = [
     key: "MANUAL_SUPPORT_BOT_URL_EN",
     label: "Support redirect link (EN)",
     placeholder: "https://t.me/cuhotro_bot?start={payload}",
-    help: "Prefer a direct admin contact link or manual support link. Use {payload}; backend will generate act_ payload with VIP plan, amount and EN language. Can be ...?start={payload} or ...?start=act_.",
+    help: "Prefer a direct admin contact link or manual support link. Use {payload}; backend will generate a standardized act_ payload for activation links. Can be ...?start={payload} or ...?start=act_.",
   },
   {
     key: "MANUAL_SUPPORT_CONTACT_URL_EN",
@@ -1243,7 +1243,7 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_MENU_ENABLED",
-    label: "Hiện nút nhập coupon trong menu",
+    label: "Hiện nút nhập mã trong menu",
     placeholder: "OFF",
     help: "OFF sẽ ẩn các nút Menu Builder có action coupon_enter, coupon_code, redeem_code.",
     kind: "select",
@@ -1265,7 +1265,7 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_AUTO_REDEEM_ENABLED",
-    label: "Tự nhận diện mã coupon",
+    label: "Tự nhận diện mã",
     placeholder: "ON",
     help: "Bật ON để khách chỉ cần nhắn mã bắt đầu bằng prefix, không cần bấm menu nhập mã.",
     kind: "select",
@@ -1276,15 +1276,15 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_AUTO_REDEEM_PREFIXES",
-    label: "Prefix tự nhận diện coupon",
+    label: "Prefix tự nhận diện mã",
     placeholder: "HANGCU_",
     help: "Nhiều prefix thì cách nhau bằng dấu phẩy. Ví dụ: HANGCU_,VIP_",
   },
   {
     key: "COUPON_ABUSE_ENABLED",
-    label: "Chống dò coupon",
+    label: "Chống dò mã",
     placeholder: "ON",
-    help: "Giới hạn số lần nhập coupon theo cửa sổ thời gian.",
+    help: "Giới hạn số lần nhập mã theo cửa sổ thời gian.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1305,15 +1305,15 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_LOCK_MINUTES",
-    label: "Thời gian khóa nhập coupon",
+    label: "Thời gian khóa nhập mã",
     placeholder: "30",
-    help: "Số phút chặn nhập coupon khi vượt giới hạn.",
+    help: "Số phút chặn nhập mã khi vượt giới hạn.",
   },
   {
     key: "COUPON_ABUSE_NOTIFY_USER",
-    label: "Báo khách khi bị khóa coupon",
+    label: "Báo khách khi bị khóa mã",
     placeholder: "ON",
-    help: "Bật để gửi tin nhắn khi user bị giới hạn nhập coupon.",
+    help: "Bật để gửi tin nhắn khi user bị giới hạn nhập mã.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -1322,14 +1322,14 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_RATE_LIMITED",
-    label: "Tin giới hạn coupon",
+    label: "Tin giới hạn mã",
     placeholder: "⛔ Bạn nhập mã quá nhiều lần. Vui lòng thử lại sau {minutes} phút.",
     help: "Dùng biến {minutes}.",
     kind: "textarea",
   },
   {
     key: "COUPON_ABUSE_AUTO_BLACKLIST",
-    label: "Tự blacklist khi dò coupon",
+    label: "Tự blacklist khi dò mã",
     placeholder: "OFF",
     help: "Chỉ bật nếu muốn tự đưa user vượt giới hạn vào blacklist.",
     kind: "select",
@@ -1391,21 +1391,21 @@ const SYSTEM_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_CLEANUP_INITIAL_DELAY_SECONDS",
-    label: "Delay cleanup coupon khi boot",
+    label: "Delay cleanup mã khi boot",
     placeholder: "30",
-    help: "Số giây chờ trước worker cleanup coupon.",
+    help: "Số giây chờ trước worker cleanup mã.",
   },
   {
     key: "COUPON_CLEANUP_INTERVAL_HOURS",
-    label: "Chu kỳ cleanup coupon",
+    label: "Chu kỳ cleanup mã",
     placeholder: "12",
-    help: "Chu kỳ cleanup coupon runtime hiện tại.",
+    help: "Chu kỳ cleanup mã runtime hiện tại.",
   },
   {
     key: "COUPON_CLEANUP_AFTER_DAYS",
-    label: "Số ngày giữ coupon đã dùng",
+    label: "Số ngày giữ mã đã dùng",
     placeholder: "7",
-    help: "Số ngày giữ coupon/redemption đã dùng trước khi cleanup.",
+    help: "Số ngày giữ mã/redemption đã dùng trước khi cleanup.",
   },
   {
     key: "ANALYTICS_DAILY_RETENTION_DAYS",
@@ -1419,7 +1419,7 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_START", label: "Mô tả /start", placeholder: "Trang chủ / Mua gói", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_LANG", label: "Mô tả /lang", placeholder: "Đổi ngôn ngữ", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_ME", label: "Mô tả /me", placeholder: "Kiểm tra gói & Hạn dùng", help: "Mô tả lệnh Telegram." },
-  { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã giảm giá / mã kích hoạt", help: "Chỉ hiện khi bật lệnh /coupon." },
+  { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã kích hoạt / Enter activation code", help: "Chỉ hiện khi bật lệnh /coupon." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Nhắn admin trợ giúp", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
 ];
@@ -1450,7 +1450,7 @@ const PRIVATE_MENU_FIELDS: ConfigField[] = [
   { key: "BOT_MENU_PRIVATE_ME_ENABLED", label: "Hiện /me", placeholder: "ON", help: "Bật/tắt /me trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
   { key: "BOT_MENU_PRIVATE_SUPPORT_ENABLED", label: "Hiện /support", placeholder: "ON", help: "Bật/tắt /support trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
   { key: "BOT_MENU_PRIVATE_POLICY_ENABLED", label: "Hiện /policy", placeholder: "ON", help: "Bật/tắt /policy trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
-  { key: "BOT_MENU_PRIVATE_COUPON_ENABLED", label: "Hiện /coupon", placeholder: "ON", help: "Chỉ hiện nếu lệnh coupon đang bật.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_COUPON_ENABLED", label: "Hiện /coupon", placeholder: "ON", help: "Chỉ hiện nếu lệnh nhập mã đang bật.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
 ];
 
 const GROUP_MENU_FIELDS: ConfigField[] = [
@@ -1920,9 +1920,9 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_PROMPT",
-    label: "Tin yêu cầu nhập coupon",
-    placeholder: "<b>Nhập mã giảm giá / mã kích hoạt</b>\\n\\nGửi mã bạn nhận được vào đây.",
-    help: "Tin bot gửi khi khách bấm nhập coupon.",
+    label: "Tin yêu cầu nhập mã",
+    placeholder: "<b>Nhập mã kích hoạt / Enter activation code</b>\\n\\nGửi mã bạn nhận được vào đây.",
+    help: "Tin bot gửi khi khách bấm nhập mã.",
     kind: "textarea",
   },
   {
@@ -4345,12 +4345,12 @@ export default function Home() {
   function normalizeCouponPayload(source: typeof EMPTY_COUPON_FORM, codeOverride?: string) {
     const payload = { ...source, Code: (codeOverride || source.Code || randomHangcuCode()).trim().toUpperCase() };
     if (payload.Code.length > 32) {
-      throw new Error("Mã coupon nên tối đa 32 ký tự để nút Telegram hoạt động ổn định.");
+      throw new Error("Mã kích hoạt nên tối đa 32 ký tự để nút Telegram hoạt động ổn định.");
     }
     if (payload.Coupon_Type === "DISCOUNT") {
       const percent = Number(payload.Discount_Percent || 0);
       if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
-        throw new Error("Coupon giảm giá cần phần trăm từ 1 đến 99. Muốn miễn phí hãy dùng loại Kích hoạt miễn phí.");
+        throw new Error("Mã giảm giá cần phần trăm từ 1 đến 99. Muốn miễn phí hãy dùng loại Kích hoạt miễn phí.");
       }
       return payload;
     }
@@ -4362,7 +4362,7 @@ export default function Home() {
 
     const days = Number(payload.Duration_Days || 0);
     if (!Number.isFinite(days) || days <= 0) {
-      throw new Error("Coupon kích hoạt theo ngày cần số ngày sử dụng lớn hơn 0.");
+      throw new Error("Mã kích hoạt theo ngày cần số ngày sử dụng lớn hơn 0.");
     }
     return payload;
   }
@@ -4517,7 +4517,7 @@ export default function Home() {
   }
 
   async function removeCoupon(code = couponForm.Code) {
-    if (!code || !window.confirm(`Xoá coupon "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
+    if (!code || !window.confirm(`Xoá mã "${code}"? Lịch sử đã dùng vẫn được giữ riêng trong hệ thống.`)) return;
     await runAction(`coupon-delete-${code}`, async () => {
       await deleteCoupon(savedSecret, code);
       resetCouponForm();
@@ -7827,11 +7827,11 @@ export default function Home() {
         {tab === "coupons" ? (
           <section className="panel">
             <PanelHead
-              title="Coupon"
-              subtitle="Danh sách coupon được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong popup."
+              title="Mã"
+              subtitle="Danh sách mã được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong popup."
               action={
                   <div className="panel-actions">
-                  <Button variant="contained" size="small" onClick={openNewCouponModal} startIcon={<Plus size={16} />}>Thêm coupon</Button>
+                  <Button variant="contained" size="small" onClick={openNewCouponModal} startIcon={<Plus size={16} />}>Thêm mã</Button>
                 </div>
               }
             />
@@ -7892,7 +7892,7 @@ export default function Home() {
                     }
                     label="Gửi"
                   />
-                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeCoupon(pagedCoupons[idx].code); }} title="Xoá coupon">
+                  <IconButton color="error" size="small" onClick={(event) => { event.stopPropagation(); removeCoupon(pagedCoupons[idx].code); }} title="Xoá mã">
                     <Trash2 size={16} />
                   </IconButton>
                 </div>
@@ -7958,8 +7958,8 @@ export default function Home() {
           <div className="stack">
             <section className="panel">
               <PanelHead
-                title="Bảo mật bot và coupon"
-                subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
+                title="Bảo mật bot và mã kích hoạt"
+                subtitle="Chặn seller, ẩn menu nhập mã và chống dò mã. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSecuritySettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
@@ -8472,7 +8472,7 @@ export default function Home() {
         ) : null}
 
         {couponModalOpen ? (
-          <MuiDialogShell open title={couponForm.Code ? `Coupon ${couponForm.Code}` : "Thêm coupon"} subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này." onClose={() => setCouponModalOpen(false)} maxWidth="lg">
+          <MuiDialogShell open title={couponForm.Code ? `Mã ${couponForm.Code}` : "Thêm mã"} subtitle="Tạo mã giảm giá, mã kích hoạt hoặc gen nhiều mã cùng điều kiện trong popup này." onClose={() => setCouponModalOpen(false)} maxWidth="lg">
               <Box sx={{ display: "grid", gap: 1.5 }}>
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center", px: 2, pt: 1.5 }}>
                   <Button variant="outlined" onClick={generateCouponCode} startIcon={<RefreshCw size={16} />}>Gen mã HANGCU_</Button>
@@ -8480,10 +8480,10 @@ export default function Home() {
                   <Button variant="outlined" onClick={generateManyCoupons} startIcon={<RefreshCw size={16} />}>Gen nhiều cùng điều kiện</Button>
                 </Stack>
                 <Box sx={{ display: "grid", gap: 1.5 }}>
-                  <TextField className="field" label="Mã coupon" value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" fullWidth size="small" sx={popupFieldSx} />
+                  <TextField className="field" label="Mã kích hoạt" value={couponForm.Code} onChange={(event) => setCouponForm({ ...couponForm, Code: event.target.value.toUpperCase() })} placeholder="VD: VIP2026" fullWidth size="small" sx={popupFieldSx} />
                   <FormControl className="field" fullWidth size="small">
-                    <InputLabel id="coupon-type-label">Loại coupon</InputLabel>
-                    <Select labelId="coupon-type-label" label="Loại coupon" value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })} sx={popupSelectSx}>
+                    <InputLabel id="coupon-type-label">Loại mã</InputLabel>
+                    <Select labelId="coupon-type-label" label="Loại mã" value={couponForm.Coupon_Type} onChange={(event) => setCouponForm({ ...couponForm, Coupon_Type: event.target.value })} sx={popupSelectSx}>
                       <MenuItem value="DISCOUNT">Giảm giá khi mua QR</MenuItem>
                       <MenuItem value="ACTIVATION">Kích hoạt miễn phí</MenuItem>
                     </Select>
@@ -8505,7 +8505,7 @@ export default function Home() {
                       }}>{planKeyOptions.map((item) => <MenuItem key={item} value={item}>{planOptionLabel(item)}</MenuItem>)}</Select>
                         <Typography variant="caption" color="text.secondary">Chọn một gói cố định, hoặc để khách tự chọn collection lẻ sau khi nhập mã.</Typography>
                       </FormControl>
-                      <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời luôn dùng 10 năm = 3650 ngày." : "Dùng cho coupon kích hoạt theo ngày."} />
+                      <TextField className="field" label="Số ngày sử dụng" value={lifetimeCouponSelected ? lifetimeCouponDays : couponForm.Duration_Days} onChange={(event) => setCouponForm({ ...couponForm, Duration_Days: event.target.value })} placeholder="VD: 30" disabled={lifetimeCouponSelected} fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Gói trọn đời luôn dùng 10 năm = 3650 ngày." : "Dùng cho mã kích hoạt theo ngày."} />
                       <TextField className="field" label="Nhãn thời hạn" value={couponForm.Duration_Label} onChange={(event) => setCouponForm({ ...couponForm, Duration_Label: event.target.value })} placeholder="VD: 30 ngày, dùng thử, trọn đời" fullWidth size="small" sx={popupFieldSx} helperText={lifetimeCouponSelected ? "Để trống thì bot tự hiện “trọn đời”." : "Để trống thì bot tự dùng “N ngày”."} />
                       <TextField className="field" label="Mẫu tên gói" value={couponForm.Plan_Name_Template} onChange={(event) => setCouponForm({ ...couponForm, Plan_Name_Template: event.target.value })} placeholder="Collection {duration_label} - {group}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Lưu vào đơn và hiện trong tin thành công. Dùng {"{duration_label}"}, {"{days}"}, {"{group}"}.</span>} />
                       <TextField className="field" label="Mẫu nút chọn collection" value={couponForm.Button_Template} onChange={(event) => setCouponForm({ ...couponForm, Button_Template: event.target.value })} placeholder="{plan_name}" fullWidth size="small" sx={popupFieldSx} helperText={<span>Dùng khi khách tự chọn collection. Dùng {"{plan_name}"}, {"{duration_label}"}, {"{group}"}.</span>} />
@@ -8544,8 +8544,8 @@ export default function Home() {
               </Box>
               <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", p: 2, borderTop: 1, borderColor: "divider" }}>
                 <Button variant="outlined" onClick={() => setCouponModalOpen(false)}>Đóng</Button>
-                <Button variant="outlined" color="error" onClick={() => removeCoupon()} disabled={!couponForm.Code} startIcon={<Trash2 size={16} />}>Xoá coupon</Button>
-                <Button variant="contained" onClick={saveCoupon} startIcon={<Gift size={16} />}>Lưu coupon</Button>
+                <Button variant="outlined" color="error" onClick={() => removeCoupon()} disabled={!couponForm.Code} startIcon={<Trash2 size={16} />}>Xoá mã</Button>
+                <Button variant="contained" onClick={saveCoupon} startIcon={<Gift size={16} />}>Lưu mã</Button>
               </Stack>
           </MuiDialogShell>
         ) : null}
@@ -8627,7 +8627,7 @@ export default function Home() {
               <Alert severity={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "success" : "warning"} variant="outlined">
                 {String(orderEditorForm.status || "").toUpperCase() === "PAID"
                   ? "Đơn PAID: có thể chỉnh đầy đủ các trường quan trọng."
-                  : "Đơn chưa PAID: ưu tiên sửa trạng thái, tên gói, coupon và ghi chú; hạn/paid_at đang khóa để tránh lệch luồng."}
+                  : "Đơn chưa PAID: ưu tiên sửa trạng thái, tên gói, mã và ghi chú; hạn/paid_at đang khóa để tránh lệch luồng."}
               </Alert>
               <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
                 <TextField select label="Trạng thái" value={orderEditorForm.status} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, status: event.target.value })} size="small" fullWidth>
@@ -8676,7 +8676,7 @@ export default function Home() {
                   disabled={String(orderEditorForm.status || "").toUpperCase() !== "PAID"}
                   helperText={String(orderEditorForm.status || "").toUpperCase() === "PAID" ? "Giữ đồng bộ với thời hạn cấp quyền." : "Chỉ mở khi đơn đã PAID."}
                 />
-                <TextField label="Coupon code" value={orderEditorForm.coupon_code} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, coupon_code: event.target.value.toUpperCase() })} size="small" fullWidth helperText="Mã coupon gắn với đơn nếu có." />
+                <TextField label="Mã kích hoạt" value={orderEditorForm.coupon_code} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, coupon_code: event.target.value.toUpperCase() })} size="small" fullWidth helperText="Mã gắn với đơn nếu có." />
                 <TextField label="Ghi chú nội bộ" value={orderEditorForm.note} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, note: event.target.value })} size="small" fullWidth multiline minRows={3} helperText="Thông tin riêng cho admin / đối soát." />
               </Box>
               <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider" }}>
@@ -8723,7 +8723,7 @@ export default function Home() {
         ) : null}
 
         {securitySettingsOpen ? (
-          <SettingsConfigModal title="Bảo mật bot và coupon" subtitle="Chặn seller, ẩn menu nhập mã và chống dò coupon. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_." fields={SECURITY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSecuritySettingsOpen(false)} />
+          <SettingsConfigModal title="Bảo mật bot và mã kích hoạt" subtitle="Chặn seller, ẩn menu nhập mã và chống dò mã. Mặc định khách chỉ cần nhắn mã bắt đầu bằng HANGCU_." fields={SECURITY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSecuritySettingsOpen(false)} />
         ) : null}
 
         {systemSettingsOpen ? (
@@ -8978,7 +8978,7 @@ export default function Home() {
                     helperText={manualOrderForm.special_group_id ? "Tên sẽ tự khớp theo Special Group đã chọn." : manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
                     slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" && !manualOrderForm.special_group_id } }}
                   />
-                  <TextField label="Coupon / ghi chú mã" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
+                  <TextField label="Mã / ghi chú" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
 
                 {/* Cột phải: Thanh toán & hạn dùng */}
@@ -9154,7 +9154,7 @@ export default function Home() {
 
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
                       {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
-                      {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Coupon: ${item}`), "c") : null}
+                      {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Mã: ${item}`), "c") : null}
                     </Box>
                   </Box>
 
@@ -9730,7 +9730,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
                   <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.25 }}>
-                  <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{orderAmountValue(order) === 0 ? "Free" : orderMoney(order, order.coupon_discount_amount)})</span> : "Không coupon"}
+                  <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{orderAmountValue(order) === 0 ? "Free" : orderMoney(order, order.coupon_discount_amount)})</span> : "Không mã"}
                 </Typography>
               </Box>
 
