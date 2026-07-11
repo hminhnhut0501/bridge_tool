@@ -962,6 +962,14 @@ async def coupon_code_received(message: Message, state: FSMContext):
 async def coupon_auto_code_received(message: Message):
     if not message.text:
         return
+    if message.chat.type == "private" and message.from_user:
+        try:
+            from modules.mod_admin_order import _get_draft, _is_forwarded_message
+
+            if (_is_forwarded_message(message) and is_admin_user(message.from_user.id)) or _get_draft(message.from_user.id):
+                return
+        except Exception:
+            pass
     classified = classify_private_message(message, coupon_prefixes=coupon_auto_prefixes())
     if classified["kind"] not in {"coupon", "hidden"}:
         return
