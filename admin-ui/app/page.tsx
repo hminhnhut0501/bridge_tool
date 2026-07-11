@@ -2180,6 +2180,12 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Fallback nếu rule không khớp riêng.",
   },
   {
+    key: "MSG_HIDDEN_DEEPLINK_INVALID",
+    label: "Hidden deeplink sai",
+    placeholder: "❌ Link mua hidden không hợp lệ.",
+    help: "Tin hiển thị khi payload /start hidden bị sai format.",
+  },
+  {
     key: "TXT_ALL_ACCESS_DESCRIPTION",
     label: "Mô tả trang All Access",
     placeholder: "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
@@ -2625,6 +2631,10 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
   MSG_HIDDEN_REQUIREMENT_GENERIC: {
     placeholder: "Your account is not eligible to unlock this code.",
     help: "Fallback when the requirement does not match a specific message.",
+  },
+  MSG_HIDDEN_DEEPLINK_INVALID: {
+    placeholder: "❌ This hidden purchase link is invalid.",
+    help: "Shown when the hidden /start payload has an invalid format.",
   },
 };
 const MESSAGE_EN_FIELDS_WITH_DEFAULTS = MESSAGE_EN_FIELDS.map((field) => ({ ...field, ...MESSAGE_EN_PAYMENT_OVERRIDES[field.key] }));

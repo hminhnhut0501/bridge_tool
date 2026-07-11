@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart, Command
 from database import db
 from bot_instance import bot
 from bot_links import normalize_bot_link_template
-from hidden_group_utils import display_plan_name
+from hidden_group_utils import display_plan_name, validate_hidden_code_for_user
 from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
 from message_classifier_utils import classify_private_message
@@ -20,6 +20,7 @@ from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page,
 from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
+from processor import escape_html
 
 router = Router()
 
@@ -55,6 +56,41 @@ def language_from_start_payload(payload: str) -> str | None:
 def is_language_only_start_payload(payload: str) -> bool:
     normalized = str(payload or "").strip().lower()
     return normalized in {"en", "english", "lang_en", "l_en", "vi", "vietnamese", "lang_vi", "l_vi"}
+
+
+def parse_hidden_start_payload(payload: str):
+    text = str(payload or "").strip()
+    lower = text.lower()
+    if lower.startswith("hg_"):
+        code = text[3:].strip()
+        return {"kind": "hidden_catalog", "code": code}
+    if lower.startswith("hgbuy_"):
+        raw = text[6:].strip()
+        if "__" in raw:
+            parts = raw.split("__")
+            if len(parts) != 3:
+                return {"kind": "hidden_buy", "error": "invalid_format"}
+            code, group_id, duration = [part.strip() for part in parts]
+            return {"kind": "hidden_buy", "code": code, "group_id": group_id, "duration": duration.upper()}
+        parts = raw.split("_")
+        if len(parts) < 3:
+            return {"kind": "hidden_buy", "error": "invalid_format"}
+        duration = parts[-1].strip().upper()
+        group_id = parts[-2].strip()
+        code = "_".join(parts[:-2]).strip()
+        return {"kind": "hidden_buy", "code": code, "group_id": group_id, "duration": duration}
+    return None
+
+
+class StartPayloadCallback:
+    def __init__(self, message: Message, data: str):
+        self.message = message
+        self.from_user = message.from_user
+        self.data = data
+
+    async def answer(self, text=None, show_alert=False):
+        if text:
+            await self.message.answer(str(text), parse_mode="HTML")
 
 
 def render_cfg(key, default, values=None):
@@ -655,6 +691,40 @@ async def cmd_start(message: Message):
                 )
                 await deliver_manual_order_message(message, activation_code)
                 return
+            hidden_payload = parse_hidden_start_payload(normalized)
+            if hidden_payload:
+                from modules.mod_coupon import send_hidden_code_catalog
+                from modules.mod_payment import hidden_offer_for_action, process_hidden_buy_request
+
+                hidden_code_text = str(hidden_payload.get("code") or "").strip()
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_hidden_code",
+                    source_ref=hidden_code_text,
+                )
+                if hidden_payload.get("kind") == "hidden_catalog":
+                    hidden_code, hidden_reason = validate_hidden_code_for_user(hidden_code_text, message.from_user.id)
+                    if hidden_code:
+                        await send_hidden_code_catalog(message, hidden_code_text, hidden_code)
+                        return
+                    await message.answer(f"❌ {escape_html(hidden_reason or t(message.from_user.id, 'MSG_HIDDEN_NOT_FOUND', 'Mã hidden không tồn tại.'))}", parse_mode="HTML")
+                    return
+                if hidden_payload.get("kind") == "hidden_buy":
+                    if hidden_payload.get("error"):
+                        await message.answer(t(message.from_user.id, "MSG_HIDDEN_DEEPLINK_INVALID", "❌ Link mua hidden không hợp lệ."), parse_mode="HTML")
+                        return
+                    duration = str(hidden_payload.get("duration") or "").upper()
+                    if duration not in {"1M", "LIFE"}:
+                        await message.answer(t(message.from_user.id, "MSG_HIDDEN_DEEPLINK_INVALID", "❌ Link mua hidden không hợp lệ."), parse_mode="HTML")
+                        return
+                    action = f"hgbuy|{hidden_code_text}|{hidden_payload.get('group_id')}|{duration}"
+                    offer = hidden_offer_for_action(action, message.from_user.id)
+                    if offer.get("error"):
+                        await message.answer(f"❌ {escape_html(str(offer['error']))}", parse_mode="HTML")
+                        return
+                    await process_hidden_buy_request(StartPayloadCallback(message, action))
+                    return
             if classified["kind"] == "activation":
                 activation_code = classified["code"]
                 print(f"🚀 cmd_start activation payload user={message.from_user.id} activation_code={activation_code}")
