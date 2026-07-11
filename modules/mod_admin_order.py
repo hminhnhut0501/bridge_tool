@@ -423,6 +423,7 @@ async def cmd_admin_order(message: Message):
 @router.message(Command("new"))
 async def cmd_new_admin_order(message: Message):
     if not message.from_user or not is_admin_user(message.from_user.id):
+        await message.answer("admin only")
         return
     draft = OrderDraft(admin_id=message.from_user.id)
     _set_draft(message.from_user.id, draft)

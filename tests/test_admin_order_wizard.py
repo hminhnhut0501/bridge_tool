@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import asyncio
+from unittest.mock import AsyncMock
 
 import modules.mod_admin_order as mod_admin_order
 
@@ -29,6 +30,21 @@ def test_admin_new_command_starts_empty_draft():
     assert draft.plan_name == ""
     assert draft.note == ""
     assert draft.step == "telegram_user_id"
+
+
+def test_new_command_replies_admin_only_for_non_admin():
+    message = SimpleNamespace(
+        text="/new",
+        from_user=SimpleNamespace(id=123),
+        chat=SimpleNamespace(id=789, type="private"),
+        answer=AsyncMock(),
+    )
+
+    mod_admin_order.is_admin_user = lambda user_id: False
+    asyncio.run(mod_admin_order.cmd_new_admin_order(message))
+
+    assert message.answer.await_count == 1
+    assert message.answer.await_args.args[0] == "admin only"
 
 
 def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
