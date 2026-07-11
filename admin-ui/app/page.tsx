@@ -2102,6 +2102,18 @@ const MESSAGE_FIELDS: ConfigField[] = [
     help: "Mẫu text nút mua hidden group. Dùng {duration_label}, {name}, {price}, {days}, {group_id}.",
   },
   {
+    key: "LABEL_HIDDEN_DURATION_1M",
+    label: "Nhãn hidden 30 ngày",
+    placeholder: "30 ngày",
+    help: "Text thay cho {duration_label} khi nút mua hidden là gói 30 ngày.",
+  },
+  {
+    key: "LABEL_HIDDEN_DURATION_LIFE",
+    label: "Nhãn hidden trọn đời",
+    placeholder: "trọn đời",
+    help: "Text thay cho {duration_label} khi nút mua hidden là gói trọn đời.",
+  },
+  {
     key: "MSG_HIDDEN_NOT_FOUND",
     label: "Hidden không tồn tại",
     placeholder: "Mã hidden không tồn tại.",
@@ -2211,8 +2223,9 @@ const AUTO_PAYMENT_MESSAGE_EN_KEYS = new Set([
   "MSG_MANUAL_SUPPORT_REDIRECT_EN",
 ]);
 
-const HIDDEN_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => field.key.startsWith("MSG_HIDDEN_"));
-const VISIBLE_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => !field.key.startsWith("MSG_HIDDEN_") && !AUTO_PAYMENT_MESSAGE_KEYS.has(field.key));
+const HIDDEN_MESSAGE_FIELD_KEYS = new Set(["BTN_HIDDEN_BUY_TEMPLATE", "LABEL_HIDDEN_DURATION_1M", "LABEL_HIDDEN_DURATION_LIFE"]);
+const HIDDEN_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => field.key.startsWith("MSG_HIDDEN_") || HIDDEN_MESSAGE_FIELD_KEYS.has(field.key));
+const VISIBLE_MESSAGE_FIELDS = MESSAGE_FIELDS.filter((field) => !field.key.startsWith("MSG_HIDDEN_") && !HIDDEN_MESSAGE_FIELD_KEYS.has(field.key) && !AUTO_PAYMENT_MESSAGE_KEYS.has(field.key));
 
 const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_BACK", label: "Nút quay lại", placeholder: "🔙 Quay lại Menu", help: "Dùng ở hầu hết trang bot." },
@@ -2561,6 +2574,14 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
     placeholder: "Buy {duration_label} - {name} - {price}",
     help: "Template for hidden group purchase buttons. Uses {duration_label}, {name}, {price}, {days}, {group_id}.",
   },
+  LABEL_HIDDEN_DURATION_1M: {
+    placeholder: "30 days",
+    help: "Text used for {duration_label} on hidden 30-day purchase buttons.",
+  },
+  LABEL_HIDDEN_DURATION_LIFE: {
+    placeholder: "lifetime",
+    help: "Text used for {duration_label} on hidden lifetime purchase buttons.",
+  },
   MSG_HIDDEN_NOT_FOUND: {
     placeholder: "Hidden code not found.",
     help: "Shown when the user enters an invalid code.",
@@ -2569,9 +2590,46 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
     placeholder: "This hidden code is disabled.",
     help: "Shown when the code is turned off.",
   },
+  MSG_HIDDEN_NOT_STARTED: {
+    placeholder: "This hidden code is not open yet.",
+    help: "Shown when valid_from is still in the future.",
+  },
+  MSG_HIDDEN_EXPIRED: {
+    placeholder: "This hidden code has expired.",
+    help: "Shown when valid_until has passed.",
+  },
+  MSG_HIDDEN_LIMIT_REACHED: {
+    placeholder: "This hidden code has reached its usage limit.",
+    help: "Shown when the code has reached max uses.",
+  },
+  MSG_HIDDEN_NO_GROUPS: {
+    placeholder: "This code is valid, but no hidden group is currently available.",
+    help: "Shown when the code is valid but no active hidden group remains.",
+  },
+  MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE: {
+    placeholder: "You need an active All Access plan to unlock this code.",
+    help: "Shown when the rule requires an active All Access plan.",
+  },
+  MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME: {
+    placeholder: "You need a lifetime All Access plan to unlock this code.",
+    help: "Shown when the rule requires lifetime All Access.",
+  },
+  MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE: {
+    placeholder: "You need an active {plan_token} plan to unlock this code.",
+    help: "Shown when the rule requires an active plan token.",
+  },
+  MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_LIFETIME: {
+    placeholder: "You need a lifetime {plan_token} plan to unlock this code.",
+    help: "Shown when the rule requires a lifetime plan token.",
+  },
+  MSG_HIDDEN_REQUIREMENT_GENERIC: {
+    placeholder: "Your account is not eligible to unlock this code.",
+    help: "Fallback when the requirement does not match a specific message.",
+  },
 };
 const MESSAGE_EN_FIELDS_WITH_DEFAULTS = MESSAGE_EN_FIELDS.map((field) => ({ ...field, ...MESSAGE_EN_PAYMENT_OVERRIDES[field.key] }));
-const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS_WITH_DEFAULTS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key));
+const VISIBLE_MESSAGE_EN_FIELDS = MESSAGE_EN_FIELDS_WITH_DEFAULTS.filter((field) => !AUTO_PAYMENT_MESSAGE_EN_KEYS.has(field.key) && !field.key.startsWith("MSG_HIDDEN_") && !HIDDEN_MESSAGE_FIELD_KEYS.has(field.key.replace(/_EN$/, "")));
+const HIDDEN_MESSAGE_EN_FIELDS = localizedFields(HIDDEN_MESSAGE_FIELDS, "EN").map((field) => ({ ...field, ...MESSAGE_EN_PAYMENT_OVERRIDES[field.key] }));
 const COMMAND_EN_FIELDS = localizedFields(COMMAND_FIELDS, "EN");
 const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field) => field.key !== "SALE_ANNOUNCE_ENABLED"), "EN");
 
@@ -8081,8 +8139,8 @@ export default function Home() {
         {specialGroupSettingsOpen ? (
           <SettingsConfigModal
             title="Cài đặt tin nhắn Special Group"
-            subtitle="Toàn bộ text hiển thị khi khách nhập mã special, gặp lỗi, hoặc không đủ điều kiện mở khóa."
-            fields={HIDDEN_MESSAGE_FIELDS}
+            subtitle="Toàn bộ text VI/EN hiển thị khi khách nhập mã special, gặp lỗi, hoặc không đủ điều kiện mở khóa."
+            fields={[...HIDDEN_MESSAGE_FIELDS, ...HIDDEN_MESSAGE_EN_FIELDS]}
             values={fieldValues}
             setValues={setFieldValues}
             onSave={saveFields}
