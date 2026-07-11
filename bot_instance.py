@@ -41,6 +41,7 @@ async def set_commands():
     add_if(private_commands, "BOT_MENU_PRIVATE_ME_ENABLED", "me", "BOT_COMMAND_DESC_ME", "Kiểm tra gói & Hạn dùng")
     add_if(private_commands, "BOT_MENU_PRIVATE_SUPPORT_ENABLED", "support", "BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")
     add_if(private_commands, "BOT_MENU_PRIVATE_POLICY_ENABLED", "policy", "BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")
+    private_commands.insert(0, BotCommand(command="new", description="Tạo đơn mới cho admin"))
 
     add_if(group_commands, "BOT_MENU_GROUP_START_ENABLED", "start", "BOT_COMMAND_DESC_START", "Trang chủ / Mua gói")
     add_if(group_commands, "BOT_MENU_GROUP_LANG_ENABLED", "lang", "BOT_COMMAND_DESC_LANG", "Đổi ngôn ngữ")
