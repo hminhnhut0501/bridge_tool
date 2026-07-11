@@ -171,6 +171,29 @@ def test_start_falls_back_when_protection_blocks(monkeypatch):
     assert message.answer.await_count == 1
 
 
+def test_ping_only_responds_for_admin(monkeypatch):
+    admin_message = SimpleNamespace(
+        text="/ping",
+        from_user=SimpleNamespace(id=887869657),
+        chat=SimpleNamespace(id=789, type="private"),
+        answer=AsyncMock(),
+    )
+    user_message = SimpleNamespace(
+        text="/ping",
+        from_user=SimpleNamespace(id=123),
+        chat=SimpleNamespace(id=789, type="private"),
+        answer=AsyncMock(),
+    )
+
+    monkeypatch.setattr(mod_general, "is_admin_user", lambda user_id: user_id == 887869657)
+
+    asyncio.run(mod_general.cmd_ping(admin_message))
+    asyncio.run(mod_general.cmd_ping(user_message))
+
+    assert admin_message.answer.await_count == 1
+    assert user_message.answer.await_count == 0
+
+
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
     message = SimpleNamespace(
         text="/start actmsg_manual_456",

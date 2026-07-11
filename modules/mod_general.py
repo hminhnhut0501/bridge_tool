@@ -752,7 +752,11 @@ async def cmd_start(message: Message):
             return
         unavailable_reason = bot_unavailable_reason()
         if unavailable_reason and not is_admin_user(message.from_user.id):
-            print(f"🚀 cmd_start maintenance branch user={message.from_user.id} reason={unavailable_reason}")
+            print(
+                "🚀 cmd_start blocked "
+                f"user={message.from_user.id} reason={unavailable_reason} "
+                f"source=runtime unavailable_reason={unavailable_reason}"
+            )
             if unavailable_reason == "schedule":
                 notice = db.get_config(
                     "MSG_OUTSIDE_ACTIVE_HOURS",
@@ -770,7 +774,11 @@ async def cmd_start(message: Message):
             return
 
         if not await check_protection(message):
-            print(f"🚀 cmd_start stopped by protection user={message.from_user.id}")
+            print(
+                "🚀 cmd_start blocked "
+                f"user={message.from_user.id} reason=check_protection_false "
+                "source=protection"
+            )
             await _send_start_fallback("check_protection returned False")
             return
         if await send_sale_announcement(message):
@@ -792,6 +800,13 @@ async def cmd_menu(message: Message):
     db.reload_config(force=False)
     await cleanup_welcome(message.from_user.id, message.chat.id)
     await render_page(message, "main_menu")
+
+
+@router.message(Command("ping"))
+async def cmd_ping(message: Message):
+    if not message.from_user or not is_admin_user(message.from_user.id):
+        return
+    await message.answer("pong")
 
 @router.message(Command("lang"))
 @router.message(Command("language"))
