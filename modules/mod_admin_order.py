@@ -34,15 +34,8 @@ router = Router()
 
 FIELD_HINTS = {
     "telegram_user_id": "Telegram ID",
-    "full_name": "Tên khách",
     "plan_name": "Tên gói",
-    "amount": "Số tiền",
-    "duration_days": "Số ngày",
-    "payment_currency": "Currency",
-    "payment_provider": "Provider",
     "note": "Ghi chú",
-    "coupon_code": "Coupon",
-    "expire_at": "Hạn dùng",
     "activation_code": "Active code",
 }
 
@@ -104,9 +97,9 @@ def _field_label(field: str) -> str:
     return FIELD_HINTS.get(field, field.replace("_", " ").title())
 
 
-QUICK_FIELDS = ["telegram_user_id", "full_name", "plan_name"]
-EXTRA_FIELDS = ["payment_provider", "note", "coupon_code", "expire_at", "activation_code"]
-ALL_FIELDS = QUICK_FIELDS + ["amount", "duration_days", "payment_currency"] + EXTRA_FIELDS
+QUICK_FIELDS = ["telegram_user_id", "plan_name", "note"]
+EXTRA_FIELDS = ["payment_provider", "activation_code"]
+ALL_FIELDS = QUICK_FIELDS + EXTRA_FIELDS
 
 
 def _forward_origin_user(message: Message):
@@ -255,18 +248,11 @@ class OrderDraft:
     source_message_id: int | None = None
     customer_text: str = ""
     telegram_user_id: str = ""
-    full_name: str = ""
     plan_name: str = ""
-    amount: str = ""
-    duration_days: str = "30"
-    payment_currency: str = ""
     payment_provider: str = ""
     note: str = ""
-    coupon_code: str = ""
-    skip_join_link: bool = False
     skip_active_code: bool = True
     activation_code: str = ""
-    expire_at: str = ""
     sale_id: str = "MANUAL"
     step: str = "telegram_user_id"
     created_at: float = field(default_factory=time.time)
@@ -297,20 +283,13 @@ def _ensure_plan_name_hint(draft: OrderDraft):
         return
     if not draft.plan_name.strip():
         draft.plan_name = candidates[0]
-    pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
-    if not draft.amount.strip() and pricing.get("amount"):
-        draft.amount = str(pricing["amount"])
-    if not draft.duration_days.strip() and pricing.get("duration_days"):
-        draft.duration_days = str(pricing["duration_days"])
-    if not draft.payment_currency.strip() and pricing.get("payment_currency"):
-        draft.payment_currency = str(pricing["payment_currency"])
-
-
 def _advance_after_field(draft: OrderDraft, field: str):
-    if field in {"telegram_user_id", "full_name"}:
+    if field == "telegram_user_id":
         draft.step = "plan_name"
+    elif field == "plan_name":
+        draft.step = "note"
     else:
-        draft.step = _next_field(field)
+        draft.step = "telegram_user_id"
 
 
 def _apply_skip(draft: OrderDraft):
@@ -320,31 +299,10 @@ def _apply_skip(draft: OrderDraft):
 def _set_field(draft: OrderDraft, field: str, text: str):
     if field == "telegram_user_id":
         draft.telegram_user_id = text
-    elif field == "full_name":
-        draft.full_name = text
     elif field == "plan_name":
         draft.plan_name = text
-        pricing = _resolve_plan_pricing(text, draft.payment_provider)
-        if pricing.get("amount") and not draft.amount.strip():
-            draft.amount = str(pricing["amount"])
-        if pricing.get("duration_days") and not draft.duration_days.strip():
-            draft.duration_days = str(pricing["duration_days"])
-        if pricing.get("payment_currency") and not draft.payment_currency.strip():
-            draft.payment_currency = str(pricing["payment_currency"])
-    elif field == "amount":
-        draft.amount = str(_parse_amount(text))
-    elif field == "duration_days":
-        draft.duration_days = str(int(float(text)))
-    elif field == "payment_currency":
-        draft.payment_currency = text.upper()
-    elif field == "payment_provider":
-        draft.payment_provider = text.upper()
     elif field == "note":
         draft.note = text
-    elif field == "coupon_code":
-        draft.coupon_code = text.upper()
-    elif field == "expire_at":
-        draft.expire_at = text
     elif field == "activation_code":
         draft.skip_active_code = False
         draft.activation_code = text.upper()
@@ -357,15 +315,8 @@ def _draft_summary(draft: OrderDraft) -> str:
         "🧾 <b>Admin order wizard</b>",
         f"• Forward text: <code>{_normalize_text(draft.customer_text or '-')}</code>",
         f"• Telegram ID: <code>{_normalize_text(draft.telegram_user_id or '-')}</code>",
-        f"• Tên khách: <code>{_normalize_text(draft.full_name or '-')}</code>",
         f"• Gói: <code>{_normalize_text(draft.plan_name or '-')}</code>",
-        f"• Số tiền: <code>{_normalize_text(draft.amount or '-')}</code>",
-        f"• Số ngày: <code>{_normalize_text(draft.duration_days or '-')}</code>",
-        f"• Provider: <code>{_normalize_text(draft.payment_provider or '-')}</code>",
-        f"• Currency: <code>{_normalize_text(draft.payment_currency or '-')}</code>",
         f"• Note: <code>{_normalize_text(draft.note or '-')}</code>",
-        f"• Coupon: <code>{_normalize_text(draft.coupon_code or '-')}</code>",
-        f"• Bỏ join link: <code>{'YES' if draft.skip_join_link else 'NO'}</code>",
         f"• Gen active code: <code>{'YES' if not draft.skip_active_code else 'NO'}</code>",
         f"• Bước hiện tại: <code>{_normalize_text(draft.step)}</code>",
     ]
@@ -389,17 +340,9 @@ def _more_keyboard():
     kb = InlineKeyboardBuilder()
     kb.button(text="Back", callback_data="admin_order:back_to_main")
     kb.button(text="ID", callback_data="admin_order:set:telegram_user_id")
-    kb.button(text="Tên", callback_data="admin_order:set:full_name")
     kb.button(text="Gói", callback_data="admin_order:set:plan_name")
-    kb.button(text="Tiền", callback_data="admin_order:set:amount")
-    kb.button(text="Ngày", callback_data="admin_order:set:duration_days")
-    kb.button(text="Provider", callback_data="admin_order:set:payment_provider")
-    kb.button(text="Currency", callback_data="admin_order:set:payment_currency")
     kb.button(text="Note", callback_data="admin_order:set:note")
-    kb.button(text="Coupon", callback_data="admin_order:set:coupon_code")
-    kb.button(text="Hạn dùng", callback_data="admin_order:set:expire_at")
     kb.button(text="Active code", callback_data="admin_order:set:activation_code")
-    kb.button(text="Toggle join", callback_data="admin_order:toggle:skip_join_link")
     kb.button(text="Toggle active", callback_data="admin_order:toggle:skip_active_code")
     kb.adjust(2, 2, 2, 2, 2, 2, 2)
     return kb.as_markup()
@@ -441,25 +384,21 @@ def _start_draft_from_message(message: Message) -> OrderDraft:
         source_message_id=getattr(message, "forward_from_message_id", None),
         customer_text=_fmt_customer_preview(forward_text),
         telegram_user_id=str(getattr(user, "id", "") or "").strip(),
-        full_name=full_name,
     )
 
 
 async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
+    pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
     payload = {
         "telegram_user_id": draft.telegram_user_id,
-        "full_name": draft.full_name,
         "plan_name": draft.plan_name,
-        "amount": draft.amount,
-        "duration_days": draft.duration_days,
-        "payment_currency": draft.payment_currency,
+        "amount": pricing.get("amount") or draft.note or 0,
+        "duration_days": pricing.get("duration_days") or 30,
+        "payment_currency": pricing.get("payment_currency") or "VND",
         "payment_provider": draft.payment_provider,
         "note": draft.note,
-        "coupon_code": draft.coupon_code,
-        "skip_join_link": draft.skip_join_link,
         "skip_active_code": draft.skip_active_code,
         "activation_code": draft.activation_code,
-        "expire_at": draft.expire_at,
         "sale_id": draft.sale_id,
     }
     resp = requests.post(
@@ -477,7 +416,6 @@ async def cmd_admin_order(message: Message):
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
     draft = OrderDraft(admin_id=message.from_user.id)
-    _ensure_plan_name_hint(draft)
     _set_draft(message.from_user.id, draft)
     await _render_draft(message, draft, "Bắt đầu luồng tạo đơn thủ công.")
 
@@ -501,9 +439,7 @@ async def admin_order_actions(callback: CallbackQuery):
 
     if action == "toggle":
         field = rest[0] if rest else ""
-        if field == "skip_join_link":
-            draft.skip_join_link = not draft.skip_join_link
-        elif field == "skip_active_code":
+        if field == "skip_active_code":
             draft.skip_active_code = not draft.skip_active_code
         await _render_draft(callback, draft, "Đã cập nhật tuỳ chọn.")
         return
@@ -569,16 +505,6 @@ async def admin_order_actions(callback: CallbackQuery):
         if missing:
             await callback.answer(f"Thiếu: {', '.join(missing)}", show_alert=True)
             return
-        pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
-        if not draft.amount.strip() and pricing.get("amount"):
-            draft.amount = str(pricing["amount"])
-        if not draft.duration_days.strip() and pricing.get("duration_days"):
-            draft.duration_days = str(pricing["duration_days"])
-        if not draft.payment_currency.strip() and pricing.get("payment_currency"):
-            draft.payment_currency = str(pricing["payment_currency"])
-        if not draft.amount.strip() or not draft.duration_days.strip() or not draft.payment_currency.strip():
-            await callback.answer("Thiếu dữ liệu suy luận từ gói. Mở More để nhập tay.", show_alert=True)
-            return
         try:
             result = await _create_manual_order(draft)
         except Exception as exc:
@@ -602,14 +528,6 @@ async def admin_order_capture(message: Message):
 
     if _is_forwarded_message(message):
         draft = _start_draft_from_message(message)
-        _ensure_plan_name_hint(draft)
-        pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
-        if pricing.get("amount"):
-            draft.amount = str(pricing["amount"])
-        if pricing.get("duration_days"):
-            draft.duration_days = str(pricing["duration_days"])
-        if pricing.get("payment_currency"):
-            draft.payment_currency = str(pricing["payment_currency"])
         _set_draft(message.from_user.id, draft)
         await _render_draft(message, draft, "Đã nhận tin forward. Chỉ cần kiểm tra rồi bấm tạo.")
         return
@@ -620,13 +538,23 @@ async def admin_order_capture(message: Message):
     text = str(message.text or message.caption or "").strip()
     if not text or text.startswith("/"):
         return
-
     field = draft.step
-    try:
-        _set_field(draft, field, text)
-    except Exception as exc:
-        await message.answer(f"Giá trị không hợp lệ cho `{field}`: {exc}")
+    if field == "telegram_user_id":
+        draft.telegram_user_id = text
+        draft.step = "plan_name"
+        await _render_draft(message, draft, "Đã cập nhật Telegram ID.")
         return
-
-    _advance_after_field(draft, field)
-    await _render_draft(message, draft, f"Đã cập nhật <b>{_normalize_text(field)}</b>.")
+    if field == "plan_name":
+        draft.plan_name = text
+        draft.step = "note"
+        await _render_draft(message, draft, "Đã cập nhật gói. Giờ nhập ghi chú hoặc bấm tạo.")
+        return
+    if field == "note":
+        draft.note = text
+        await _render_draft(message, draft, "Đã cập nhật ghi chú. Bạn có thể bấm tạo ngay.")
+        return
+    if field == "activation_code":
+        draft.skip_active_code = False
+        draft.activation_code = text.upper()
+        await _render_draft(message, draft, "Đã cập nhật active code.")
+        return

@@ -18,7 +18,6 @@ def test_admin_forward_starts_draft(monkeypatch):
     draft = mod_admin_order._start_draft_from_message(message)
 
     assert draft.telegram_user_id == "555"
-    assert draft.full_name == "An Nguyen"
     assert "ID: 555" in draft.customer_text
     assert draft.step == "telegram_user_id"
 
@@ -33,13 +32,12 @@ def test_admin_order_back_skip_and_plan_candidates(monkeypatch):
     assert draft.step == "plan_name"
 
     mod_admin_order._apply_skip(draft)
-    assert draft.step == "amount"
+    assert draft.step == "note"
 
-    assert mod_admin_order._prev_field("plan_name") == "full_name"
-    assert mod_admin_order._next_field("plan_name") == "amount"
+    assert mod_admin_order._prev_field("plan_name") == "telegram_user_id"
+    assert mod_admin_order._next_field("plan_name") == "note"
     mod_admin_order._ensure_plan_name_hint(draft)
     assert draft.plan_name == "VIP 30 Ngày"
-    assert draft.amount == "150000" or draft.amount == ""
 
 
 def test_plan_pricing_inference_autofills_hidden_or_main_plan(monkeypatch):
@@ -70,13 +68,13 @@ def test_admin_order_toggle_and_payload(monkeypatch):
     draft = mod_admin_order.OrderDraft(
         admin_id=1,
         telegram_user_id="123",
-        full_name="User A",
         plan_name="VIP 30 Ngày",
-        amount="100000",
+        note="ghi chu",
     )
 
     monkeypatch.setattr(mod_admin_order, "_backend_base_url", lambda: "http://backend")
     monkeypatch.setattr(mod_admin_order, "_admin_secret", lambda: "secret")
+    monkeypatch.setattr(mod_admin_order, "_resolve_plan_pricing", lambda plan_name, provider="": {"amount": "100000", "duration_days": "30", "payment_currency": "VND"})
 
     captured = {}
 
@@ -101,3 +99,4 @@ def test_admin_order_toggle_and_payload(monkeypatch):
     assert captured["url"] == "http://backend/admin-api/manual-orders"
     assert captured["json"]["telegram_user_id"] == "123"
     assert captured["headers"]["x-admin-secret"] == "secret"
+    assert "activation_url" not in result
