@@ -328,11 +328,19 @@ async def member_is_present(chat_id, user_id):
         logging.warning("⚠️ Không kiểm tra được trạng thái user %s trong group %s: %s", user_id, chat_id, exc)
         return True
 
-async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, raw_data=None):
+async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, raw_data=None, run_kick_cache=None):
     now = now_local()
     normalized_chat_id = normalize_chat_id(chat_id)
     kick_key = (normalized_chat_id, str(user_id))
+    run_kick_key = (normalized_chat_id, str(user_id))
     cooldown_minutes = config_int("KICK_RECHECK_COOLDOWN_MINUTES", 1440, minimum=1)
+    if run_kick_cache is not None and run_kick_key in run_kick_cache:
+        logging.info(
+            "⏭ Bỏ qua kick trùng trong cùng vòng chạy User %s group %s.",
+            user_id,
+            chat_id,
+        )
+        return True
     if is_kick_finalized(user_id, order_id, normalized_chat_id):
         logging.info(
             "⏭ Bỏ qua kick User %s group %s đơn %s vì đã có member_kick_closed.",
@@ -401,6 +409,8 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
         await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))
         await bot.unban_chat_member(chat_id=chat_id, user_id=int(user_id))
         recent_kicks[kick_key] = now
+        if run_kick_cache is not None:
+            run_kick_cache.add(run_kick_key)
         payload = {"reason": reason}
         payload.update(raw_data or {})
         if existing_kick:
@@ -427,9 +437,11 @@ async def ensure_member_kicked(chat_id, user_id, order_id, plan_name, reason, ra
         payload = {"reason": reason, "error": str(exc)}
         payload.update(raw_data or {})
         record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+        if run_kick_cache is not None:
+            run_kick_cache.add(run_kick_key)
         return False
 
-async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
+async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None):
     current_group_ids = plan_group_ids(plan_name)
     if not current_group_ids:
         logging.warning(
@@ -473,12 +485,13 @@ async def process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expi
             plan_name,
             "vip_expired",
             raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "expire_at": expire_str},
+            run_kick_cache=run_kick_cache,
         )
         if not ok:
             kick_errors.append(gid)
     return expired_group_ids, kick_errors
 
-async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now):
+async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None):
     if user_has_active_membership(user_id, order_id, users_data, now):
         await ensure_support_group_unmuted(user_id, order_id, plan_name)
         return
@@ -495,6 +508,7 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
             plan_name,
             "support_rejoined_after_kick",
             raw_data={"expire_at": expire_str},
+            run_kick_cache=run_kick_cache,
         )
         return
 
@@ -518,6 +532,7 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
             plan_name,
             "support_grace_expired",
             raw_data={"muted_at": muted_event.get("created_at"), "grace_days": grace_days},
+            run_kick_cache=run_kick_cache,
         )
     except Exception as exc:
         logging.error("❌ Lỗi kick User %s khỏi group hỗ trợ %s: %s", user_id, gid, exc)
@@ -563,6 +578,7 @@ async def check_expirations_professional():
             len(users_data),
         )
         summary = {"expired": 0, "expired_notice": 0, "reminded": 0, "skipped_not_due": 0, "invalid": 0}
+        run_kick_cache = set()
         
         # Duyệt danh sách đơn PAID từ Supabase hoặc các dòng Users từ Sheet.
         for offset, row in enumerate(users_data, start=0):
@@ -586,8 +602,8 @@ async def check_expirations_professional():
                         plan_name,
                     )
                     continue
-                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
-                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
+                await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache)
+                await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache)
                 continue
 
             if status != "PAID" or not expire_str: 
@@ -622,7 +638,7 @@ async def check_expirations_professional():
                         plan_name,
                     )
                     continue
-                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now)
+                expired_group_ids, kick_errors = await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache)
 
                 if not expired_group_ids:
                     if not user_has_active_membership(user_id, order_id, users_data, now):

@@ -249,6 +249,35 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot.kicked, [])
         self.assertEqual(len([event for event in self.store.events if event["event_type"] == "member_kicked"]), 1)
 
+    async def test_same_run_kick_cache_skips_duplicate_processing(self):
+        now = datetime(2026, 5, 25, 21, 20, 0)
+        run_kick_cache = set()
+        rows = [["old-a", "42", "User", "VIP 1 ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-05-24 21:19:00"]]
+        self.bot.present[("-100444", "42")] = True
+
+        first = await scheduler.ensure_member_kicked(
+            "-100444",
+            "42",
+            "old-a",
+            "VIP 1 ngày - Hang Cú Asia",
+            "vip_expired",
+            raw_data={"expire_at": "2026-05-24 21:19:00"},
+            run_kick_cache=run_kick_cache,
+        )
+        second = await scheduler.ensure_member_kicked(
+            "-100444",
+            "42",
+            "old-b",
+            "VIP 1 ngày - Hang Cú Asia",
+            "vip_expired",
+            raw_data={"expire_at": "2026-05-24 21:19:00"},
+            run_kick_cache=run_kick_cache,
+        )
+
+        self.assertTrue(first)
+        self.assertTrue(second)
+        self.assertEqual(self.bot.kicked, [("-100444", "42")])
+
     async def test_active_renewal_prevents_rejoin_kick(self):
         now = datetime(2026, 5, 25, 21, 20, 0)
         scheduler.now_local = lambda: now
@@ -336,7 +365,8 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(expired_groups, ["-100444"])
         self.assertEqual(errors, [])
         self.assertEqual(self.bot.kicked, [("-100444", "42")])
-        self.assertEqual(self.store.events[-1]["raw_data"]["source"], "recheck_member_present")
+        kicked_events = [event for event in self.store.events if event["event_type"] == "member_kicked"]
+        self.assertEqual(kicked_events[-1]["raw_data"]["source"], "recheck_member_present")
 
     async def test_finalized_kick_blocks_repeat_recheck(self):
         now = datetime(2026, 5, 25, 21, 20, 0)
@@ -418,7 +448,8 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         await scheduler.process_support_grace_for_expired_order("42", "old", "VIP 1 ngày - Hang Cú Boy", "2026-05-01 12:00:00", rows, now)
 
         self.assertEqual(self.bot.kicked, [("-100999", "42")])
-        self.assertEqual(self.store.events[-1]["event_type"], "member_kicked")
+        self.assertIn("member_kicked", [event["event_type"] for event in self.store.events])
+        self.assertEqual(self.store.events[-1]["event_type"], "member_kick_closed")
 
     async def test_support_group_rejoin_after_kick_is_kicked_again(self):
         now = datetime(2026, 5, 25, 12, 0, 0)
