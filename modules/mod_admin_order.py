@@ -121,6 +121,15 @@ def _forward_origin_chat(message: Message):
     return getattr(message, "forward_from_chat", None)
 
 
+def _is_forwarded_message(message: Message) -> bool:
+    return bool(
+        getattr(message, "forward_origin", None)
+        or getattr(message, "forward_from", None)
+        or getattr(message, "forward_from_chat", None)
+        or getattr(message, "forward_date", None)
+    )
+
+
 def _smart_forward_text(message: Message) -> str:
     parts: list[str] = []
     user = _forward_origin_user(message)
@@ -397,16 +406,6 @@ async def cmd_admin_order(message: Message):
     await _render_draft(message, draft, "Bắt đầu luồng tạo đơn thủ công.")
 
 
-@router.message(F.chat.type == "private", F.forward_date)
-async def admin_forward_to_order(message: Message):
-    if not message.from_user or not is_admin_user(message.from_user.id):
-        return
-    draft = _start_draft_from_message(message)
-    _ensure_plan_name_hint(draft)
-    _set_draft(message.from_user.id, draft)
-    await _render_draft(message, draft, "Đã nhận tin forward, bắt đầu nhập dữ liệu.")
-
-
 @router.callback_query(F.data.startswith("admin_order:"))
 async def admin_order_actions(callback: CallbackQuery):
     if not callback.from_user or not is_admin_user(callback.from_user.id):
@@ -508,10 +507,18 @@ async def admin_order_actions(callback: CallbackQuery):
         return
 
 
-@router.message(F.chat.type == "private", ~F.forward_date)
+@router.message(F.chat.type == "private")
 async def admin_order_capture(message: Message):
     if not message.from_user or not is_admin_user(message.from_user.id):
         return
+
+    if _is_forwarded_message(message):
+        draft = _start_draft_from_message(message)
+        _ensure_plan_name_hint(draft)
+        _set_draft(message.from_user.id, draft)
+        await _render_draft(message, draft, "Đã nhận tin forward, bắt đầu nhập dữ liệu.")
+        return
+
     draft = _get_draft(message.from_user.id)
     if not draft:
         return
