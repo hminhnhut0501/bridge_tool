@@ -6510,7 +6510,7 @@ export default function Home() {
               <Tab value="autoPayment" icon={<CalendarClock size={16} />} iconPosition="start" label="Auto payment" />
               <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
               <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
-              <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Lệnh & cảnh báo" />
+              <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Phản hồi & cảnh báo" />
               <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="menuBot" icon={<FileText size={16} />} iconPosition="start" label="Menu Bot" />
               <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
@@ -7748,13 +7748,13 @@ export default function Home() {
         {tab === "botTools" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Lệnh & cảnh báo" subtitle="Chỉ giữ phản hồi lệnh trong group và các alert ngắn. Menu command đã chuyển sang Menu Bot." />
+              <PanelHead title="Phản hồi & cảnh báo" subtitle="Chỉ giữ phản hồi lệnh trong group và các alert ngắn. Command menu được quản lý ở Menu Bot." />
               <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="groupReplies" label="Group replies" />
                 <Tab value="alerts" label="Cảnh báo" />
               </Tabs>
             </section>
-            {botToolsTab === "groupReplies" ? <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "groupReplies" ? <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group. Command menu riêng được đặt ở Menu Bot." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "alerts" ? (
               <div className="stack">
                 <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
@@ -7767,7 +7767,7 @@ export default function Home() {
         {tab === "menuBot" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Menu Bot" subtitle="Một nơi để quản lý page menu, nút đổi ngôn ngữ và command menu private/group." />
+              <PanelHead title="Menu Bot" subtitle="Một nơi để quản lý page menu, nút đổi ngôn ngữ và command menu riêng cho private/group." />
               <Tabs value={menuBotTab} onChange={(_, next) => setMenuBotTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="pages" label="Trang menu" />
                 <Tab value="language" label="Ngôn ngữ" />
@@ -7815,8 +7815,8 @@ export default function Home() {
             ) : null}
             {menuBotTab === "commands" ? (
               <div className="stack">
-                <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-                <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Menu private" subtitle="Bật/tắt từng lệnh hiển thị khi chat riêng với bot. Đây là menu quan trọng nhất cho khách." fields={PRIVATE_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Menu group" subtitle="Bật/tắt từng lệnh hiển thị trong group công khai. Chỉ giữ các lệnh cần cho nhóm." fields={GROUP_MENU_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
                 <ConfigEditor title="Mô tả lệnh tiếng Việt" subtitle="Mô tả command hiển thị trong Telegram menu cho khách Việt." fields={COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
                 <ConfigEditor title="Mô tả lệnh tiếng Anh" subtitle="Mô tả command hiển thị trong Telegram menu cho khách tiếng Anh." fields={COMMAND_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </div>
