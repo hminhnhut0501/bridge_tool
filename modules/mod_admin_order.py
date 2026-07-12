@@ -415,6 +415,19 @@ def _draft_summary(draft: OrderDraft) -> str:
 
 
 def _keyboard(draft: OrderDraft):
+    if draft.step == "plan_name":
+        candidates = _plan_candidates()
+        kb = InlineKeyboardBuilder()
+        for idx, plan_name in enumerate(candidates[:12]):
+            pricing = _resolve_plan_pricing(plan_name, "")
+            days = str(pricing.get("duration_days") or "?")
+            kb.button(text=f"{plan_name} · {days}d", callback_data=f"admin_order:use_plan:{idx}")
+        if candidates:
+            kb.button(text="More", callback_data="admin_order:more")
+        kb.button(text="Hủy", callback_data="admin_order:cancel")
+        kb.adjust(1)
+        return kb.as_markup()
+
     kb = InlineKeyboardBuilder()
     kb.button(text="Chọn gói", callback_data="admin_order:pick_plan")
     kb.button(text="More", callback_data="admin_order:more")
@@ -550,15 +563,8 @@ async def admin_order_actions(callback: CallbackQuery):
         if not candidates:
             await callback.answer("Chưa có gói nào để gợi ý.", show_alert=True)
             return
-        kb = InlineKeyboardBuilder()
-        for idx, plan_name in enumerate(candidates[:12]):
-            pricing = _resolve_plan_pricing(plan_name, "")
-            days = str(pricing.get("duration_days") or "?")
-            kb.button(text=f"{plan_name} · {days}d", callback_data=f"admin_order:use_plan:{idx}")
-        kb.button(text="Back", callback_data="admin_order:back_to_main")
-        kb.adjust(1)
-        await callback.message.edit_text("Chọn gói nhanh:", reply_markup=kb.as_markup())
-        await callback.answer()
+        draft.step = "plan_name"
+        await _render_draft(callback, draft, "Chọn gói nhanh:")
         return
 
     if action == "back_to_main":
@@ -626,7 +632,7 @@ async def admin_order_capture(message: Message):
     if field == "telegram_user_id":
         draft.telegram_user_id = text
         draft.step = "plan_name"
-        await _render_draft(message, draft, "Đã cập nhật Telegram ID. Chọn gói tiếp theo.")
+        await _render_draft(message, draft, "Đã cập nhật Telegram ID. Chọn gói ngay bên dưới.")
         return
     if field == "full_name":
         draft.full_name = text
