@@ -197,21 +197,35 @@ def _plan_candidates() -> list[str]:
             seen.add(text)
             candidates.append(text)
 
+    def add_plan_pair(value: str):
+        base = str(value or "").strip()
+        if not base:
+            return
+        add(base)
+        upper = base.upper()
+        if "TRỌN ĐỜI" in upper or "TRON DOI" in upper or "LIFETIME" in upper or " LIFE" in upper:
+            return
+        if "30 NGÀY" in upper or "30 NGAY" in upper or "30 DAYS" in upper or "30D" in upper:
+            lifetime = base
+        else:
+            lifetime = f"{base} Trọn Đời"
+        add(lifetime)
+
     try:
         for group_no in group_numbers():
-            add(db.get_config(f"BTN_G{group_no}", ""))
+            add_plan_pair(db.get_config(f"BTN_G{group_no}", ""))
     except Exception:
         pass
 
     try:
         for hidden_group in list_hidden_groups(include_inactive=False):
-            add(hidden_group.get("name") or "")
+            add_plan_pair(hidden_group.get("name") or "")
     except Exception:
         pass
 
     try:
-        add(_cfg("PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"))
-        add(_cfg("PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"))
+        add_plan_pair(_cfg("PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"))
+        add_plan_pair(_cfg("PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"))
     except Exception:
         pass
 
