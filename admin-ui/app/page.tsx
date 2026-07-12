@@ -76,6 +76,7 @@ import {
   daysUntil,
   activityEventBadgeTone,
   activityEventDetailLabel,
+  activityLogDetailLabel,
   activityEventLabel,
   auditStatusLabel,
   groupDebugText,
@@ -6821,7 +6822,7 @@ export default function Home() {
                   <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
                   item.typeLabel || logEntryTypeLabel(item.type),
                   item.title,
-                  item.detail || "-",
+                  <Box key={`detail-${item.id}`} sx={{ whiteSpace: "pre-line" }}>{activityLogDetailLabel(item.type, item.detail, item.title)}</Box>,
                 ])}
                 actions={(idx) => {
                   const item = pagedLogEntries[idx];

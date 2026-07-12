@@ -378,6 +378,23 @@ export function activityEventDetailLabel(eventType: string, title: string, detai
   return title || detail || "Hoạt động";
 }
 
+export function activityLogDetailLabel(type: string, detail: string, title = "") {
+  const text = displayText(detail);
+  const lower = text.toLowerCase();
+  if (!text) return displayText(title) || "-";
+  if (type === "manual_activation_link_generated" || lower.includes("manual activation link generated")) {
+    const statusMatch = text.match(/Trạng thái:\s*([^•]+)•/i) || text.match(/status:\s*([^•]+)•/i);
+    const planMatch = text.match(/(?:Gói|Plan):\s*([^•]+)•/i);
+    const orderMatch = text.match(/(?:Đơn|Order):\s*([^•]+)•/i);
+    const groups = Array.from(text.matchAll(/'group_name':\s*'([^']+)'.*?'invite_link':\s*'([^']+)'/g)).map((match) => `${match[1]}: ${match[2]}`);
+    const summary = [statusMatch?.[1]?.trim(), planMatch?.[1]?.trim(), orderMatch?.[1]?.trim()].filter(Boolean).join(" • ");
+    return [summary || displayText(title) || "Kích hoạt đơn", ...groups].filter(Boolean).join("\n");
+  }
+  if (lower.includes("support_inbox_disabled_redirect")) return "Auto payment chuyển sang hỗ trợ";
+  if (lower.includes("auto payment") && lower.includes("redirect")) return "Auto payment chuyển sang hỗ trợ";
+  return text;
+}
+
 export function logEntryTypeLabel(type: string) {
   return activityEventLabel(type) !== type ? activityEventLabel(type) : supportEventLabel(type);
 }
