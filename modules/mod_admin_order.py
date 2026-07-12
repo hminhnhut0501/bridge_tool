@@ -232,6 +232,18 @@ def _plan_candidates() -> list[str]:
     return candidates
 
 
+def _plan_sort_key(plan_name: str) -> tuple[str, int, str]:
+    text = str(plan_name or "").strip()
+    upper = text.upper()
+    is_lifetime = 1 if ("TRỌN ĐỜI" in upper or "TRON DOI" in upper or "LIFETIME" in upper or " LIFE" in upper) else 0
+    base = text
+    for suffix in (" Trọn Đời", " lifetime", " LIFE", " 30 Ngày", " 30 ngày", " 30D", " 30 Days"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)].strip()
+            break
+    return (base.lower(), is_lifetime, text.lower())
+
+
 def _default_currency_for_plan(plan_name: str) -> str:
     price = _resolve_plan_pricing(plan_name, "")
     currency = str(price.get("payment_currency") or "").strip().upper()
@@ -430,10 +442,7 @@ def _draft_summary(draft: OrderDraft) -> str:
 
 def _keyboard(draft: OrderDraft):
     if draft.step == "plan_name":
-        candidates = _plan_candidates()
-        lifetime = [item for item in candidates if "trọn đời" in item.lower() or "lifetime" in item.lower() or "life" in item.lower()]
-        normal = [item for item in candidates if item not in lifetime]
-        candidates = lifetime + normal
+        candidates = sorted(_plan_candidates(), key=_plan_sort_key)
         kb = InlineKeyboardBuilder()
         for idx, plan_name in enumerate(candidates[:12]):
             pricing = _resolve_plan_pricing(plan_name, "")
