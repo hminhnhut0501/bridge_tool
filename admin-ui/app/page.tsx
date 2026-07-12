@@ -2776,9 +2776,13 @@ function randomHangcuCode() {
   return `HANGCU_${suffix}`;
 }
 
-function isLifetimeCouponPlan(planName: string) {
+function isLifetimePlanKey(planName: string) {
   const key = String(planName || "").trim().toUpperCase().replace(/\s+/g, "");
   return key === "FULL_LIFE" || key === "SVIP_LIFE" || key === "SELECT_GROUP_LIFE" || key.endsWith("_LIFE");
+}
+
+function isLifetimeCouponPlan(planName: string) {
+  return isLifetimePlanKey(planName);
 }
 
 function isCouponSent(coupon: Coupon) {
@@ -6012,7 +6016,7 @@ export default function Home() {
   }
 
   function changeManualPlanKey(value: string) {
-    const lifetime = isLifetimeCouponPlan(value);
+    const lifetime = isLifetimePlanKey(value);
     setManualOrderForm({
       ...manualOrderForm,
       plan_key: value,
@@ -6020,7 +6024,7 @@ export default function Home() {
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "days" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? String(lifetimeCouponDays || 3650) : "30",
-      expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
+      expire_at: lifetime ? "" : manualOrderForm.expire_at,
       special_group_id: value === "CUSTOM" ? manualOrderForm.special_group_id : "",
       special_group_duration: value === "CUSTOM" ? manualOrderForm.special_group_duration : "1M",
     });
