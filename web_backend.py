@@ -1680,7 +1680,7 @@ async def admin_create_manual_order(request: Request):
             "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
-            "manual_order_text": "" if skip_active_code or fast_mode else render_manual_order_message_text(message_template, {
+            "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,

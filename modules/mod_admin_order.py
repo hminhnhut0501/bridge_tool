@@ -286,7 +286,7 @@ class OrderDraft:
     payment_currency: str = "VND"
     payment_provider: str = ""
     note: str = ""
-    skip_active_code: bool = True
+    skip_active_code: bool = False
     activation_code: str = ""
     sale_id: str = "MANUAL"
     step: str = "telegram_user_id"
