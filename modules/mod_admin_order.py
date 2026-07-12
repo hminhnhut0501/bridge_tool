@@ -468,6 +468,15 @@ async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""
         await message_or_callback.answer(text, reply_markup=markup)
 
 
+async def _safe_edit_message(message, text: str, reply_markup=None):
+    try:
+        await message.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            return
+        raise
+
+
 def _start_draft_from_message(message: Message) -> OrderDraft:
     forward_text = _smart_forward_text(message)
     draft = OrderDraft(
@@ -552,17 +561,23 @@ async def cmd_new_admin_order(message: Message):
 async def admin_order_actions(callback: CallbackQuery):
     if not callback.from_user or not is_admin_user(callback.from_user.id):
         return
+    try:
+        await callback.answer()
+    except Exception:
+        pass
     draft = _get_draft(callback.from_user.id)
     if not draft:
-        await callback.answer("Không có draft nào đang mở.", show_alert=True)
+        try:
+            await callback.answer("Không có draft nào đang mở.", show_alert=True)
+        except Exception:
+            pass
         return
 
     _, action, *rest = (callback.data or "").split(":")
 
     if action == "cancel":
         _set_draft(callback.from_user.id, None)
-        await callback.message.edit_text("Đã hủy luồng tạo đơn.")
-        await callback.answer()
+        await _safe_edit_message(callback.message, "Đã hủy luồng tạo đơn.")
         return
 
     if action == "toggle":
@@ -575,11 +590,11 @@ async def admin_order_actions(callback: CallbackQuery):
         return
 
     if action == "more":
-        await callback.message.edit_text(
+        await _safe_edit_message(
+            callback.message,
             "Chọn note khi cần:",
             reply_markup=_more_keyboard(),
         )
-        await callback.answer()
         return
 
     if action == "pick_plan":
@@ -618,14 +633,16 @@ async def admin_order_actions(callback: CallbackQuery):
                     "error": str(exc),
                 },
             )
-            await callback.message.edit_text(
+            await _safe_edit_message(
+                callback.message,
                 f"❌ Lỗi tạo đơn: {_short_error_text(exc)}\n\n"
                 f"Đã chọn gói: <code>{_normalize_text(draft.plan_name)}</code>\n"
                 f"Bạn có thể bấm Back để chọn lại."
             )
             return
         _set_draft(callback.from_user.id, None)
-        await callback.message.edit_text(
+        await _safe_edit_message(
+            callback.message,
             "✅ Đã tạo đơn.\n\n"
             f"Telegram ID: <code>{_normalize_text(result.get('telegram_user_id') or draft.telegram_user_id or '-')}</code>\n"
             f"Gói: <code>{_normalize_text(result.get('plan_name') or draft.plan_name or '-')}</code>\n"
