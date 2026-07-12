@@ -510,43 +510,31 @@ def _start_draft_from_message(message: Message) -> OrderDraft:
 
 
 async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
+    payload = {
+        "telegram_user_id": draft.telegram_user_id,
+        "full_name": draft.full_name,
+        "plan_name": draft.plan_name,
+        "amount": draft.amount,
+        "duration_days": draft.duration_days,
+        "payment_currency": draft.payment_currency,
+        "payment_provider": draft.payment_provider,
+        "note": draft.note,
+        "skip_active_code": draft.skip_active_code,
+        "activation_code": draft.activation_code,
+        "skip_join_link": True,
+        "fast_mode": True,
+        "sale_id": draft.sale_id,
+    }
     try:
         from web_backend import build_manual_order_result  # type: ignore
 
-        return await build_manual_order_result(
-            {
-                "telegram_user_id": draft.telegram_user_id,
-                "full_name": draft.full_name,
-                "plan_name": draft.plan_name,
-                "amount": draft.amount,
-                "duration_days": draft.duration_days,
-                "payment_currency": draft.payment_currency,
-                "payment_provider": draft.payment_provider,
-                "note": draft.note,
-                "skip_active_code": draft.skip_active_code,
-                "activation_code": draft.activation_code,
-                "skip_join_link": True,
-                "fast_mode": True,
-                "sale_id": draft.sale_id,
-            }
-        )
-    except Exception:
+        return await build_manual_order_result(payload)
+    except Exception as exc:
+        print(f"⚠️ Manual order direct helper unavailable, fallback HTTP: {exc}")
         pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
-        payload = {
-            "telegram_user_id": draft.telegram_user_id,
-            "full_name": draft.full_name,
-            "plan_name": draft.plan_name,
-            "amount": draft.amount or pricing.get("amount") or 0,
-            "duration_days": draft.duration_days or pricing.get("duration_days") or 30,
-            "payment_currency": draft.payment_currency or pricing.get("payment_currency") or "VND",
-            "payment_provider": draft.payment_provider,
-            "note": draft.note,
-            "skip_active_code": draft.skip_active_code,
-            "activation_code": draft.activation_code,
-            "skip_join_link": True,
-            "fast_mode": True,
-            "sale_id": draft.sale_id,
-        }
+        payload["amount"] = payload["amount"] or pricing.get("amount") or 0
+        payload["duration_days"] = payload["duration_days"] or pricing.get("duration_days") or 30
+        payload["payment_currency"] = payload["payment_currency"] or pricing.get("payment_currency") or "VND"
         resp = requests.post(
             f"{_backend_base_url().rstrip('/')}/admin-api/manual-orders",
             json=payload,
