@@ -1450,6 +1450,7 @@ async def admin_create_manual_order(request: Request):
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
+    fast_mode = str(body.get("fast_mode", "")).lower() == "true" or body.get("fast_mode") is True
     skip_active_code = should_skip_manual_active_code(body)
     activation_code = "" if skip_active_code else (str(body.get("activation_code", "")).strip().upper() or generate_activation_code())
     activation_url = build_manual_activation_url(activation_code) if activation_code else ""
@@ -1564,8 +1565,8 @@ async def admin_create_manual_order(request: Request):
     failed_groups = []
     invite_results = []
     support_text = ""
-    
-    if not skip_join_link:
+
+    if not skip_join_link and not fast_mode:
         support_link, support_error = await create_support_invite_link(user_id)
         try:
             links_text, group_names, failed_groups, invite_results = await build_invite_links(user_id, plan_name)
@@ -1679,7 +1680,7 @@ async def admin_create_manual_order(request: Request):
             "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
             "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
-            "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
+            "manual_order_text": "" if skip_active_code or fast_mode else render_manual_order_message_text(message_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
@@ -1698,7 +1699,7 @@ async def admin_create_manual_order(request: Request):
                 "support_error": support_error,
                 "activation_code": activation_code,
             }),
-            "manual_order_join_text": "" if skip_join_link else render_manual_order_message_text(join_template, {
+            "manual_order_join_text": "" if skip_join_link or fast_mode else render_manual_order_message_text(join_template, {
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,

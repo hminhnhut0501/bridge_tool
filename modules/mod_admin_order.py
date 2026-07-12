@@ -480,6 +480,8 @@ async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
         "note": draft.note,
         "skip_active_code": draft.skip_active_code,
         "activation_code": draft.activation_code,
+        "skip_join_link": True,
+        "fast_mode": True,
         "sale_id": draft.sale_id,
     }
     resp = requests.post(
