@@ -400,12 +400,10 @@ def _set_field(draft: OrderDraft, field: str, text: str):
 def _draft_summary(draft: OrderDraft) -> str:
     rows = [
         "🧾 <b>Admin order wizard</b>",
-        f"• Forward text: <code>{_normalize_text(draft.customer_text or '-')}</code>",
         f"• Telegram ID: <code>{_normalize_text(draft.telegram_user_id or '-')}</code>",
-        f"• Tên khách: <code>{_normalize_text(draft.full_name or '-')}</code>",
         f"• Gói: <code>{_normalize_text(draft.plan_name or '-')}</code>",
+        f"• Hạn: <code>{_normalize_text(draft.duration_days or '-')} ngày</code>",
         f"• Số tiền: <code>{_normalize_text(draft.amount or '-')}</code>",
-        f"• Số ngày: <code>{_normalize_text(draft.duration_days or '-')}</code>",
         f"• Tiền tệ: <code>{_normalize_text(draft.payment_currency or '-')}</code>",
         f"• Gen active code: <code>{'YES' if not draft.skip_active_code else 'NO'}</code>",
         f"• Bước hiện tại: <code>{_normalize_text(draft.step)}</code>",
@@ -419,27 +417,17 @@ def _draft_summary(draft: OrderDraft) -> str:
 def _keyboard(draft: OrderDraft):
     kb = InlineKeyboardBuilder()
     kb.button(text="Chọn gói", callback_data="admin_order:pick_plan")
-    kb.button(text="Tạo đơn", callback_data="admin_order:create")
     kb.button(text="More", callback_data="admin_order:more")
     kb.button(text="Hủy", callback_data="admin_order:cancel")
-    kb.adjust(2, 2)
+    kb.adjust(2, 1)
     return kb.as_markup()
 
 
 def _more_keyboard():
     kb = InlineKeyboardBuilder()
     kb.button(text="Back", callback_data="admin_order:back_to_main")
-    kb.button(text="ID", callback_data="admin_order:set:telegram_user_id")
-    kb.button(text="Tên", callback_data="admin_order:set:full_name")
-    kb.button(text="Gói", callback_data="admin_order:set:plan_name")
     kb.button(text="Note", callback_data="admin_order:set:note")
-    kb.button(text="Tiền", callback_data="admin_order:set:amount")
-    kb.button(text="Ngày", callback_data="admin_order:set:duration_days")
-    kb.button(text="Currency", callback_data="admin_order:set:payment_currency")
-    kb.button(text="Provider", callback_data="admin_order:set:payment_provider")
-    kb.button(text="Active code", callback_data="admin_order:set:activation_code")
-    kb.button(text="Toggle active", callback_data="admin_order:toggle:skip_active_code")
-    kb.adjust(2, 2, 2, 2, 2)
+    kb.adjust(2)
     return kb.as_markup()
 
 
@@ -541,10 +529,7 @@ async def admin_order_actions(callback: CallbackQuery):
         return
 
     if action == "toggle":
-        field = rest[0] if rest else ""
-        if field == "skip_active_code":
-            draft.skip_active_code = not draft.skip_active_code
-        await _render_draft(callback, draft, "Đã cập nhật tuỳ chọn.")
+        await callback.answer("Không dùng trong flow nhanh.", show_alert=True)
         return
 
     if action == "back":
@@ -552,26 +537,12 @@ async def admin_order_actions(callback: CallbackQuery):
         await _render_draft(callback, draft, "Đã lùi về bước trước.")
         return
 
-    if action == "skip":
-        skipped = draft.step
-        _apply_skip(draft)
-        await _render_draft(callback, draft, f"Đã bỏ qua bước <b>{_normalize_text(_field_label(skipped))}</b>.")
-        return
-
     if action == "more":
         await callback.message.edit_text(
-            "Chọn trường nâng cao khi cần:",
+            "Chọn note khi cần:",
             reply_markup=_more_keyboard(),
         )
         await callback.answer()
-        return
-
-    if action == "set":
-        draft.step = rest[0] if rest else "telegram_user_id"
-        if draft.step == "plan_name":
-            _ensure_plan_name_hint(draft)
-            _apply_pricing_from_plan(draft)
-        await _render_draft(callback, draft, f"Nhập giá trị cho: <b>{_normalize_text(_field_label(draft.step))}</b>.")
         return
 
     if action == "pick_plan":
@@ -581,10 +552,12 @@ async def admin_order_actions(callback: CallbackQuery):
             return
         kb = InlineKeyboardBuilder()
         for idx, plan_name in enumerate(candidates[:12]):
-            kb.button(text=plan_name, callback_data=f"admin_order:use_plan:{idx}")
+            pricing = _resolve_plan_pricing(plan_name, "")
+            days = str(pricing.get("duration_days") or "?")
+            kb.button(text=f"{plan_name} · {days}d", callback_data=f"admin_order:use_plan:{idx}")
         kb.button(text="Back", callback_data="admin_order:back_to_main")
         kb.adjust(1)
-        await callback.message.edit_text("Chọn plan_name có sẵn:", reply_markup=kb.as_markup())
+        await callback.message.edit_text("Chọn gói nhanh:", reply_markup=kb.as_markup())
         await callback.answer()
         return
 
@@ -600,16 +573,8 @@ async def admin_order_actions(callback: CallbackQuery):
             return
         draft.plan_name = candidates[idx]
         _apply_pricing_from_plan(draft)
-        draft.step = _next_field("plan_name")
-        await _render_draft(callback, draft, f"Đã chọn gói: <b>{_normalize_text(draft.plan_name)}</b>.")
-        return
-
-    if action == "create":
-        _ensure_plan_name_hint(draft)
-        missing = [label for label, value in [("telegram_user_id", draft.telegram_user_id), ("plan_name", draft.plan_name)] if not str(value or "").strip()]
-        if missing:
-            await callback.answer(f"Thiếu: {', '.join(missing)}", show_alert=True)
-            return
+        draft.step = "activation_code"
+        await callback.answer()
         try:
             result = await _create_manual_order(draft)
         except Exception as exc:
@@ -623,16 +588,20 @@ async def admin_order_actions(callback: CallbackQuery):
                     "error": str(exc),
                 },
             )
-            await callback.answer(f"Lỗi tạo đơn: {_short_error_text(exc)}", show_alert=True)
+            await callback.message.edit_text(
+                f"❌ Lỗi tạo đơn: {_short_error_text(exc)}\n\n"
+                f"Đã chọn gói: <code>{_normalize_text(draft.plan_name)}</code>\n"
+                f"Bạn có thể bấm Back để chọn lại."
+            )
             return
         _set_draft(callback.from_user.id, None)
         await callback.message.edit_text(
             "✅ Đã tạo đơn.\n\n"
-            f"Order ID: <code>{_normalize_text(result.get('order_id') or '-')}</code>\n"
+            f"Telegram ID: <code>{_normalize_text(result.get('telegram_user_id') or draft.telegram_user_id or '-')}</code>\n"
+            f"Gói: <code>{_normalize_text(result.get('plan_name') or draft.plan_name or '-')}</code>\n"
             f"Activation: <code>{_normalize_text(result.get('activation_code') or '-')}</code>\n"
             f"URL: <code>{_normalize_text(result.get('activation_url') or '-')}</code>"
         )
-        await callback.answer()
         return
 
 
@@ -657,7 +626,7 @@ async def admin_order_capture(message: Message):
     if field == "telegram_user_id":
         draft.telegram_user_id = text
         draft.step = "plan_name"
-        await _render_draft(message, draft, "Đã cập nhật Telegram ID.")
+        await _render_draft(message, draft, "Đã cập nhật Telegram ID. Chọn gói tiếp theo.")
         return
     if field == "full_name":
         draft.full_name = text
@@ -667,7 +636,7 @@ async def admin_order_capture(message: Message):
         draft.plan_name = text
         _apply_pricing_from_plan(draft)
         draft.step = "activation_code"
-        await _render_draft(message, draft, "Đã cập nhật gói. Bước tiếp theo là xuất active code.")
+        await _render_draft(message, draft, "Đã cập nhật gói. Chọn gói xong bot sẽ xuất active code ngay.")
         return
     if field == "note":
         draft.note = text
