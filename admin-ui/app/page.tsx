@@ -3083,6 +3083,7 @@ export default function Home() {
     status: "PENDING",
     plan_name: "",
     amount: "",
+    payment_currency: "VND",
     expire_at: "",
     paid_at: "",
     coupon_code: "",
@@ -4618,6 +4619,7 @@ export default function Home() {
       status: String(order.status || "PENDING").toUpperCase(),
       plan_name: String(order.plan_name || ""),
       amount: String(order.amount ?? ""),
+      payment_currency: String(order.payment_currency || inferOrderCurrency(order) || "VND").toUpperCase(),
       expire_at: orderExpireValue(order.expire_at || ""),
       paid_at: orderExpireValue(order.paid_at || ""),
       coupon_code: String(order.coupon_code || ""),
@@ -4655,6 +4657,14 @@ export default function Home() {
     }
   }
 
+  function orderEditorAmountPreview() {
+    const raw = Number(String(orderEditorForm.amount || "").replace(/,/g, "."));
+    if (!Number.isFinite(raw)) return "-";
+    const fallbackCurrency = selectedOrderForEditor ? inferOrderCurrency(selectedOrderForEditor) : "VND";
+    const currency = normalizeRevenueCurrency(orderEditorForm.payment_currency || fallbackCurrency);
+    return formatRevenueCurrency(currency, raw);
+  }
+
   async function saveOrderEditor() {
     if (!orderEditorOrderId) return;
     const nextPlanName = orderEditorForm.plan_name.trim();
@@ -4665,6 +4675,7 @@ export default function Home() {
       status: nextStatus,
       plan_name: nextPlanName,
       coupon_code: nextCouponCode || null,
+      payment_currency: String(orderEditorForm.payment_currency || "VND").toUpperCase(),
       note: nextNote,
     };
     if (String(orderEditorForm.amount || "").trim() !== "") payload.amount = Number(String(orderEditorForm.amount).replace(/,/g, "."));
@@ -8104,6 +8115,10 @@ export default function Home() {
                   <MenuItem value="CANCELLED">CANCELLED</MenuItem>
                   <MenuItem value="EXPIRED">EXPIRED</MenuItem>
                 </TextField>
+                <TextField select label="Tiền tệ" value={orderEditorForm.payment_currency} onChange={(event) => setOrderEditorForm({ ...orderEditorForm, payment_currency: event.target.value })} size="small" fullWidth helperText="Chọn tiền tệ để hiển thị và lưu đúng định dạng." >
+                  <MenuItem value="VND">VNĐ</MenuItem>
+                  <MenuItem value="USD">USD</MenuItem>
+                </TextField>
                 <TextField
                   label="Tên gói"
                   value={orderEditorForm.plan_name}
@@ -8120,7 +8135,7 @@ export default function Home() {
                   size="small"
                   fullWidth
                   inputMode="decimal"
-                  helperText="Số tiền thực tế của đơn. Chỉ đổi khi cần sửa đối soát."
+                  helperText={`Số tiền lưu trữ thực tế. Hiển thị: ${orderEditorAmountPreview()}`}
                 />
                 <TextField
                   label="Ngày paid"

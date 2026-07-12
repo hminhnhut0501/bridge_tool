@@ -551,7 +551,7 @@ export async function updateOrderStatus(secret: string, orderId: string, status:
   });
 }
 
-export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code" | "note" | "amount">>) {
+export async function updateOrder(secret: string, orderId: string, payload: Partial<Pick<Order, "status" | "expire_at" | "paid_at" | "expired_notice_at" | "plan_name" | "coupon_code" | "note" | "amount" | "payment_currency">>) {
   return request<{ data: Order[] }>(`/admin-api/orders/${encodeURIComponent(orderId)}`, secret, {
     method: "PATCH",
     body: JSON.stringify(payload),
