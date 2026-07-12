@@ -834,7 +834,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         amount = 0.0
 
     user_language = get_user_language(user_id)
-    default_currency = "USD" if user_language == "en" else "VND"
+    default_currency = "VND"
     preferred_provider = payment_manager.preferred_provider(user_language) or ("PAYPAL" if user_language == "en" else "PAYOS")
     payment_currency = str(body.get("payment_currency") or default_currency).strip().upper() or default_currency
     payment_provider = str(body.get("payment_provider") or preferred_provider).strip().upper() or preferred_provider
@@ -1759,7 +1759,7 @@ async def admin_create_manual_order(request: Request):
         amount = 0.0
 
     user_language = get_user_language(user_id)
-    default_currency = "USD" if user_language == "en" else "VND"
+    default_currency = "VND"
     preferred_provider = payment_manager.preferred_provider(user_language) or ("PAYPAL" if user_language == "en" else "PAYOS")
     payment_currency = str(body.get("payment_currency") or default_currency).strip().upper() or default_currency
     payment_provider = str(body.get("payment_provider") or preferred_provider).strip().upper() or preferred_provider
