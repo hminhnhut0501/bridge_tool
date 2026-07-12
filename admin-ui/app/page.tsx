@@ -4665,6 +4665,27 @@ export default function Home() {
     return formatRevenueCurrency(currency, raw);
   }
 
+  function normalizeOrderEditorAmountInput(value: string, currency: string) {
+    const normalizedCurrency = normalizeRevenueCurrency(currency);
+    const cleaned = String(value || "").replace(/[^\d.,-]/g, "").replace(/,/g, ".");
+    if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
+      const match = cleaned.match(/^-?\d*(?:\.\d{0,2})?/);
+      return match ? match[0] : "";
+    }
+    const match = cleaned.match(/^-?\d*/);
+    return match ? match[0] : "";
+  }
+
+  function roundOrderEditorVndAmount() {
+    const currency = normalizeRevenueCurrency(orderEditorForm.payment_currency || "VND");
+    if (currency !== "VND") return;
+    const text = String(orderEditorForm.amount || "").trim();
+    if (!text) return;
+    const numeric = Number(text.replace(/,/g, "."));
+    if (!Number.isFinite(numeric)) return;
+    setOrderEditorForm((current) => ({ ...current, amount: String(Math.round(numeric)) }));
+  }
+
   async function saveOrderEditor() {
     if (!orderEditorOrderId) return;
     const nextPlanName = orderEditorForm.plan_name.trim();
@@ -8131,11 +8152,19 @@ export default function Home() {
                 <TextField
                   label="Số tiền"
                   value={orderEditorForm.amount}
-                  onChange={(event) => setOrderEditorForm({ ...orderEditorForm, amount: event.target.value })}
+                  onChange={(event) => setOrderEditorForm((current) => ({
+                    ...current,
+                    amount: normalizeOrderEditorAmountInput(event.target.value, current.payment_currency || orderEditorForm.payment_currency),
+                  }))}
+                  onBlur={roundOrderEditorVndAmount}
                   size="small"
                   fullWidth
-                  inputMode="decimal"
-                  helperText={`Số tiền lưu trữ thực tế. Hiển thị: ${orderEditorAmountPreview()}`}
+                  inputMode={normalizeRevenueCurrency(orderEditorForm.payment_currency) === "VND" ? "numeric" : "decimal"}
+                  helperText={
+                    normalizeRevenueCurrency(orderEditorForm.payment_currency) === "VND"
+                      ? `VNĐ tự làm tròn số nguyên. Hiển thị: ${orderEditorAmountPreview()}`
+                      : `USD giữ tối đa 2 số lẻ. Hiển thị: ${orderEditorAmountPreview()}`
+                  }
                 />
                 <TextField
                   label="Ngày paid"
