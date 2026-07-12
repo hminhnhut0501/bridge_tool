@@ -453,10 +453,13 @@ async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""
     markup = _keyboard(draft)
     if isinstance(message_or_callback, CallbackQuery):
         try:
+            await message_or_callback.answer()
+        except Exception:
+            pass
+        try:
             await message_or_callback.message.edit_text(text, reply_markup=markup)
         except TelegramBadRequest:
             await message_or_callback.message.answer(text, reply_markup=markup)
-        await message_or_callback.answer()
     else:
         await message_or_callback.answer(text, reply_markup=markup)
 
