@@ -417,6 +417,9 @@ def _draft_summary(draft: OrderDraft) -> str:
 def _keyboard(draft: OrderDraft):
     if draft.step == "plan_name":
         candidates = _plan_candidates()
+        lifetime = [item for item in candidates if "trọn đời" in item.lower() or "lifetime" in item.lower() or "life" in item.lower()]
+        normal = [item for item in candidates if item not in lifetime]
+        candidates = lifetime + normal
         kb = InlineKeyboardBuilder()
         for idx, plan_name in enumerate(candidates[:12]):
             pricing = _resolve_plan_pricing(plan_name, "")
@@ -479,30 +482,51 @@ def _start_draft_from_message(message: Message) -> OrderDraft:
 
 
 async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
-    pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
-    payload = {
-        "telegram_user_id": draft.telegram_user_id,
-        "full_name": draft.full_name,
-        "plan_name": draft.plan_name,
-        "amount": draft.amount or pricing.get("amount") or 0,
-        "duration_days": draft.duration_days or pricing.get("duration_days") or 30,
-        "payment_currency": draft.payment_currency or pricing.get("payment_currency") or "VND",
-        "payment_provider": draft.payment_provider,
-        "note": draft.note,
-        "skip_active_code": draft.skip_active_code,
-        "activation_code": draft.activation_code,
-        "skip_join_link": True,
-        "fast_mode": True,
-        "sale_id": draft.sale_id,
-    }
-    resp = requests.post(
-        f"{_backend_base_url().rstrip('/')}/admin-api/manual-orders",
-        json=payload,
-        headers=_http_headers(),
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return resp.json().get("data") or {}
+    try:
+        from web_backend import build_manual_order_result  # type: ignore
+
+        return await build_manual_order_result(
+            {
+                "telegram_user_id": draft.telegram_user_id,
+                "full_name": draft.full_name,
+                "plan_name": draft.plan_name,
+                "amount": draft.amount,
+                "duration_days": draft.duration_days,
+                "payment_currency": draft.payment_currency,
+                "payment_provider": draft.payment_provider,
+                "note": draft.note,
+                "skip_active_code": draft.skip_active_code,
+                "activation_code": draft.activation_code,
+                "skip_join_link": True,
+                "fast_mode": True,
+                "sale_id": draft.sale_id,
+            }
+        )
+    except Exception:
+        pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
+        payload = {
+            "telegram_user_id": draft.telegram_user_id,
+            "full_name": draft.full_name,
+            "plan_name": draft.plan_name,
+            "amount": draft.amount or pricing.get("amount") or 0,
+            "duration_days": draft.duration_days or pricing.get("duration_days") or 30,
+            "payment_currency": draft.payment_currency or pricing.get("payment_currency") or "VND",
+            "payment_provider": draft.payment_provider,
+            "note": draft.note,
+            "skip_active_code": draft.skip_active_code,
+            "activation_code": draft.activation_code,
+            "skip_join_link": True,
+            "fast_mode": True,
+            "sale_id": draft.sale_id,
+        }
+        resp = requests.post(
+            f"{_backend_base_url().rstrip('/')}/admin-api/manual-orders",
+            json=payload,
+            headers=_http_headers(),
+            timeout=180,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data") or {}
 
 
 @router.message(Command("admin_order"))
