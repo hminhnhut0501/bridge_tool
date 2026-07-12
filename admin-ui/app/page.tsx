@@ -4763,6 +4763,9 @@ export default function Home() {
       amount: defaultOrder ? String(defaultOrder.amount || "0") : (manualPriceFromKey("FULL_1M") || "0"),
       payment_currency: String(defaultOrder?.payment_currency || "VND").toUpperCase(),
       payment_provider: String(defaultOrder?.payment_provider || "MANUAL").toUpperCase(),
+      expiry_mode: "days",
+      duration_days: "30",
+      expire_at: "",
     });
     setManualOrderModalOpen(true);
   }
@@ -6278,6 +6281,9 @@ export default function Home() {
       plan_name: customer?.paidOrders.length ? current.plan_name : manualPlanNameFromKey("FULL_1M"),
       special_group_id: "",
       special_group_duration: "1M",
+      expiry_mode: "days",
+      duration_days: "30",
+      expire_at: "",
     }));
     setManualOrderModalOpen(true);
     setCustomerQuickLookupOpen(false);
@@ -6346,6 +6352,9 @@ export default function Home() {
                   plan_key: "FULL_1M",
                   plan_name: manualPlanNameFromKey("FULL_1M"),
                   amount: manualPriceFromKey("FULL_1M") || "0",
+                  expiry_mode: "days",
+                  duration_days: "30",
+                  expire_at: "",
                 });
                 setManualOrderModalOpen(true);
               }}
