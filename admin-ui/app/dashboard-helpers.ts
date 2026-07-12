@@ -127,6 +127,12 @@ export function isLifetimeText(value: string | null | undefined) {
   return ["trọn đời", "tron doi", "lifetime", "long life"].some((part) => text.includes(part)) || /\blife\b/i.test(text);
 }
 
+export function isLifetimeAllAccessText(value: string | null | undefined) {
+  const text = displayText(value).toLowerCase();
+  if (!isLifetimeText(text)) return false;
+  return text.includes("all access") || text.includes("svip");
+}
+
 export function inferOrderProvider(order: Order) {
   return String(order.payment_provider || "MANUAL").toUpperCase();
 }

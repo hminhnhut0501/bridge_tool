@@ -94,6 +94,7 @@ import {
   inferOrderCurrency,
   inferOrderProvider,
   isLifetimeText,
+  isLifetimeAllAccessText,
   isOrderActive,
   isTodayDate,
   isWithinPeriod,
@@ -4955,10 +4956,7 @@ export default function Home() {
       const plans = uniqueValues(customer.orders.map((item) => item.plan_name));
       const revenue = paidOrders.reduce((sum, item) => sum + orderAmountValue(item), 0);
       const lastOrderAt = customer.orders.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
-      const hasLifetimeSvip = customer.orders.some((item) => {
-        const plan = String(item.plan_name || "").toLowerCase();
-        return item.status === "PAID" && isLifetimeText(item.plan_name) && (plan.includes("all access") || plan.includes("svip"));
-      });
+      const hasLifetimeSvip = customer.orders.some((item) => item.status === "PAID" && isLifetimeAllAccessText(item.plan_name));
       const hasLifetimeOrder = customer.orders.some((item) => item.status === "PAID" && isLifetimeText(item.plan_name));
       const expiringWithinWindow = customer.orders.some((item) => item.status === "PAID" && !isLifetimeText(item.plan_name) && (() => {
         const days = daysUntil(item.expire_at);
@@ -5444,10 +5442,7 @@ export default function Home() {
     const customer = customerSummaryById.get(String(telegramUserId || "").trim());
     const paidCount = customer?.paidOrders.length || 0;
     const isNew = paidCount <= 1;
-    const isSvip = customer?.paidOrders.some((order) => {
-      const plan = String(order.plan_name || "").toLowerCase();
-      return isLifetimeText(order.plan_name) && (plan.includes("all access") || plan.includes("svip"));
-    }) || false;
+    const isSvip = customer?.paidOrders.some((order) => isLifetimeAllAccessText(order.plan_name)) || false;
     return {
       isNew,
       isSvip,
