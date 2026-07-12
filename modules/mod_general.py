@@ -447,7 +447,11 @@ async def deliver_activation_order(message: Message, code: str):
         processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link tham gia nhóm..."))
         try:
             plan_name = str(activation.get("plan_name") or "").strip()
-            links_text, group_names, failed_groups, invite_results = await build_invite_links(message.from_user.id, plan_name)
+            support_task = asyncio.create_task(create_support_invite_link(message.from_user.id))
+            links_task = asyncio.create_task(build_invite_links(message.from_user.id, plan_name))
+            support_link_result, links_result = await asyncio.gather(support_task, links_task)
+            support_link, support_error = support_link_result
+            links_text, group_names, failed_groups, invite_results = links_result
             if failed_groups or not group_names:
                 try:
                     supabase_store.record_support_event(
@@ -504,7 +508,6 @@ async def deliver_activation_order(message: Message, code: str):
                 "expire_at": format_manual_expire(expire_at),
                 "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
             }
-            support_link, support_error = await create_support_invite_link(message.from_user.id)
             render_context["support_link"] = support_link or ""
             render_context["support_error"] = support_error or ""
             support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)

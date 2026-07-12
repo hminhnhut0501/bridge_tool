@@ -590,45 +590,53 @@ async def build_invite_links(user_id, plan_name):
     group_names = []
     failed_groups = []
     invite_results = []
+    target_groups = list(resolve_groups(plan_name))
 
-    for gid, group_name in resolve_groups(plan_name):
+    async def _build_one(gid, group_name):
         try:
             try:
                 await bot.unban_chat_member(chat_id=gid, user_id=int(user_id), only_if_banned=True)
             except Exception as unban_err:
                 if "administrator" not in str(unban_err).lower():
                     log.warning("Cannot unban coupon user %s from %s: %s", user_id, gid, unban_err)
-
             invite = await bot.create_chat_invite_link(
                 chat_id=gid,
                 member_limit=1,
                 creates_join_request=False,
             )
-            group_names.append(group_name)
-            invite_results.append({
+            return {
                 "group_id": str(gid),
                 "group_name": group_name,
                 "ok": True,
                 "error": "",
                 "invite_link": invite.invite_link,
-            })
-            links_msg += f"👉 <b>{escape_html(group_name)}</b>:\n{invite.invite_link}\n\n"
-            try:
-                if not is_support_group(gid):
-                    await unmute_member(gid, user_id)
-            except Exception as unmute_err:
-                log.warning("Cannot unmute coupon user %s in %s: %s", user_id, gid, unmute_err)
+            }
         except Exception as err:
-            failed_groups.append(group_name)
-            invite_results.append({
+            return {
                 "group_id": str(gid),
                 "group_name": group_name,
                 "ok": False,
                 "error": str(err),
                 "invite_link": "",
-            })
+            }
+
+    results = await asyncio.gather(*[_build_one(gid, group_name) for gid, group_name in target_groups]) if target_groups else []
+    for result in results:
+        group_name = result["group_name"]
+        invite_results.append(result)
+        if result["ok"]:
+            group_names.append(group_name)
+            links_msg += f"👉 <b>{escape_html(group_name)}</b>:\n{result['invite_link']}\n\n"
+            try:
+                gid = result["group_id"]
+                if not is_support_group(gid):
+                    await unmute_member(gid, user_id)
+            except Exception as unmute_err:
+                log.warning("Cannot unmute coupon user %s in %s: %s", user_id, result["group_id"], unmute_err)
+        else:
+            failed_groups.append(group_name)
             template = t(user_id, "MSG_INVITE_LINK_ERROR", "👉 <b>{group}</b>: <i>Không tạo được link ({error})</i>\\n\\n").replace("\\n", "\n")
-            links_msg += template.replace("{group}", escape_html(group_name)).replace("{error}", escape_html(err))
+            links_msg += template.replace("{group}", escape_html(group_name)).replace("{error}", escape_html(result["error"]))
 
     return links_msg, ", ".join(group_names), failed_groups, invite_results
 
