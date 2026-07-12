@@ -42,7 +42,7 @@ FIELD_HINTS = {
     "duration_days": "Số ngày",
     "payment_currency": "Tiền tệ",
     "payment_provider": "Provider",
-    "activation_code": "Active code",
+    "activation_code": "Xuất active code",
 }
 
 
@@ -122,8 +122,8 @@ def _field_label(field: str) -> str:
     return FIELD_HINTS.get(field, field.replace("_", " ").title())
 
 
-QUICK_FIELDS = ["telegram_user_id", "plan_name", "note"]
-EXTRA_FIELDS = ["full_name", "amount", "duration_days", "payment_currency", "payment_provider", "activation_code"]
+QUICK_FIELDS = ["telegram_user_id", "plan_name", "activation_code"]
+EXTRA_FIELDS = ["full_name", "note", "amount", "duration_days", "payment_currency", "payment_provider"]
 ALL_FIELDS = QUICK_FIELDS + EXTRA_FIELDS
 
 
@@ -361,7 +361,9 @@ def _advance_after_field(draft: OrderDraft, field: str):
     if field == "telegram_user_id":
         draft.step = "plan_name"
     elif field == "plan_name":
-        draft.step = "note"
+        draft.step = "activation_code"
+    elif field == "activation_code":
+        draft.step = "telegram_user_id"
     else:
         draft.step = "telegram_user_id"
 
@@ -405,7 +407,6 @@ def _draft_summary(draft: OrderDraft) -> str:
         f"• Số tiền: <code>{_normalize_text(draft.amount or '-')}</code>",
         f"• Số ngày: <code>{_normalize_text(draft.duration_days or '-')}</code>",
         f"• Tiền tệ: <code>{_normalize_text(draft.payment_currency or '-')}</code>",
-        f"• Note: <code>{_normalize_text(draft.note or '-')}</code>",
         f"• Gen active code: <code>{'YES' if not draft.skip_active_code else 'NO'}</code>",
         f"• Bước hiện tại: <code>{_normalize_text(draft.step)}</code>",
     ]
@@ -662,8 +663,8 @@ async def admin_order_capture(message: Message):
     if field == "plan_name":
         draft.plan_name = text
         _apply_pricing_from_plan(draft)
-        draft.step = "note"
-        await _render_draft(message, draft, "Đã cập nhật gói. Giờ nhập ghi chú hoặc bấm tạo.")
+        draft.step = "activation_code"
+        await _render_draft(message, draft, "Đã cập nhật gói. Bước tiếp theo là xuất active code.")
         return
     if field == "note":
         draft.note = text
