@@ -54,7 +54,19 @@ def _cfg(key: str, default: str = "") -> str:
 
 
 def _backend_base_url() -> str:
-    return _cfg("ADMIN_API_BASE_URL", os.getenv("ADMIN_API_BASE_URL", "http://127.0.0.1:8000"))
+    configured = _cfg("ADMIN_API_BASE_URL", os.getenv("ADMIN_API_BASE_URL", ""))
+    if configured:
+        return configured
+    webhook_url = str(os.getenv("WEBHOOK_URL", "") or "").strip()
+    if webhook_url:
+        base = webhook_url.split("?", 1)[0].rsplit("/", 1)[0]
+        if base:
+            return base.rstrip("/")
+    for key in ("PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL", "WEB_BACKEND_URL", "APP_URL"):
+        value = str(os.getenv(key, "") or "").strip()
+        if value:
+            return value.rstrip("/")
+    return "http://127.0.0.1:8000"
 
 
 def _admin_secret() -> str:
@@ -71,6 +83,13 @@ def _http_headers() -> dict[str, str]:
 
 def _normalize_text(value: Any) -> str:
     return html.escape(str(value or "").strip())
+
+
+def _short_error_text(value: Any, limit: int = 180) -> str:
+    text = str(value or "").strip().replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}..."
 
 
 def _parse_amount(text: str) -> float:
@@ -582,7 +601,17 @@ async def admin_order_actions(callback: CallbackQuery):
         try:
             result = await _create_manual_order(draft)
         except Exception as exc:
-            await callback.answer(f"Lỗi tạo đơn: {exc}", show_alert=True)
+            print(
+                "⚠️ Manual order create failed",
+                {
+                    "admin_id": callback.from_user.id,
+                    "backend_url": _backend_base_url(),
+                    "telegram_user_id": draft.telegram_user_id,
+                    "plan_name": draft.plan_name,
+                    "error": str(exc),
+                },
+            )
+            await callback.answer(f"Lỗi tạo đơn: {_short_error_text(exc)}", show_alert=True)
             return
         _set_draft(callback.from_user.id, None)
         await callback.message.edit_text(
