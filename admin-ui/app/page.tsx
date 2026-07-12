@@ -1254,9 +1254,9 @@ const SECURITY_FIELDS: ConfigField[] = [
   },
   {
     key: "COUPON_COMMAND_ENABLED",
-    label: "Hiện lệnh /coupon",
+    label: "Hiện lệnh /code",
     placeholder: "OFF",
-    help: "OFF sẽ không đưa /coupon vào danh sách lệnh Telegram và bỏ qua lệnh này từ khách.",
+    help: "OFF sẽ không đưa /code vào danh sách lệnh Telegram và bỏ qua lệnh nhập mã từ khách.",
     kind: "select",
     options: [
       { label: "Ẩn", value: "OFF" },
@@ -1419,7 +1419,7 @@ const COMMAND_FIELDS: ConfigField[] = [
   { key: "BOT_COMMAND_DESC_START", label: "Mô tả /start", placeholder: "Trang chủ / Mua gói", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_LANG", label: "Mô tả /lang", placeholder: "Đổi ngôn ngữ", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_ME", label: "Mô tả /me", placeholder: "Kiểm tra gói & Hạn dùng", help: "Mô tả lệnh Telegram." },
-  { key: "BOT_COMMAND_DESC_COUPON", label: "Mô tả /coupon", placeholder: "Nhập mã kích hoạt / Enter activation code", help: "Chỉ hiện khi bật lệnh /coupon." },
+  { key: "BOT_COMMAND_DESC_CODE", label: "Mô tả /code", placeholder: "Nhập mã / code / hidden code", help: "Chỉ hiện khi bật lệnh /code." },
   { key: "BOT_COMMAND_DESC_SUPPORT", label: "Mô tả /support", placeholder: "Nhắn admin trợ giúp", help: "Mô tả lệnh Telegram." },
   { key: "BOT_COMMAND_DESC_POLICY", label: "Mô tả /policy", placeholder: "Đọc quy định nhóm", help: "Mô tả lệnh Telegram." },
 ];
@@ -1450,7 +1450,7 @@ const PRIVATE_MENU_FIELDS: ConfigField[] = [
   { key: "BOT_MENU_PRIVATE_ME_ENABLED", label: "Hiện /me", placeholder: "ON", help: "Bật/tắt /me trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
   { key: "BOT_MENU_PRIVATE_SUPPORT_ENABLED", label: "Hiện /support", placeholder: "ON", help: "Bật/tắt /support trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
   { key: "BOT_MENU_PRIVATE_POLICY_ENABLED", label: "Hiện /policy", placeholder: "ON", help: "Bật/tắt /policy trong menu private.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
-  { key: "BOT_MENU_PRIVATE_COUPON_ENABLED", label: "Hiện /coupon", placeholder: "ON", help: "Chỉ hiện nếu lệnh nhập mã đang bật.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
+  { key: "BOT_MENU_PRIVATE_COUPON_ENABLED", label: "Hiện /code", placeholder: "ON", help: "Chỉ hiện nếu lệnh nhập mã đang bật.", kind: "select", options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }] },
 ];
 
 const GROUP_MENU_FIELDS: ConfigField[] = [

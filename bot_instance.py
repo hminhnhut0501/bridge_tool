@@ -50,10 +50,10 @@ async def set_commands():
         private_commands.insert(
             2,
             BotCommand(
-                command="coupon",
+                command="code",
                 description=command_desc(
-                    "BOT_COMMAND_DESC_COUPON",
-                    "Nhập mã kích hoạt / coupon / hidden code",
+                    "BOT_COMMAND_DESC_CODE",
+                    "Nhập mã / code / hidden code",
                 ),
             ),
         )

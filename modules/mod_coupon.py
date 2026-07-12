@@ -877,8 +877,9 @@ async def send_coupon_prompt(target, state: FSMContext):
         await target.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
 
 
+@router.message(Command("code"))
 @router.message(Command("coupon"))
-async def cmd_coupon(message: Message, state: FSMContext):
+async def cmd_code(message: Message, state: FSMContext):
     if not await check_protection(message):
         return
     if message.chat.type != "private":

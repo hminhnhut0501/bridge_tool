@@ -249,7 +249,7 @@ def test_private_menu_has_single_coupon_entry(monkeypatch):
         "BOT_MENU_PRIVATE_ME_ENABLED": "ON",
         "BOT_MENU_PRIVATE_SUPPORT_ENABLED": "ON",
         "BOT_MENU_PRIVATE_POLICY_ENABLED": "ON",
-        "BOT_COMMAND_DESC_COUPON": "Nhập mã kích hoạt / coupon / hidden code",
+        "BOT_COMMAND_DESC_CODE": "Nhập mã / code / hidden code",
     }
     calls = []
 
@@ -264,7 +264,8 @@ def test_private_menu_has_single_coupon_entry(monkeypatch):
     private_calls = [item for item in calls if isinstance(item[1], BotCommandScopeAllPrivateChats)]
     assert private_calls, "private command scope should be set"
     private_commands = private_calls[-1][0]
-    assert [cmd.command for cmd in private_commands].count("coupon") == 1
+    assert [cmd.command for cmd in private_commands].count("code") == 1
+    assert [cmd.command for cmd in private_commands].count("coupon") == 0
     assert "activation" not in [cmd.command for cmd in private_commands]
     assert "hidden" not in [cmd.command for cmd in private_commands]
 
