@@ -6018,8 +6018,8 @@ export default function Home() {
       plan_key: value,
       plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
-      expiry_mode: lifetime ? "date" : manualOrderForm.expiry_mode || "days",
-      duration_days: lifetime ? lifetimeCouponDays : "30",
+      expiry_mode: lifetime ? "days" : manualOrderForm.expiry_mode || "days",
+      duration_days: lifetime ? String(lifetimeCouponDays || 3650) : "30",
       expire_at: lifetime ? manualOrderForm.expire_at : manualOrderForm.expire_at,
       special_group_id: value === "CUSTOM" ? manualOrderForm.special_group_id : "",
       special_group_duration: value === "CUSTOM" ? manualOrderForm.special_group_duration : "1M",
@@ -6055,6 +6055,9 @@ export default function Home() {
   function manualExpiryPreview() {
     if (manualOrderForm.expiry_mode === "date") {
       return `Sẽ áp dụng: ${dateTimePreviewText(manualOrderForm.expire_at, "Chưa chọn ngày hết hạn")}`;
+    }
+    if (isLifetimeText(manualOrderPlanNameDisplay())) {
+      return `Sẽ áp dụng: ${manualOrderForm.duration_days || lifetimeCouponDays || "3650"} ngày (lifetime)`;
     }
     return `Sẽ áp dụng: ${manualOrderForm.duration_days || "30"} ngày`;
   }
@@ -6110,8 +6113,9 @@ export default function Home() {
     const planName = specialPlanName || (manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key));
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
-    const durationDays = manualOrderForm.expiry_mode === "days" ? manualOrderForm.duration_days : "";
-    const expireAt = manualOrderForm.expiry_mode === "date" ? manualOrderForm.expire_at : "";
+    const isLifetime = isLifetimeText(planName);
+    const durationDays = manualOrderForm.expiry_mode === "days" || isLifetime ? (manualOrderForm.duration_days || String(lifetimeCouponDays || 3650)) : "";
+    const expireAt = manualOrderForm.expiry_mode === "date" && !isLifetime ? manualOrderForm.expire_at : "";
     await runAction("manual-order", async () => {
       const res = await createManualOrder(savedSecret, {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),

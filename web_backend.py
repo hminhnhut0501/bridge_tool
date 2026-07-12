@@ -1504,7 +1504,7 @@ async def admin_create_manual_order(request: Request):
         except (TypeError, ValueError):
             duration_days = 30
         if duration_days <= 0:
-            raise HTTPException(status_code=400, detail="Số ngày sử dụng phải lớn hơn 0, hoặc nhập ngày hết hạn cụ thể.")
+            duration_days = 3650 if order_is_lifetime(plan_name) else 30
         duration_days = resolve_manual_order_duration_days(
             plan_name,
             duration_days,
