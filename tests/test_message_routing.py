@@ -269,6 +269,44 @@ def test_private_menu_has_single_coupon_entry(monkeypatch):
     assert "hidden" not in [cmd.command for cmd in private_commands]
 
 
+def test_admin_order_forward_prefills_identity(monkeypatch):
+    message = SimpleNamespace(
+        text="hi",
+        caption="",
+        from_user=SimpleNamespace(id=999, is_bot=False),
+        chat=SimpleNamespace(type="private"),
+        forward_origin=SimpleNamespace(
+            sender_user=SimpleNamespace(id=7508222302, first_name="Ut", last_name="Cu", username="utc"),
+            chat=None,
+        ),
+        forward_from=None,
+        forward_from_chat=None,
+        forward_date="2026-07-12",
+    )
+
+    draft = mod_admin_order._start_draft_from_message(message)
+
+    assert draft.telegram_user_id == "7508222302"
+    assert draft.full_name == "Ut Cu"
+    assert "ID: 7508222302" in draft.customer_text
+    assert "@utc" in draft.customer_text
+
+
+def test_admin_order_plan_selection_autofills_pricing(monkeypatch):
+    monkeypatch.setattr(mod_admin_order, "_plan_candidates", lambda: ["Prime"])
+    monkeypatch.setattr(mod_admin_order, "main_group_matches_plan", lambda no, text: text == "Prime")
+    monkeypatch.setattr(mod_admin_order, "group_numbers", lambda: [1])
+    monkeypatch.setattr(mod_admin_order, "localized_price_key", lambda key, currency: key)
+    monkeypatch.setattr(mod_admin_order, "get_price", lambda price_key, default, currency: (99000, 0))
+
+    draft = mod_admin_order.OrderDraft(admin_id=1, plan_name="Prime")
+    mod_admin_order._apply_pricing_from_plan(draft)
+
+    assert draft.amount == "99000"
+    assert draft.duration_days == "30"
+    assert draft.payment_currency == "VND"
+
+
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
     message = SimpleNamespace(
         text="/start actmsg_manual_456",

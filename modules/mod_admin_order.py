@@ -35,8 +35,13 @@ router = Router()
 
 FIELD_HINTS = {
     "telegram_user_id": "Telegram ID",
+    "full_name": "Tên khách",
     "plan_name": "Tên gói",
     "note": "Ghi chú",
+    "amount": "Số tiền",
+    "duration_days": "Số ngày",
+    "payment_currency": "Tiền tệ",
+    "payment_provider": "Provider",
     "activation_code": "Active code",
 }
 
@@ -99,7 +104,7 @@ def _field_label(field: str) -> str:
 
 
 QUICK_FIELDS = ["telegram_user_id", "plan_name", "note"]
-EXTRA_FIELDS = ["payment_provider", "activation_code"]
+EXTRA_FIELDS = ["full_name", "amount", "duration_days", "payment_currency", "payment_provider", "activation_code"]
 ALL_FIELDS = QUICK_FIELDS + EXTRA_FIELDS
 
 
@@ -188,6 +193,12 @@ def _plan_candidates() -> list[str]:
     return candidates
 
 
+def _default_currency_for_plan(plan_name: str) -> str:
+    price = _resolve_plan_pricing(plan_name, "")
+    currency = str(price.get("payment_currency") or "").strip().upper()
+    return currency or "VND"
+
+
 def _guess_lifetime(plan_name: str) -> bool:
     text = str(plan_name or "").upper()
     return any(token in text for token in {"TRỌN ĐỜI", "TRON DOI", "LIFE", "LIFETIME"})
@@ -249,7 +260,11 @@ class OrderDraft:
     source_message_id: int | None = None
     customer_text: str = ""
     telegram_user_id: str = ""
+    full_name: str = ""
     plan_name: str = ""
+    amount: str = ""
+    duration_days: str = ""
+    payment_currency: str = "VND"
     payment_provider: str = ""
     note: str = ""
     skip_active_code: bool = True
@@ -284,6 +299,39 @@ def _ensure_plan_name_hint(draft: OrderDraft):
         return
     if not draft.plan_name.strip():
         draft.plan_name = candidates[0]
+
+
+def _apply_pricing_from_plan(draft: OrderDraft):
+    pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
+    if pricing.get("amount") and not str(draft.amount or "").strip():
+        draft.amount = str(pricing.get("amount") or "")
+    if pricing.get("duration_days") and not str(draft.duration_days or "").strip():
+        draft.duration_days = str(pricing.get("duration_days") or "")
+    currency = str(pricing.get("payment_currency") or "").strip().upper()
+    if currency and not str(draft.payment_currency or "").strip():
+        draft.payment_currency = currency
+
+
+def _apply_forward_identity(draft: OrderDraft, message: Message):
+    user = _forward_origin_user(message)
+    if user:
+        uid = str(getattr(user, "id", "") or "").strip()
+        if uid:
+            draft.telegram_user_id = uid
+        first_name = str(getattr(user, "first_name", "") or "").strip()
+        last_name = str(getattr(user, "last_name", "") or "").strip()
+        full_name = " ".join(part for part in [first_name, last_name] if part).strip()
+        if full_name:
+            draft.full_name = full_name
+        username = str(getattr(user, "username", "") or "").strip()
+        if username and not draft.full_name:
+            draft.full_name = f"@{username}"
+    if not draft.full_name:
+        chat = _forward_origin_chat(message)
+        if chat:
+            title = str(getattr(chat, "title", "") or getattr(chat, "first_name", "") or "").strip()
+            if title:
+                draft.full_name = title
 def _advance_after_field(draft: OrderDraft, field: str):
     if field == "telegram_user_id":
         draft.step = "plan_name"
@@ -300,10 +348,21 @@ def _apply_skip(draft: OrderDraft):
 def _set_field(draft: OrderDraft, field: str, text: str):
     if field == "telegram_user_id":
         draft.telegram_user_id = text
+    elif field == "full_name":
+        draft.full_name = text
     elif field == "plan_name":
         draft.plan_name = text
+        _apply_pricing_from_plan(draft)
     elif field == "note":
         draft.note = text
+    elif field == "amount":
+        draft.amount = text
+    elif field == "duration_days":
+        draft.duration_days = text
+    elif field == "payment_currency":
+        draft.payment_currency = text.upper()
+    elif field == "payment_provider":
+        draft.payment_provider = text.upper()
     elif field == "activation_code":
         draft.skip_active_code = False
         draft.activation_code = text.upper()
@@ -316,7 +375,11 @@ def _draft_summary(draft: OrderDraft) -> str:
         "🧾 <b>Admin order wizard</b>",
         f"• Forward text: <code>{_normalize_text(draft.customer_text or '-')}</code>",
         f"• Telegram ID: <code>{_normalize_text(draft.telegram_user_id or '-')}</code>",
+        f"• Tên khách: <code>{_normalize_text(draft.full_name or '-')}</code>",
         f"• Gói: <code>{_normalize_text(draft.plan_name or '-')}</code>",
+        f"• Số tiền: <code>{_normalize_text(draft.amount or '-')}</code>",
+        f"• Số ngày: <code>{_normalize_text(draft.duration_days or '-')}</code>",
+        f"• Tiền tệ: <code>{_normalize_text(draft.payment_currency or '-')}</code>",
         f"• Note: <code>{_normalize_text(draft.note or '-')}</code>",
         f"• Gen active code: <code>{'YES' if not draft.skip_active_code else 'NO'}</code>",
         f"• Bước hiện tại: <code>{_normalize_text(draft.step)}</code>",
@@ -341,11 +404,16 @@ def _more_keyboard():
     kb = InlineKeyboardBuilder()
     kb.button(text="Back", callback_data="admin_order:back_to_main")
     kb.button(text="ID", callback_data="admin_order:set:telegram_user_id")
+    kb.button(text="Tên", callback_data="admin_order:set:full_name")
     kb.button(text="Gói", callback_data="admin_order:set:plan_name")
     kb.button(text="Note", callback_data="admin_order:set:note")
+    kb.button(text="Tiền", callback_data="admin_order:set:amount")
+    kb.button(text="Ngày", callback_data="admin_order:set:duration_days")
+    kb.button(text="Currency", callback_data="admin_order:set:payment_currency")
+    kb.button(text="Provider", callback_data="admin_order:set:payment_provider")
     kb.button(text="Active code", callback_data="admin_order:set:activation_code")
     kb.button(text="Toggle active", callback_data="admin_order:toggle:skip_active_code")
-    kb.adjust(2, 2, 2, 2, 2, 2, 2)
+    kb.adjust(2, 2, 2, 2, 2)
     return kb.as_markup()
 
 
@@ -368,34 +436,27 @@ async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""
 
 
 def _start_draft_from_message(message: Message) -> OrderDraft:
-    user = _forward_origin_user(message)
-    chat = _forward_origin_chat(message)
     forward_text = _smart_forward_text(message)
-    first_name = str(getattr(user, "first_name", "") or "").strip()
-    last_name = str(getattr(user, "last_name", "") or "").strip()
-    full_name = " ".join(part for part in [first_name, last_name] if part).strip()
-    if not full_name:
-        full_name = str(getattr(user, "username", "") or "").strip()
-    if not full_name and chat:
-        full_name = str(getattr(chat, "title", "") or getattr(chat, "first_name", "") or "").strip()
-
-    return OrderDraft(
+    draft = OrderDraft(
         admin_id=message.from_user.id,
-        source_chat_id=getattr(chat, "id", None),
+        source_chat_id=getattr(_forward_origin_chat(message), "id", None),
         source_message_id=getattr(message, "forward_from_message_id", None),
         customer_text=_fmt_customer_preview(forward_text),
-        telegram_user_id=str(getattr(user, "id", "") or "").strip(),
+        telegram_user_id="",
     )
+    _apply_forward_identity(draft, message)
+    return draft
 
 
 async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
     pricing = _resolve_plan_pricing(draft.plan_name, draft.payment_provider)
     payload = {
         "telegram_user_id": draft.telegram_user_id,
+        "full_name": draft.full_name,
         "plan_name": draft.plan_name,
-        "amount": pricing.get("amount") or draft.note or 0,
-        "duration_days": pricing.get("duration_days") or 30,
-        "payment_currency": pricing.get("payment_currency") or "VND",
+        "amount": draft.amount or pricing.get("amount") or 0,
+        "duration_days": draft.duration_days or pricing.get("duration_days") or 30,
+        "payment_currency": draft.payment_currency or pricing.get("payment_currency") or "VND",
         "payment_provider": draft.payment_provider,
         "note": draft.note,
         "skip_active_code": draft.skip_active_code,
@@ -418,7 +479,7 @@ async def cmd_admin_order(message: Message):
         return
     draft = OrderDraft(admin_id=message.from_user.id)
     _set_draft(message.from_user.id, draft)
-    await _render_draft(message, draft, "Bắt đầu luồng tạo đơn thủ công.")
+    await _render_draft(message, draft, "Bắt đầu luồng tạo đơn thủ công. Nếu forward, bot sẽ tự nhận ID/tên khách.")
 
 
 @router.message(Command("new"))
@@ -428,7 +489,7 @@ async def cmd_new_admin_order(message: Message):
         return
     draft = OrderDraft(admin_id=message.from_user.id)
     _set_draft(message.from_user.id, draft)
-    await _render_draft(message, draft, "Bắt đầu tạo đơn mới. Nhập Telegram ID trước.")
+    await _render_draft(message, draft, "Bắt đầu tạo đơn mới. Nhập Telegram ID hoặc forward tin khách.")
 
 
 @router.callback_query(F.data.startswith("admin_order:"))
@@ -478,6 +539,7 @@ async def admin_order_actions(callback: CallbackQuery):
         draft.step = rest[0] if rest else "telegram_user_id"
         if draft.step == "plan_name":
             _ensure_plan_name_hint(draft)
+            _apply_pricing_from_plan(draft)
         await _render_draft(callback, draft, f"Nhập giá trị cho: <b>{_normalize_text(_field_label(draft.step))}</b>.")
         return
 
@@ -506,6 +568,7 @@ async def admin_order_actions(callback: CallbackQuery):
             await callback.answer("Gói không hợp lệ.", show_alert=True)
             return
         draft.plan_name = candidates[idx]
+        _apply_pricing_from_plan(draft)
         draft.step = _next_field("plan_name")
         await _render_draft(callback, draft, f"Đã chọn gói: <b>{_normalize_text(draft.plan_name)}</b>.")
         return
@@ -555,14 +618,35 @@ async def admin_order_capture(message: Message):
         draft.step = "plan_name"
         await _render_draft(message, draft, "Đã cập nhật Telegram ID.")
         return
+    if field == "full_name":
+        draft.full_name = text
+        await _render_draft(message, draft, "Đã cập nhật tên khách.")
+        return
     if field == "plan_name":
         draft.plan_name = text
+        _apply_pricing_from_plan(draft)
         draft.step = "note"
         await _render_draft(message, draft, "Đã cập nhật gói. Giờ nhập ghi chú hoặc bấm tạo.")
         return
     if field == "note":
         draft.note = text
         await _render_draft(message, draft, "Đã cập nhật ghi chú. Bạn có thể bấm tạo ngay.")
+        return
+    if field == "amount":
+        draft.amount = text
+        await _render_draft(message, draft, "Đã cập nhật số tiền.")
+        return
+    if field == "duration_days":
+        draft.duration_days = text
+        await _render_draft(message, draft, "Đã cập nhật số ngày.")
+        return
+    if field == "payment_currency":
+        draft.payment_currency = text.upper()
+        await _render_draft(message, draft, "Đã cập nhật tiền tệ.")
+        return
+    if field == "payment_provider":
+        draft.payment_provider = text.upper()
+        await _render_draft(message, draft, "Đã cập nhật provider.")
         return
     if field == "activation_code":
         draft.skip_active_code = False
