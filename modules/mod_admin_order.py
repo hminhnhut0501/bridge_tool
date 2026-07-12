@@ -10,6 +10,7 @@ import requests
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
+from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -534,7 +535,7 @@ async def admin_order_actions(callback: CallbackQuery):
 @router.message(F.chat.type == "private")
 async def admin_order_capture(message: Message):
     if not message.from_user or not is_admin_user(message.from_user.id):
-        return
+        raise SkipHandler()
 
     if _is_forwarded_message(message):
         draft = _start_draft_from_message(message)
@@ -544,10 +545,10 @@ async def admin_order_capture(message: Message):
 
     draft = _get_draft(message.from_user.id)
     if not draft:
-        return
+        raise SkipHandler()
     text = str(message.text or message.caption or "").strip()
     if not text or text.startswith("/"):
-        return
+        raise SkipHandler()
     field = draft.step
     if field == "telegram_user_id":
         draft.telegram_user_id = text

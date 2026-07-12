@@ -2,6 +2,9 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from aiogram.dispatcher.event.bases import SkipHandler
+
+import modules.mod_admin_order as mod_admin_order
 import modules.mod_coupon as mod_coupon
 import modules.mod_general as mod_general
 import modules.mod_payment as mod_payment
@@ -195,6 +198,43 @@ def test_ping_only_responds_for_admin(monkeypatch):
     assert user_message.answer.await_count == 0
     assert "runtime=" in admin_message.answer.await_args.args[0]
     assert "unavailable_reason=" in admin_message.answer.await_args.args[0]
+
+
+def test_admin_order_capture_skips_system_commands(monkeypatch):
+    message = SimpleNamespace(
+        text="/start",
+        caption="",
+        from_user=SimpleNamespace(id=123, is_bot=False),
+        chat=SimpleNamespace(type="private"),
+        answer=AsyncMock(),
+    )
+
+    monkeypatch.setattr(mod_admin_order, "is_admin_user", lambda user_id: False)
+
+    try:
+        asyncio.run(mod_admin_order.admin_order_capture(message))
+        raise AssertionError("admin_order_capture should skip system commands")
+    except SkipHandler:
+        pass
+
+
+def test_admin_order_capture_skips_me_command_for_admin_without_draft(monkeypatch):
+    message = SimpleNamespace(
+        text="/me",
+        caption="",
+        from_user=SimpleNamespace(id=123, is_bot=False),
+        chat=SimpleNamespace(type="private"),
+        answer=AsyncMock(),
+    )
+
+    monkeypatch.setattr(mod_admin_order, "is_admin_user", lambda user_id: True)
+    monkeypatch.setattr(mod_admin_order, "_get_draft", lambda admin_id: None)
+
+    try:
+        asyncio.run(mod_admin_order.admin_order_capture(message))
+        raise AssertionError("admin_order_capture should skip /me without draft")
+    except SkipHandler:
+        pass
 
 
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):
