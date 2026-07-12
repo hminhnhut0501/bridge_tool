@@ -898,7 +898,21 @@ class SupabaseStore:
         if "amount" in raw:
             amount = raw.get("amount")
             try:
-                payload["amount"] = int(float(str(amount).replace(",", ".").strip())) if str(amount).strip() else 0
+                text_amount = str(amount).replace(",", ".").strip()
+                if not text_amount:
+                    payload["amount"] = 0
+                else:
+                    numeric_amount = float(text_amount)
+                    currency_hint = _clean_text(
+                        raw.get("payment_currency")
+                        or raw.get("currency")
+                        or raw.get("currency_code")
+                        or raw.get("payment_provider_currency")
+                    ).upper()
+                    if currency_hint in {"USD", "USDT", "CRYPTO"}:
+                        payload["amount"] = round(numeric_amount, 2)
+                    else:
+                        payload["amount"] = int(numeric_amount)
             except Exception:
                 payload["amount"] = amount
         if "plan_token" in raw:
