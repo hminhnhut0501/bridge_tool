@@ -196,12 +196,12 @@ async def check_coupon_abuse(message, code):
                 "telegram_user_id": str(user.id),
                 "username": user.username or "",
                 "full_name": user.full_name or "",
-                "reason": f"Nhập coupon quá giới hạn: {len(attempts)} lần/{window_seconds}s",
+                "reason": f"Nhập mã quá giới hạn: {len(attempts)} lần/{window_seconds}s",
                 "source": "coupon_abuse",
                 "raw_data": {"last_code": code},
             })
         except Exception as exc:
-            log.warning("Cannot auto blacklist coupon abuse user %s: %s", user.id, exc)
+            log.warning("Cannot auto blacklist mã abuse user %s: %s", user.id, exc)
 
     if config_enabled("COUPON_ABUSE_NOTIFY_USER", "ON"):
         template = t(
@@ -930,7 +930,7 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
     try:
         _, code, selected_plan_key = callback.data.split("|", 2)
     except ValueError:
-        await callback.answer(t(callback.from_user.id, "ALERT_COUPON_SELECTION_INVALID", "Lựa chọn coupon không hợp lệ."), show_alert=True)
+        await callback.answer(t(callback.from_user.id, "ALERT_COUPON_SELECTION_INVALID", "Lựa chọn mã không hợp lệ."), show_alert=True)
         return
 
     async with coupon_lock:
@@ -943,12 +943,12 @@ async def coupon_activation_group_selected(callback: CallbackQuery):
             await callback.answer(reason, show_alert=True)
             return
         if coupon_type(coupon) != "ACTIVATION" or not is_selectable_group_coupon_plan(coupon.get("Plan_Name")):
-            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_NOT_GROUP_SELECT", "Mã này không phải coupon chọn collection."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_NOT_GROUP_SELECT", "Mã này không phải mã chọn collection."), show_alert=True)
             return
 
         selected_plan_key = normalize_plan_key(selected_plan_key)
         if selected_plan_key not in selectable_group_plan_keys(coupon.get("Plan_Name")):
-            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_GROUP_OUT_OF_SCOPE", "Collection này không nằm trong phạm vi coupon."), show_alert=True)
+            await callback.answer(t(callback.from_user.id, "ALERT_COUPON_GROUP_OUT_OF_SCOPE", "Collection này không nằm trong phạm vi mã."), show_alert=True)
             return
 
         await callback.answer()
@@ -994,7 +994,7 @@ async def coupon_auto_code_received(message: Message):
     if classified["kind"] not in {"coupon", "hidden"}:
         return
     if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):
-        await message.answer(t(message.from_user.id, "MSG_COUPON_AUTO_DISABLED", "Tự nhận diện coupon đang tắt. Vui lòng bật lại trong dashboard hoặc dùng /coupon nếu admin cho phép."))
+        await message.answer(t(message.from_user.id, "MSG_COUPON_AUTO_DISABLED", "Tự nhận diện mã đang tắt. Vui lòng bật lại trong dashboard hoặc dùng /code nếu admin cho phép."))
         return
     if not await check_protection(message):
         return

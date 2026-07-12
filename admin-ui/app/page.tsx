@@ -1245,7 +1245,7 @@ const SECURITY_FIELDS: ConfigField[] = [
     key: "COUPON_MENU_ENABLED",
     label: "Hiện nút nhập mã trong menu",
     placeholder: "OFF",
-    help: "OFF sẽ ẩn các nút Menu Builder có action coupon_enter, coupon_code, redeem_code.",
+    help: "OFF sẽ ẩn các nút Menu Builder có action nhập mã.",
     kind: "select",
     options: [
       { label: "Ẩn", value: "OFF" },
@@ -1913,7 +1913,7 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_SUCCESS",
-    label: "Tin kích hoạt coupon thành công",
+    label: "Tin kích hoạt mã thành công",
     placeholder: "✅ Mã: {code}\\n🎁 Gói: {plan}\\n📅 Hạn: {expire}\\n{links}",
     help: "Dùng biến {code}, {plan}, {expire}, {links}.",
     kind: "textarea",
@@ -1927,29 +1927,29 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_DISCOUNT_OPTIONS",
-    label: "Tin coupon giảm giá hợp lệ",
+    label: "Tin mã giảm giá hợp lệ",
     placeholder: "Mã: {code}\\nGiảm: {percent}%\\nChọn gói muốn mua bên dưới.",
     help: "Dùng biến {code}, {percent}.",
     kind: "textarea",
   },
   {
     key: "MSG_COUPON_GROUP_OPTIONS",
-    label: "Tin coupon chọn collection",
+    label: "Tin mã chọn collection",
     placeholder: "Mã: {code}\\nThời hạn: {duration_label}\\nChọn collection bạn muốn kích hoạt bên dưới.",
-    help: "Dùng khi coupon kích hoạt cho phép khách tự chọn collection lẻ. Dùng biến {code}, {days}, {duration_label}.",
+    help: "Dùng khi mã kích hoạt cho phép khách tự chọn collection lẻ. Dùng biến {code}, {days}, {duration_label}.",
     kind: "textarea",
   },
   {
     key: "COUPON_ACTIVATION_PLAN_TEMPLATE",
-    label: "Tên gói coupon kích hoạt",
+    label: "Tên gói mã kích hoạt",
     placeholder: "Collection {duration_label} - {group}",
-    help: "Tên lưu vào đơn và hiển thị khi kích hoạt coupon chọn collection. Dùng {duration_label}, {days}, {group}.",
+    help: "Tên lưu vào đơn và hiển thị khi kích hoạt mã chọn collection. Dùng {duration_label}, {days}, {group}.",
   },
   {
     key: "COUPON_ACTIVATION_BUTTON_TEMPLATE",
-    label: "Nút chọn collection coupon",
+    label: "Nút chọn collection mã",
     placeholder: "{plan_name}",
-    help: "Text nút chọn collection sau khi nhập coupon. Dùng {plan_name}, {duration_label}, {days}, {group}.",
+    help: "Text nút chọn collection sau khi nhập mã. Dùng {plan_name}, {duration_label}, {days}, {group}.",
   },
   {
     key: "MSG_WAIT_QR",
@@ -2055,25 +2055,25 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_COUPON_NO_SELECTABLE_GROUPS",
-    label: "Tin coupon thiếu collection chọn",
+    label: "Tin mã thiếu collection chọn",
     placeholder: "❌ Mã hợp lệ nhưng chưa có collection lẻ nào được cấu hình để khách chọn.",
     help: "Dùng khi coupon chọn collection nhưng dashboard chưa cấu hình collection.",
   },
   {
     key: "MSG_COUPON_PLAN_NOT_CONFIGURED",
-    label: "Tin coupon thiếu collection cấp link",
+    label: "Tin mã thiếu collection cấp link",
     placeholder: "❌ Mã hợp lệ nhưng gói này chưa cấu hình collection nhận link.",
     help: "Dùng khi coupon hợp lệ nhưng không tạo được link vì thiếu collection.",
   },
   {
     key: "MSG_COUPON_PRIVATE_ONLY",
-    label: "Tin coupon chỉ private",
+    label: "Tin mã chỉ private",
     placeholder: "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group.",
-    help: "Tin gửi khi khách nhập coupon trong group.",
+    help: "Tin gửi khi khách nhập mã trong group.",
   },
   {
     key: "MSG_COUPON_INVALID_FORMAT",
-    label: "Tin format coupon sai",
+    label: "Tin format mã sai",
     placeholder: "Mã không hợp lệ. Vui lòng nhập lại mã bạn nhận được.",
     help: "Tin gửi khi mã quá ngắn hoặc rỗng.",
   },
@@ -2261,11 +2261,11 @@ const ALERT_FIELDS: ConfigField[] = [
   { key: "ALERT_EARLY_RENEW_OFF", label: "Cảnh báo gia hạn sớm tắt", placeholder: "Ưu đãi gia hạn sớm đang tắt. Vui lòng gia hạn theo giá thường.", help: "Khi khách bấm offer đã tắt." },
   { key: "ALERT_POLICY_UNAVAILABLE", label: "Không mở được policy", placeholder: "Không thể mở trang quy định lúc này.", help: "Alert khi trang policy lỗi." },
   { key: "ALERT_SUPPORT_UNAVAILABLE", label: "Không mở được trang trợ giúp", placeholder: "Không thể mở trang trợ giúp lúc này.", help: "Alert khi trang trợ giúp lỗi." },
-  { key: "ALERT_COUPON_MENU_DISABLED", label: "Coupon menu đang ẩn", placeholder: "Chức năng nhập mã trên menu đang được ẩn.", help: "Khi khách bấm nút coupon đã ẩn." },
-  { key: "ALERT_COUPON_PRIVATE_ONLY", label: "Coupon chỉ private", placeholder: "Vui lòng nhắn riêng với bot để nhập mã.", help: "Alert khi bấm coupon trong group." },
-  { key: "ALERT_COUPON_SELECTION_INVALID", label: "Coupon chọn collection lỗi", placeholder: "Lựa chọn coupon không hợp lệ.", help: "Callback chọn collection coupon sai format." },
-  { key: "ALERT_COUPON_NOT_GROUP_SELECT", label: "Không phải coupon chọn collection", placeholder: "Mã này không phải coupon chọn collection.", help: "Callback chọn collection không hợp lệ." },
-  { key: "ALERT_COUPON_GROUP_OUT_OF_SCOPE", label: "Collection ngoài phạm vi coupon", placeholder: "Collection này không nằm trong phạm vi coupon.", help: "Khi coupon không áp dụng cho collection đã chọn." },
+  { key: "ALERT_COUPON_MENU_DISABLED", label: "Menu nhập mã đang ẩn", placeholder: "Chức năng nhập mã trên menu đang được ẩn.", help: "Khi khách bấm nút nhập mã đã ẩn." },
+  { key: "ALERT_COUPON_PRIVATE_ONLY", label: "Mã chỉ private", placeholder: "Vui lòng nhắn riêng với bot để nhập mã.", help: "Alert khi bấm nhập mã trong group." },
+  { key: "ALERT_COUPON_SELECTION_INVALID", label: "Mã chọn collection lỗi", placeholder: "Lựa chọn mã không hợp lệ.", help: "Callback chọn collection sai format." },
+  { key: "ALERT_COUPON_NOT_GROUP_SELECT", label: "Không phải mã chọn collection", placeholder: "Mã này không phải mã chọn collection.", help: "Callback chọn collection không hợp lệ." },
+  { key: "ALERT_COUPON_GROUP_OUT_OF_SCOPE", label: "Collection ngoài phạm vi mã", placeholder: "Collection này không nằm trong phạm vi mã.", help: "Khi mã không áp dụng cho collection đã chọn." },
   { key: "ALERT_RENEW_CODE_INVALID", label: "Mã gia hạn không hợp lệ", placeholder: "Mã gia hạn không hợp lệ.", help: "Khi callback gia hạn sai format." },
   { key: "ALERT_RENEW_OFFER_INVALID", label: "Offer gia hạn không hợp lệ", placeholder: "Ưu đãi gia hạn không còn hợp lệ.", help: "Khi offer không còn dữ liệu." },
   { key: "ALERT_RENEW_NOT_OWNER", label: "Offer không thuộc user", placeholder: "Ưu đãi này không thuộc tài khoản của bạn.", help: "Khi user bấm offer của người khác." },
@@ -6383,7 +6383,7 @@ export default function Home() {
               Hang Cú VIP
             </Typography>
             <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: "none", sm: "block" } }}>
-              {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, coupon, sale và nội dung bot.", "Operations dashboard for groups, orders, coupons, sales, and bot content.")}
+              {ui("Dashboard vận hành: nhóm nhận link, đơn hàng, mã, sale và nội dung bot.", "Operations dashboard for groups, orders, codes, sales, and bot content.")}
             </Typography>
           </Box>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
@@ -7680,7 +7680,7 @@ export default function Home() {
               {hiddenSetupView === "codes" ? (
                 <>
                   <div className="hint compact">
-                    Special Code chỉ dùng để reveal catalog, không phải coupon. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
+                    Special Code chỉ dùng để reveal catalog, không phải mã. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
                   </div>
                   <div className="toolbar hidden-toolbar">
                     <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
