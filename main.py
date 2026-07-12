@@ -58,6 +58,7 @@ def load_all_modules():
     print("🔍 Đang quét thư mục 'modules' để nạp tính năng...")
     loaded_count = 0
     module_dir = "modules"
+    excluded_modules = {"mod_support_inbox"}
     
     if not os.path.exists(module_dir):
         os.makedirs(module_dir)
@@ -65,6 +66,9 @@ def load_all_modules():
     for filename in os.listdir(module_dir):
         if filename.startswith("mod_") and filename.endswith(".py"):
             module_name = filename[:-3] 
+            if module_name in excluded_modules:
+                print(f"  ⏭ Bỏ qua module đã tắt: {module_name}")
+                continue
             full_module_path = f"{module_dir}.{module_name}"
             try:
                 module = importlib.import_module(full_module_path)

@@ -1076,6 +1076,7 @@ def parse_chat_id(value):
 def load_all_modules():
     loaded_count = 0
     module_dir = "modules"
+    excluded_modules = {"mod_support_inbox"}
     if not os.path.exists(module_dir):
         return loaded_count
 
@@ -1083,6 +1084,9 @@ def load_all_modules():
         if not filename.startswith("mod_") or not filename.endswith(".py"):
             continue
         module_name = filename[:-3]
+        if module_name in excluded_modules:
+            print(f"⏭ Bỏ qua module đã tắt: {module_name}")
+            continue
         try:
             module = importlib.import_module(f"{module_dir}.{module_name}")
             if hasattr(module, "router"):

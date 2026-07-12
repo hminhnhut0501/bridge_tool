@@ -124,43 +124,6 @@ export type SupportEvent = {
   created_at: string;
 };
 
-export type SupportCaseMessage = {
-  id: string;
-  ticket_id: string;
-  direction: string;
-  telegram_message_id?: number | null;
-  manager_group_message_id?: number | null;
-  manager_topic_message_id?: number | null;
-  reply_to_manager_message_id?: number | null;
-  text?: string | null;
-  payload?: Record<string, unknown> | null;
-  created_at: string;
-};
-
-export type SupportCase = {
-  ticket: {
-    id: string;
-    ticket_no: string;
-    telegram_user_id: string;
-    chat_id: string | null;
-    username: string | null;
-    full_name: string | null;
-    manager_chat_id: string | null;
-    manager_group_message_id: number | null;
-    manager_topic_thread_id: number | null;
-    manager_topic_name: string | null;
-    status: string;
-    subject: string | null;
-    source: string | null;
-    last_message_at: string | null;
-    closed_at: string | null;
-    created_at: string;
-    updated_at: string;
-    raw_data: Record<string, unknown>;
-  };
-  messages: SupportCaseMessage[];
-};
-
 export type ActivityEvent = {
   id: string;
   event_name: string;
@@ -203,13 +166,6 @@ export type SupportGroupCheck = {
   get_chat: { ok: boolean; message: string };
   bot_member: { ok: boolean; message: string };
   invite_link: { ok: boolean; message: string };
-};
-
-export type SupportInboxCheck = {
-  group_id: string;
-  group_name: string;
-  get_chat: { ok: boolean; message: string };
-  bot_member: { ok: boolean; message: string };
 };
 
 export type WebhookInfo = {
@@ -776,19 +732,6 @@ export async function getSupportEvents(secret: string, limit = 5000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
 }
 
-export async function searchSupportCases(secret: string, query = "", limit = 20, status = "") {
-  const params = new URLSearchParams({ query, limit: String(limit) });
-  if (status) params.set("status", status);
-  return request<{ data: SupportCase[] }>(`/admin-api/support-cases?${params.toString()}`, secret);
-}
-
-export async function updateSupportCase(secret: string, ticketId: string, payload: { status: "open" | "closed" }) {
-  return request<{ data: SupportCase["ticket"] | null }>(`/admin-api/support-cases/${encodeURIComponent(ticketId)}`, secret, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
-}
-
 export async function getKickAudit(secret: string, live = false) {
   return request<{ data: KickAuditRow[] }>(`/admin-api/kick-audit?live=${live ? "true" : "false"}`, secret);
 }
@@ -905,10 +848,6 @@ export async function getChannelPostEvents(secret: string, postId: number | stri
 
 export async function checkSupportGroup(secret: string) {
   return request<{ data: SupportGroupCheck }>("/admin-api/support-group-check", secret);
-}
-
-export async function checkSupportInbox(secret: string) {
-  return request<{ data: SupportInboxCheck }>("/admin-api/support-inbox-check", secret);
 }
 
 export async function getWebhookInfo(secret: string) {

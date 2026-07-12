@@ -146,15 +146,11 @@ import {
   MenuPage,
   Order,
   SaleRule,
-  type SupportCase,
-  type SupportCaseMessage,
-  type SupportInboxCheck,
   SupportEvent,
   UserRow,
   WebhookInfo,
   WebhookInfoMeta,
   checkSupportGroup,
-  checkSupportInbox,
   cancelCampaign,
   channelPostAction,
   createChannelPost,
@@ -194,7 +190,6 @@ import {
   getOrders,
   getSaleRules,
   searchCustomers,
-  searchSupportCases,
   getSupportEvents,
   getUsers,
   getWebhookInfo,
@@ -213,7 +208,6 @@ import {
   updateMenuPage,
   updateOrder,
   updateOrderStatus,
-  updateSupportCase,
   updateActivationCode,
   upsertBlacklist,
   upsertHiddenCode,
@@ -611,7 +605,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "supportInbox" | "supportInboxSettings" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "groupReplies" | "alerts";
@@ -2984,15 +2978,6 @@ function configIsOn(config: ConfigRow[], key: string, fallback = "OFF") {
   return ["ON", "TRUE", "YES", "1", "BẬT", "BAT"].includes(String(getConfigValue(config, key, fallback) || fallback).trim().toUpperCase());
 }
 
-function supportCaseMessageText(message: SupportCaseMessage) {
-  if (message.text) return message.text;
-  const payload = message.payload;
-  if (payload && typeof payload === "object" && "message" in payload && typeof (payload as { message?: unknown }).message === "string") {
-    return (payload as { message: string }).message;
-  }
-  return "";
-}
-
 export default function Home() {
   const isDevPreview = process.env.NODE_ENV !== "production";
   const [secret, setSecret] = useState("");
@@ -3017,7 +3002,6 @@ export default function Home() {
   const [hiddenRedemptions, setHiddenRedemptions] = useState<HiddenRedemption[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [supportEvents, setSupportEvents] = useState<SupportEvent[]>([]);
-  const [supportCases, setSupportCases] = useState<SupportCase[]>([]);
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
@@ -3030,7 +3014,6 @@ export default function Home() {
   const [channelPosts, setChannelPosts] = useState<ChannelPost[]>([]);
   const [channelEvents, setChannelEvents] = useState<ChannelPostEvent[]>([]);
   const [supportCheck, setSupportCheck] = useState<SupportGroupCheck | null>(null);
-  const [supportInboxCheck, setSupportInboxCheck] = useState<SupportInboxCheck | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [webhookMeta, setWebhookMeta] = useState<WebhookInfoMeta | null>(null);
   const [botScheduleStatusApi, setBotScheduleStatusApi] = useState<BotScheduleStatus | null>(null);
@@ -3038,7 +3021,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState("");
   const [query, setQuery] = useState("");
-  const [supportInboxTab, setSupportInboxTab] = useState<"inbox" | "settings">("inbox");
   const [orderTab, setOrderTab] = useState<"paid" | "other">("paid");
   const [orderPeriod, setOrderPeriod] = useState<OrderPeriod>("all");
   const [orderPage, setOrderPage] = useState(1);
@@ -3092,13 +3074,6 @@ export default function Home() {
   const [renewalFocusFilter, setRenewalFocusFilter] = useState<RenewalFocusFilter>("all");
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
-  const [supportCaseQuery, setSupportCaseQuery] = useState("");
-  const [supportCaseStatus, setSupportCaseStatus] = useState<"open" | "closed" | "all">("open");
-  const [supportCaseLoading, setSupportCaseLoading] = useState(false);
-  const [supportCaseSearched, setSupportCaseSearched] = useState(false);
-  const [selectedSupportCaseId, setSelectedSupportCaseId] = useState("");
-  const [supportReplyText, setSupportReplyText] = useState("");
-  const [supportSettingsOpen, setSupportSettingsOpen] = useState(false);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
   const [orderSettingsOpen, setOrderSettingsOpen] = useState(false);
@@ -3159,26 +3134,26 @@ export default function Home() {
   const supportStaffRows = useMemo(() => {
     const raw = getConfigValue(config, "ADMIN_IDS", "");
     const ids = uniqueValues(raw.split(",").map((item) => item.trim()).filter(Boolean));
-    const inboxConnected = Boolean(supportInboxCheck?.get_chat?.ok && supportInboxCheck?.bot_member?.ok);
-    const inboxDetail = supportInboxCheck
-      ? supportInboxCheck.get_chat.ok
-        ? supportInboxCheck.bot_member.ok
-          ? `Đã kết nối ${supportInboxCheck.group_name || "group inbox"}`
-          : supportInboxCheck.bot_member.message || "Bot chưa có quyền trong group inbox"
-        : supportInboxCheck.get_chat.message || "Chưa kết nối group inbox"
-      : "Chưa kiểm tra group inbox";
+    const supportConnected = Boolean(supportCheck?.get_chat?.ok && supportCheck?.bot_member?.ok && supportCheck?.invite_link?.ok);
+    const supportDetail = supportCheck
+      ? supportCheck.get_chat.ok
+        ? supportCheck.bot_member.ok
+          ? `Đã kết nối ${supportCheck.group_name || "group hỗ trợ"}`
+          : supportCheck.bot_member.message || "Bot chưa có quyền trong group hỗ trợ"
+        : supportCheck.get_chat.message || "Chưa kết nối group hỗ trợ"
+      : "Chưa kiểm tra group hỗ trợ";
     if (!ids.length) {
-      return [{ id: "-", alias: "Chưa cấu hình", status: inboxConnected ? "Online" : "Offline", tone: inboxConnected ? ("good" as const) : ("bad" as const), note: inboxDetail, avatar: "?" }];
+      return [{ id: "-", alias: "Chưa cấu hình", status: supportConnected ? "Online" : "Offline", tone: supportConnected ? ("good" as const) : ("bad" as const), note: supportDetail, avatar: "?" }];
     }
     return ids.map((id, index) => ({
       id,
       alias: `Staff ${index + 1}`,
-      status: inboxConnected ? "Online" : "Offline",
-      tone: inboxConnected ? ("good" as const) : ("bad" as const),
-      note: inboxDetail,
+      status: supportConnected ? "Online" : "Offline",
+      tone: supportConnected ? ("good" as const) : ("bad" as const),
+      note: supportDetail,
       avatar: `S${index + 1}`,
     }));
-  }, [config, supportInboxCheck]);
+  }, [config, supportCheck]);
 
   useEffect(() => {
     const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -3218,11 +3193,6 @@ export default function Home() {
       .then((res) => setBlacklist(res.data || []))
       .catch(() => undefined);
   }, [blacklist.length, customerQuickLookupOpen, savedSecret]);
-
-  useEffect(() => {
-    if (tab !== "supportInbox" || supportInboxTab !== "inbox" || !savedSecret) return;
-    void loadSupportInbox(supportCaseQuery, supportCaseStatus);
-  }, [savedSecret, supportCaseStatus, supportInboxTab, tab]);
 
   useEffect(() => {
     const query = customerQuickLookupQuery.trim();
@@ -4083,41 +4053,6 @@ export default function Home() {
     });
   }
 
-  async function runSupportInboxCheck() {
-    await runAction("support-inbox-check", async () => {
-      const res = await checkSupportInbox(savedSecret);
-      setSupportInboxCheck(res.data);
-      if (res.data.get_chat.ok && res.data.bot_member.ok) {
-        showNotice("ok", "Inbox bot kết nối OK.");
-      } else {
-        showNotice("error", "Inbox bot chưa kết nối được. Xem chi tiết trong tab.");
-      }
-    });
-  }
-
-  async function loadSupportInbox(query = supportCaseQuery.trim(), status = supportCaseStatus) {
-    if (!savedSecret) return;
-    const search = query.trim();
-    setSupportCaseLoading(true);
-    try {
-      const res = await searchSupportCases(savedSecret, search, 30, status === "all" ? "" : status);
-      const cases = res.data || [];
-      setSupportCases(cases);
-      setSelectedSupportCaseId((current) => cases.some((item) => item.ticket?.id === current) ? current : String(cases[0]?.ticket?.id || ""));
-      setSupportCaseSearched(true);
-    } catch (error) {
-      console.error(error);
-      setSupportCases([]);
-      setSupportCaseSearched(true);
-    } finally {
-      setSupportCaseLoading(false);
-    }
-  }
-
-  async function runSupportCaseSearch(query = supportCaseQuery.trim()) {
-    await loadSupportInbox(query, supportCaseStatus);
-  }
-
   function escapeCsvCell(value: unknown) {
     const text = String(value ?? "");
     if (/[",\n\r;]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
@@ -4272,37 +4207,6 @@ export default function Home() {
       setAdminReplyText("");
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
-    });
-  }
-
-  async function submitSupportCaseReply() {
-    if (!selectedSupportCase || !savedSecret) return;
-    const text = supportReplyText.trim();
-    if (!text) {
-      showNotice("error", "Nội dung trả lời đang trống.");
-      return;
-    }
-    await runAction("support-case-reply", async () => {
-      await sendAdminReply(savedSecret, {
-        ticket_id: selectedSupportCase.ticket.id,
-        telegram_user_id: selectedSupportCase.ticket.telegram_user_id,
-        text,
-        source_log_id: selectedSupportCase.ticket.ticket_no,
-        source_text: selectedSupportCase.messages.slice(-1).map(supportCaseMessageText).find(Boolean) || "",
-        full_name: selectedSupportCase.ticket.full_name || "",
-      });
-      setSupportReplyText("");
-      await loadSupportInbox(supportCaseQuery, supportCaseStatus);
-      showNotice("ok", "Đã gửi trả lời cho khách.");
-    });
-  }
-
-  async function changeSupportCaseStatus(status: "open" | "closed") {
-    if (!selectedSupportCase || !savedSecret) return;
-    await runAction(`support-case-${status}`, async () => {
-      await updateSupportCase(savedSecret, selectedSupportCase.ticket.id, { status });
-      await loadSupportInbox(supportCaseQuery, supportCaseStatus);
-      showNotice("ok", status === "closed" ? "Đã đóng ticket." : "Đã mở lại ticket.");
     });
   }
 
@@ -5424,7 +5328,6 @@ export default function Home() {
     return map;
   }, [supportEvents]);
   const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
-  const supportInboxGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_INBOX_GROUP_ID")), [config]);
   const supportGroupEvents = useMemo(() => {
     if (!supportGroupId) return [];
     return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
@@ -5544,11 +5447,6 @@ export default function Home() {
       </Tooltip>,
     ]);
   }, [supportGroupEvents, supportTab, supportCustomerName]);
-  const selectedSupportCase = useMemo(() => {
-    const target = String(selectedSupportCaseId || "").trim();
-    if (!target) return supportCases[0] || null;
-    return supportCases.find((item) => String(item.ticket?.id || "").trim() === target) || supportCases[0] || null;
-  }, [selectedSupportCaseId, supportCases]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
   const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
   const pagedSupportRows = useMemo(() => {
@@ -5970,7 +5868,6 @@ export default function Home() {
   }, [visibleChannelPosts, channelPostPage, totalChannelPostPages]);
   const lifetimeCouponSelected = couponForm.Coupon_Type === "ACTIVATION" && isLifetimeCouponPlan(couponForm.Plan_Name);
   const lifetimeCouponDays = getConfigValue(config, "COUPON_LIFETIME_DAYS", DEFAULT_LIFETIME_DAYS) || DEFAULT_LIFETIME_DAYS;
-  const [supportInboxPreviewClock, setSupportInboxPreviewClock] = useState(0);
 
   useEffect(() => {
     setOrderPage(1);
@@ -5999,14 +5896,6 @@ export default function Home() {
   useEffect(() => {
     setChannelPostPage(1);
   }, [channelPostTab]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setSupportInboxPreviewClock(Date.now());
-    }, 120);
-    setSupportInboxPreviewClock(Date.now());
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (selectedCustomerId && !customerSummaries.some((item) => item.id === selectedCustomerId)) {
@@ -6474,22 +6363,6 @@ export default function Home() {
               <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
-            </Tabs>
-          </Box>
-          <Box>
-            <Typography variant="overline" sx={{ px: 1, color: "rgba(255,255,255,0.55)", fontWeight: 800, letterSpacing: 1.2 }}>
-              Tin nhắn bot
-            </Typography>
-            <Tabs
-              orientation="vertical"
-              value={tab}
-              onChange={(_, next) => selectTab(next)}
-              variant="scrollable"
-              scrollButtons={false}
-              textColor="inherit"
-              sx={sidebarTabSx}
-            >
-              <Tab value="supportInbox" icon={<MessageSquare size={16} />} iconPosition="start" label={ui("Tin nhắn bot", "Support inbox")} />
             </Tabs>
           </Box>
           <Box>
@@ -7024,7 +6897,6 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => setSupportSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt mode / link</Button>
                     <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }
@@ -7058,410 +6930,6 @@ export default function Home() {
               <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
               <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
             </section>
-          </div>
-        ) : null}
-
-        {tab === "supportInbox" ? (
-          <div className="stack">
-            <Box sx={{ borderBottom: 1, borderColor: "divider", px: 2, pt: 1, mb: 1 }}>
-              <Tabs value={supportInboxTab} onChange={(_, next) => setSupportInboxTab(next)} variant="scrollable">
-                <Tab value="inbox" label="Quản lý Inbox & Tra cứu case" />
-                <Tab value="settings" label="Cài đặt Bot nhận tin" />
-              </Tabs>
-            </Box>
-            {supportInboxTab === "inbox" ? (
-              <section className="panel">
-                <PanelHead
-                  title="Tin nhắn bot"
-                  subtitle="Inbox ticket từ user nhắn riêng với bot. Chọn ticket để xem timeline và trả lời ngay."
-                  action={
-                    <div className="panel-actions">
-                      <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("settings")} startIcon={<Settings size={16} />}>Cài đặt bot</Button>
-                      <Button variant="outlined" size="small" onClick={() => void loadSupportInbox(supportCaseQuery, supportCaseStatus)} disabled={supportCaseLoading} startIcon={supportCaseLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Tải lại</Button>
-                    </div>
-                  }
-                />
-                <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 180px auto" }, gap: 1 }}>
-                    <TextField value={supportCaseQuery} onChange={(event) => setSupportCaseQuery(event.target.value)} placeholder="Tìm Telegram ID, tên, username, ticket..." size="small" fullWidth onKeyDown={(event) => { if (event.key === "Enter") void runSupportCaseSearch(); }} />
-                    <TextField select value={supportCaseStatus} onChange={(event) => setSupportCaseStatus(event.target.value as "open" | "closed" | "all")} size="small" label="Trạng thái">
-                      <MenuItem value="open">Open</MenuItem>
-                      <MenuItem value="closed">Closed</MenuItem>
-                      <MenuItem value="all">All</MenuItem>
-                    </TextField>
-                    <Button variant="contained" onClick={() => void runSupportCaseSearch()} disabled={supportCaseLoading} startIcon={supportCaseLoading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}>Tìm</Button>
-                  </Box>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "360px minmax(0, 1fr)" }, gap: 2, alignItems: "stretch" }}>
-                    <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden", bgcolor: "background.paper" }}>
-                      <Box sx={{ px: 1.5, py: 1, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <strong>Ticket</strong>
-                        <span className="muted">{supportCases.length} case</span>
-                      </Box>
-                      <Box sx={{ maxHeight: 620, overflow: "auto" }}>
-                        {supportCaseLoading ? <Box sx={{ p: 2 }} className="muted">Đang tải inbox...</Box> : null}
-                        {supportCaseSearched && !supportCases.length && !supportCaseLoading ? <Box sx={{ p: 2 }} className="muted">Không có ticket phù hợp.</Box> : null}
-                        {supportCases.map((item) => {
-                          const lastText = item.messages.slice(-1).map(supportCaseMessageText).find(Boolean) || item.ticket.subject || "-";
-                          const active = selectedSupportCase?.ticket?.id === item.ticket.id;
-                          return (
-                            <ButtonBase key={item.ticket.id} onClick={() => setSelectedSupportCaseId(item.ticket.id)} sx={{ width: "100%", display: "block", textAlign: "left", px: 1.5, py: 1.25, borderBottom: "1px solid", borderColor: "divider", bgcolor: active ? "rgba(59,130,246,0.08)" : "transparent" }}>
-                              <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
-                                <strong>{item.ticket.full_name || item.ticket.username || item.ticket.telegram_user_id}</strong>
-                                <Chip size="small" label={item.ticket.status} sx={statusChipSx(item.ticket.status === "open" ? "success" : "muted")} />
-                              </Box>
-                              <div className="muted">{item.ticket.username ? `@${item.ticket.username}` : item.ticket.telegram_user_id} · {item.ticket.ticket_no}</div>
-                              <div className="muted" style={{ marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastText}</div>
-                              <div className="muted" style={{ marginTop: 4 }}>{dateText(item.ticket.updated_at)}</div>
-                            </ButtonBase>
-                          );
-                        })}
-                      </Box>
-                    </Box>
-                    <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, overflow: "hidden", bgcolor: "background.paper", minHeight: 520, display: "grid", gridTemplateRows: "auto 1fr auto" }}>
-                      {selectedSupportCase ? (
-                        <>
-                          <Box sx={{ p: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-                            <Box>
-                              <strong>{selectedSupportCase.ticket.full_name || selectedSupportCase.ticket.username || selectedSupportCase.ticket.telegram_user_id}</strong>
-                              <div className="muted">{selectedSupportCase.ticket.telegram_user_id} · {selectedSupportCase.ticket.ticket_no} · {selectedSupportCase.ticket.subject || "-"}</div>
-                            </Box>
-                            <Stack direction="row" spacing={1}>
-                              <Button size="small" variant="outlined" onClick={() => void changeSupportCaseStatus(selectedSupportCase.ticket.status === "closed" ? "open" : "closed")} disabled={saving === "support-case-open" || saving === "support-case-closed"}>
-                                {selectedSupportCase.ticket.status === "closed" ? "Mở lại" : "Đóng ticket"}
-                              </Button>
-                            </Stack>
-                          </Box>
-                          <Box sx={{ p: 2, overflow: "auto", display: "grid", gap: 1.25, alignContent: "start" }}>
-                            {selectedSupportCase.messages.length ? selectedSupportCase.messages.map((msg) => {
-                              const outgoing = String(msg.direction || "").includes("support_to_user");
-                              return (
-                                <Box key={msg.id} sx={{ justifySelf: outgoing ? "end" : "start", maxWidth: "82%", p: 1.25, borderRadius: 2, bgcolor: outgoing ? "rgba(59,130,246,0.10)" : "rgba(15,23,42,0.04)", border: "1px solid", borderColor: outgoing ? "rgba(59,130,246,0.18)" : "divider" }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                                    <strong>{outgoing ? "Admin" : "User"}</strong>
-                                    <span className="muted">{dateText(msg.created_at)}</span>
-                                  </div>
-                                  <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{supportCaseMessageText(msg) || "-"}</div>
-                                </Box>
-                              );
-                            }) : <div className="muted">Chưa có message nào trong ticket.</div>}
-                          </Box>
-                          <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider", display: "grid", gap: 1 }}>
-                            <TextField value={supportReplyText} onChange={(event) => setSupportReplyText(event.target.value)} placeholder="Nhập tin trả lời khách..." multiline minRows={3} fullWidth size="small" helperText={`${supportReplyText.trim().length}/3500 ký tự`} />
-                            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-                              <Button variant="contained" onClick={submitSupportCaseReply} disabled={saving === "support-case-reply" || !supportReplyText.trim()} startIcon={saving === "support-case-reply" ? <Loader2 size={16} className="spin" /> : <Send size={16} />}>Gửi trả lời</Button>
-                            </Stack>
-                          </Box>
-                        </>
-                      ) : (
-                        <Box sx={{ p: 2 }} className="muted">Chọn một ticket để xem hội thoại và trả lời.</Box>
-                      )}
-                    </Box>
-                  </Box>
-                </Box>
-              </section>
-            ) : null}
-
-            {supportInboxTab === "settings" ? (
-              <>
-            <Card variant="outlined" sx={sectionCardSx}>
-              <PanelHead
-                title="Cài đặt bot nhận tin/trả lời"
-                subtitle="Cài đặt inbox riêng: group ID, trạng thái kết nối, quyền bot và template gửi/nhận tin."
-                action={
-                  <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => setSupportInboxTab("inbox")} startIcon={<MessageSquare size={16} />}>Về tin nhắn bot</Button>
-                    <Button variant="contained" size="small" onClick={() => void runSupportInboxCheck()} disabled={saving === "support-inbox-check"} startIcon={saving === "support-inbox-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra group</Button>
-                  </div>
-                }
-              />
-              <Box sx={{ p: 2, display: "grid", gap: 2 }}>
-                <div className="grid">
-                  <Metric label={supportInboxCheck ? (supportInboxCheck.get_chat.ok ? "Bot nhận tin đang bật" : "Chờ cấu hình") : "Chưa kiểm tra"} value={supportInboxCheck?.group_name || "Chưa có dữ liệu"} accent={supportInboxCheck?.get_chat?.ok ? "emerald" : "amber"} icon={<ShieldCheck size={16} />} />
-                  <Metric label="Trạng thái kết nối" value={configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? `Hiệu ứng: ${getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse")}` : "Hiệu ứng đang tắt"} accent={configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "emerald" : "amber"} icon={<CheckCircle2 size={16} />} />
-                  <Metric label="Tin trạng thái ban đầu" value={getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối"} accent="blue" icon={<Activity size={16} />} />
-                  <Metric label="Tin final" value={getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng"} accent="cyan" icon={<Users size={16} />} />
-                </div>
-                <div className="grid">
-                  <Metric label="Group ID" value={supportInboxCheck?.group_id || supportInboxGroupId || "-"} accent={supportInboxCheck?.get_chat?.ok ? "emerald" : "rose"} icon={<Users size={16} />} />
-                  <Metric label="Bot quyền" value={supportInboxCheck?.bot_member?.message || "Chưa kiểm tra quyền bot"} accent={supportInboxCheck?.bot_member?.ok ? "emerald" : "rose"} icon={<CheckCircle2 size={16} />} />
-                </div>
-                <ConfigEditor
-                  title="Cài đặt bot nhận tin"
-                  subtitle="Khối cấu hình riêng cho inbox bot: chế độ xử lý, /delete, ticket prefix và trạng thái online/offline."
-                  fields={SUPPORT_INBOX_FIELDS}
-                  values={fieldValues}
-                  setValues={setFieldValues}
-                  onSave={saveFields}
-                />
-                <ConfigEditor
-                  title="Hiệu ứng trạng thái kết nối"
-                  subtitle="Mô phỏng kiểu tele_support: bật hiệu ứng, chọn preset, và tùy biến frame/tin kết nối."
-                  fields={SUPPORT_INBOX_EFFECT_FIELDS}
-                  values={fieldValues}
-                  setValues={setFieldValues}
-                  onSave={saveFields}
-                />
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: 4,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: "background.paper",
-                    boxShadow: "0 16px 34px rgba(15,23,42,0.06)",
-                  }}
-                >
-                  <PanelHead
-                    title="Preview hiệu ứng kết nối"
-                    subtitle="Chỉ preview cấu hình hiện tại: preset đã chọn và custom frames đang nhập, để dễ kiểm soát hơn."
-                    accent="cyan"
-                  />
-                  {(() => {
-                    const liveStyle = String(getConfigValue(config, "SUPPORT_INBOX_STATUS_STYLE", "pulse") || "pulse").toLowerCase();
-                    const livePreset = supportInboxPresetMeta(liveStyle);
-                    const liveMessage = getConfigValue(config, "SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") || "Đang kết nối";
-                    const liveCustomFrames = getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAMES", "") || "";
-                    const liveFrames = supportInboxPreviewFrameList(liveStyle, liveMessage, liveCustomFrames);
-                    const liveUsesCustomFrames = liveStyle === "custom" && liveCustomFrames.trim().length > 0;
-                    const liveDelayMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420") || 420);
-                    const liveTotalMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_TOTAL_MS", "") || 0);
-                    const liveFinalHoldMs = Number(getConfigValue(config, "SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800") || 800);
-                    const livePreviewState = supportInboxPreviewCurrentFrame({
-                      frames: liveFrames,
-                      delayMs: liveDelayMs,
-                      totalMs: liveTotalMs,
-                      clockMs: supportInboxPreviewClock,
-                    });
-                    const liveStaffName = getConfigValue(config, "SUPPORT_INBOX_STAFF_NAME", "Admin") || "Admin";
-                    const liveReplyShowUsername = configIsOn(config, "SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON");
-                    const liveReplyTemplate = getConfigValue(config, "SUPPORT_INBOX_REPLY_TEMPLATE", "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}") || "💬 <b>Phản hồi từ hỗ trợ</b>\nTicket: <code>{ticket_no}</code>\n{admin_name}{admin_username}\n\n{message}";
-                    const liveReplyAdminName = String(liveStaffName || "Admin").trim() || "Admin";
-                    const liveReplyAdminUsername = liveReplyShowUsername ? "reply_admin" : "";
-                    const liveReplyText = renderInboxReplyPreview(liveReplyTemplate, {
-                      ticket_no: "CS2026062901",
-                      full_name: "Khách VIP",
-                      telegram_user_id: "7487060105",
-                      subject: "Hỗ trợ mua gói VIP",
-                      status: "open",
-                      admin_name: liveReplyAdminName,
-                      admin_username: liveReplyAdminUsername ? ` @${liveReplyAdminUsername}` : "",
-                      admin_status: String(getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online") || "🟢 Admin đang online"),
-                      message: "Mình nhờ admin tư vấn gói phù hợp.",
-                    }).replace(/<[^>]*>/g, "");
-                    const liveFinal = getConfigValue(config, "SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") || "{staff_name} đã sẵn sàng hỗ trợ 🤗";
-                    return (
-                      <Box sx={{ display: "grid", gap: 2, p: 2 }}>
-                        <Box
-                          sx={{
-                            p: 2,
-                            borderRadius: 3,
-                            border: "1px solid",
-                            borderColor: "rgba(59,130,246,0.14)",
-                            backgroundImage: livePreset.accent,
-                          }}
-                        >
-                          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
-                            <Chip size="small" label={`Preset: ${livePreset.label}`} sx={statusChipSx("success")} />
-                            <Chip size="small" label={liveUsesCustomFrames ? "Custom frames ON" : `Using preset: ${livePreset.label}`} variant="outlined" sx={statusChipSx(liveUsesCustomFrames ? "warning" : "muted")} />
-                            <Chip size="small" label={`${configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "Effect ON" : "Effect OFF"}`} sx={statusChipSx(configIsOn(config, "SUPPORT_INBOX_STATUS_ENABLED", "ON") ? "success" : "warning")} />
-                            <Chip size="small" label={`Delay ${Math.max(120, Number.isFinite(liveDelayMs) ? liveDelayMs : 420)}ms`} variant="outlined" sx={statusChipSx("muted")} />
-                            <Chip size="small" label={`Total ${Math.max(1200, Number.isFinite(liveTotalMs) && liveTotalMs > 0 ? liveTotalMs : livePreviewState.totalVisibleMs)}ms`} variant="outlined" sx={statusChipSx("muted")} />
-                            <Chip size="small" label={`Hold ${Math.max(0, Number.isFinite(liveFinalHoldMs) ? liveFinalHoldMs : 800)}ms`} variant="outlined" sx={statusChipSx("muted")} />
-                          </Stack>
-                          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
-                            <Chip size="small" label={`Staff: ${liveStaffName}`} variant="outlined" sx={statusChipSx("muted")} />
-                            <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline")} variant="outlined" sx={statusChipSx("muted")} />
-                            <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")} variant="outlined" sx={statusChipSx("success")} />
-                          </Stack>
-                          <Box
-                            sx={{
-                              minHeight: 146,
-                              p: 2,
-                              borderRadius: 3,
-                              background: "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.98))",
-                              color: "#fff",
-                              display: "grid",
-                              alignItems: "center",
-                              gap: 1,
-                              position: "relative",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.16), transparent 28%), radial-gradient(circle at 82% 14%, rgba(96,165,250,0.28), transparent 26%), radial-gradient(circle at 80% 80%, rgba(16,185,129,0.18), transparent 24%)" }} />
-                            <Box sx={{ position: "relative", zIndex: 1, display: "grid", gap: 1 }}>
-                              <Box
-                                sx={{
-                                  px: 1.5,
-                                  py: 1.1,
-                                  borderRadius: 2.4,
-                                  border: "1px solid rgba(255,255,255,0.08)",
-                                  bgcolor: "rgba(255,255,255,0.06)",
-                                  color: "#e5eefc",
-                                  fontWeight: 700,
-                                  letterSpacing: "-0.01em",
-                                  fontFamily: "\"JetBrains Mono\", ui-monospace, SFMono-Regular, monospace",
-                                  boxShadow: "0 10px 22px rgba(59,130,246,0.12)",
-                                  transform: `translateY(${Math.sin(supportInboxPreviewClock / 240) * -1.5}px)`,
-                                  transition: "background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
-                                  whiteSpace: "pre-line",
-                                }}
-                              >
-                                {livePreviewState.text}
-                              </Box>
-                              <Box sx={{ mt: 0.25, height: 6, borderRadius: 999, bgcolor: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                                <Box
-                                  sx={{
-                                    width: `${Math.max(8, Math.min(100, livePreviewState.progress * 100))}%`,
-                                    height: "100%",
-                                    borderRadius: 999,
-                                    background: "linear-gradient(90deg, #60a5fa, #38bdf8)",
-                                    transition: "width 120ms linear, background 180ms ease",
-                                  }}
-                                />
-                              </Box>
-                              <Box sx={{ display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.72)", fontSize: "0.82rem", fontWeight: 600 }}>
-                                <span>Looping frames</span>
-                                <span>Tong {livePreviewState.totalVisibleMs}ms</span>
-                              </Box>
-                            </Box>
-                          </Box>
-                          <Box
-                            sx={{
-                              mt: 1.25,
-                              px: 1.5,
-                              py: 1.1,
-                              borderRadius: 2.4,
-                              border: "1px solid rgba(52,211,153,0.16)",
-                              bgcolor: "rgba(34,197,94,0.12)",
-                              color: "#d1fae5",
-                              fontWeight: 800,
-                              whiteSpace: "pre-line",
-                              boxShadow: "0 10px 24px rgba(34,197,94,0.14)",
-                            }}
-                          >
-                            {`${getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")}\n${liveFinal.replaceAll("{staff_name}", liveStaffName)}`}
-                          </Box>
-                        </Box>
-                        <Box
-                          sx={{
-                            p: 2,
-                            borderRadius: 3,
-                            border: "1px solid rgba(15,23,42,0.08)",
-                            background:
-                              "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))",
-                            boxShadow: "0 14px 32px rgba(15,23,42,0.06)",
-                          }}
-                        >
-                          <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-                            <Box>
-                              <Typography sx={{ fontWeight: 900, lineHeight: 1.1 }}>Preview reply text</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Mô phỏng tin bot thật gửi cho user sau khi admin trả lời trong group inbox.
-                              </Typography>
-                            </Box>
-                            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                              <Chip size="small" label={`Staff: ${liveReplyAdminName}`} sx={statusChipSx("muted")} />
-                              <Chip size="small" label={liveReplyShowUsername ? "Username ON" : "Username OFF"} sx={statusChipSx(liveReplyShowUsername ? "success" : "warning")} />
-                            </Stack>
-                          </Stack>
-                          <Box
-                            sx={{
-                              maxWidth: 720,
-                              mx: "auto",
-                              borderRadius: 4,
-                              border: "1px solid rgba(148,163,184,0.16)",
-                              background:
-                                "linear-gradient(180deg, #e7f1ff 0%, #d8e9ff 12%, #f7fbff 12%, #f7fbff 100%)",
-                              overflow: "hidden",
-                              boxShadow: "0 18px 40px rgba(15,23,42,0.08)",
-                            }}
-                          >
-                            <Box sx={{ px: 2, py: 1.25, bgcolor: "rgba(37,99,235,0.12)", borderBottom: "1px solid rgba(37,99,235,0.10)" }}>
-                              <Typography sx={{ fontWeight: 800, fontSize: "0.94rem" }}>Tin nhắn bot</Typography>
-                            </Box>
-                            <Box sx={{ p: 2, display: "grid", gap: 1.5 }}>
-                              <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-                                <Box
-                                  sx={{
-                                    maxWidth: "82%",
-                                    px: 1.5,
-                                    py: 1,
-                                    borderRadius: "18px 18px 18px 6px",
-                                    bgcolor: "#ffffff",
-                                    border: "1px solid rgba(148,163,184,0.22)",
-                                    boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
-                                  }}
-                                >
-                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                                    Khách
-                                  </Typography>
-                                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.55, mt: 0.4 }}>
-                                    Mình cần hỗ trợ mở gói VIP 30 ngày.
-                                  </Typography>
-                                </Box>
-                              </Box>
-                              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                <Box
-                                  sx={{
-                                    maxWidth: "86%",
-                                    px: 1.5,
-                                    py: 1.1,
-                                    borderRadius: "18px 18px 6px 18px",
-                                    bgcolor: "#1d4ed8",
-                                    color: "#fff",
-                                    boxShadow: "0 10px 24px rgba(37,99,235,0.24)",
-                                  }}
-                                >
-                                  <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 0.5 }}>
-                                    <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{liveReplyAdminName}</Typography>
-                                    {liveReplyShowUsername ? (
-                                      <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.72)", fontWeight: 700 }}>
-                                        @{liveReplyAdminUsername || "reply_admin"}
-                                      </Typography>
-                                    ) : null}
-                                    <Chip size="small" label={getConfigValue(config, "SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online")} sx={{ height: 22, bgcolor: "rgba(255,255,255,0.18)", color: "#fff", fontWeight: 700 }} />
-                                  </Stack>
-                                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "rgba(255,255,255,0.96)" }}>
-                                    {liveReplyText}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </Box>
-                          </Box>
-                        </Box>
-                      </Box>
-                    );
-                  })()}
-                </Box>
-                <ConfigEditor
-                  title="Template inbox support"
-                  subtitle="Tin bot gửi group và tin bot trả lời user."
-                  fields={SUPPORT_INBOX_TEMPLATE_FIELDS}
-                  values={fieldValues}
-                  setValues={setFieldValues}
-                  onSave={saveFields}
-                />
-                <SimpleTable
-                  headers={["Avatar", "Alias", "Telegram ID", "Trạng thái", "Ghi chú"]}
-                  rows={supportStaffRows.map((item) => [
-                    <Box key={`${item.id}-avatar`} sx={{ display: "flex", alignItems: "center", gap: 1.1 }}>
-                      <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: item.tone === "good" ? "rgba(34,197,94,0.12)" : item.tone === "bad" ? "rgba(239,68,68,0.12)" : "rgba(148,163,184,0.12)", color: item.tone === "good" ? "success.main" : item.tone === "bad" ? "error.main" : "text.secondary", border: "1px solid rgba(148,163,184,0.16)", fontWeight: 800 }}>
-                        {item.avatar}
-                      </Box>
-                      <Box>
-                        <strong>{item.alias}</strong>
-                        <div className="muted">{item.id === "-" ? "Chưa có staff" : "Nhân viên bot"}</div>
-                      </Box>
-                    </Box>,
-                    item.id,
-                    <span key={`${item.id}-status`} className={`overview-pill ${item.tone}`}>{item.status}</span>,
-                    item.note,
-                  ])}
-                />
-              </Box>
-            </Card>
-              </>
-            ) : null}
           </div>
         ) : null}
 
@@ -8716,10 +8184,6 @@ export default function Home() {
 
         {renewalSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt gia hạn" subtitle="Bật/tắt nhắc gia hạn, báo hết hạn và nội dung tin nhắn liên quan đến hạn thành viên." fields={RENEWAL_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setRenewalSettingsOpen(false)} />
-        ) : null}
-
-        {supportSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt nhóm hỗ trợ" subtitle="Quản lý bật/tắt nhóm hỗ trợ, ID nhóm, text nút join và chính sách mute/kick khi khách hết hạn." fields={SUPPORT_GROUP_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSupportSettingsOpen(false)} />
         ) : null}
 
         {securitySettingsOpen ? (
