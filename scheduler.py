@@ -174,7 +174,15 @@ def plan_group_ids(plan_name):
             groups.append(normalized)
     return groups
 
-def user_active_group_ids(user_id, current_order_id, users_data, now):
+def cached_plan_group_ids(plan_name, plan_group_cache=None):
+    key = str(plan_name or "").strip()
+    if plan_group_cache is None:
+        return plan_group_ids(plan_name)
+    if key not in plan_group_cache:
+        plan_group_cache[key] = tuple(plan_group_ids(plan_name))
+    return plan_group_cache[key]
+
+def user_active_group_ids(user_id, current_order_id, users_data, now, plan_group_cache=None):
     active_groups = set()
     for row in users_data:
         if row_value(row, 0) == current_order_id:
@@ -184,7 +192,7 @@ def user_active_group_ids(user_id, current_order_id, users_data, now):
         if row_value(row, 5).upper() != "PAID":
             continue
         other_plan = row_value(row, 3)
-        other_groups = set(plan_group_ids(other_plan))
+        other_groups = set(cached_plan_group_ids(other_plan, plan_group_cache))
         if not other_groups:
             continue
         if is_lifetime_order(other_plan) or is_lifetime_plan(other_plan):
@@ -204,7 +212,7 @@ def user_active_group_ids(user_id, current_order_id, users_data, now):
             )
     return active_groups
 
-def user_has_active_membership(user_id, current_order_id, users_data, now):
+def user_has_active_membership(user_id, current_order_id, users_data, now, plan_group_cache=None):
     for row in users_data:
         if row_value(row, 0) == current_order_id:
             continue
@@ -238,7 +246,7 @@ def build_users_index(users_data):
         users_index.setdefault(user_id, []).append(row)
     return users_index
 
-def build_user_membership_cache(users_index, now, user_ids=None):
+def build_user_membership_cache(users_index, now, user_ids=None, plan_group_cache=None):
     cache = {}
     target_user_ids = set(str(user_id) for user_id in user_ids) if user_ids is not None else None
     for user_id, rows in users_index.items():
@@ -270,10 +278,10 @@ def build_user_membership_cache(users_index, now, user_ids=None):
                 if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
                     support_active = True
                 else:
-                        expire_date = parse_expire_datetime(expire_raw)
-                        if expire_date and expire_date > now:
-                            support_active = True
-                active_group_ids.update(plan_group_ids(plan_name))
+                    expire_date = parse_expire_datetime(expire_raw)
+                    if expire_date and expire_date > now:
+                        support_active = True
+                active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
         if not active_orders:
             support_active = False
         cache[user_id] = {
@@ -284,7 +292,7 @@ def build_user_membership_cache(users_index, now, user_ids=None):
         }
     return cache
 
-def build_user_membership_cache_from_rows(rows_by_user, now):
+def build_user_membership_cache_from_rows(rows_by_user, now, plan_group_cache=None):
     cache = {}
     for user_id, rows in rows_by_user.items():
         active_orders = []
@@ -300,17 +308,17 @@ def build_user_membership_cache_from_rows(rows_by_user, now):
             if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
                 active_orders.append(order_id)
                 support_active = True
-                active_group_ids.update(plan_group_ids(plan_name))
+                active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
                 continue
             expire_date = parse_expire_datetime(expire_raw)
             if expire_date and expire_date > now:
                 active_orders.append(order_id)
                 support_active = True
-                active_group_ids.update(plan_group_ids(plan_name))
+                active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
             elif expire_raw and not expire_date:
                 active_orders.append(order_id)
                 support_active = True
-                active_group_ids.update(plan_group_ids(plan_name))
+                active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
                 logging.warning(
                     "⚠️ User %s có đơn PAID %s cùng group nhưng expire_at không đọc được ('%s'); giữ quyền để tránh kick nhầm.",
                     user_id,
@@ -591,8 +599,9 @@ async def process_vip_kicks_for_expired_order(
     run_kick_cache=None,
     run_presence_cache=None,
     user_cache=None,
+    plan_group_cache=None,
 ):
-    current_group_ids = plan_group_ids(plan_name)
+    current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
     if not current_group_ids:
         logging.warning(
             "⚠️ Đơn %s user %s đã hết hạn (%s) nhưng không map được group VIP từ plan_name='%s'. "
@@ -607,7 +616,7 @@ async def process_vip_kicks_for_expired_order(
     if user_cache and user_id in user_cache:
         active_group_ids = set(user_cache[user_id].get("active_group_ids") or set()) & set(current_group_ids)
     else:
-        active_group_ids = user_active_group_ids(user_id, order_id, users_data, now)
+        active_group_ids = user_active_group_ids(user_id, order_id, users_data, now, plan_group_cache=plan_group_cache)
     retained_group_ids = [gid for gid in current_group_ids if gid in active_group_ids]
     expired_group_ids = [gid for gid in current_group_ids if gid not in active_group_ids]
 
@@ -645,8 +654,8 @@ async def process_vip_kicks_for_expired_order(
             kick_errors.append(gid)
     return expired_group_ids, kick_errors
 
-async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None, user_cache=None):
-    has_active_membership = user_cache[user_id]["has_active_membership"] if user_cache and user_id in user_cache else user_has_active_membership(user_id, order_id, users_data, now)
+async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None):
+    has_active_membership = user_cache[user_id]["has_active_membership"] if user_cache and user_id in user_cache else user_has_active_membership(user_id, order_id, users_data, now, plan_group_cache=plan_group_cache)
     if has_active_membership:
         await ensure_support_group_unmuted(user_id, order_id, plan_name)
         return
@@ -710,21 +719,11 @@ async def check_expirations_professional():
             order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
             due_before = now + timedelta(days=days_notice)
             try:
-                expired_due_orders = supabase_store.list_scheduler_expired_due_orders(limit=order_limit)
+                due_orders = supabase_store.list_scheduler_due_rows(due_before, limit=order_limit)
             except Exception as exc:
-                logging.warning("⚠️ Không dùng được query expired_due, fallback quét rộng: %s", exc)
-                expired_due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
-            try:
-                reminder_due_orders = supabase_store.list_scheduler_reminder_due_orders(due_before, limit=order_limit)
-            except Exception as exc:
-                logging.warning("⚠️ Không dùng được query reminder_due, fallback quét rộng: %s", exc)
-                reminder_due_orders = supabase_store.list_scheduler_due_orders(due_before, limit=order_limit)
-            merged_orders = {}
-            for order in [*expired_due_orders, *reminder_due_orders]:
-                order_id = str(order.get("order_id") or "")
-                if order_id and order_id not in merged_orders:
-                    merged_orders[order_id] = order
-            users_data = [supabase_store.order_to_sheet_row(order) for order in merged_orders.values()]
+                logging.warning("⚠️ Không dùng được query due_rows, fallback quét rộng: %s", exc)
+                due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
+            users_data = [supabase_store.order_to_sheet_row(order) for order in due_orders]
         else:
             users_data = db.users_sheet.get_all_values()[1:]
 
@@ -737,6 +736,7 @@ async def check_expirations_professional():
         summary = {"expired": 0, "expired_notice": 0, "reminded": 0, "skipped_not_due": 0, "invalid": 0}
         run_kick_cache = set()
         run_presence_cache = {}
+        plan_group_cache = {}
         users_index = build_users_index(users_data)
         expired_rows, reminder_rows, expiring_user_ids = split_scheduler_rows(users_data, now, days_notice)
         user_membership_cache = {}
@@ -755,9 +755,9 @@ async def check_expirations_professional():
                     if row_value(order_row, 0) not in seen_order_ids:
                         combined.append(order_row)
                 user_rows_by_id[user_id] = combined
-            user_membership_cache = build_user_membership_cache_from_rows(user_rows_by_id, now)
+            user_membership_cache = build_user_membership_cache_from_rows(user_rows_by_id, now, plan_group_cache=plan_group_cache)
         elif users_index:
-            user_membership_cache = build_user_membership_cache(users_index, now, user_ids=expiring_user_ids)
+            user_membership_cache = build_user_membership_cache(users_index, now, user_ids=expiring_user_ids, plan_group_cache=plan_group_cache)
 
         # Pass 1: xử lý EXPIRED trước để kick/mute đúng ngay.
         for offset, row in expired_rows:
@@ -769,15 +769,15 @@ async def check_expirations_professional():
             expire_str = str(row[7]).strip()
             if not expire_str:
                 continue
-            if not is_lifetime_plan(plan_name) and not plan_group_ids(plan_name):
+            if not is_lifetime_plan(plan_name) and not cached_plan_group_ids(plan_name, plan_group_cache):
                 logging.error(
                     "⏭ Bỏ qua xử lý đơn EXPIRED %s vì plan_name='%s' không map được group VIP; không mute/kick support để tránh xử lý nhầm.",
                     offer_ref,
                     plan_name,
                 )
                 continue
-            await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
-            await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache)
+            await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
+            await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
 
         # Pass 2: xử lý PAID reminder.
         for offset, row in reminder_rows:

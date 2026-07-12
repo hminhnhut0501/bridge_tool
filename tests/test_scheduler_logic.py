@@ -95,6 +95,17 @@ class FakeStore:
                 rows.append(order)
         return rows[:limit]
 
+    def list_scheduler_due_rows(self, due_before, limit=5000):
+        self.due_query_called = True
+        cutoff = scheduler.parse_expire_datetime(due_before)
+        rows = []
+        for order in self.orders:
+            status = str(order.get("status", "")).upper()
+            expire_at = scheduler.parse_expire_datetime(order.get("expire_at"))
+            if status == "EXPIRED" or (status == "PAID" and expire_at and cutoff and expire_at <= cutoff):
+                rows.append(order)
+        return rows[:limit]
+
     def list_paid_orders(self, limit=1000):
         return [order for order in self.orders if str(order.get("status", "")).upper() == "PAID"][:limit]
 

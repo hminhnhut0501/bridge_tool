@@ -55,6 +55,9 @@ def _install_stub_modules():
         def list_scheduler_reminder_due_orders(self, due_before, limit=5000):
             return []
 
+        def list_scheduler_due_rows(self, due_before, limit=5000):
+            return []
+
         def list_order_activation_codes(self, limit=5000):
             return []
 
