@@ -18,11 +18,9 @@ async def set_commands():
     try:
         from database import db
 
-        coupon_enabled = str(db.get_config("COUPON_COMMAND_ENABLED", "OFF") or "OFF").strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ"}
         def command_desc(key, fallback):
             return db.get_config(key, fallback)
     except Exception:
-        coupon_enabled = False
         def command_desc(key, fallback):
             return fallback
 
@@ -48,7 +46,7 @@ async def set_commands():
     add_if(group_commands, "BOT_MENU_GROUP_SUPPORT_ENABLED", "support", "BOT_COMMAND_DESC_SUPPORT", "Liên hệ hỗ trợ Admin")
     add_if(group_commands, "BOT_MENU_GROUP_POLICY_ENABLED", "policy", "BOT_COMMAND_DESC_POLICY", "Đọc quy định nhóm")
 
-    if coupon_enabled and enabled("BOT_MENU_PRIVATE_COUPON_ENABLED", "ON"):
+    if enabled("BOT_MENU_PRIVATE_COUPON_ENABLED", "ON"):
         private_commands.insert(
             2,
             BotCommand(

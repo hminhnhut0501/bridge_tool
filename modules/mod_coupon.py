@@ -881,8 +881,6 @@ async def send_coupon_prompt(target, state: FSMContext):
 async def cmd_coupon(message: Message, state: FSMContext):
     if not await check_protection(message):
         return
-    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
-        return
     if message.chat.type != "private":
         await message.answer(t(message.from_user.id, "MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
         return
@@ -894,8 +892,6 @@ async def cmd_coupon(message: Message, state: FSMContext):
 async def cmd_activation(message: Message, state: FSMContext):
     if not await check_protection(message):
         return
-    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
-        return
     if message.chat.type != "private":
         await message.answer(t(message.from_user.id, "MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
         return
@@ -905,8 +901,6 @@ async def cmd_activation(message: Message, state: FSMContext):
 @router.message(Command("hidden"))
 async def cmd_hidden(message: Message, state: FSMContext):
     if not await check_protection(message):
-        return
-    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
         return
     if message.chat.type != "private":
         await message.answer(t(message.from_user.id, "MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
