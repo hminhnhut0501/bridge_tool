@@ -633,7 +633,12 @@ async def admin_order_actions(callback: CallbackQuery):
         draft.plan_name = candidates[idx]
         _apply_pricing_from_plan(draft)
         draft.step = "activation_code"
-        await callback.answer()
+        await callback.answer("Đang tạo đơn...", show_alert=False)
+        await _safe_edit_message(
+            callback.message,
+            "⏳ Đang tạo đơn, vui lòng chờ chút...",
+            reply_markup=None,
+        )
         try:
             result = await _create_manual_order(draft)
         except Exception as exc:
