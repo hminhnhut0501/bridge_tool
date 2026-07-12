@@ -4676,6 +4676,22 @@ export default function Home() {
     return match ? match[0] : "";
   }
 
+  function normalizeMoneyInput(value: string, currency: string) {
+    return normalizeOrderEditorAmountInput(value, currency);
+  }
+
+  function roundMoneyInput(value: string, currency: string) {
+    const normalizedCurrency = normalizeRevenueCurrency(currency);
+    const text = String(value || "").trim();
+    if (!text) return "";
+    const numeric = Number(text.replace(/,/g, "."));
+    if (!Number.isFinite(numeric)) return value;
+    if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
+      return String(Math.round(numeric * 100) / 100);
+    }
+    return String(Math.round(numeric));
+  }
+
   function roundOrderEditorVndAmount() {
     const currency = normalizeRevenueCurrency(orderEditorForm.payment_currency || "VND");
     if (currency !== "VND") return;
@@ -7710,10 +7726,10 @@ export default function Home() {
                   helperText="Dùng để giữ đơn cũ không vỡ khi đổi tên group, và cho phép map lại đơn báo lỗi."
                 />
                 <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(event.target.value)} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(event.target.value)} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(event.target.value)} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice1m(roundMoneyInput(groupPrice1m, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
+                <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPriceLife(roundMoneyInput(groupPriceLife, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
+                <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice1mUsd(roundMoneyInput(groupPrice1mUsd, "USD"))} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
+                <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPriceLifeUsd(roundMoneyInput(groupPriceLifeUsd, "USD"))} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
               </div>
             </Box>
           </MuiDialogShell>
@@ -7741,10 +7757,10 @@ export default function Home() {
                 <TextField className="field" label="Telegram group ID" value={hiddenGroupForm.chat_id} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, chat_id: event.target.value })} placeholder="-1001234567890" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field wide" label="Mô tả ngắn" value={hiddenGroupForm.description} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, description: event.target.value })} placeholder="Mô tả nội bộ hoặc nội dung bot dùng để giới thiệu Special Group." fullWidth multiline minRows={4} sx={popupFieldSx} />
                 <div className="hint compact wide">Giá duration nào để 0 thì bot sẽ không hiện nút mua duration đó. Nếu chỉ bán trọn đời, để giá 30 ngày VND/USD = 0 và chỉ nhập giá trọn đời.</div>
-                <TextField className="field" label="Giá VNĐ 30 ngày" value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: event.target.value })} inputMode="numeric" placeholder="99000" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá VNĐ trọn đời" value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: event.target.value })} inputMode="numeric" placeholder="299000" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá USD 30 ngày" value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: event.target.value })} inputMode="decimal" placeholder="4.99" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field" label="Giá USD trọn đời" value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: event.target.value })} inputMode="decimal" placeholder="14.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ 30 ngày" value={hiddenGroupForm.price_1m_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_vnd: normalizeMoneyInput(event.target.value, "VND") })} onBlur={() => setHiddenGroupForm((current) => ({ ...current, price_1m_vnd: roundMoneyInput(current.price_1m_vnd, "VND") }))} inputMode="numeric" placeholder="99000" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá VNĐ trọn đời" value={hiddenGroupForm.price_life_vnd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_vnd: normalizeMoneyInput(event.target.value, "VND") })} onBlur={() => setHiddenGroupForm((current) => ({ ...current, price_life_vnd: roundMoneyInput(current.price_life_vnd, "VND") }))} inputMode="numeric" placeholder="299000" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD 30 ngày" value={hiddenGroupForm.price_1m_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_1m_usd: normalizeMoneyInput(event.target.value, "USD") })} onBlur={() => setHiddenGroupForm((current) => ({ ...current, price_1m_usd: roundMoneyInput(current.price_1m_usd, "USD") }))} inputMode="decimal" placeholder="4.99" fullWidth size="small" sx={popupFieldSx} />
+                <TextField className="field" label="Giá USD trọn đời" value={hiddenGroupForm.price_life_usd} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, price_life_usd: normalizeMoneyInput(event.target.value, "USD") })} onBlur={() => setHiddenGroupForm((current) => ({ ...current, price_life_usd: roundMoneyInput(current.price_life_usd, "USD") }))} inputMode="decimal" placeholder="14.99" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Hạn 30 ngày (days)" value={hiddenGroupForm.duration_1m_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, duration_1m_days: event.target.value })} inputMode="numeric" placeholder="30" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Hạn trọn đời (days)" value={hiddenGroupForm.lifetime_days} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, lifetime_days: event.target.value })} inputMode="numeric" placeholder="3650" fullWidth size="small" sx={popupFieldSx} helperText="Mặc định đồng bộ 10 năm = 3650 ngày." />
                 <TextField className="field" label="Sort order" value={hiddenGroupForm.sort_order} onChange={(event) => setHiddenGroupForm({ ...hiddenGroupForm, sort_order: event.target.value })} inputMode="numeric" placeholder="1" fullWidth size="small" sx={popupFieldSx} />
@@ -8154,9 +8170,9 @@ export default function Home() {
                   value={orderEditorForm.amount}
                   onChange={(event) => setOrderEditorForm((current) => ({
                     ...current,
-                    amount: normalizeOrderEditorAmountInput(event.target.value, current.payment_currency || orderEditorForm.payment_currency),
+                    amount: normalizeMoneyInput(event.target.value, current.payment_currency || orderEditorForm.payment_currency),
                   }))}
-                  onBlur={roundOrderEditorVndAmount}
+                  onBlur={() => setOrderEditorForm((current) => ({ ...current, amount: roundMoneyInput(current.amount, current.payment_currency) }))}
                   size="small"
                   fullWidth
                   inputMode={normalizeRevenueCurrency(orderEditorForm.payment_currency) === "VND" ? "numeric" : "decimal"}
@@ -8492,7 +8508,7 @@ export default function Home() {
                 {/* Cột phải: Thanh toán & hạn dùng */}
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-                    <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm({ ...manualOrderForm, amount: event.target.value })} placeholder="0" inputMode="decimal" size="small" helperText="Nhập số thực. VNĐ thường không có thập phân." />
+                  <TextField label="Số tiền" value={manualOrderForm.amount} onChange={(event) => setManualOrderForm((current) => ({ ...current, amount: normalizeMoneyInput(event.target.value, current.payment_currency) }))} onBlur={() => setManualOrderForm((current) => ({ ...current, amount: roundMoneyInput(current.amount, current.payment_currency) }))} placeholder="0" inputMode={normalizeRevenueCurrency(manualOrderForm.payment_currency) === "VND" ? "numeric" : "decimal"} size="small" helperText={normalizeRevenueCurrency(manualOrderForm.payment_currency) === "VND" ? "VNĐ tự làm tròn số nguyên." : "USD giữ tối đa 2 số lẻ."} />
                     <TextField select label="Tiền tệ" value={manualOrderForm.payment_currency} onChange={(event) => {
                       const nextCurrency = event.target.value;
                       const selectedGroup = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
@@ -8873,10 +8889,13 @@ export default function Home() {
               <TextField
                 label="Số tiền thanh toán"
                 value={customerRenewForm.amount}
-                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, amount: event.target.value }))}
+                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, amount: normalizeMoneyInput(event.target.value, current.payment_currency) }))}
+                onBlur={() => setCustomerRenewForm((current) => ({ ...current, amount: roundMoneyInput(current.amount, current.payment_currency) }))}
                 placeholder="99000"
                 fullWidth
                 size="small"
+                inputMode={normalizeRevenueCurrency(customerRenewForm.payment_currency) === "VND" ? "numeric" : "decimal"}
+                helperText={normalizeRevenueCurrency(customerRenewForm.payment_currency) === "VND" ? "VNĐ tự làm tròn số nguyên." : "USD giữ tối đa 2 số lẻ."}
               />
               <TextField
                 label="Số ngày gia hạn"
