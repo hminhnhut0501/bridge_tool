@@ -480,10 +480,6 @@ async def _render_draft(message_or_callback, draft: OrderDraft, notice: str = ""
     markup = _keyboard(draft)
     if isinstance(message_or_callback, CallbackQuery):
         try:
-            await message_or_callback.answer()
-        except Exception:
-            pass
-        try:
             await message_or_callback.message.edit_text(text, reply_markup=markup)
         except TelegramBadRequest:
             await message_or_callback.message.answer(text, reply_markup=markup)
@@ -638,6 +634,12 @@ async def admin_order_actions(callback: CallbackQuery):
         candidates = _plan_candidates()
         if idx < 0 or idx >= len(candidates):
             await callback.answer("Gói không hợp lệ.", show_alert=True)
+            return
+        if not str(draft.telegram_user_id or "").strip():
+            await _safe_edit_message(
+                callback.message,
+                "❌ Thiếu Telegram ID. Vui lòng nhập ID rồi chọn lại gói.",
+            )
             return
         draft.plan_name = candidates[idx]
         _apply_pricing_from_plan(draft)
