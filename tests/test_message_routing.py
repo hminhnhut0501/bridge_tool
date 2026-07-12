@@ -3,7 +3,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from aiogram.dispatcher.event.bases import SkipHandler
+from aiogram.types import BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
+import bot_instance
+import database
 import modules.mod_admin_order as mod_admin_order
 import modules.mod_coupon as mod_coupon
 import modules.mod_general as mod_general
@@ -235,6 +238,35 @@ def test_admin_order_capture_skips_me_command_for_admin_without_draft(monkeypatc
         raise AssertionError("admin_order_capture should skip /me without draft")
     except SkipHandler:
         pass
+
+
+def test_private_menu_has_single_coupon_entry(monkeypatch):
+    config = {
+        "COUPON_COMMAND_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_COUPON_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_START_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_LANG_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_ME_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_SUPPORT_ENABLED": "ON",
+        "BOT_MENU_PRIVATE_POLICY_ENABLED": "ON",
+        "BOT_COMMAND_DESC_COUPON": "Nhập mã kích hoạt / coupon / hidden code",
+    }
+    calls = []
+
+    async def fake_set_my_commands(commands, scope=None):
+        calls.append((commands, scope))
+
+    monkeypatch.setattr(database.db, "get_config", lambda key, default="": config.get(key, default))
+    monkeypatch.setattr(bot_instance.bot, "set_my_commands", fake_set_my_commands)
+
+    asyncio.run(bot_instance.set_commands())
+
+    private_calls = [item for item in calls if isinstance(item[1], BotCommandScopeAllPrivateChats)]
+    assert private_calls, "private command scope should be set"
+    private_commands = private_calls[-1][0]
+    assert [cmd.command for cmd in private_commands].count("coupon") == 1
+    assert "activation" not in [cmd.command for cmd in private_commands]
+    assert "hidden" not in [cmd.command for cmd in private_commands]
 
 
 def test_start_manual_message_payload_routes_to_manual_message_delivery(monkeypatch):

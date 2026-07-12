@@ -865,7 +865,7 @@ async def send_coupon_prompt(target, state: FSMContext):
     text = t(
         user_id,
         "MSG_COUPON_PROMPT",
-        "<b>Nhập mã kích hoạt / Enter activation code</b>\\n\\nGửi mã bạn nhận được vào đây. Ví dụ: <code>VIP2026</code>",
+        "<b>Nhập mã kích hoạt / coupon / hidden code</b>\\n\\nGửi mã bạn nhận được vào đây. Hệ thống chấp nhận cả mã kích hoạt, coupon và hidden code. Ví dụ: <code>VIP2026</code>",
     ).replace("\\n", "\n")
     kb = InlineKeyboardBuilder().row(
         InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "Quay lại Menu", "Back to menu")), callback_data="back_main")
@@ -879,6 +879,31 @@ async def send_coupon_prompt(target, state: FSMContext):
 
 @router.message(Command("coupon"))
 async def cmd_coupon(message: Message, state: FSMContext):
+    if not await check_protection(message):
+        return
+    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
+        return
+    if message.chat.type != "private":
+        await message.answer(t(message.from_user.id, "MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
+        return
+    await send_coupon_prompt(message, state)
+
+
+@router.message(Command("activation"))
+@router.message(Command("activecode"))
+async def cmd_activation(message: Message, state: FSMContext):
+    if not await check_protection(message):
+        return
+    if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
+        return
+    if message.chat.type != "private":
+        await message.answer(t(message.from_user.id, "MSG_COUPON_PRIVATE_ONLY", "Vui lòng nhắn riêng với bot để nhập mã, tránh lộ mã trong group."))
+        return
+    await send_coupon_prompt(message, state)
+
+
+@router.message(Command("hidden"))
+async def cmd_hidden(message: Message, state: FSMContext):
     if not await check_protection(message):
         return
     if not config_enabled("COUPON_COMMAND_ENABLED", "OFF"):
