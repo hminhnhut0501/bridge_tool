@@ -4082,7 +4082,7 @@ export default function Home() {
       "Telegram ID": item.telegram_user_id || "-",
       "Khách": item.full_name || "-",
       "Gói": item.plan_name || "-",
-      "Số tiền": item.amount || 0,
+      "Số tiền": orderMoney(item),
       "Trạng thái": orderStatusLabel(item.status),
       "Thanh toán lúc": item.paid_at ? dateText(item.paid_at) : "-",
       "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
@@ -9340,13 +9340,13 @@ function SummaryTable({ groups }: { groups: { label: string; items: Order[]; sta
           {groups.length ? groups.map((group) => (
             <tr key={group.label}>
               <td><strong>{group.label}</strong><div className="muted">{group.items.length} đơn</div></td>
-              <td>{formatDisplayCurrency(Number(group.stats.revenue || 0), "VND")}</td>
+              <td>{group.stats.revenueByCurrency ? Object.entries(group.stats.revenueByCurrency).map(([currency, value]) => formatDisplayCurrency(Number(value || 0), currency)).join(" + ") : formatDisplayCurrency(Number(group.stats.revenue || 0), "VND")}</td>
               <td>{group.stats.paid}</td>
               <td>{group.stats.pending}</td>
               <td>{group.stats.cancelled + group.stats.expired}</td>
               <td>{group.stats.customers}</td>
-              <td>{formatDisplayCurrency(Number(group.stats.averageOrder || 0), "VND")}</td>
-              <td>{formatDisplayCurrency(Number(group.stats.discount || 0), "VND")}</td>
+              <td>{group.stats.averageByCurrency ? Object.entries(group.stats.averageByCurrency).map(([currency, value]) => formatDisplayCurrency(Number(value || 0), currency)).join(" + ") : formatDisplayCurrency(Number(group.stats.averageOrder || 0), "VND")}</td>
+              <td>{group.stats.discountByCurrency ? Object.entries(group.stats.discountByCurrency).map(([currency, value]) => formatDisplayCurrency(Number(value || 0), currency)).join(" + ") : formatDisplayCurrency(Number(group.stats.discount || 0), "VND")}</td>
               <td>{group.stats.conversion}%</td>
             </tr>
           )) : (

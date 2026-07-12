@@ -1,5 +1,5 @@
 import type { ConfigRow, Order } from "@/lib/api";
-import { orderAmountValue } from "./dashboard-helpers";
+import { inferOrderCurrency, normalizeRevenueCurrency, orderAmountValue } from "./dashboard-helpers";
 
 export type GroupMode = "none" | "day" | "month";
 
@@ -99,6 +99,22 @@ export function orderStats(orders: Order[]) {
   const paidOrders = orders.filter((item) => item.status === "PAID");
   const revenue = paidOrders.reduce((sum, item) => sum + orderAmountValue(item), 0);
   const discount = paidOrders.reduce((sum, item) => sum + orderAmountValue(item, item.coupon_discount_amount), 0);
+  const revenueByCurrency = paidOrders.reduce((sum, item) => {
+    const currency = normalizeRevenueCurrency(inferOrderCurrency(item));
+    sum[currency] = (sum[currency] || 0) + orderAmountValue(item);
+    return sum;
+  }, {} as Record<string, number>);
+  const discountByCurrency = paidOrders.reduce((sum, item) => {
+    const currency = normalizeRevenueCurrency(inferOrderCurrency(item));
+    sum[currency] = (sum[currency] || 0) + orderAmountValue(item, item.coupon_discount_amount);
+    return sum;
+  }, {} as Record<string, number>);
+  const averageByCurrency = paidOrders.reduce((sum, item) => {
+    const currency = normalizeRevenueCurrency(inferOrderCurrency(item));
+    if (!sum[currency]) sum[currency] = [];
+    sum[currency].push(orderAmountValue(item));
+    return sum;
+  }, {} as Record<string, number[]>);
   return {
     total: orders.length,
     paid: paidOrders.length,
@@ -108,6 +124,9 @@ export function orderStats(orders: Order[]) {
     revenue,
     discount,
     averageOrder: paidOrders.length ? Math.round(revenue / paidOrders.length) : 0,
+    revenueByCurrency,
+    discountByCurrency,
+    averageByCurrency: Object.fromEntries(Object.entries(averageByCurrency).map(([currency, values]) => [currency, values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0])),
     conversion: orders.length ? Math.round((paidOrders.length / orders.length) * 100) : 0,
     customers: uniquePaidCustomers(orders),
   };
