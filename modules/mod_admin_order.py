@@ -209,6 +209,12 @@ def _plan_candidates() -> list[str]:
     except Exception:
         pass
 
+    try:
+        add(_cfg("PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"))
+        add(_cfg("PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"))
+    except Exception:
+        pass
+
     return candidates
 
 
