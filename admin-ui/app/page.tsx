@@ -77,6 +77,7 @@ import {
   activityEventBadgeTone,
   activityEventDetailLabel,
   activityLogDetailLabel,
+  friendlyDetailText,
   activityEventLabel,
   auditStatusLabel,
   groupDebugText,
@@ -133,6 +134,7 @@ import { AppSection, AppToolbar } from "./dashboard-components";
 import {
   ActivityEvent,
   ActivityLogResponse,
+  type ActivityLogEntry,
   BroadcastCampaign,
   BroadcastRecipient,
   type BotScheduleStatus,
@@ -4663,6 +4665,87 @@ export default function Home() {
     }
   }
 
+  function parseManualActivationDetail(detail: string, title = "") {
+    const text = String(detail || "").trim();
+    const statusMatch = text.match(/Trạng thái:\s*([^•\n]+)/i) || text.match(/status:\s*([^•\n]+)/i);
+    const planMatch = text.match(/(?:Gói|Plan):\s*([^•\n]+)/i);
+    const orderMatch = text.match(/(?:Đơn|Order):\s*([^•\n]+)/i);
+    const links = Array.from(text.matchAll(/'group_id':\s*'([^']+)'.*?'group_name':\s*'([^']+)'.*?'invite_link':\s*'([^']+)'/g)).map((match) => ({
+      groupId: match[1],
+      groupName: match[2],
+      inviteLink: match[3],
+    }));
+    return {
+      status: statusMatch?.[1]?.trim() || "",
+      plan: planMatch?.[1]?.trim() || "",
+      order: orderMatch?.[1]?.trim() || "",
+      title: title || "Kích hoạt đơn",
+      links,
+    };
+  }
+
+  function detailStatusTone(status: string) {
+    const normalized = String(status || "").trim().toUpperCase();
+    if (["OK", "SUCCESS", "DONE", "ACTIVE"].includes(normalized)) return "success" as const;
+    if (["ERROR", "FAIL", "FAILED", "LỖI"].includes(normalized)) return "error" as const;
+    return "warning" as const;
+  }
+
+  function copyTextValue(value: string, label: string) {
+    void navigator.clipboard.writeText(value).then(
+      () => showNotice("ok", `Đã copy ${label}.`),
+      () => showNotice("error", `Không copy được ${label}.`),
+    );
+  }
+
+  function renderLogDetailCell(item: ActivityLogEntry) {
+    const parsed = parseManualActivationDetail(item.detail, item.title);
+    const detailText = activityLogDetailLabel(item.type, item.detail, item.title);
+    if (item.type === "manual_activation_link_generated" || detailText !== item.detail) {
+      return (
+        <Box sx={{ display: "grid", gap: 0.75 }}>
+          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center" }}>
+            {parsed.status ? <Chip size="small" label={parsed.status} color={detailStatusTone(parsed.status)} variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} /> : null}
+            {parsed.plan ? <Chip size="small" label={parsed.plan} color="secondary" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} /> : null}
+            {parsed.order ? <Chip size="small" label={parsed.order} color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} /> : null}
+          </Box>
+          {parsed.links.length ? (
+            <Box sx={{ display: "grid", gap: 0.75 }}>
+              {parsed.links.map((link) => (
+                <Box
+                  key={`${item.id}-${link.groupId}`}
+                  sx={{
+                    display: "grid",
+                    gap: 0.35,
+                    p: 1,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "rgba(15, 23, 42, 0.02)",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, justifyContent: "space-between", flexWrap: "wrap" }}>
+                    <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{link.groupName}</Typography>
+                    <Button variant="outlined" size="small" startIcon={<Copy size={14} />} onClick={() => copyTextValue(link.inviteLink, `${link.groupName} invite link`)}>
+                      Copy link
+                    </Button>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>
+                    {link.inviteLink}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Group ID: {link.groupId}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          ) : null}
+        </Box>
+      );
+    }
+    return <Box sx={{ whiteSpace: "pre-line" }}>{friendlyDetailText(detailText)}</Box>;
+  }
+
   function orderEditorAmountPreview() {
     const raw = Number(String(orderEditorForm.amount || "").replace(/,/g, "."));
     if (!Number.isFinite(raw)) return "-";
@@ -5196,7 +5279,7 @@ export default function Home() {
             <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
           </Tooltip>,
           <Tooltip key={`vip-${item.audit_id}-err-tip`} title={item.latest_error || "Không có lỗi"} arrow>
-            <span>{item.latest_error || "-"}</span>
+            <Box component="span" sx={{ whiteSpace: "pre-line" }}>{friendlyDetailText(item.latest_error || "-")}</Box>
           </Tooltip>,
         ],
       }));
@@ -5222,7 +5305,7 @@ export default function Home() {
             <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
           </Tooltip>,
           <Tooltip key={`kick-${item.audit_id}-reason-tip`} title={kickAuditReason(item)} arrow>
-            <span>{kickAuditReason(item)}</span>
+            <Box component="span" sx={{ whiteSpace: "pre-line" }}>{friendlyDetailText(kickAuditReason(item))}</Box>
           </Tooltip>,
         ],
       }));
@@ -5260,7 +5343,7 @@ export default function Home() {
       createdAt: item.created_at,
       detail: [
         item.plan_name || "",
-        item.raw_data?.reason ? String(item.raw_data.reason) : "",
+        item.raw_data?.reason ? friendlyDetailText(String(item.raw_data.reason)) : "",
       ].filter(Boolean).join(" • ") || "-",
     }));
 
@@ -5283,7 +5366,7 @@ export default function Home() {
         group: item.group_name || item.group_id || "-",
         order: item.order_id || "-",
         createdAt: item.latest_kick_at || item.expire_at || "",
-        detail: item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-",
+        detail: friendlyDetailText(item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-"),
       }));
 
     const rows = [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
@@ -5500,7 +5583,12 @@ export default function Home() {
         item.raw_data?.new_status ? `Mới: ${item.raw_data.new_status}` : "",
         item.raw_data?.reason ? `Lý do: ${String(item.raw_data.reason)}` : "",
       ].filter(Boolean).join(" • ") || "-", item.event_type)} arrow>
-        <span>{[item.raw_data?.old_status, item.raw_data?.new_status].filter(Boolean).join(" → ") || (item.raw_data?.reason ? String(item.raw_data.reason) : "-")}</span>
+        <Box component="span" sx={{ display: "inline-grid", gap: 0.25 }}>
+          {item.raw_data?.old_status || item.raw_data?.new_status ? (
+            <Chip size="small" label={`${friendlyDetailText(String(item.raw_data?.old_status || "-"))} → ${friendlyDetailText(String(item.raw_data?.new_status || "-"))}`} color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800, width: "fit-content" }} />
+          ) : null}
+          {item.raw_data?.reason ? <Box sx={{ whiteSpace: "pre-line" }}>{friendlyDetailText(String(item.raw_data.reason))}</Box> : <Box sx={{ whiteSpace: "pre-line" }}>{friendlyDetailText(String(item.raw_data?.new_status || item.raw_data?.old_status || "-"))}</Box>}
+        </Box>
       </Tooltip>,
     ]);
   }, [supportGroupEvents, supportTab, supportCustomerName]);
@@ -6822,7 +6910,7 @@ export default function Home() {
                   <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
                   item.typeLabel || logEntryTypeLabel(item.type),
                   item.title,
-                  <Box key={`detail-${item.id}`} sx={{ whiteSpace: "pre-line" }}>{activityLogDetailLabel(item.type, item.detail, item.title)}</Box>,
+                  <Box key={`detail-${item.id}`}>{renderLogDetailCell(item)}</Box>,
                 ])}
                 actions={(idx) => {
                   const item = pagedLogEntries[idx];

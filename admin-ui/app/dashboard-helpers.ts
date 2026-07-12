@@ -395,6 +395,18 @@ export function activityLogDetailLabel(type: string, detail: string, title = "")
   return text;
 }
 
+export function friendlyDetailText(value: string | null | undefined) {
+  const text = displayText(value);
+  if (!text) return "-";
+  const lower = text.toLowerCase();
+  if (lower.includes("không map được group")) return "Không map được group";
+  if (lower.includes("không mapp được group")) return "Không map được group";
+  if (lower.includes("support inbox disabled redirect")) return "Bot đang chuyển sang hỗ trợ";
+  if (lower.includes("manual activation link generated")) return "Kích hoạt đơn";
+  if (lower.includes("manual order created")) return "Tạo đơn thủ công";
+  return text;
+}
+
 export function logEntryTypeLabel(type: string) {
   return activityEventLabel(type) !== type ? activityEventLabel(type) : supportEventLabel(type);
 }
