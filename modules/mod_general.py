@@ -25,6 +25,16 @@ from renewal_utils import is_early_renew_enabled
 from processor import escape_html
 
 router = Router()
+_activation_code_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_activation_code_lock(code: str) -> asyncio.Lock:
+    normalized = str(code or "").strip().upper()
+    lock = _activation_code_locks.get(normalized)
+    if lock is None:
+        lock = asyncio.Lock()
+        _activation_code_locks[normalized] = lock
+    return lock
 
 
 def cfg(key, default=""):
@@ -387,162 +397,174 @@ async def record_start_event(message: Message, payload: str, event_type: str, *,
 async def deliver_activation_order(message: Message, code: str):
     from modules.mod_coupon import build_invite_links
 
-    activation = supabase_store.get_order_activation_code(code) if supabase_store.enabled else None
-    if not activation:
-        await message.answer(render_cfg("MANUAL_ORDER_LINK_INVALID_TEXT", "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá."))
-        return
+    async with _get_activation_code_lock(code):
+        activation = supabase_store.get_order_activation_code(code) if supabase_store.enabled else None
+        if not activation:
+            await message.answer(render_cfg("MANUAL_ORDER_LINK_INVALID_TEXT", "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá."))
+            return
 
-    status = str(activation.get("activation_status") or "PENDING").upper()
-    telegram_user_id = str(activation.get("telegram_user_id") or "").strip()
-    expire_at = str(activation.get("expire_at") or "").strip()
-    now_user_id = str(message.from_user.id)
-    raw_data = activation.get("raw_data") if isinstance(activation.get("raw_data"), dict) else {}
-    inferred_language = infer_language_from_payment_context(
-        payment_currency=activation.get("payment_currency", ""),
-        payment_provider=activation.get("payment_provider", ""),
-        raw_data=raw_data,
-    )
-    if inferred_language:
-        set_user_language(message.from_user.id, inferred_language)
-        if telegram_user_id:
-            set_user_language(telegram_user_id, inferred_language)
+        status = str(activation.get("activation_status") or "PENDING").upper()
+        telegram_user_id = str(activation.get("telegram_user_id") or "").strip()
+        expire_at = str(activation.get("expire_at") or "").strip()
+        now_user_id = str(message.from_user.id)
+        raw_data = activation.get("raw_data") if isinstance(activation.get("raw_data"), dict) else {}
+        inferred_language = infer_language_from_payment_context(
+            payment_currency=activation.get("payment_currency", ""),
+            payment_provider=activation.get("payment_provider", ""),
+            raw_data=raw_data,
+        )
+        if inferred_language:
+            set_user_language(message.from_user.id, inferred_language)
+            if telegram_user_id:
+                set_user_language(telegram_user_id, inferred_language)
 
-    if telegram_user_id and telegram_user_id != now_user_id:
-        await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
-        return
+        if status in {"USED", "PROCESSING"}:
+            await message.answer(render_cfg("MANUAL_ORDER_LINK_USED_TEXT", "ℹ️ Mã này đã được kích hoạt rồi. Nếu cần, admin hãy tạo lại link mới."))
+            return
 
-    if expire_at:
+        if telegram_user_id and telegram_user_id != now_user_id:
+            await message.answer(render_cfg("MANUAL_ORDER_LINK_WRONG_USER_TEXT", "❌ Mã này không dành cho tài khoản Telegram hiện tại."))
+            return
+
+        if expire_at:
+            try:
+                parsed_expire = datetime.fromisoformat(expire_at.replace("Z", "+00:00"))
+                if parsed_expire.tzinfo:
+                    parsed_expire = parsed_expire.astimezone(ZoneInfo(str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"))).replace(tzinfo=None)
+                if parsed_expire < datetime.now():
+                    await message.answer(render_cfg("MANUAL_ORDER_LINK_EXPIRED_TEXT", "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin."))
+                    return
+            except Exception:
+                pass
+
         try:
-            parsed_expire = datetime.fromisoformat(expire_at.replace("Z", "+00:00"))
-            if parsed_expire.tzinfo:
-                parsed_expire = parsed_expire.astimezone(ZoneInfo(str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"))).replace(tzinfo=None)
-            if parsed_expire < datetime.now():
-                await message.answer(render_cfg("MANUAL_ORDER_LINK_EXPIRED_TEXT", "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin."))
-                return
-        except Exception:
-            pass
+            supabase_store.update_order_activation_code(code, {"activation_status": "PROCESSING"})
+            if activation.get("order_id"):
+                supabase_store.update_order_activation_code_by_order(activation.get("order_id"), {"activation_status": "PROCESSING"})
+        except Exception as exc:
+            print(f"⚠️ Không ghi được activation processing cho {code}: {exc}")
 
-    processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link tham gia nhóm..."))
-    try:
-        plan_name = str(activation.get("plan_name") or "").strip()
-        links_text, group_names, failed_groups, invite_results = await build_invite_links(message.from_user.id, plan_name)
-        if failed_groups or not group_names:
+        processing_message = await message.answer(render_cfg("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn hàng và tạo link tham gia nhóm..."))
+        try:
+            plan_name = str(activation.get("plan_name") or "").strip()
+            links_text, group_names, failed_groups, invite_results = await build_invite_links(message.from_user.id, plan_name)
+            if failed_groups or not group_names:
+                try:
+                    supabase_store.record_support_event(
+                        "manual_activation_link_failed",
+                        telegram_user_id,
+                        full_name=activation.get("full_name", ""),
+                        order_id=activation.get("order_id", ""),
+                        plan_name=plan_name,
+                        raw_data={
+                            "activation_code": code,
+                            "failed_groups": failed_groups,
+                            "invite_results": invite_results,
+                            "links_text": links_text,
+                            "status": "failed" if not group_names else "partial",
+                        },
+                    )
+                except Exception as exc:
+                    print(f"⚠️ Không ghi được manual_activation_link_failed cho {code}: {exc}")
+                if not group_names:
+                    await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link tham gia nhóm. Vui lòng thử lại sau."))
+                    return
+
+            activation_update_at = datetime.now().isoformat(timespec="seconds")
+            try:
+                raw_data = dict(activation.get("raw_data") or {})
+                raw_data.update({
+                    "activation_code": code,
+                    "group_names": group_names,
+                    "failed_groups": failed_groups,
+                    "invite_results": invite_results,
+                    "invite_cleanup_after_days": int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7),
+                    "invite_cleanup_due_at": (datetime.now() + timedelta(days=max(1, int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7)))).isoformat(timespec="seconds"),
+                })
+                update_payload = {
+                    "raw_data": raw_data,
+                    "activation_status": "USED",
+                    "activated_at": activation_update_at,
+                    "activated_by_user_id": message.from_user.id,
+                    "used_at": activation_update_at,
+                    "used_by_user_id": message.from_user.id,
+                }
+                supabase_store.update_order_activation_code(code, update_payload)
+                if activation.get("order_id"):
+                    supabase_store.update_order_activation_code_by_order(activation.get("order_id"), update_payload)
+                supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=activation_update_at)
+            except Exception as exc:
+                print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
+
+            render_context = {
+                "order_id": activation.get("order_id", ""),
+                "telegram_user_id": telegram_user_id,
+                "full_name": activation.get("full_name", ""),
+                "plan_name": plan_name,
+                "expire_at": format_manual_expire(expire_at),
+                "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
+            }
+            support_link, support_error = await create_support_invite_link(message.from_user.id)
+            render_context["support_link"] = support_link or ""
+            render_context["support_error"] = support_error or ""
+            support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
+            if not support_text and support_error:
+                support_text = render_cfg(
+                    "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+                    "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+                    render_context,
+                )
+            render_context["support_text"] = support_text
             try:
                 supabase_store.record_support_event(
-                    "manual_activation_link_failed",
+                    "manual_activation_link_generated",
                     telegram_user_id,
                     full_name=activation.get("full_name", ""),
                     order_id=activation.get("order_id", ""),
                     plan_name=plan_name,
                     raw_data={
                         "activation_code": code,
+                        "group_names": group_names,
                         "failed_groups": failed_groups,
                         "invite_results": invite_results,
-                        "links_text": links_text,
-                        "status": "failed" if not group_names else "partial",
+                        "support_link_created": bool(support_link),
+                        "support_error": support_error,
+                        "activation_status": "partial" if failed_groups else "ok",
                     },
                 )
             except Exception as exc:
-                print(f"⚠️ Không ghi được manual_activation_link_failed cho {code}: {exc}")
-            if not group_names:
-                await message.answer(render_cfg("MANUAL_ORDER_LINK_FAIL_TEXT", "❌ Bot chưa tạo được link tham gia nhóm. Vui lòng thử lại sau."))
-                return
-
-        activation_update_at = datetime.now().isoformat(timespec="seconds")
-        try:
-            raw_data = dict(activation.get("raw_data") or {})
-            raw_data.update({
-                "activation_code": code,
-                "group_names": group_names,
-                "failed_groups": failed_groups,
-                "invite_results": invite_results,
-                "invite_cleanup_after_days": int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7),
-                "invite_cleanup_due_at": (datetime.now() + timedelta(days=max(1, int(db.get_config("ACTIVATION_LINK_CLEANUP_DAYS", "7") or 7)))).isoformat(timespec="seconds"),
-            })
-            update_payload = {
-                "raw_data": raw_data,
-                "activation_status": "USED",
-                "activated_at": activation_update_at,
-                "activated_by_user_id": message.from_user.id,
-                "used_at": activation_update_at,
-                "used_by_user_id": message.from_user.id,
-            }
-            supabase_store.update_order_activation_code(code, update_payload)
-            if activation.get("order_id"):
-                supabase_store.update_order_activation_code_by_order(activation.get("order_id"), update_payload)
-            supabase_store.mark_order_activation_used(code, message.from_user.id, activated_at=activation_update_at)
-        except Exception as exc:
-            print(f"⚠️ Không ghi được activation used cho {code}: {exc}")
-
-        render_context = {
-            "order_id": activation.get("order_id", ""),
-            "telegram_user_id": telegram_user_id,
-            "full_name": activation.get("full_name", ""),
-            "plan_name": plan_name,
-            "expire_at": format_manual_expire(expire_at),
-            "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
-        }
-        support_link, support_error = await create_support_invite_link(message.from_user.id)
-        render_context["support_link"] = support_link or ""
-        render_context["support_error"] = support_error or ""
-        support_text = render_cfg("MANUAL_ORDER_SUPPORT_TEMPLATE", "💬 {support_group_name}:\n{support_link}", render_context)
-        if not support_text and support_error:
-            support_text = render_cfg(
-                "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
-                "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
-                render_context,
-            )
-        render_context["support_text"] = support_text
-        try:
-            supabase_store.record_support_event(
-                "manual_activation_link_generated",
-                telegram_user_id,
-                full_name=activation.get("full_name", ""),
-                order_id=activation.get("order_id", ""),
-                plan_name=plan_name,
-                raw_data={
-                    "activation_code": code,
-                    "group_names": group_names,
-                    "failed_groups": failed_groups,
-                    "invite_results": invite_results,
-                    "support_link_created": bool(support_link),
-                    "support_error": support_error,
-                    "activation_status": "partial" if failed_groups else "ok",
+                print(f"⚠️ Không ghi được manual_activation_link_generated cho {code}: {exc}")
+            if failed_groups:
+                failed_group_text = ", ".join(failed_groups)
+                failed_notice = render_cfg(
+                    "MANUAL_ORDER_LINK_PARTIAL_TEXT",
+                    "⚠️ Một số nhóm chưa tạo được link: {failed_groups}",
+                    {"failed_groups": failed_group_text},
+                )
+                render_context["partial_text"] = failed_notice
+            else:
+                render_context["partial_text"] = ""
+            delivery_text = render_cfg(
+                "MANUAL_ORDER_DELIVERY_TEMPLATE",
+                "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}",
+                {
+                    **render_context,
+                    "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh."),
+                    "links_text": links_text,
+                    "links_status": "partial" if failed_groups else "ok",
+                    "order_text": render_cfg(
+                        "MANUAL_ORDER_INFO_TEMPLATE",
+                        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+                        render_context,
+                    ),
                 },
             )
-        except Exception as exc:
-            print(f"⚠️ Không ghi được manual_activation_link_generated cho {code}: {exc}")
-        if failed_groups:
-            failed_group_text = ", ".join(failed_groups)
-            failed_notice = render_cfg(
-                "MANUAL_ORDER_LINK_PARTIAL_TEXT",
-                "⚠️ Một số nhóm chưa tạo được link: {failed_groups}",
-                {"failed_groups": failed_group_text},
-            )
-            render_context["partial_text"] = failed_notice
-        else:
-            render_context["partial_text"] = ""
-        delivery_text = render_cfg(
-            "MANUAL_ORDER_DELIVERY_TEMPLATE",
-            "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}",
-            {
-                **render_context,
-                "success_text": render_cfg("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh."),
-                "links_text": links_text,
-                "links_status": "partial" if failed_groups else "ok",
-                "order_text": render_cfg(
-                    "MANUAL_ORDER_INFO_TEMPLATE",
-                    "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
-                    render_context,
-                ),
-            },
-        )
-        await message.answer(delivery_text, parse_mode="HTML")
-    finally:
-        try:
-            await bot.delete_message(chat_id=message.chat.id, message_id=processing_message.message_id)
-        except Exception:
-            pass
+            await message.answer(delivery_text, parse_mode="HTML")
+        finally:
+            try:
+                await bot.delete_message(chat_id=message.chat.id, message_id=processing_message.message_id)
+            except Exception:
+                pass
 
 
 async def deliver_manual_order_message(message: Message, code: str):
