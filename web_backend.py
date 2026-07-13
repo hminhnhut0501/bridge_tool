@@ -20,6 +20,7 @@ from database import db
 from hidden_group_utils import (
     delete_hidden_code,
     delete_hidden_group,
+    display_plan_name,
     list_hidden_codes,
     list_hidden_groups,
     list_hidden_redemptions,
@@ -1695,13 +1696,15 @@ async def admin_delete_order(order_id: str):
         return {"data": []}
     data = supabase_store.delete_order(order_id)
     try:
+        plan_label = display_plan_name(order.get("plan_name"), order.get("telegram_user_id"))
         supabase_store.record_support_event(
             "order_deleted",
             order.get("telegram_user_id"),
             full_name=order.get("full_name"),
             order_id=order_id,
-            plan_name=order.get("plan_name"),
+            plan_name=plan_label,
             raw_data={
+                "plan_name_raw": order.get("plan_name"),
                 "amount": order.get("amount"),
                 "status": order.get("status"),
                 "note": order.get("note"),
@@ -1900,13 +1903,15 @@ async def admin_create_manual_order(request: Request):
             print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng/env Supabase: {exc}")
 
     try:
+        plan_label = display_plan_name(plan_name, telegram_user_id)
         supabase_store.record_support_event(
             "manual_order_created",
             telegram_user_id,
             full_name=full_name,
             order_id=order_id,
-            plan_name=plan_name,
+            plan_name=plan_label,
             raw_data={
+                "plan_name_raw": plan_name,
                 "amount": amount,
                 "coupon_code": coupon_code,
                 "note": note,
@@ -2580,6 +2585,7 @@ async def admin_kick_audit_member(request: Request):
         raise HTTPException(status_code=400, detail="Cần đủ Telegram ID, mã đơn và group ID để kick.")
 
     try:
+        plan_label = display_plan_name(plan_name, user_id)
         parsed_chat_id = parse_chat_id(chat_id)
         await bot.ban_chat_member(chat_id=parsed_chat_id, user_id=int(user_id))
         await bot.unban_chat_member(chat_id=parsed_chat_id, user_id=int(user_id))
@@ -2590,8 +2596,8 @@ async def admin_kick_audit_member(request: Request):
             chat_id=chat_id,
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
-            plan_name=plan_name,
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard"},
+            plan_name=plan_label,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "plan_name_raw": plan_name},
         )
         record_support_event(
             "member_kick_closed",
@@ -2600,8 +2606,8 @@ async def admin_kick_audit_member(request: Request):
             chat_id=chat_id,
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
-            plan_name=plan_name,
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin"},
+            plan_name=plan_label,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin", "plan_name_raw": plan_name},
         )
     except Exception as exc:
         record_support_event(
@@ -2611,8 +2617,8 @@ async def admin_kick_audit_member(request: Request):
             chat_id=chat_id,
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
-            plan_name=plan_name,
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc)},
+            plan_name=plan_label if 'plan_label' in locals() else plan_name,
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc), "plan_name_raw": plan_name},
         )
         raise HTTPException(status_code=500, detail=f"Kick không thành công: {exc}")
 
