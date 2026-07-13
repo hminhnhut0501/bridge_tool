@@ -193,11 +193,14 @@ async def process_successful_payment(order_code: str):
             print(f"❌ Không tìm thấy đơn {target_code} để giao hàng.")
             return
 
-        # Tính toán hạn dùng. Nếu gia hạn sớm cùng gói, cộng tiếp từ hạn cũ.
+        # Tính toán hạn dùng.
+        # - Gói thường: nếu có cùng gói đang còn hạn thì cộng tiếp từ hạn cũ.
+        # - Gói trọn đời: luôn chốt thành mốc cố định từ lúc thanh toán thành công,
+        #   không cộng dồn từ các lần mua lifetime trước đó.
         plan_token = str((order or {}).get("plan_token", "")).strip() if supabase_store.enabled else ""
         is_lifetime = is_lifetime_order(plan_name, plan_token) or is_lifetime_plan(plan_name)
         days_to_add = 3650 if is_lifetime else 30
-        if supabase_store.enabled:
+        if supabase_store.enabled and not is_lifetime:
             base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or now_local()
         else:
             base_date = find_current_expire(users_data, user_id, plan_name) or now_local()

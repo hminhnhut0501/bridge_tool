@@ -248,6 +248,19 @@ def buy_data_from_plan_key(plan_key):
     return ""
 
 
+def plan_token_for_offer(data):
+    key = str(data or "").strip().lower()
+    if key == "buy_full_1m":
+        return "FULL_1M"
+    if key == "buy_full_life":
+        return "FULL_LIFE"
+    if key.startswith("buy_g") and key.endswith("_1m"):
+        return f"G{key[5:-3]}:1M"
+    if key.startswith("buy_g") and key.endswith("_life"):
+        return f"G{key[5:-5]}:LIFE"
+    return ""
+
+
 def config_text(user_id, key, default=""):
     return t(user_id, key, default) if user_id else db.get_config(key, default)
 
@@ -260,8 +273,10 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     default_group = "0" if currency == "USD" else "50000"
     default_svip = "0" if currency == "USD" else "999"
     data = data.replace("confirm_", "buy_")
+    plan_token = ""
 
     if "upsell_full" in data:
+        plan_token = "FULL_LIFE"
         plan_name = config_text(
             user_id,
             "PLAN_UPSELL_ALL_ACCESS",
@@ -274,6 +289,7 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         original_amount = max(0, parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_LIFE", currency), default_svip), default_svip, currency) - parse_price(db.get_config(localized_price_key("PRICE_ALL_ACCESS_30D", currency), default_svip), default_svip, currency))
     elif "upsell_G" in data:
         num = data.split("_")[1][1:]
+        plan_token = f"G{num}:LIFE"
         plan_name = f"{config_text(user_id, 'PLAN_UPSELL_COLLECTION', localized_default(user_id, 'Collection Trọn Đời (Nâng cấp)', 'Collection Lifetime (Upgrade)'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
         price_life, sale_life = get_price(f"PRICE_G{num}_LIFE", default_group, currency)
         price_1m, sale_1m = get_price(f"PRICE_G{num}_1M", default_group, currency)
@@ -282,6 +298,7 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         original_amount = max(0, parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_LIFE", currency), default_group), default_group, currency) - parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_1M", currency), default_group), default_group, currency))
     elif "full" in data:
         is_1m = "1m" in data
+        plan_token = "FULL_1M" if is_1m else "FULL_LIFE"
         plan_name = config_text(
             user_id,
             "PLAN_ALL_ACCESS_30D" if is_1m else "PLAN_ALL_ACCESS_LIFE",
@@ -297,6 +314,7 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     else:
         parts = data.split("_")
         num, type_p = parts[1][1:], parts[2].upper()
+        plan_token = f"G{num}:{type_p}"
         plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_LIFE', localized_default(user_id, 'Collection 30 Ngày', 'Collection 30 Days' if type_p == '1M' else 'Collection Lifetime'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
         price_key = f"PRICE_G{num}_{type_p}"
         amount, sale_info = get_price(price_key, default_group, currency)
@@ -309,6 +327,7 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         "sale_info": sale_info,
         "original_amount": original_amount or amount,
         "currency": currency,
+        "plan_token": plan_token or plan_token_for_offer(data),
     }
 
 
@@ -1024,6 +1043,7 @@ async def process_buy_request(callback: CallbackQuery):
                 amount=amount,
                 sale_id=sale_id,
                 original_amount=original_amount or amount,
+                plan_token=offer.get("plan_token", ""),
                 **payment_meta(pay_data),
             )
             extra_caption = sale_caption(sale_info, original_amount, amount, offer["currency"])
@@ -1229,6 +1249,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             amount=amount,
             sale_id=sale_id,
             original_amount=offer["original_amount"],
+            plan_token=offer.get("plan_token", ""),
             coupon_code=code,
             coupon_discount_percent=percent,
             coupon_discount_amount=discount_amount,

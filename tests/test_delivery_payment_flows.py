@@ -171,6 +171,29 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(processor.supabase_store.mark_paid_calls[0][2], "2026-07-20 12:00:00")
         self.assertEqual(processor.bot.invites, ["-1001"])
 
+    async def test_lifetime_payment_uses_fixed_new_expiry_even_with_prior_paid_lifetime_order(self):
+        processor.bot = FakeDeliveryBot()
+        processor.supabase_store = FakeDeliveryStore(
+            {
+                "order_id": "103",
+                "telegram_user_id": "42",
+                "plan_name": "All Access Trọn Đời",
+                "status": "PENDING",
+            },
+            paid_orders=[{
+                "order_id": "old-life",
+                "telegram_user_id": "42",
+                "plan_name": "All Access Trọn Đời",
+                "status": "PAID",
+                "expire_at": "2036-06-04 12:00:00",
+            }],
+        )
+
+        await processor.process_successful_payment("103")
+
+        self.assertEqual(processor.supabase_store.mark_paid_calls[0][2], "2036-06-01 12:00:00")
+        self.assertEqual(processor.bot.invites, ["-1001", "-1002"])
+
     async def test_coupon_invite_result_reports_all_failed_groups(self):
         class FailedBot(FakeDeliveryBot):
             async def create_chat_invite_link(self, chat_id, **kwargs):
