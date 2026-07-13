@@ -387,6 +387,7 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
     gid = support_group_id()
     if not (support_group_enabled() and support_group_mute_enabled() and gid):
         return False
+    plan_label = display_plan_name(plan_name, user_id)
     if latest_support_event("member_muted", user_id, order_id, gid):
         return True
     if latest_support_event("member_mute_skipped_admin", user_id, order_id, gid):
@@ -400,9 +401,9 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
             user_id,
             gid,
             order_id,
-            plan_name,
+            plan_label,
             "support_admin_protected",
-            raw_data={"expire_at": expire_str, "grace_days": support_group_grace_days()},
+            raw_data={"expire_at": expire_str, "grace_days": support_group_grace_days(), "plan_name_raw": plan_name},
         )
         logging.info("🛡 Bỏ qua mute User %s trong group hỗ trợ %s vì là admin/owner.", user_id, gid)
         return True
@@ -413,8 +414,8 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
             user_id,
             chat_id=gid,
             order_id=order_id,
-            plan_name=plan_name,
-            raw_data={"reason": "support_grace_started", "expire_at": expire_str, "grace_days": support_group_grace_days()},
+            plan_name=plan_label,
+            raw_data={"reason": "support_grace_started", "expire_at": expire_str, "grace_days": support_group_grace_days(), "plan_name_raw": plan_name},
         )
         logging.info("🔇 Đã mute User %s trong group hỗ trợ %s sau khi hết hạn.", user_id, gid)
         return True
@@ -426,6 +427,7 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
     gid = support_group_id()
     if not (support_group_enabled() and gid):
         return
+    plan_label = display_plan_name(plan_name, user_id)
     muted_event = latest_support_event("member_muted", user_id, order_id, gid)
     if not muted_event:
         return
@@ -439,8 +441,8 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
             user_id,
             chat_id=gid,
             order_id=order_id,
-            plan_name=plan_name,
-            raw_data={"reason": "active_membership"},
+            plan_name=plan_label,
+            raw_data={"reason": "active_membership", "plan_name_raw": plan_name},
         )
         logging.info("🔊 User %s đang có gói active, đã mở mute trong group hỗ trợ %s.", user_id, gid)
     except Exception as exc:
@@ -564,17 +566,20 @@ async def ensure_member_kicked(
         if existing_kick:
             payload["previous_kick_event_at"] = existing_kick.get("created_at")
             payload["source"] = "recheck_member_present"
-        record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+        plan_label = display_plan_name(plan_name, user_id)
+        payload["plan_name_raw"] = plan_name
+        record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data=payload)
         record_support_event(
             "member_kick_closed",
             user_id,
             chat_id=chat_id,
             order_id=order_id,
-            plan_name=plan_name,
+            plan_name=plan_label,
             raw_data={
                 "reason": reason,
                 "source": "kick_finalized",
                 "closed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "plan_name_raw": plan_name,
                 **(raw_data or {}),
             },
         )
@@ -584,7 +589,9 @@ async def ensure_member_kicked(
         logging.error("❌ Lỗi kick User %s khỏi group %s: %s", user_id, chat_id, exc)
         payload = {"reason": reason, "error": str(exc)}
         payload.update(raw_data or {})
-        record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_name, raw_data=payload)
+        plan_label = display_plan_name(plan_name, user_id)
+        payload["plan_name_raw"] = plan_name
+        record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data=payload)
         if run_kick_cache is not None:
             run_kick_cache.add(run_kick_key)
         return False
@@ -633,7 +640,7 @@ async def process_vip_kicks_for_expired_order(
                 continue
             try:
                 await unmute_member(gid, user_id)
-                record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=plan_name, raw_data={"reason": "active_renewal"})
+                record_support_event("member_unmuted", user_id, chat_id=gid, order_id=order_id, plan_name=display_plan_name(plan_name, user_id), raw_data={"reason": "active_renewal", "plan_name_raw": plan_name})
                 logging.info("🔊 User %s đã gia hạn, mở mute lại ở group %s.", user_id, gid)
             except Exception as exc:
                 logging.error("❌ Lỗi mở mute User %s ở group %s: %s", user_id, gid, exc)
@@ -818,7 +825,7 @@ async def check_expirations_professional():
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
                 try:
                     await send_html_message(user_id, msg_reminder, kb.as_markup())
-                    record_support_event("renewal_reminder_sent", user_id, order_id=order_id, plan_name=plan_name, raw_data={"days_remaining": days_remaining, "expire_at": expire_str})
+                    record_support_event("renewal_reminder_sent", user_id, order_id=order_id, plan_name=display_plan_name(plan_name, user_id), raw_data={"days_remaining": days_remaining, "expire_at": expire_str, "plan_name_raw": plan_name})
                     notified_users.add(notif_key)
                     summary["reminded"] += 1
                     if use_supabase:
@@ -913,16 +920,18 @@ async def cleanup_order_invite_links(now=None, *, only_used=False, group_id=None
             continue
 
         try:
+            plan_label = display_plan_name(row.get("plan_name"), row.get("telegram_user_id"))
             record_support_event(
                 "activation_link_cleanup_done" if row_success else "activation_link_cleanup_failed",
                 row.get("telegram_user_id"),
                 full_name=row.get("full_name"),
                 order_id=row.get("order_id"),
-                plan_name=row.get("plan_name"),
+                plan_name=plan_label,
                 raw_data={
                     "activation_code": row.get("code"),
                     "used_at": row.get("used_at") or row.get("activated_at"),
                     "cleanup_days": cleanup_days,
+                    "plan_name_raw": row.get("plan_name"),
                     "cleanup_results": cleanup_results,
                     "group_id": target_group_id or "",
                     "mode": "manual" if force else "scheduled",
