@@ -223,8 +223,8 @@ export function orderAmountValue(order: Order, value: number | string | null | u
   return numeric;
 }
 
-export function providerRevenueFormat(provider: string, value: number) {
-  return `${provider}: ${money(value)}`;
+export function providerRevenueFormat(provider: string, value: number, currency = "VND") {
+  return `${provider}: ${formatDisplayCurrency(value, currency)}`;
 }
 
 export function dateText(value: string | null | undefined) {
