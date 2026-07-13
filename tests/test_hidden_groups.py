@@ -134,7 +134,9 @@ class HiddenGroupTests(unittest.TestCase):
     def test_display_plan_name_localizes_english_plan_labels(self):
         self.fake_db.config.update({
             "PLAN_ALL_ACCESS_LIFE_EN": "All Access Lifetime",
+            "PLAN_ALL_ACCESS_30D_EN": "All Access 30 Days",
             "PLAN_COLLECTION_LIFE_EN": "Collection Lifetime",
+            "PLAN_COLLECTION_30D_EN": "Collection 30 Days",
             "BTN_COLLECTION_G1_EN": "Prime Group",
         })
         original_language_getter = getattr(hidden_group_utils, "_display_language")
@@ -146,11 +148,23 @@ class HiddenGroupTests(unittest.TestCase):
                 "All Access Lifetime",
             )
             self.assertEqual(
+                hidden_group_utils.display_plan_name("SVIP+ 30 Ngày (Full 4 Nhóm)", user_id="42"),
+                "All Access 30 Days",
+            )
+            self.assertEqual(
                 hidden_group_utils.display_plan_name("VIP Trọn Đời - Hang Cú Prime", user_id="42"),
                 "Collection Lifetime - Prime Group",
             )
+            self.assertEqual(
+                hidden_group_utils.display_plan_name("VIP 30 Ngày - Hang Cú Prime", user_id="42"),
+                "Collection 30 Days - Prime Group",
+            )
         finally:
             hidden_group_utils._display_language = original_language_getter
+
+    def test_lifetime_detection_respects_embedded_plan_token(self):
+        self.assertTrue(hidden_group_utils.is_lifetime_order("SVIP+ 30 Ngày [PT:FULL_LIFE]"))
+        self.assertFalse(hidden_group_utils.is_lifetime_order("SVIP+ 30 Ngày [PT:FULL_1M]"))
 
     def test_hidden_group_can_be_lifetime_only_when_monthly_price_is_zero(self):
         group = {

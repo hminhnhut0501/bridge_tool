@@ -264,6 +264,16 @@ def _translate_generic_plan_name(plan_name):
     return text
 
 
+def _plan_name_is_lifetime(plan_name, plan_token=""):
+    token = extract_plan_token(plan_name, plan_token)
+    if token and normalize_key_text(token).endswith(":LIFE"):
+        return True
+    if token and normalize_key_text(token) == "FULL_LIFE":
+        return True
+    upper = normalize_match_text(strip_plan_token(plan_name))
+    return any(marker in upper for marker in ("tron doi", "lifetime", "vinh vien", "life"))
+
+
 def display_plan_name(plan_name, user_id=None, language=None):
     clean_name = strip_plan_token(plan_name)
     if not clean_name:
@@ -272,7 +282,7 @@ def display_plan_name(plan_name, user_id=None, language=None):
         return clean_name
 
     upper_name = normalize_key_text(clean_name)
-    is_lifetime = any(token in upper_name for token in {"TRỌN ĐỜI", "TRON DOI", "LIFETIME", " LIFE"})
+    is_lifetime = _plan_name_is_lifetime(clean_name)
     is_svip = "SVIP" in upper_name or "FULL" in upper_name or "ALL ACCESS" in upper_name or "ALLACCESS" in upper_name
 
     if is_svip:
