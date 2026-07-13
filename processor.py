@@ -262,11 +262,12 @@ async def process_successful_payment(order_code: str):
             event_type,
             user_id,
             order_id=target_code,
-            plan_name=plan_name,
+            plan_name=display_plan_name(plan_name, user_id),
             raw_data={
                 "delivered_groups": delivered_groups,
                 "failed_groups": failed_groups,
                 "expected_group_count": len(groups_to_invite),
+                "plan_name_raw": plan_name,
             },
         )
 
