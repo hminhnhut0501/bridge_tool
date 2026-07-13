@@ -140,12 +140,12 @@ export function inferOrderProvider(order: Order) {
 export function inferOrderCurrency(order: Order) {
   const explicit = String(order.payment_currency || "").toUpperCase();
   const provider = inferOrderProvider(order);
-  if (provider === "PAYPAL") return "USD";
-  if (provider === "TRON_USDT") return "USDT";
-  if (provider === "PAYOS" || provider === "BINANCE_PAY") return "VND";
   if (explicit === "USD") return "USD";
   if (explicit === "VND" || !explicit) return "VND";
   if (explicit.includes("USDT") || explicit.includes("TRC20") || explicit.includes("CRYPTO")) return "USDT";
+  if (provider === "PAYPAL") return "USD";
+  if (provider === "TRON_USDT") return "USDT";
+  if (provider === "PAYOS" || provider === "BINANCE_PAY") return "VND";
   return explicit || "VND";
 }
 
