@@ -9,7 +9,7 @@ from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from config_utils import config_int, group_numbers
-from hidden_group_utils import is_lifetime_order, resolve_plan_groups
+from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
 from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
@@ -797,10 +797,11 @@ async def check_expirations_professional():
             days_remaining = (expire_date.date() - now.date()).days
             notif_key = f"{user_id}_{offer_ref}_{today_str}"
             if config_enabled("REMINDER_ENABLED", "ON") and 0 <= days_remaining <= days_notice and notif_key not in notified_users and not should_skip_reminder(row, today_str):
+                plan_label = display_plan_name(plan_name, user_id)
                 msg_reminder = (
                     db.get_config("MSG_REMINDER", "⏰ Gói <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa!\n\n👇 Nhấn nút bên dưới để gia hạn ngay nhé:")
                     .replace("\\n", "\n")
-                    .replace("{plan}", plan_name)
+                    .replace("{plan}", plan_label)
                     .replace("{days}", str(days_remaining))
                     .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
                 )
@@ -824,7 +825,7 @@ async def check_expirations_professional():
                         supabase_store.mark_reminder_sent(order_id, today_str)
                     else:
                         db.users_sheet.update_cell(row_number, 11, today_str)
-                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, đơn/dòng {offer_ref}.")
+                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, đơn/dòng {offer_ref}, plan={plan_label}.")
                 except Exception as e:
                     logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
             else:
