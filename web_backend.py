@@ -2564,9 +2564,9 @@ async def admin_vip_group_audit(live: bool = False):
 
 
 @app.get("/admin-api/vip-member-audit", dependencies=[Depends(require_admin)])
-async def admin_vip_member_audit(live: bool = False):
+async def admin_vip_member_audit(live: bool = False, risk_type: str = "ALL"):
     try:
-        return {"data": await build_vip_member_risk_rows(live=live)}
+        return {"data": await build_vip_member_risk_rows(live=live, risk_type_filter=risk_type)}
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách audit member VIP: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách audit member VIP: {exc}")

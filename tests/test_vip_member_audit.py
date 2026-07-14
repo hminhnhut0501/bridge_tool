@@ -149,6 +149,58 @@ class VipMemberAuditTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["telegram_user_id"], "42")
         self.assertEqual(rows[1]["telegram_user_id"], "55")
 
+    async def test_vip_member_audit_risk_type_filter(self):
+        fake_store = FakeStore(
+            orders=[
+                {
+                    "order_id": "expired-1",
+                    "telegram_user_id": "42",
+                    "full_name": "Expired User",
+                    "plan_name": "VIP 30 Ngày - Hang Cú Prime",
+                    "status": "PAID",
+                    "expire_at": "2026-06-01 00:00:00",
+                }
+            ],
+            events=[
+                {
+                    "event_type": "vip_joined",
+                    "telegram_user_id": "42",
+                    "full_name": "Expired User",
+                    "chat_id": "-100111",
+                    "chat_title": "Hang Cú Prime",
+                    "created_at": "2026-06-02T00:00:00",
+                    "raw_data": {"new_status": "member"},
+                },
+                {
+                    "event_type": "vip_joined",
+                    "telegram_user_id": "55",
+                    "full_name": "No Order",
+                    "chat_id": "-100111",
+                    "chat_title": "Hang Cú Prime",
+                    "created_at": "2026-06-03T00:00:00",
+                    "raw_data": {"new_status": "member"},
+                },
+            ],
+        )
+        vip_group_audit_utils.supabase_store = fake_store
+
+        expired_rows = await vip_group_audit_utils.build_vip_member_risk_rows(
+            live=False,
+            risk_type_filter="EXPIRED_ORDER",
+        )
+        no_order_rows = await vip_group_audit_utils.build_vip_member_risk_rows(
+            live=False,
+            risk_type_filter="NO_ORDER",
+        )
+        all_rows = await vip_group_audit_utils.build_vip_member_risk_rows(
+            live=False,
+            risk_type_filter="ALL",
+        )
+
+        self.assertEqual([row["risk_type"] for row in expired_rows], ["EXPIRED_ORDER"])
+        self.assertEqual([row["risk_type"] for row in no_order_rows], ["NO_ORDER"])
+        self.assertEqual([row["risk_type"] for row in all_rows], ["EXPIRED_ORDER", "NO_ORDER"])
+
     async def test_cleanup_order_invite_links_revoke_tracked_links(self):
         fake_store = FakeStore(
             orders=[],

@@ -3013,6 +3013,7 @@ export default function Home() {
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
+  const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -4026,9 +4027,9 @@ export default function Home() {
     });
   }
 
-  async function refreshVipMemberAudit(live = false) {
+  async function refreshVipMemberAudit(live = false, riskType: "ALL" | "NO_ORDER" | "EXPIRED_ORDER" = vipMemberAuditRiskType) {
     await runAction(live ? "vip-member-audit-live" : "vip-member-audit-refresh", async () => {
-      const res = await getVipMemberAudit(savedSecret, live);
+      const res = await getVipMemberAudit(savedSecret, live, riskType);
       setVipMemberAudit(res.data);
       if (live) showNotice("ok", "Đã quét live thành viên VIP đã ghi nhận.");
     });
@@ -5313,6 +5314,15 @@ export default function Home() {
       .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
       .map((item) => item.row);
   }, [selectedCustomer, vipGroupAudit, kickAudit]);
+  const vipMemberAuditFiltered = useMemo(() => {
+    if (vipMemberAuditRiskType === "ALL") return vipMemberAudit;
+    return vipMemberAudit.filter((item) => item.risk_type === vipMemberAuditRiskType);
+  }, [vipMemberAudit, vipMemberAuditRiskType]);
+  const vipMemberAuditCounts = useMemo(() => ({
+    all: vipMemberAudit.length,
+    noOrder: vipMemberAudit.filter((item) => item.risk_type === "NO_ORDER").length,
+    expired: vipMemberAudit.filter((item) => item.risk_type === "EXPIRED_ORDER").length,
+  }), [vipMemberAudit]);
   const selectedCustomerSupportEvents = useMemo(() => {
     if (!selectedCustomer) return [];
     return supportEvents
@@ -7657,14 +7667,40 @@ export default function Home() {
                 Công cụ này chỉ quét member VIP mà bot đã ghi nhận qua sự kiện join/left/kick. Telegram Bot API không cho phép liệt kê toàn bộ member ẩn của group từ con số 0.
               </div>
               <div className="grid" style={{ padding: "0 16px 12px" }}>
-                <Metric label="Rows" value={String(vipMemberAudit.length)} accent="blue" icon={<Users size={16} />} />
-                <Metric label="Không có đơn" value={String(vipMemberAudit.filter((item) => item.risk_type === "NO_ORDER").length)} accent="amber" icon={<Ticket size={16} />} />
-                <Metric label="Đơn hết hạn" value={String(vipMemberAudit.filter((item) => item.risk_type === "EXPIRED_ORDER").length)} accent="rose" icon={<Clock3 size={16} />} />
+                <Metric label="Rows" value={String(vipMemberAuditCounts.all)} accent="blue" icon={<Users size={16} />} />
+                <Metric label="Không có đơn" value={String(vipMemberAuditCounts.noOrder)} accent="amber" icon={<Ticket size={16} />} />
+                <Metric label="Đơn hết hạn" value={String(vipMemberAuditCounts.expired)} accent="rose" icon={<Clock3 size={16} />} />
                 <Metric label="Live checked" value={String(vipMemberAudit.filter((item) => item.live_checked).length)} accent="emerald" icon={<CheckCircle2 size={16} />} />
+              </div>
+              <div className="panel-actions" style={{ padding: "0 16px 10px", flexWrap: "wrap" }}>
+                <Button
+                  variant={vipMemberAuditRiskType === "ALL" ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => { setVipMemberAuditRiskType("ALL"); void refreshVipMemberAudit(false, "ALL"); }}
+                  startIcon={<Users size={16} />}
+                >
+                  Tất cả ({vipMemberAuditCounts.all})
+                </Button>
+                <Button
+                  variant={vipMemberAuditRiskType === "NO_ORDER" ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => { setVipMemberAuditRiskType("NO_ORDER"); void refreshVipMemberAudit(false, "NO_ORDER"); }}
+                  startIcon={<Ticket size={16} />}
+                >
+                  Chỉ không có đơn ({vipMemberAuditCounts.noOrder})
+                </Button>
+                <Button
+                  variant={vipMemberAuditRiskType === "EXPIRED_ORDER" ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => { setVipMemberAuditRiskType("EXPIRED_ORDER"); void refreshVipMemberAudit(false, "EXPIRED_ORDER"); }}
+                  startIcon={<Clock3 size={16} />}
+                >
+                  Chỉ hết hạn ({vipMemberAuditCounts.expired})
+                </Button>
               </div>
               <SimpleTable
                 headers={["Khách", "Telegram ID", "Group", "Lý do", "Đơn gần nhất", "Hạn", "Live", "Cập nhật"]}
-                rows={vipMemberAudit.map((item) => [
+                rows={vipMemberAuditFiltered.map((item) => [
                   <><strong>{item.customer_name || "-"}</strong><div className="muted">{item.latest_event_type || "-"}</div></>,
                   item.telegram_user_id,
                   <><strong>{item.group_name || "-"}</strong><div className="muted">{item.group_id}</div></>,

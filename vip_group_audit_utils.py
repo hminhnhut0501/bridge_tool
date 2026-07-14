@@ -171,7 +171,7 @@ def _order_is_active(order, now):
     return bool(expire_at and expire_at > now)
 
 
-async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filter=""):
+async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filter="", risk_type_filter="ALL"):
     db.reload_config(force=True)
     now = now_local().replace(tzinfo=None)
     orders = supabase_store.list_scheduler_orders(limit=5000)
@@ -181,6 +181,9 @@ async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filt
         support_events = []
 
     vip_ids = set(vip_group_ids())
+    selected_risk_type = str(risk_type_filter or "ALL").strip().upper()
+    if selected_risk_type not in {"ALL", "NO_ORDER", "EXPIRED_ORDER"}:
+        selected_risk_type = "ALL"
     latest_membership_events = {}
     for event in support_events:
         event_type = str(event.get("event_type") or "").strip()
@@ -236,6 +239,8 @@ async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filt
 
         risk_type = "NO_ORDER" if not matched_orders else "EXPIRED_ORDER"
         risk_label = "Không có đơn active" if risk_type == "NO_ORDER" else "Đơn đã hết hạn"
+        if selected_risk_type != "ALL" and risk_type != selected_risk_type:
+            continue
         latest_event_type = str(event.get("event_type") or "").strip()
         latest_event_at = support_event_time(event)
 

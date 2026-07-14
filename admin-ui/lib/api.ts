@@ -740,8 +740,12 @@ export async function getVipGroupAudit(secret: string, live = false) {
   return request<{ data: VipGroupAuditRow[] }>(`/admin-api/vip-group-audit?live=${live ? "true" : "false"}`, secret);
 }
 
-export async function getVipMemberAudit(secret: string, live = false) {
-  return request<{ data: VipMemberAuditRow[] }>(`/admin-api/vip-member-audit?live=${live ? "true" : "false"}`, secret);
+export async function getVipMemberAudit(secret: string, live = false, riskType: "ALL" | "NO_ORDER" | "EXPIRED_ORDER" = "ALL") {
+  const params = new URLSearchParams({
+    live: live ? "true" : "false",
+    risk_type: riskType,
+  });
+  return request<{ data: VipMemberAuditRow[] }>(`/admin-api/vip-member-audit?${params.toString()}`, secret);
 }
 
 export async function kickAuditMember(secret: string, payload: KickAuditPayload) {
