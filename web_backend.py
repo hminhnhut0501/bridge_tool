@@ -1690,6 +1690,7 @@ async def admin_dashboard_summary():
                 "orders_total": supabase_store.count_rows("orders"),
                 "orders_paid": supabase_store.count_rows("orders", params={"status": "eq.PAID"}),
                 "orders_pending": supabase_store.count_rows("orders", params={"status": "eq.PENDING"}),
+                "activation_codes": supabase_store.count_rows("order_activation_codes"),
                 "support_events": supabase_store.count_rows("support_events"),
                 "activity_events": supabase_store.count_rows("analytics_events"),
                 "coupons": supabase_store.count_rows("coupons"),

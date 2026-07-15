@@ -213,6 +213,7 @@ export type DashboardSummary = {
   orders_total: number;
   orders_paid: number;
   orders_pending: number;
+  activation_codes: number;
   support_events: number;
   activity_events: number;
   coupons: number;
@@ -784,8 +785,8 @@ export async function cleanupVipInviteLinks(secret: string, payload: { group_id?
   );
 }
 
-export async function getActivityEvents(secret: string) {
-  return request<{ data: ActivityEvent[] }>("/admin-api/activity-events?limit=50", secret);
+export async function getActivityEvents(secret: string, limit = 50) {
+  return request<{ data: ActivityEvent[] }>(`/admin-api/activity-events?limit=${limit}`, secret);
 }
 
 export async function getActivityLog(

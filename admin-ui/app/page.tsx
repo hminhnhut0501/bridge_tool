@@ -3509,8 +3509,9 @@ export default function Home() {
       };
 
       addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
-      const needsOrders = !light && shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
-      const needsUsers = !light && shouldLoad("overview", "analytics");
+      const overviewLite = scope === "overview";
+      const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
+      const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
       const needsConfig = !light;
       const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
       const needsSales = !light && shouldLoad("sales");
@@ -3518,17 +3519,17 @@ export default function Home() {
       const needsActivationCodes = !light && shouldLoad("activationCodes");
       const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
       const needsBlacklist = !light && shouldLoad("security");
-      const needsSupportEvents = !light && shouldLoad("renewals", "supportGroup");
+      const needsSupportEvents = (!light && shouldLoad("renewals", "supportGroup")) || overviewLite;
       const needsKickAudit = !light && shouldLoad("renewals");
       const needsVipGroupAudit = !light && shouldLoad("renewals");
       const needsVipMemberAudit = !light && shouldLoad("vipAudit", "renewals", "security");
-      const needsActivityEvents = !light && shouldLoad("overview", "analytics");
+      const needsActivityEvents = (!light && shouldLoad("analytics")) || overviewLite;
       const needsCampaigns = shouldLoad("campaigns");
       const needsChannelPosts = shouldLoad("channelPosts");
       const needsWebhook = !light;
       const needsBotScheduleStatus = !light;
 
-      addTask(needsOrders, () => getOrders(activeSecret), setOrders);
+      addTask(needsOrders, () => getOrders(activeSecret, overviewLite ? 100 : 5000), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
       addTask(needsConfig, () => getConfig(activeSecret), setConfig);
       addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
@@ -3539,11 +3540,11 @@ export default function Home() {
       addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
       addTask(needsHidden, () => getHiddenRedemptions(activeSecret, 200), setHiddenRedemptions);
       addTask(needsBlacklist, () => getBlacklist(activeSecret), setBlacklist);
-      addTask(needsSupportEvents, () => getSupportEvents(activeSecret), setSupportEvents);
+      addTask(needsSupportEvents, () => getSupportEvents(activeSecret, overviewLite ? 25 : 1000), setSupportEvents);
       addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
       addTask(needsVipGroupAudit, () => getVipGroupAudit(activeSecret), setVipGroupAudit);
       addTask(needsVipMemberAudit, () => getVipMemberAudit(activeSecret), setVipMemberAudit);
-      addTask(needsActivityEvents, () => getActivityEvents(activeSecret), setActivityEvents);
+      addTask(needsActivityEvents, () => getActivityEvents(activeSecret, overviewLite ? 25 : 50), setActivityEvents);
       addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
       addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
       if (needsWebhook) {
@@ -4934,6 +4935,7 @@ export default function Home() {
     orders: dashboardSummary?.orders_total ?? orders.length,
     ordersPaid: dashboardSummary?.orders_paid ?? metrics.paid,
     ordersPending: dashboardSummary?.orders_pending ?? metrics.pending,
+    activationCodes: dashboardSummary?.activation_codes ?? activationCodes.length,
     supportEvents: dashboardSummary?.support_events ?? supportEvents.length,
     activityEvents: dashboardSummary?.activity_events ?? activityEvents.length,
     coupons: dashboardSummary?.coupons ?? coupons.length,
@@ -4942,7 +4944,7 @@ export default function Home() {
     blacklist: dashboardSummary?.blacklist_active ?? blacklist.filter((item) => item.is_active).length,
     campaigns: dashboardSummary?.broadcast_campaigns ?? campaigns.length,
     channelPosts: dashboardSummary?.channel_posts ?? channelPosts.length,
-  }), [activityEvents.length, blacklist, campaigns.length, channelPosts.length, coupons.length, dashboardSummary, hiddenCodes.length, hiddenGroups.length, metrics, orders.length, supportEvents.length]);
+  }), [activationCodes.length, activityEvents.length, blacklist, campaigns.length, channelPosts.length, coupons.length, dashboardSummary, hiddenCodes.length, hiddenGroups.length, metrics, orders.length, supportEvents.length]);
   const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
   const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
   const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
@@ -6569,7 +6571,7 @@ export default function Home() {
               <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(summaryCounts.hiddenGroups)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="menuBot" icon={<FileText size={16} />} iconPosition="start" label="Menu Bot" />
               <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(summaryCounts.coupons)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(summaryCounts.activationCodes)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
               <Tab value="vipAudit" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>VIP audit</span><Chip size="small" label={String(summaryCounts.blacklist)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />

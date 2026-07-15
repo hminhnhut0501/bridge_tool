@@ -141,6 +141,16 @@ class SupabaseStore:
         self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self._short_cache = {}
         self._short_cache_ttl = int(os.getenv("SUPABASE_SHORT_CACHE_TTL_SECONDS", "15"))
+        self._table_cache_ttl = {
+            "orders": int(os.getenv("SUPABASE_CACHE_TTL_ORDERS", "10")),
+            "support_events": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_EVENTS", "20")),
+            "analytics_events": int(os.getenv("SUPABASE_CACHE_TTL_ANALYTICS_EVENTS", "30")),
+            "security_blacklist": int(os.getenv("SUPABASE_CACHE_TTL_BLACKLIST", "20")),
+            "coupons": int(os.getenv("SUPABASE_CACHE_TTL_COUPONS", "20")),
+            "broadcast_campaigns": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_CAMPAIGNS", "20")),
+            "broadcast_recipients": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_RECIPIENTS", "20")),
+            "channel_posts": int(os.getenv("SUPABASE_CACHE_TTL_CHANNEL_POSTS", "20")),
+        }
 
     @property
     def enabled(self):
@@ -206,13 +216,18 @@ class SupabaseStore:
         self._short_cache[key] = (time.time() + ttl_seconds, copy.deepcopy(value))
         return value
 
+    def _table_ttl(self, table, ttl=None):
+        if ttl is not None:
+            return ttl
+        return self._table_cache_ttl.get(table, self._short_cache_ttl)
+
     def _cached_request(self, method, table, *, params=None, json=None, prefer=None, ttl=None):
         key = self._cache_key(method, table, params=params, json=json, prefer=prefer)
         cached = self._cache_get(key)
         if cached is not None:
             return cached
         value = self._request(method, table, params=params, json=json, prefer=prefer)
-        return self._cache_set(key, value, ttl=ttl)
+        return self._cache_set(key, value, ttl=self._table_ttl(table, ttl))
 
     def count_rows(self, table, *, params=None):
         self.connect()
