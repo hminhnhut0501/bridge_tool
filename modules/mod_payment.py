@@ -32,6 +32,7 @@ from support_utils import (
     record_support_event,
     support_inbox_enabled,
 )
+from bot_links import bot_version
 
 router = Router()
 
@@ -198,6 +199,13 @@ def create_pending_order(
     source_ref="",
     metadata=None,
 ):
+    version = bot_version()
+    if not source_type:
+        source_type = "BOT_LEGACY" if version == "legacy" else "BOT_NEW"
+    metadata_payload = metadata if isinstance(metadata, dict) else metadata
+    if isinstance(metadata_payload, dict):
+        metadata_payload = dict(metadata_payload)
+        metadata_payload.setdefault("bot_version", version)
     if supabase_store.enabled:
         return supabase_store.create_order(
             order_id=order_id,
@@ -218,7 +226,7 @@ def create_pending_order(
             plan_category=plan_category,
             source_type=source_type,
             source_ref=source_ref,
-            metadata=metadata,
+            metadata=metadata_payload,
         )
 
     db.users_sheet.append_row([

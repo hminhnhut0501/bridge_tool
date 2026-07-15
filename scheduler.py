@@ -14,6 +14,7 @@ from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
 from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, revoke_support_invite_link, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
+from bot_links import is_legacy_bot
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -712,6 +713,9 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
 
 async def check_expirations_professional():
     try:
+        if is_legacy_bot():
+            logging.info("⏭ Scheduler bỏ qua vì BOT_VERSION=legacy, bot cũ chỉ còn chuyển hướng.")
+            return
         logging.info("⏳ [SCHEDULER] Đang kiểm tra hạn dùng tới hạn/quá hạn...")
         use_supabase = supabase_store.enabled
         if not use_supabase and not db.users_sheet:

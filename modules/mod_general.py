@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart, Command
 
 from database import db
 from bot_instance import bot
-from bot_links import normalize_bot_link_template
+from bot_links import normalize_bot_link_template, bot_new_url, is_legacy_bot
 from hidden_group_utils import display_plan_name, validate_hidden_code_for_user
 from supabase_store import supabase_store
 from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
@@ -316,6 +316,9 @@ async def cmd_reload(message: Message):
 async def cmd_check_expiry(message: Message):
     if not is_admin_user(message.from_user.id):
         await message.reply(db.get_config("MSG_ADMIN_ONLY", "⚠️ Lệnh này chỉ dành cho Admin."))
+        return
+    if is_legacy_bot():
+        await message.reply("⚠️ Bot cũ đang ở chế độ chuyển hướng, scheduler đã tắt trên runtime này. Hãy dùng bot mới để quét hạn.")
         return
 
     await message.reply(db.get_config("MSG_CHECK_EXPIRY_STARTED", "⏳ Đang quét hạn dùng ngay bây giờ..."))
@@ -671,6 +674,16 @@ async def cmd_start(message: Message):
             print(f"❌ Không gửi được fallback /start cho user {message.from_user.id}: {exc}")
 
     try:
+        if is_legacy_bot() and not is_admin_user(message.from_user.id):
+            redirect_url = bot_new_url()
+            redirect_text = (
+                "🤖 Bot cũ đã chuyển sang chế độ chuyển hướng.\n"
+                "Vui lòng mở bot mới để tiếp tục nhận hỗ trợ, mua gói và gia hạn."
+            )
+            if redirect_url:
+                redirect_text += f"\n\n🔁 Bot mới: {redirect_url}"
+            await message.answer(redirect_text)
+            return
         db.reload_config(force=False)
         await cleanup_welcome(message.from_user.id, message.chat.id)
         parts = (message.text or "").split(maxsplit=1)

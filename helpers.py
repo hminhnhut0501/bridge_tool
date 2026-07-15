@@ -17,6 +17,7 @@ from i18n import t
 from supabase_store import supabase_store
 from message_filter_utils import is_private_user_content_message
 from aiogram.exceptions import TelegramBadRequest
+from bot_links import bot_new_url, is_legacy_bot
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé
 user_welcome_msgs = {}
@@ -443,6 +444,26 @@ def is_private_interaction(event):
 class BotAvailabilityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         user = getattr(event, "from_user", None)
+        if user and is_private_interaction(event) and is_legacy_bot() and not is_admin_user(user.id):
+            text = str(getattr(event, "text", "") or "").strip()
+            if isinstance(event, Message) and text.lower().startswith("/start"):
+                return await handler(event, data)
+            redirect_url = bot_new_url()
+            redirect_text = (
+                "🤖 Bot cũ đã chuyển sang chế độ chuyển hướng.\n"
+                "Vui lòng mở bot mới để tiếp tục sử dụng."
+            )
+            if redirect_url:
+                redirect_text += f"\n\n🔁 Bot mới: {redirect_url}"
+            try:
+                if isinstance(event, Message):
+                    await event.answer(redirect_text)
+                else:
+                    await event.answer("Bot cũ đã chuyển sang bot mới. Vui lòng mở bot mới.", show_alert=True)
+            except TelegramBadRequest as exc:
+                if "chat not found" not in str(exc).lower():
+                    raise
+            return None
         if user and is_private_interaction(event) and bot_unavailable_reason() and not is_admin_user(user.id):
             text = str(getattr(event, "text", "") or "").strip()
             if isinstance(event, Message) and text.lower().startswith("/start"):

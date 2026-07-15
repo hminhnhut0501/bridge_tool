@@ -6,7 +6,22 @@ def bot_username():
     return str(os.getenv("BOT_USERNAME", "") or "").strip().lstrip("@")
 
 
+def bot_version():
+    return str(os.getenv("BOT_VERSION", "new") or "new").strip().lower()
+
+
+def is_legacy_bot():
+    return bot_version() in {"legacy", "old", "backup", "redirect"}
+
+
+def bot_new_url():
+    return str(os.getenv("BOT_NEW_URL", "") or "").strip()
+
+
 def bot_base_url():
+    new_url = bot_new_url()
+    if new_url:
+        return new_url
     username = bot_username()
     if username:
         return f"https://t.me/{username}"
