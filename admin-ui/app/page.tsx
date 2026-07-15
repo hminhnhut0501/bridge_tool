@@ -3125,6 +3125,7 @@ export default function Home() {
   const [channelPostModalOpen, setChannelPostModalOpen] = useState(false);
   const [adminNotifications, setAdminNotifications] = useState<AdminNotificationItem[]>([]);
   const [notificationSeenIds, setNotificationSeenIds] = useState<string[]>([]);
+  const [notificationExpandedIds, setNotificationExpandedIds] = useState<string[]>([]);
   const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
@@ -3329,11 +3330,24 @@ export default function Home() {
 
   useEffect(() => {
     if (!savedSecret || !notificationEnabled) return;
-    const timer = window.setInterval(() => {
-      void loadAdminNotifications(savedSecret, { silent: true });
-    }, notificationPollSeconds * 1000);
-    return () => window.clearInterval(timer);
-  }, [savedSecret, notificationEnabled, notificationPollSeconds]);
+    const baseDelay = Math.max(30, notificationPollSeconds);
+    let timeoutId: number | null = null;
+    let cancelled = false;
+    const schedule = () => {
+      const delaySeconds = notificationMenuAnchorEl ? Math.max(baseDelay, 90) : baseDelay;
+      timeoutId = window.setTimeout(async () => {
+        if (document.visibilityState === "visible") {
+          await loadAdminNotifications(savedSecret, { silent: true });
+        }
+        if (!cancelled) schedule();
+      }, delaySeconds * 1000);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [savedSecret, notificationEnabled, notificationPollSeconds, notificationMenuAnchorEl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3706,7 +3720,7 @@ export default function Home() {
       return;
     }
     try {
-      const response = await getAdminNotifications(activeSecret, 24);
+      const response = await getAdminNotifications(activeSecret, 16);
       setAdminNotifications(response.data.notifications || []);
     } catch (err) {
       if (!options.silent) {
@@ -6169,6 +6183,10 @@ export default function Home() {
     setNotificationMenuAnchorEl(null);
   }, []);
 
+  const toggleNotificationExpanded = useCallback((id: string) => {
+    setNotificationExpandedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }, []);
+
   const openNotificationItem = useCallback((item: AdminNotificationItem) => {
     setNotificationSeenIds((current) => uniqueValues([...current, item.id]));
     closeNotificationMenu();
@@ -6207,6 +6225,20 @@ export default function Home() {
       });
     }
   }, [closeNotificationMenu, openAdminReply, openOrderEditor, orders, selectTab, setOrderPage, setQuery, setSupportTab]);
+
+  const notificationChipText = useCallback((item: AdminNotificationItem) => {
+    const chips: string[] = [];
+    const amount = String(item.amount || "").trim();
+    const currency = String(item.payment_currency || "").trim();
+    if (amount) {
+      const numericAmount = Number(String(amount).replace(/,/g, "").trim());
+      if (!Number.isNaN(numericAmount)) chips.push(formatDisplayCurrency(numericAmount, currency || "VND"));
+    }
+    if (item.payment_provider) chips.push(item.payment_provider);
+    if (item.status) chips.push(item.status);
+    if (item.expire_at) chips.push(dateTextShort(item.expire_at));
+    return chips;
+  }, []);
 
   const playNotificationSound = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -6845,48 +6877,121 @@ export default function Home() {
               <Box sx={{ maxHeight: 420, overflowY: "auto" }}>
                 {visibleAdminNotifications.length ? visibleAdminNotifications.map((item) => {
                   const unread = !notificationSeenIds.includes(item.id);
+                  const expanded = notificationExpandedIds.includes(item.id);
+                  const chips = notificationChipText(item);
                   return (
-                    <MenuItem
-                      key={item.id}
-                      onClick={() => openNotificationItem(item)}
-                      sx={{
-                        alignItems: "flex-start",
-                        gap: 1.2,
-                        py: 1.1,
-                        px: 1.5,
-                        borderBottom: 1,
-                        borderColor: "rgba(148,163,184,0.10)",
-                        bgcolor: unread ? "rgba(239,68,68,0.04)" : "background.paper",
-                      }}
-                    >
-                      <Box sx={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: "50%",
-                        display: "grid",
-                        placeItems: "center",
-                        flexShrink: 0,
-                        bgcolor: item.kind === "order" ? "rgba(37,99,235,0.14)" : "rgba(16,185,129,0.14)",
-                        color: item.kind === "order" ? "#2563eb" : "#059669",
-                        mt: 0.15,
-                        boxShadow: item.kind === "order" ? "0 0 0 1px rgba(37,99,235,0.10) inset" : "0 0 0 1px rgba(16,185,129,0.10) inset",
-                      }}>
-                        {item.kind === "order" ? <ClipboardList size={17} /> : <MessageSquare size={17} />}
-                      </Box>
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.25 }}>
-                          {item.title}
-                          {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main", boxShadow: "0 0 0 5px rgba(239,68,68,0.10)" }} /> : null}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.35 }}>
-                          {item.detail || "-"}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
-                          {dateText(item.created_at)}
-                          {item.plan_name ? ` · ${item.plan_name}` : ""}
-                        </Typography>
-                      </Box>
-                    </MenuItem>
+                    <Box key={item.id} sx={{ borderBottom: 1, borderColor: "rgba(148,163,184,0.10)", bgcolor: unread ? "rgba(239,68,68,0.03)" : "background.paper" }}>
+                      <MenuItem
+                        onClick={() => openNotificationItem(item)}
+                        sx={{
+                          alignItems: "flex-start",
+                          gap: 1.2,
+                          py: 1.1,
+                          px: 1.5,
+                          minWidth: 0,
+                        }}
+                      >
+                        <Box sx={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                          bgcolor: item.kind === "order" ? "rgba(37,99,235,0.14)" : "rgba(16,185,129,0.14)",
+                          color: item.kind === "order" ? "#2563eb" : "#059669",
+                          mt: 0.15,
+                          boxShadow: item.kind === "order" ? "0 0 0 1px rgba(37,99,235,0.10) inset" : "0 0 0 1px rgba(16,185,129,0.10) inset",
+                        }}>
+                          {item.kind === "order" ? <ClipboardList size={17} /> : <MessageSquare size={17} />}
+                        </Box>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.25 }}>
+                            {item.title}
+                            {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main", boxShadow: "0 0 0 5px rgba(239,68,68,0.10)" }} /> : null}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.35 }}>
+                            {item.detail || "-"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
+                            {dateText(item.created_at)}
+                            {item.plan_name ? ` · ${item.plan_name}` : ""}
+                          </Typography>
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleNotificationExpanded(item.id);
+                          }}
+                          sx={{ mt: -0.15 }}
+                        >
+                          <ChevronRight size={16} style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 160ms ease" }} />
+                        </IconButton>
+                      </MenuItem>
+                      {expanded ? (
+                        <Box sx={{ px: 1.5, pb: 1.25, pl: 6.2 }}>
+                          {chips.length ? (
+                            <Stack direction="row" spacing={0.75} useFlexGap sx={{ mb: 1, flexWrap: "wrap" }}>
+                              {chips.map((chip) => (
+                                <Chip key={`${item.id}-${chip}`} size="small" label={chip} variant="outlined" sx={{ height: 24, fontSize: 11.5, fontWeight: 700 }} />
+                              ))}
+                            </Stack>
+                          ) : null}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                            {item.telegram_user_id ? `Telegram ID: ${item.telegram_user_id}` : "Chưa có Telegram ID"}
+                            {item.order_id ? ` · Order: ${item.order_id}` : ""}
+                          </Typography>
+                          <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openNotificationItem(item);
+                              }}
+                              sx={{ borderRadius: 999, textTransform: "none" }}
+                            >
+                              {item.kind === "order" ? "Xem đơn" : "Mở hỗ trợ"}
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={async (event) => {
+                                event.stopPropagation();
+                                const text = item.kind === "order" ? item.order_id || item.telegram_user_id : item.telegram_user_id || item.order_id;
+                                if (!text) return;
+                                await navigator.clipboard.writeText(text);
+                                showNotice("ok", `Đã copy ${text}.`);
+                              }}
+                              sx={{ borderRadius: 999, textTransform: "none" }}
+                            >
+                              {item.kind === "order" ? "Copy order ID" : "Copy Telegram ID"}
+                            </Button>
+                            {item.kind === "message" ? (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openAdminReply({
+                                    id: item.id,
+                                    userId: item.telegram_user_id,
+                                    fullName: item.full_name || item.telegram_user_id,
+                                    username: "",
+                                    title: item.title,
+                                    detail: item.detail,
+                                  });
+                                }}
+                                sx={{ borderRadius: 999, textTransform: "none" }}
+                              >
+                                Trả lời ngay
+                              </Button>
+                            ) : null}
+                          </Stack>
+                        </Box>
+                      ) : null}
+                    </Box>
                   );
                 }) : (
                   <Box sx={{ p: 1.5 }}>

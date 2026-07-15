@@ -250,6 +250,11 @@ export type AdminNotificationItem = {
   full_name: string;
   plan_name: string;
   order_id: string;
+  amount?: string;
+  payment_currency?: string;
+  payment_provider?: string;
+  status?: string;
+  expire_at?: string;
   created_at: string;
   raw_data: Record<string, unknown>;
 };
