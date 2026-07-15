@@ -241,6 +241,28 @@ export type OverviewDashboard = {
   };
 };
 
+export type AdminNotificationItem = {
+  id: string;
+  kind: "order" | "message";
+  title: string;
+  detail: string;
+  telegram_user_id: string;
+  full_name: string;
+  plan_name: string;
+  order_id: string;
+  created_at: string;
+  raw_data: Record<string, unknown>;
+};
+
+export type AdminNotificationsResponse = {
+  notifications: AdminNotificationItem[];
+  counts: {
+    total: number;
+    orders: number;
+    messages: number;
+  };
+};
+
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -549,6 +571,10 @@ export async function getDashboardSummary(secret: string) {
 
 export async function getDashboardOverview(secret: string) {
   return request<{ data: OverviewDashboard }>("/admin-api/dashboard-overview", secret);
+}
+
+export async function getAdminNotifications(secret: string, limit = 20) {
+  return request<{ data: AdminNotificationsResponse }>(`/admin-api/notifications?limit=${limit}`, secret);
 }
 
 export async function getUsers(secret: string) {

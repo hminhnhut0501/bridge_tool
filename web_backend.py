@@ -48,6 +48,7 @@ from config_aliases import canonical_config_key, canonicalize_config_rows, confi
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 from manual_order_helpers import should_skip_manual_active_code
+from admin_notification_utils import admin_notification_from_support_event
 
 load_dotenv()
 
@@ -1841,6 +1842,40 @@ async def admin_dashboard_overview():
     except Exception as exc:
         print(f"⚠️ Không dựng được dashboard overview: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được dashboard overview: {exc}")
+
+
+@app.get("/admin-api/notifications", dependencies=[Depends(require_admin)])
+async def admin_notifications(limit: int = 20):
+    try:
+        safe_limit = max(1, min(100, int(limit or 20)))
+        rows = supabase_store.list_support_events(limit=min(100, max(50, safe_limit * 4)))
+        notifications = []
+        order_count = 0
+        message_count = 0
+        for event in rows:
+            item = admin_notification_from_support_event(event)
+            if not item:
+                continue
+            notifications.append(item)
+            if item["kind"] == "order":
+                order_count += 1
+            else:
+                message_count += 1
+            if len(notifications) >= safe_limit:
+                break
+        return {
+            "data": {
+                "notifications": notifications,
+                "counts": {
+                    "total": len(notifications),
+                    "orders": order_count,
+                    "messages": message_count,
+                },
+            }
+        }
+    except Exception as exc:
+        print(f"⚠️ Không dựng được admin notifications: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được admin notifications: {exc}")
 
 
 @app.patch("/admin-api/orders/{order_id}", dependencies=[Depends(require_admin)])

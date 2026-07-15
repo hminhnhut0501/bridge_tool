@@ -10,6 +10,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
+  BellRing,
   Eye,
   FileText,
   Gift,
@@ -47,6 +48,7 @@ import {
   Chip,
   Card,
   CardContent,
+  Badge,
   Drawer,
   FormControl,
   FormControlLabel,
@@ -62,6 +64,7 @@ import {
   Typography,
   TextField,
   Grid,
+  Fab,
 } from "@mui/material";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
@@ -184,6 +187,7 @@ import {
   getChannelPostEvents,
   getChannelPosts,
   getDashboardOverview,
+  getAdminNotifications,
   getActivationCodes,
   getCoupons,
   getHiddenCodes,
@@ -225,6 +229,7 @@ import {
   type HiddenGroup,
   type DashboardSummary,
   type OverviewDashboard,
+  type AdminNotificationItem,
   type VipGroupAuditRow,
   type VipMemberAuditRow,
   type SupportGroupCheck,
@@ -1414,6 +1419,45 @@ const SYSTEM_FIELDS: ConfigField[] = [
     label: "Số ngày giữ analytics ngày",
     placeholder: "120",
     help: "Giới hạn dữ liệu analytics daily giữ lại.",
+  },
+  {
+    key: "ADMIN_NOTIFICATION_ENABLED",
+    label: "Bật float thông báo admin",
+    placeholder: "ON",
+    help: "Hiện icon nổi khi có đơn auto-paid mới hoặc tin nhắn private mới của khách.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "ADMIN_NOTIFICATION_ORDERS_ENABLED",
+    label: "Báo đơn auto-paid",
+    placeholder: "ON",
+    help: "Bật để float icon nhận đơn auto-paid mới.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "ADMIN_NOTIFICATION_PRIVATE_MESSAGES_ENABLED",
+    label: "Báo tin nhắn private",
+    placeholder: "ON",
+    help: "Bật để float icon nhận tin nhắn riêng của khách.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "ADMIN_NOTIFICATION_POLL_SECONDS",
+    label: "Chu kỳ quét thông báo",
+    placeholder: "20",
+    help: "Số giây giữa mỗi lần quét thông báo nổi. Nên để ngắn để icon lên gần realtime mà vẫn nhẹ Render.",
   },
 ];
 
@@ -3079,6 +3123,9 @@ export default function Home() {
   const [campaignRecipientPage, setCampaignRecipientPage] = useState(1);
   const [channelPostForm, setChannelPostForm] = useState({ ...EMPTY_CHANNEL_POST_FORM });
   const [channelPostModalOpen, setChannelPostModalOpen] = useState(false);
+  const [adminNotifications, setAdminNotifications] = useState<AdminNotificationItem[]>([]);
+  const [notificationSeenIds, setNotificationSeenIds] = useState<string[]>([]);
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
   const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
@@ -3170,6 +3217,10 @@ export default function Home() {
       avatar: `S${index + 1}`,
     }));
   }, [config, supportCheck]);
+  const notificationEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ENABLED", "ON");
+  const notificationOrdersEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ORDERS_ENABLED", "ON");
+  const notificationPrivateMessagesEnabled = configIsOn(config, "ADMIN_NOTIFICATION_PRIVATE_MESSAGES_ENABLED", "ON");
+  const notificationPollSeconds = Math.max(10, Number(getConfigValue(config, "ADMIN_NOTIFICATION_POLL_SECONDS", "20")) || 20);
 
   useEffect(() => {
     const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -3254,6 +3305,43 @@ export default function Home() {
       loadAll(savedSecret, { scope: tab });
     }
   }, [savedSecret, tab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("prive_admin_notification_seen_ids");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setNotificationSeenIds(parsed.map((item) => String(item)).filter(Boolean));
+        }
+      }
+    } catch {
+      setNotificationSeenIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!savedSecret) return;
+    void loadAdminNotifications(savedSecret, { silent: true });
+  }, [savedSecret, notificationEnabled, notificationOrdersEnabled, notificationPrivateMessagesEnabled]);
+
+  useEffect(() => {
+    if (!savedSecret || !notificationEnabled) return;
+    const timer = window.setInterval(() => {
+      void loadAdminNotifications(savedSecret, { silent: true });
+    }, notificationPollSeconds * 1000);
+    return () => window.clearInterval(timer);
+  }, [savedSecret, notificationEnabled, notificationPollSeconds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("prive_admin_notification_seen_ids", JSON.stringify(notificationSeenIds));
+    } catch {
+      // ignore storage errors
+    }
+  }, [notificationSeenIds]);
 
   useEffect(() => {
     if (!savedSecret || tab !== "activityLog") return;
@@ -3608,6 +3696,21 @@ export default function Home() {
       if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được dữ liệu.");
     } finally {
       if (!silent) setLoading(false);
+    }
+  }
+
+  async function loadAdminNotifications(activeSecret = savedSecret, options: { silent?: boolean } = {}) {
+    if (!activeSecret || !notificationEnabled) {
+      setAdminNotifications([]);
+      return;
+    }
+    try {
+      const response = await getAdminNotifications(activeSecret, 24);
+      setAdminNotifications(response.data.notifications || []);
+    } catch (err) {
+      if (!options.silent) {
+        console.warn("⚠️ Không tải được admin notifications:", err);
+      }
     }
   }
 
@@ -6032,6 +6135,36 @@ export default function Home() {
     if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Nhóm hỗ trợ", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
   }, [dashboardOverview?.priority_alerts, expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
+
+  const visibleAdminNotifications = useMemo(() => {
+    return adminNotifications.filter((item) => {
+      if (item.kind === "order" && !notificationOrdersEnabled) return false;
+      if (item.kind === "message" && !notificationPrivateMessagesEnabled) return false;
+      return true;
+    });
+  }, [adminNotifications, notificationOrdersEnabled, notificationPrivateMessagesEnabled]);
+
+  const unreadAdminNotifications = useMemo(() => {
+    const seen = new Set(notificationSeenIds);
+    return visibleAdminNotifications.filter((item) => !seen.has(item.id));
+  }, [notificationSeenIds, visibleAdminNotifications]);
+
+  const unreadAdminNotificationCount = unreadAdminNotifications.length;
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotificationSeenIds((current) => {
+      const seen = new Set(current);
+      visibleAdminNotifications.forEach((item) => seen.add(item.id));
+      return Array.from(seen);
+    });
+  }, [visibleAdminNotifications]);
+
+  const openNotificationDrawer = useCallback(() => {
+    setNotificationDrawerOpen(true);
+    if (unreadAdminNotifications.length) {
+      markAllNotificationsRead();
+    }
+  }, [markAllNotificationsRead, unreadAdminNotifications.length]);
 
   const actionableFeed = useMemo(() => {
     if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_notifications?.length || dashboardOverview?.recent_user_activity?.length) {
@@ -9188,6 +9321,136 @@ export default function Home() {
               </div>
             </Box>
           </MuiDialogShell>
+        ) : null}
+        {notificationEnabled && (notificationDrawerOpen || unreadAdminNotificationCount > 0) ? (
+          <>
+            <Drawer
+              anchor="right"
+              open={notificationDrawerOpen}
+              onClose={() => setNotificationDrawerOpen(false)}
+              slotProps={{
+                paper: {
+                  sx: {
+                    width: { xs: "100vw", sm: 440 },
+                    maxWidth: "100vw",
+                    borderTopLeftRadius: 24,
+                    borderBottomLeftRadius: 24,
+                    boxShadow: "0 24px 80px rgba(15, 23, 42, 0.24)",
+                    overflow: "hidden",
+                  },
+                },
+              }}
+            >
+              <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "background.default" }}>
+                <Box sx={{ p: 2.25, borderBottom: 1, borderColor: "divider", background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(99,102,241,0.12))" }}>
+                  <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>Thông báo</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {unreadAdminNotificationCount} mục mới · đơn auto-paid và tin nhắn private
+                      </Typography>
+                    </Box>
+                    <Badge badgeContent={unreadAdminNotificationCount} color="primary" overlap="circular">
+                      <Box sx={{ width: 44, height: 44, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37,99,235,0.14)", color: "primary.main" }}>
+                        <BellRing size={20} />
+                      </Box>
+                    </Badge>
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
+                    <Chip size="small" label={`Đơn mới: ${visibleAdminNotifications.filter((item) => item.kind === "order").length}`} variant="outlined" />
+                    <Chip size="small" label={`Tin nhắn: ${visibleAdminNotifications.filter((item) => item.kind === "message").length}`} variant="outlined" />
+                    <Chip size="small" label={`Quét mỗi ${notificationPollSeconds}s`} variant="outlined" />
+                  </Stack>
+                </Box>
+                <Box sx={{ p: 1.5, display: "grid", gap: 1, overflowY: "auto", flex: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={markAllNotificationsRead}
+                    sx={{ borderRadius: 999, alignSelf: "flex-start", textTransform: "none", fontWeight: 800 }}
+                  >
+                    Đánh dấu tất cả đã đọc
+                  </Button>
+                  {visibleAdminNotifications.map((item) => (
+                    <Card
+                      key={item.id}
+                      variant="outlined"
+                      sx={{
+                        borderRadius: 4,
+                        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
+                        borderColor: item.kind === "order" ? "rgba(59,130,246,0.22)" : "rgba(16,185,129,0.22)",
+                        background: item.kind === "order" ? "linear-gradient(180deg, rgba(239,246,255,0.9), rgba(255,255,255,0.98))" : "linear-gradient(180deg, rgba(236,253,245,0.9), rgba(255,255,255,0.98))",
+                      }}
+                    >
+                      <CardContent sx={{ display: "flex", gap: 1.25, py: 1.5, "&:last-child": { pb: 1.5 } }}>
+                        <Box
+                          sx={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "50%",
+                            display: "grid",
+                            placeItems: "center",
+                            flexShrink: 0,
+                            bgcolor: item.kind === "order" ? "rgba(59,130,246,0.14)" : "rgba(16,185,129,0.14)",
+                            color: item.kind === "order" ? "primary.main" : "success.main",
+                          }}
+                        >
+                          {item.kind === "order" ? <ClipboardList size={18} /> : <MessageSquare size={18} />}
+                        </Box>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{item.title}</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4, lineHeight: 1.45 }}>
+                            {item.detail || "-"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                            {dateText(item.created_at)}
+                            {item.plan_name ? ` · ${item.plan_name}` : ""}
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {!visibleAdminNotifications.length ? (
+                    <Alert severity="info" variant="outlined">Chưa có thông báo phù hợp với bộ lọc hiện tại.</Alert>
+                  ) : null}
+                </Box>
+              </Box>
+            </Drawer>
+            {unreadAdminNotificationCount > 0 && !notificationDrawerOpen ? (
+              <Tooltip title="Thông báo mới" placement="left">
+                <Fab
+                  color="primary"
+                  onClick={openNotificationDrawer}
+                  sx={{
+                    position: "fixed",
+                    right: { xs: 16, sm: 24 },
+                    bottom: { xs: 16, sm: 24 },
+                    zIndex: (theme) => theme.zIndex.drawer + 20,
+                    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
+                    color: "#fff",
+                    boxShadow: "0 18px 36px rgba(37,99,235,0.38), 0 0 0 0 rgba(59,130,246,0.42)",
+                    animation: "notifFloat 3.2s ease-in-out infinite, notifGlow 2.1s ease-in-out infinite",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%)",
+                      boxShadow: "0 22px 42px rgba(37,99,235,0.46), 0 0 0 10px rgba(59,130,246,0.08)",
+                      animationPlayState: "paused",
+                    },
+                    "@keyframes notifFloat": {
+                      "0%, 100%": { transform: "translateY(0px) scale(1)" },
+                      "50%": { transform: "translateY(-6px) scale(1.02)" },
+                    },
+                    "@keyframes notifGlow": {
+                      "0%, 100%": { boxShadow: "0 18px 36px rgba(37,99,235,0.38), 0 0 0 0 rgba(59,130,246,0.35)" },
+                      "50%": { boxShadow: "0 22px 42px rgba(37,99,235,0.46), 0 0 0 12px rgba(59,130,246,0.10)" },
+                    },
+                  }}
+                >
+                  <Badge badgeContent={unreadAdminNotificationCount} color="error">
+                    <BellRing size={20} />
+                  </Badge>
+                </Fab>
+              </Tooltip>
+            ) : null}
+          </>
         ) : null}
       </Box>
       </Box>
