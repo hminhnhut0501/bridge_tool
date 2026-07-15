@@ -3125,7 +3125,6 @@ export default function Home() {
   const [channelPostModalOpen, setChannelPostModalOpen] = useState(false);
   const [adminNotifications, setAdminNotifications] = useState<AdminNotificationItem[]>([]);
   const [notificationSeenIds, setNotificationSeenIds] = useState<string[]>([]);
-  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
   const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
@@ -6162,13 +6161,6 @@ export default function Home() {
     });
   }, [visibleAdminNotifications]);
 
-  const openNotificationDrawer = useCallback(() => {
-    setNotificationDrawerOpen(true);
-    if (unreadAdminNotifications.length) {
-      markAllNotificationsRead();
-    }
-  }, [markAllNotificationsRead, unreadAdminNotifications.length]);
-
   const openNotificationMenu = useCallback((event: MouseEvent<HTMLElement>) => {
     setNotificationMenuAnchorEl(event.currentTarget);
   }, []);
@@ -6176,6 +6168,45 @@ export default function Home() {
   const closeNotificationMenu = useCallback(() => {
     setNotificationMenuAnchorEl(null);
   }, []);
+
+  const openNotificationItem = useCallback((item: AdminNotificationItem) => {
+    setNotificationSeenIds((current) => uniqueValues([...current, item.id]));
+    closeNotificationMenu();
+
+    if (item.kind === "order") {
+      selectTab("orders");
+      setOrderPage(1);
+      if (item.order_id) {
+        const matchedOrder = orders.find((order) => order.order_id === item.order_id);
+        if (matchedOrder) {
+          requestAnimationFrame(() => {
+            openOrderEditor(matchedOrder);
+          });
+        } else if (item.telegram_user_id) {
+          setQuery(item.telegram_user_id);
+        }
+      } else if (item.telegram_user_id) {
+        setQuery(item.telegram_user_id);
+      }
+      return;
+    }
+
+    selectTab("supportGroup");
+    setSupportTab("all");
+    if (item.telegram_user_id) {
+      setQuery(item.telegram_user_id);
+    }
+    if (item.telegram_user_id) {
+      openAdminReply({
+        id: item.id,
+        userId: item.telegram_user_id,
+        fullName: item.full_name || item.telegram_user_id,
+        username: "",
+        title: item.title,
+        detail: item.detail,
+      });
+    }
+  }, [closeNotificationMenu, openAdminReply, openOrderEditor, orders, selectTab, setOrderPage, setQuery, setSupportTab]);
 
   const playNotificationSound = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -6771,7 +6802,8 @@ export default function Home() {
                 paper: {
                   sx: {
                     mt: 1,
-                    minWidth: 240,
+                    width: { xs: "min(360px, calc(100vw - 24px))", sm: 380 },
+                    maxWidth: "calc(100vw - 24px)",
                     borderRadius: 3,
                     boxShadow: "0 18px 48px rgba(15,23,42,0.16)",
                     overflow: "hidden",
@@ -6779,36 +6811,89 @@ export default function Home() {
                 },
               }}
             >
-              <Box sx={{ px: 1.5, py: 1.2, bgcolor: "rgba(59,130,246,0.06)", borderBottom: 1, borderColor: "divider" }}>
-                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>Thông báo</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {unreadAdminNotificationCount} mới · {visibleAdminNotifications.length} tổng
-                </Typography>
+              <Box sx={{ px: 1.5, py: 1.25, bgcolor: "rgba(59,130,246,0.06)", borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>Thông báo</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {unreadAdminNotificationCount} mới · {visibleAdminNotifications.length} tổng
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0 }}>
+                  <Tooltip title="Đánh dấu đã đọc">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        markAllNotificationsRead();
+                        closeNotificationMenu();
+                      }}
+                    >
+                      <CheckCircle2 size={17} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Làm mới">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        void loadAdminNotifications(savedSecret, { silent: true });
+                      }}
+                    >
+                      <RefreshCw size={17} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
               </Box>
-              <MenuItem
-                onClick={() => {
-                  closeNotificationMenu();
-                  openNotificationDrawer();
-                }}
-              >
-                Mở danh sách
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  markAllNotificationsRead();
-                  closeNotificationMenu();
-                }}
-              >
-                Đánh dấu đã đọc
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  void loadAdminNotifications(savedSecret, { silent: true });
-                  closeNotificationMenu();
-                }}
-              >
-                Làm mới
-              </MenuItem>
+              <Box sx={{ maxHeight: 420, overflowY: "auto" }}>
+                {visibleAdminNotifications.length ? visibleAdminNotifications.map((item) => {
+                  const unread = !notificationSeenIds.includes(item.id);
+                  return (
+                    <MenuItem
+                      key={item.id}
+                      onClick={() => openNotificationItem(item)}
+                      sx={{
+                        alignItems: "flex-start",
+                        gap: 1.2,
+                        py: 1.1,
+                        px: 1.5,
+                        borderBottom: 1,
+                        borderColor: "rgba(148,163,184,0.10)",
+                        bgcolor: unread ? "rgba(239,68,68,0.04)" : "background.paper",
+                      }}
+                    >
+                      <Box sx={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: "50%",
+                        display: "grid",
+                        placeItems: "center",
+                        flexShrink: 0,
+                        bgcolor: item.kind === "order" ? "rgba(37,99,235,0.14)" : "rgba(16,185,129,0.14)",
+                        color: item.kind === "order" ? "#2563eb" : "#059669",
+                        mt: 0.15,
+                        boxShadow: item.kind === "order" ? "0 0 0 1px rgba(37,99,235,0.10) inset" : "0 0 0 1px rgba(16,185,129,0.10) inset",
+                      }}>
+                        {item.kind === "order" ? <ClipboardList size={17} /> : <MessageSquare size={17} />}
+                      </Box>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.25 }}>
+                          {item.title}
+                          {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main", boxShadow: "0 0 0 5px rgba(239,68,68,0.10)" }} /> : null}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.35 }}>
+                          {item.detail || "-"}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
+                          {dateText(item.created_at)}
+                          {item.plan_name ? ` · ${item.plan_name}` : ""}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  );
+                }) : (
+                  <Box sx={{ p: 1.5 }}>
+                    <Alert severity="info" variant="outlined">Chưa có thông báo phù hợp.</Alert>
+                  </Box>
+                )}
+              </Box>
             </Menu>
             <Button variant="outlined" onClick={() => void openCustomerQuickLookup()} size="small" startIcon={<Search size={16} />}>
               Tra cứu khách
@@ -9473,12 +9558,12 @@ export default function Home() {
             </Box>
           </MuiDialogShell>
         ) : null}
-        {notificationEnabled && (notificationDrawerOpen || unreadAdminNotificationCount > 0) ? (
+        {false ? (
           <>
             <Drawer
               anchor="right"
-              open={notificationDrawerOpen}
-              onClose={() => setNotificationDrawerOpen(false)}
+              open={false}
+              onClose={() => undefined}
               slotProps={{
                 paper: {
                   sx: {
