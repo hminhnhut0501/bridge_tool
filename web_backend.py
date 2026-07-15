@@ -2487,9 +2487,10 @@ async def admin_delete_blacklist(telegram_user_id: str):
 
 
 @app.get("/admin-api/support-events", dependencies=[Depends(require_admin)])
-async def admin_support_events(limit: int = 5000):
+async def admin_support_events(limit: int = 1000):
     try:
-        return {"data": supabase_store.list_support_events(limit=limit)}
+        safe_limit = max(1, min(int(limit or 1000), 2000))
+        return {"data": supabase_store.list_support_events(limit=safe_limit)}
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "support_events"):
             warn_missing_table_once("support_events", exc)

@@ -1394,7 +1394,11 @@ class SupabaseStore:
         rows = self._request(
             "GET",
             "support_events",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params={
+                "select": "id,event_type,telegram_user_id,username,full_name,chat_id,chat_title,order_id,plan_name,raw_data,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            },
         )
         return self._enrich_support_event_names(rows)
 
@@ -1403,7 +1407,7 @@ class SupabaseStore:
             "GET",
             "support_events",
             params={
-                "select": "*",
+                "select": "id,event_type,telegram_user_id,username,full_name,chat_id,chat_title,order_id,plan_name,raw_data,created_at",
                 "order": "created_at.desc",
                 "limit": str(limit),
                 "offset": str(max(0, int(offset or 0))),
@@ -1413,7 +1417,7 @@ class SupabaseStore:
 
     def latest_support_event(self, event_type, telegram_user_id=None, order_id=None, chat_id=None):
         params = {
-            "select": "*",
+            "select": "id,event_type,telegram_user_id,username,full_name,chat_id,chat_title,order_id,plan_name,raw_data,created_at",
             "event_type": f"eq.{_clean_text(event_type)}",
             "order": "created_at.desc",
             "limit": "1",
@@ -1675,7 +1679,7 @@ class SupabaseStore:
         rows = self._request(
             "GET",
             "analytics_events",
-            params={"select": "*", "order": "created_at.desc", "limit": str(fetch_limit)},
+            params={"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(fetch_limit)},
         )
         visible = []
         for row in rows:
@@ -1693,7 +1697,7 @@ class SupabaseStore:
             "GET",
             "analytics_events",
             params={
-                "select": "*",
+                "select": "id,event_name,telegram_user_id,payload,created_at",
                 "order": "created_at.desc",
                 "limit": str(limit),
                 "offset": str(max(0, int(offset or 0))),
@@ -1705,7 +1709,7 @@ class SupabaseStore:
         rows = self._request(
             "GET",
             "analytics_events",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params={"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(limit)},
         )
         users = {}
         for row in rows or []:
@@ -1726,7 +1730,11 @@ class SupabaseStore:
         rows = self._request(
             "GET",
             "orders",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params={
+                "select": "order_id,telegram_user_id,full_name,plan_name,status,expire_at,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            },
         )
         grouped = {}
         for order in rows or []:
@@ -1834,7 +1842,7 @@ class SupabaseStore:
         campaigns = self._request(
             "GET",
             "broadcast_campaigns",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "order": "created_at.desc", "limit": str(limit)},
         )
         return campaigns
 
@@ -1842,13 +1850,13 @@ class SupabaseStore:
         rows = self._request(
             "GET",
             "broadcast_campaigns",
-            params={"select": "*", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
+            params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
         )
         return rows[0] if rows else None
 
     def list_broadcast_recipients(self, campaign_id, limit=500, status=None):
         params = {
-            "select": "*",
+            "select": "id,campaign_id,telegram_user_id,username,full_name,segment,status,raw_data,created_at",
             "campaign_id": f"eq.{_clean_text(campaign_id)}",
             "order": "created_at.asc",
             "limit": str(limit),
