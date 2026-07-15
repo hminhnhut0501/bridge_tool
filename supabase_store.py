@@ -232,7 +232,20 @@ class SupabaseStore:
     def count_rows(self, table, *, params=None):
         self.connect()
         query_params = dict(params or {})
-        query_params.setdefault("select", "id")
+        count_select_columns = {
+            "hidden_codes": "code",
+            "coupons": "code",
+            "order_activation_codes": "code",
+            "hidden_groups": "id",
+            "security_blacklist": "telegram_user_id",
+            "broadcast_campaigns": "id",
+            "broadcast_recipients": "id",
+            "channel_posts": "id",
+            "support_events": "id",
+            "analytics_events": "id",
+            "orders": "order_id",
+        }
+        query_params.setdefault("select", count_select_columns.get(table, "id"))
         query_params.setdefault("limit", "1")
         response = requests.get(
             self._url(table),

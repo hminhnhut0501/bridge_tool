@@ -54,6 +54,7 @@ import {
   FormControlLabel,
   InputLabel,
   IconButton,
+  Menu,
   MenuItem,
   Tooltip,
   Select,
@@ -64,9 +65,8 @@ import {
   Typography,
   TextField,
   Grid,
-  Fab,
 } from "@mui/material";
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   channelPostStatusClass,
@@ -3126,6 +3126,7 @@ export default function Home() {
   const [adminNotifications, setAdminNotifications] = useState<AdminNotificationItem[]>([]);
   const [notificationSeenIds, setNotificationSeenIds] = useState<string[]>([]);
   const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
+  const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
   const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
@@ -3152,6 +3153,7 @@ export default function Home() {
     note: "",
   });
   const orderEditorPlanInputRef = useRef<HTMLInputElement | null>(null);
+  const notificationSoundRef = useRef<{ playedAt: number }>({ playedAt: 0 });
   const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
@@ -6150,6 +6152,7 @@ export default function Home() {
   }, [notificationSeenIds, visibleAdminNotifications]);
 
   const unreadAdminNotificationCount = unreadAdminNotifications.length;
+  const previousUnreadCountRef = useRef(0);
 
   const markAllNotificationsRead = useCallback(() => {
     setNotificationSeenIds((current) => {
@@ -6165,6 +6168,54 @@ export default function Home() {
       markAllNotificationsRead();
     }
   }, [markAllNotificationsRead, unreadAdminNotifications.length]);
+
+  const openNotificationMenu = useCallback((event: MouseEvent<HTMLElement>) => {
+    setNotificationMenuAnchorEl(event.currentTarget);
+  }, []);
+
+  const closeNotificationMenu = useCallback(() => {
+    setNotificationMenuAnchorEl(null);
+  }, []);
+
+  const playNotificationSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const now = Date.now();
+    if (now - notificationSoundRef.current.playedAt < 1800) return;
+    notificationSoundRef.current.playedAt = now;
+    try {
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audioContext = new AudioContextCtor();
+      const gain = audioContext.createGain();
+      gain.gain.value = 0.0001;
+      gain.connect(audioContext.destination);
+      const attack = audioContext.currentTime;
+      const tones = [880, 1174.66];
+      tones.forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator();
+        oscillator.type = index === 0 ? "sine" : "triangle";
+        oscillator.frequency.value = frequency;
+        oscillator.connect(gain);
+        oscillator.start(attack + index * 0.04);
+        oscillator.stop(attack + 0.25 + index * 0.04);
+      });
+      gain.gain.exponentialRampToValueAtTime(0.08, attack + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, attack + 0.32);
+      window.setTimeout(() => {
+        void audioContext.close().catch(() => undefined);
+      }, 450);
+    } catch {
+      // ignore autoplay / browser audio errors
+    }
+  }, []);
+
+  useEffect(() => {
+    const previous = previousUnreadCountRef.current;
+    if (unreadAdminNotificationCount > previous && previous >= 0) {
+      playNotificationSound();
+    }
+    previousUnreadCountRef.current = unreadAdminNotificationCount;
+  }, [playNotificationSound, unreadAdminNotificationCount]);
 
   const actionableFeed = useMemo(() => {
     if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_notifications?.length || dashboardOverview?.recent_user_activity?.length) {
@@ -6659,6 +6710,106 @@ export default function Home() {
             </Typography>
           </Box>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
+            <Tooltip title="Thông báo" placement="bottom">
+              <IconButton
+                onClick={openNotificationMenu}
+                aria-label="Thông báo"
+                sx={{
+                  width: 42,
+                  height: 42,
+                  border: unreadAdminNotificationCount > 0 ? "1px solid rgba(239,68,68,0.28)" : "1px solid rgba(148,163,184,0.18)",
+                  bgcolor: unreadAdminNotificationCount > 0 ? "rgba(239,68,68,0.12)" : "rgba(15,23,42,0.03)",
+                  color: unreadAdminNotificationCount > 0 ? "error.main" : "text.secondary",
+                  boxShadow: unreadAdminNotificationCount > 0 ? "0 14px 30px rgba(239,68,68,0.22), 0 0 0 6px rgba(239,68,68,0.08)" : "inset 0 1px 0 rgba(255,255,255,0.76)",
+                  animation: unreadAdminNotificationCount > 0 ? "notifHeaderBounce 0.95s ease-in-out infinite" : "none",
+                  transition: "transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease",
+                  "@keyframes notifHeaderBounce": {
+                    "0%, 100%": { transform: "translateY(0px) scale(1)" },
+                    "20%": { transform: "translateY(-2px) scale(1.12)" },
+                    "45%": { transform: "translateY(0px) scale(0.98)" },
+                    "70%": { transform: "translateY(-1px) scale(1.08)" },
+                  },
+                  "&:hover": {
+                    bgcolor: unreadAdminNotificationCount > 0 ? "rgba(239,68,68,0.16)" : "rgba(59,130,246,0.12)",
+                    boxShadow: unreadAdminNotificationCount > 0 ? "0 16px 34px rgba(239,68,68,0.28)" : "0 14px 28px rgba(59,130,246,0.16)",
+                  },
+                }}
+              >
+                <Badge
+                  badgeContent={unreadAdminNotificationCount}
+                  color={unreadAdminNotificationCount > 0 ? "error" : "primary"}
+                  overlap="circular"
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      fontWeight: 800,
+                      minWidth: unreadAdminNotificationCount > 0 ? 20 : 18,
+                      height: unreadAdminNotificationCount > 0 ? 20 : 18,
+                      px: 0.45,
+                      bgcolor: unreadAdminNotificationCount > 0 ? "#ef4444" : undefined,
+                      color: "#fff",
+                      animation: unreadAdminNotificationCount > 0 ? "notifBadgePop 0.75s ease-in-out infinite" : "none",
+                      "@keyframes notifBadgePop": {
+                        "0%, 100%": { transform: "scale(1)" },
+                        "20%": { transform: "scale(1.22)" },
+                        "55%": { transform: "scale(0.96)" },
+                        "80%": { transform: "scale(1.14)" },
+                      },
+                    },
+                  }}
+                >
+                  <BellRing size={18} />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={notificationMenuAnchorEl}
+              open={Boolean(notificationMenuAnchorEl)}
+              onClose={closeNotificationMenu}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              slotProps={{
+                paper: {
+                  sx: {
+                    mt: 1,
+                    minWidth: 240,
+                    borderRadius: 3,
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.16)",
+                    overflow: "hidden",
+                  },
+                },
+              }}
+            >
+              <Box sx={{ px: 1.5, py: 1.2, bgcolor: "rgba(59,130,246,0.06)", borderBottom: 1, borderColor: "divider" }}>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>Thông báo</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {unreadAdminNotificationCount} mới · {visibleAdminNotifications.length} tổng
+                </Typography>
+              </Box>
+              <MenuItem
+                onClick={() => {
+                  closeNotificationMenu();
+                  openNotificationDrawer();
+                }}
+              >
+                Mở danh sách
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  markAllNotificationsRead();
+                  closeNotificationMenu();
+                }}
+              >
+                Đánh dấu đã đọc
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  void loadAdminNotifications(savedSecret, { silent: true });
+                  closeNotificationMenu();
+                }}
+              >
+                Làm mới
+              </MenuItem>
+            </Menu>
             <Button variant="outlined" onClick={() => void openCustomerQuickLookup()} size="small" startIcon={<Search size={16} />}>
               Tra cứu khách
             </Button>
@@ -9415,41 +9566,6 @@ export default function Home() {
                 </Box>
               </Box>
             </Drawer>
-            {unreadAdminNotificationCount > 0 && !notificationDrawerOpen ? (
-              <Tooltip title="Thông báo mới" placement="left">
-                <Fab
-                  color="primary"
-                  onClick={openNotificationDrawer}
-                  sx={{
-                    position: "fixed",
-                    right: { xs: 16, sm: 24 },
-                    bottom: { xs: 16, sm: 24 },
-                    zIndex: (theme) => theme.zIndex.drawer + 20,
-                    background: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)",
-                    color: "#fff",
-                    boxShadow: "0 18px 36px rgba(37,99,235,0.38), 0 0 0 0 rgba(59,130,246,0.42)",
-                    animation: "notifFloat 3.2s ease-in-out infinite, notifGlow 2.1s ease-in-out infinite",
-                    "&:hover": {
-                      background: "linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%)",
-                      boxShadow: "0 22px 42px rgba(37,99,235,0.46), 0 0 0 10px rgba(59,130,246,0.08)",
-                      animationPlayState: "paused",
-                    },
-                    "@keyframes notifFloat": {
-                      "0%, 100%": { transform: "translateY(0px) scale(1)" },
-                      "50%": { transform: "translateY(-6px) scale(1.02)" },
-                    },
-                    "@keyframes notifGlow": {
-                      "0%, 100%": { boxShadow: "0 18px 36px rgba(37,99,235,0.38), 0 0 0 0 rgba(59,130,246,0.35)" },
-                      "50%": { boxShadow: "0 22px 42px rgba(37,99,235,0.46), 0 0 0 12px rgba(59,130,246,0.10)" },
-                    },
-                  }}
-                >
-                  <Badge badgeContent={unreadAdminNotificationCount} color="error">
-                    <BellRing size={20} />
-                  </Badge>
-                </Fab>
-              </Tooltip>
-            ) : null}
           </>
         ) : null}
       </Box>
