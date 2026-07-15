@@ -6834,7 +6834,7 @@ export default function Home() {
                 paper: {
                   sx: {
                     mt: 1,
-                    width: { xs: "min(360px, calc(100vw - 24px))", sm: 380 },
+                    width: { xs: "min(340px, calc(100vw - 24px))", sm: 360 },
                     maxWidth: "calc(100vw - 24px)",
                     borderRadius: 3,
                     boxShadow: "0 18px 48px rgba(15,23,42,0.16)",
@@ -6906,14 +6906,26 @@ export default function Home() {
                           {item.kind === "order" ? <ClipboardList size={17} /> : <MessageSquare size={17} />}
                         </Box>
                         <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.25 }}>
+                          <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {item.title}
                             {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "error.main", boxShadow: "0 0 0 5px rgba(239,68,68,0.10)" }} /> : null}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35, lineHeight: 1.35 }}>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              mt: 0.35,
+                              lineHeight: 1.35,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                            }}
+                          >
                             {item.detail || "-"}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {dateText(item.created_at)}
                             {item.plan_name ? ` · ${item.plan_name}` : ""}
                           </Typography>
@@ -6930,19 +6942,19 @@ export default function Home() {
                         </IconButton>
                       </MenuItem>
                       {expanded ? (
-                        <Box sx={{ px: 1.5, pb: 1.25, pl: 6.2 }}>
+                        <Box sx={{ px: 1.5, pb: 1.25, pl: 6.2, pr: 1.5 }}>
                           {chips.length ? (
-                            <Stack direction="row" spacing={0.75} useFlexGap sx={{ mb: 1, flexWrap: "wrap" }}>
+                            <Stack direction="row" spacing={0.75} useFlexGap sx={{ mb: 1, flexWrap: "wrap", maxWidth: "100%" }}>
                               {chips.map((chip) => (
-                                <Chip key={`${item.id}-${chip}`} size="small" label={chip} variant="outlined" sx={{ height: 24, fontSize: 11.5, fontWeight: 700 }} />
+                                <Chip key={`${item.id}-${chip}`} size="small" label={chip} variant="outlined" sx={{ height: 24, fontSize: 11.5, fontWeight: 700, maxWidth: "100%" }} />
                               ))}
                             </Stack>
                           ) : null}
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, wordBreak: "break-word" }}>
                             {item.telegram_user_id ? `Telegram ID: ${item.telegram_user_id}` : "Chưa có Telegram ID"}
                             {item.order_id ? ` · Order: ${item.order_id}` : ""}
                           </Typography>
-                          <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
+                          <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", maxWidth: "100%" }}>
                             <Button
                               size="small"
                               variant="contained"
@@ -6950,7 +6962,7 @@ export default function Home() {
                                 event.stopPropagation();
                                 openNotificationItem(item);
                               }}
-                              sx={{ borderRadius: 999, textTransform: "none" }}
+                              sx={{ borderRadius: 999, textTransform: "none", whiteSpace: "nowrap" }}
                             >
                               {item.kind === "order" ? "Xem đơn" : "Mở hỗ trợ"}
                             </Button>
@@ -6964,7 +6976,7 @@ export default function Home() {
                                 await navigator.clipboard.writeText(text);
                                 showNotice("ok", `Đã copy ${text}.`);
                               }}
-                              sx={{ borderRadius: 999, textTransform: "none" }}
+                              sx={{ borderRadius: 999, textTransform: "none", whiteSpace: "nowrap" }}
                             >
                               {item.kind === "order" ? "Copy order ID" : "Copy Telegram ID"}
                             </Button>
@@ -6983,7 +6995,7 @@ export default function Home() {
                                     detail: item.detail,
                                   });
                                 }}
-                                sx={{ borderRadius: 999, textTransform: "none" }}
+                                sx={{ borderRadius: 999, textTransform: "none", whiteSpace: "nowrap" }}
                               >
                                 Trả lời ngay
                               </Button>
