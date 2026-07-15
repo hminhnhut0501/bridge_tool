@@ -2726,6 +2726,7 @@ const EMPTY_MANUAL_ORDER_FORM = {
   full_name: "",
   plan_key: "FULL_1M",
   plan_name: "",
+  admin_label: "",
   special_group_id: "",
   special_group_duration: "1M",
   note: "",
@@ -6455,10 +6456,12 @@ export default function Home() {
 
   function changeManualPlanKey(value: string) {
     const lifetime = isLifetimePlanKey(value);
+    const nextPlanName = value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value);
     setManualOrderForm({
       ...manualOrderForm,
       plan_key: value,
-      plan_name: value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value),
+      plan_name: nextPlanName,
+      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : nextPlanName,
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "days" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? String(lifetimeCouponDays || 3650) : "30",
@@ -6479,6 +6482,7 @@ export default function Home() {
       special_group_id: groupId,
       special_group_duration: normalizedDuration,
       plan_name: nextPlanName || manualOrderForm.plan_name,
+      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : (nextPlanName || manualOrderForm.plan_name),
       amount: nextAmount,
       expiry_mode: "days",
       duration_days: normalizedDuration === "LIFE"
@@ -6489,9 +6493,12 @@ export default function Home() {
 
   function manualOrderPlanNameDisplay() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
-    if (manualOrderForm.plan_name.trim()) return manualOrderForm.plan_name;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
     return manualPlanNameFromKey(manualOrderForm.plan_key);
+  }
+
+  function manualOrderAdminLabelDisplay() {
+    return manualOrderForm.admin_label.trim() || manualOrderPlanNameDisplay();
   }
 
   function manualExpiryPreview() {
@@ -6553,6 +6560,7 @@ export default function Home() {
     const specialGroup = activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null;
     const specialPlanName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualOrderForm.special_group_duration || "1M") : "";
     const planName = specialPlanName || (manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key));
+    const adminLabel = manualOrderForm.admin_label.trim() || planName;
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
     const isLifetime = isLifetimeText(planName);
@@ -6563,6 +6571,7 @@ export default function Home() {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
         plan_name: planName,
+        admin_label: adminLabel,
         note: manualOrderForm.note.trim(),
         amount: manualOrderForm.amount,
         duration_days: durationDays,
@@ -6575,7 +6584,7 @@ export default function Home() {
         skip_active_code: true,
       });
       setManualOrderResult(res.data);
-      setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
+      setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), admin_label: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
       await loadAll();
     });
   }
@@ -6713,6 +6722,7 @@ export default function Home() {
       telegram_user_id: nextCustomerId,
       full_name: customer?.name && customer.name !== "-" ? customer.name : current.full_name,
       plan_name: customer?.paidOrders.length ? current.plan_name : manualPlanNameFromKey("FULL_1M"),
+      admin_label: customer?.paidOrders.length ? current.admin_label : manualPlanNameFromKey("FULL_1M"),
       special_group_id: "",
       special_group_duration: "1M",
       expiry_mode: "days",
@@ -9211,12 +9221,12 @@ export default function Home() {
                     </TextField>
                   ) : null}
                   <TextField
-                    label="Tên gói lưu vào đơn"
-                    value={manualOrderForm.plan_name}
-                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value })}
-                    placeholder="VD: Collection 30 Ngày - Hang Cú Prime"
+                    label="Tên hiển thị trong đơn"
+                    value={manualOrderForm.admin_label}
+                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, admin_label: event.target.value })}
+                    placeholder="VD: Gói thử 1 ngày"
                     size="small"
-                    helperText="Có thể sửa tay tên hiển thị trong đơn. Chọn gói vẫn auto-fill lại tên gốc khi cần."
+                    helperText={`Tên đẹp cho admin và lịch sử đơn. Kỹ thuật vẫn là: ${manualOrderPlanNameDisplay()}`}
                   />
                   <TextField label="Mã / ghi chú" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
@@ -9263,6 +9273,15 @@ export default function Home() {
               {manualOrderResult ? (
                 <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 3 }}>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
+                  <Alert severity="info" variant="outlined">
+                    <strong>Kỹ thuật:</strong> {manualOrderResult.plan_name}
+                    {manualOrderResult.admin_label && manualOrderResult.admin_label !== manualOrderResult.plan_name ? (
+                      <>
+                        {" "}
+                        · <strong>Hiển thị:</strong> {manualOrderResult.admin_label}
+                      </>
+                    ) : null}
+                  </Alert>
                   
                   {/* Active Code Box */}
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

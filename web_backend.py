@@ -799,6 +799,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
     full_name = str(body.get("full_name", "")).strip()
     plan_name = str(body.get("plan_name", "")).strip()
+    admin_label = str(body.get("admin_label", "")).strip()
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
@@ -896,6 +897,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                 "payment_provider": payment_provider,
                 "language": user_language,
                 "note": note,
+                "admin_label": admin_label,
             },
         )
         order_data = supabase_store.mark_order_paid(
@@ -984,6 +986,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             order_id=order_id,
             plan_name=plan_name,
             raw_data={
+                "admin_label": admin_label,
                 "amount": amount,
                 "coupon_code": coupon_code,
                 "note": note,
@@ -1005,6 +1008,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "telegram_user_id": telegram_user_id,
         "full_name": full_name,
         "plan_name": plan_name,
+        "admin_label": admin_label,
         "amount": amount,
         "note": note,
         "payment_currency": payment_currency,
@@ -1031,13 +1035,14 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
         "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
         "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
-        "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
-            "order_id": order_id,
-            "telegram_user_id": telegram_user_id,
-            "full_name": full_name or telegram_user_id,
-            "plan_name": plan_name,
-            "expire_at": expire_at.isoformat(timespec="seconds"),
-            "order_text": order_text,
+            "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "full_name": full_name or telegram_user_id,
+                "plan_name": plan_name,
+                "admin_label": admin_label,
+                "expire_at": expire_at.isoformat(timespec="seconds"),
+                "order_text": order_text,
             "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
@@ -1050,13 +1055,14 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             "support_error": support_error,
             "activation_code": activation_code,
         }),
-        "manual_order_join_text": "" if skip_join_link or fast_mode else render_manual_order_message_text(join_template, {
-            "order_id": order_id,
-            "telegram_user_id": telegram_user_id,
-            "full_name": full_name or telegram_user_id,
-            "plan_name": plan_name,
-            "expire_at": expire_at.isoformat(timespec="seconds"),
-            "order_text": order_text,
+            "manual_order_join_text": "" if skip_join_link or fast_mode else render_manual_order_message_text(join_template, {
+                "order_id": order_id,
+                "telegram_user_id": telegram_user_id,
+                "full_name": full_name or telegram_user_id,
+                "plan_name": plan_name,
+                "admin_label": admin_label,
+                "expire_at": expire_at.isoformat(timespec="seconds"),
+                "order_text": order_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
             "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
             "activation_url": activation_url,
@@ -1161,6 +1167,10 @@ def group_label_for_chat_id(chat_id):
 
 def order_display_name(order, support_events):
     user_id = str(order.get("telegram_user_id") or "")
+    metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
+    admin_label = str(metadata.get("admin_label") or metadata.get("display_name") or "").strip()
+    if admin_label and admin_label != "-":
+        return admin_label
     direct = str(order.get("full_name") or "").strip()
     if direct and direct != "-":
         return direct
@@ -2161,6 +2171,7 @@ async def admin_create_manual_order(request: Request):
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
+                "admin_label": admin_label,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
                 "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
@@ -2180,6 +2191,7 @@ async def admin_create_manual_order(request: Request):
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
+                "admin_label": admin_label,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
                 "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
