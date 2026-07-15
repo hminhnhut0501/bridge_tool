@@ -191,10 +191,16 @@ class SupabaseStore:
         return response.json()
 
     def _cache_key(self, prefix, table, params=None, json=None, prefer=None):
+        if params is None:
+            normalized_params = None
+        elif isinstance(params, dict):
+            normalized_params = tuple(sorted(params.items()))
+        else:
+            normalized_params = tuple(params)
         return (
             prefix,
             table,
-            tuple(sorted((params or {}).items())),
+            normalized_params,
             tuple(sorted((json or {}).items())) if isinstance(json, dict) else None,
             prefer or "",
         )
@@ -323,11 +329,20 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
-    def list_orders(self, limit=200):
+    def list_orders(self, limit=200, created_at_gte=None, created_at_lt=None):
+        params = [
+            ("select", "*"),
+            ("order", "created_at.desc"),
+            ("limit", str(limit)),
+        ]
+        if created_at_gte is not None:
+            params.append(("created_at", f"gte.{_parse_datetime(created_at_gte) or created_at_gte}"))
+        if created_at_lt is not None:
+            params.append(("created_at", f"lt.{_parse_datetime(created_at_lt) or created_at_lt}"))
         rows = self._cached_request(
             "GET",
             "orders",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+            params=params,
         )
         return [_normalize_payment_provider(row) for row in rows]
 

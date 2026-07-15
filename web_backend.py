@@ -61,6 +61,8 @@ _webhook_failure_streak = 0
 _webhook_reset_block_until = None
 _webhook_reset_backoff_seconds = 0
 _webhook_startup_retry_task = None
+_marketing_stats_cache = {}
+_marketing_stats_cache_ttl_seconds = max(30, int(os.getenv("MARKETING_STATS_CACHE_TTL_SECONDS", "60") or "60"))
 
 
 def webhook_auto_heal_reasons():
@@ -147,6 +149,23 @@ def _backend_timezone():
         return ZoneInfo(timezone_name)
     except Exception:
         return ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _marketing_range_window(period: str, now: datetime | None = None):
+    current_now = now or datetime.now(_backend_timezone())
+    if period == "today":
+        current_start = current_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        previous_start = current_start - timedelta(days=1)
+    elif period == "7d":
+        current_start = current_now - timedelta(days=7)
+        previous_start = current_start - timedelta(days=7)
+    elif period == "year":
+        current_start = current_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_start = current_start.replace(year=current_start.year - 1)
+    else:
+        current_start = current_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_start = (current_start.replace(day=1) - timedelta(days=1)).replace(day=1)
+    return previous_start, current_now
 
 
 def _backend_text(value):
@@ -1858,8 +1877,18 @@ async def admin_dashboard_overview():
 @app.get("/admin-api/marketing-stats", dependencies=[Depends(require_admin)])
 async def admin_marketing_stats(range: str = "month"):
     try:
-        orders = supabase_store.list_orders(limit=5000)
-        payload = build_marketing_stats_response(orders, tz=_backend_timezone(), period=range)
+        safe_range = range if range in {"today", "7d", "month", "year"} else "month"
+        cache_key = safe_range
+        cached = _marketing_stats_cache.get(cache_key)
+        now_ts = time.time()
+        if cached and cached.get("expires_at", 0) > now_ts:
+            return {"data": cached["payload"]}
+
+        previous_start, current_end = _marketing_range_window(safe_range)
+        limit_map = {"today": 400, "7d": 1200, "month": 2200, "year": 5000}
+        orders = supabase_store.list_orders(limit=limit_map[safe_range], created_at_gte=previous_start.isoformat(), created_at_lt=current_end.isoformat())
+        payload = build_marketing_stats_response(orders, tz=_backend_timezone(), period=safe_range)
+        _marketing_stats_cache[cache_key] = {"expires_at": now_ts + _marketing_stats_cache_ttl_seconds, "payload": payload}
         return {"data": payload}
     except Exception as exc:
         print(f"⚠️ Không dựng được marketing stats: {exc}")

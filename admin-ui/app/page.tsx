@@ -3069,6 +3069,7 @@ export default function Home() {
   const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
   const [marketingStats, setMarketingStats] = useState<MarketingStatsResponse | null>(null);
   const [marketingRange, setMarketingRange] = useState<"today" | "7d" | "month" | "year">("month");
+  const marketingRefreshTimerRef = useRef<number | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3721,6 +3722,27 @@ export default function Home() {
       if (!silent) setLoading(false);
     }
   }
+
+  const refreshMarketingStatsDebounced = useCallback((nextRange?: "today" | "7d" | "month" | "year") => {
+    if (marketingRefreshTimerRef.current) {
+      window.clearTimeout(marketingRefreshTimerRef.current);
+    }
+    marketingRefreshTimerRef.current = window.setTimeout(async () => {
+      if (!savedSecret) return;
+      const range = nextRange || marketingRange;
+      if (nextRange) setMarketingRange(nextRange);
+      const res = await getMarketingStats(savedSecret, range);
+      setMarketingStats(res.data);
+    }, 280);
+  }, [savedSecret, marketingRange]);
+
+  useEffect(() => {
+    return () => {
+      if (marketingRefreshTimerRef.current) {
+        window.clearTimeout(marketingRefreshTimerRef.current);
+      }
+    };
+  }, []);
 
   async function loadAdminNotifications(activeSecret = savedSecret, options: { silent?: boolean } = {}) {
     if (!activeSecret || !notificationEnabled) {
@@ -7307,12 +7329,7 @@ export default function Home() {
             marketingStats={marketingStats}
             marketingRange={marketingRange}
             setMarketingRange={setMarketingRange}
-            refreshMarketingStats={async (nextRange?: "today" | "7d" | "month" | "year") => {
-              const range = nextRange || marketingRange;
-              if (nextRange) setMarketingRange(nextRange);
-              const res = await getMarketingStats(savedSecret, range);
-              setMarketingStats(res.data);
-            }}
+            refreshMarketingStats={refreshMarketingStatsDebounced}
             formatRevenueCurrency={formatRevenueCurrency}
             providerRevenueFormat={providerRevenueFormat}
             isWithinPeriod={isWithinPeriod}
