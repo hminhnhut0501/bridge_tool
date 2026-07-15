@@ -190,6 +190,20 @@ class SupabaseStore:
             return []
         return response.json()
 
+    def _rpc(self, function_name, *, json=None):
+        self.connect()
+        response = requests.post(
+            f"{self.url}/rest/v1/rpc/{function_name}",
+            headers=self._headers(prefer="return=representation"),
+            json=json or {},
+            timeout=30,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f"Supabase RPC {function_name} failed: {response.status_code} {response.text}")
+        if not response.text:
+            return []
+        return response.json()
+
     def _cache_key(self, prefix, table, params=None, json=None, prefer=None):
         if params is None:
             normalized_params = None
@@ -345,6 +359,24 @@ class SupabaseStore:
             params=params,
         )
         return [_normalize_payment_provider(row) for row in rows]
+
+    def latest_order_updated_at(self):
+        rows = self._cached_request(
+            "GET",
+            "orders",
+            params={"select": "updated_at", "order": "updated_at.desc", "limit": "1"},
+        )
+        if not rows:
+            return ""
+        return _clean_text(rows[0].get("updated_at"))
+
+    def refresh_marketing_stats_rollups(self):
+        try:
+            return self._rpc("refresh_marketing_stats_rollups")
+        except Exception as exc:
+            if "404" in str(exc) or "does not exist" in str(exc).lower():
+                return []
+            raise
 
     def search_customer_orders(self, query, limit=30):
         raw = _clean_text(query)

@@ -1878,11 +1878,17 @@ async def admin_dashboard_overview():
 async def admin_marketing_stats(range: str = "month"):
     try:
         safe_range = range if range in {"today", "7d", "month", "year"} else "month"
-        cache_key = safe_range
+        latest_updated_at = supabase_store.latest_order_updated_at() or ""
+        cache_key = f"{safe_range}:{latest_updated_at}"
         cached = _marketing_stats_cache.get(cache_key)
         now_ts = time.time()
         if cached and cached.get("expires_at", 0) > now_ts:
             return {"data": cached["payload"]}
+
+        try:
+            supabase_store.refresh_marketing_stats_rollups()
+        except Exception as exc:
+            print(f"⚠️ Không refresh được marketing rollups: {exc}")
 
         previous_start, current_end = _marketing_range_window(safe_range)
         limit_map = {"today": 400, "7d": 1200, "month": 2200, "year": 5000}
