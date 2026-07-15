@@ -312,11 +312,13 @@ export function BreakdownChart({
   subtitle,
   accent = "blue",
   items,
+  valueFormatter,
 }: {
   title: string;
   subtitle?: string;
   accent?: SectionTone;
   items: { label: string; value: number; note?: string }[];
+  valueFormatter?: (value: number, label: string) => string;
 }) {
   const tone = sectionAccentTone(accent);
   const maxValue = Math.max(1, ...items.map((item) => item.value));
@@ -334,7 +336,9 @@ export function BreakdownChart({
             <Box key={item.label} sx={{ display: "grid", gap: 0.75 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 1 }}>
                 <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{item.label}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{item.value}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                  {valueFormatter ? valueFormatter(item.value, item.label) : formatDisplayCurrency(item.value, "VND")}
+                </Typography>
               </Box>
               <Box sx={{ height: 12, borderRadius: 999, bgcolor: "rgba(148,163,184,0.16)", overflow: "hidden" }}>
                 <Box sx={{ width: `${percent}%`, height: "100%", borderRadius: 999, bgcolor: barColor, backgroundImage: `linear-gradient(90deg, ${barColor}, rgba(255,255,255,0.22))`, boxShadow: `0 8px 20px ${barColor}28`, transformOrigin: "left center", animation: `growBar 0.8s ease-out ${index * 0.12}s both` }} />

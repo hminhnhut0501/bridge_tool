@@ -3068,6 +3068,7 @@ export default function Home() {
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
   const [marketingStats, setMarketingStats] = useState<MarketingStatsResponse | null>(null);
+  const [marketingRange, setMarketingRange] = useState<"today" | "7d" | "month" | "year">("month");
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3624,7 +3625,7 @@ export default function Home() {
         addTask(true, () => getDashboardOverview(activeSecret), setDashboardOverview);
       }
       if (!light && shouldLoad("analytics", "overview")) {
-        addTask(true, () => getMarketingStats(activeSecret, orderPeriod === "all" ? "month" : orderPeriod), setMarketingStats);
+        addTask(true, () => getMarketingStats(activeSecret, marketingRange), setMarketingStats);
       }
       const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
       const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
@@ -7304,6 +7305,14 @@ export default function Home() {
             paidRevenueByCurrency={paidRevenueByCurrency}
             paidRevenueByProvider={paidRevenueByProvider}
             marketingStats={marketingStats}
+            marketingRange={marketingRange}
+            setMarketingRange={setMarketingRange}
+            refreshMarketingStats={async (nextRange?: "today" | "7d" | "month" | "year") => {
+              const range = nextRange || marketingRange;
+              if (nextRange) setMarketingRange(nextRange);
+              const res = await getMarketingStats(savedSecret, range);
+              setMarketingStats(res.data);
+            }}
             formatRevenueCurrency={formatRevenueCurrency}
             providerRevenueFormat={providerRevenueFormat}
             isWithinPeriod={isWithinPeriod}

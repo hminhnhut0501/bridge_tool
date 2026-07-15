@@ -285,14 +285,67 @@ export type MarketingStatsResponse = {
     active_customers: number;
     active_orders: number;
     renewal_orders: number;
+    renewal_customers: number;
     renewal_rate: number;
     lifetime_upgrades: number;
+    upgrade_from_30d: number;
     lifetime_upgrade_rate: number;
     lifetime_paid_orders: number;
     first_paid_at_by_user: Record<string, string>;
     last_paid_at_by_user: Record<string, string>;
     active_by_plan: Record<string, number>;
   };
+  top_periods: {
+    day: { label: string; revenue: number; orders: number };
+    weekday: { label: string; revenue: number; orders: number };
+    hour: { label: string; revenue: number; orders: number };
+  };
+  top_by_period: {
+    day: Array<{ day: string; plan_name: string; orders: number; revenue: number; customers: number }>;
+    hour: Array<{ hour: string; plan_name: string; orders: number; revenue: number; customers: number }>;
+    weekday: Array<{ weekday: string; plan_name: string; orders: number; revenue: number; customers: number }>;
+  };
+  cohorts: Array<{
+    window: string;
+    base_users: number;
+    retained_users: number;
+    retention_rate: number;
+    renewed_users: number;
+    renewal_rate: number;
+    upgraded_users: number;
+    upgrade_rate: number;
+  }>;
+  cohort_heatmap: Array<{
+    window: string;
+    cells: Array<{
+      key: string;
+      label: string;
+      value: number;
+      score: number;
+    }>;
+  }>;
+  provider_cohorts: Array<{
+    provider: string;
+    base_users: number;
+    retained_users: number;
+    retention_rate: number;
+    renewed_users: number;
+    renewal_rate: number;
+    upgraded_users: number;
+    upgrade_rate: number;
+  }>;
+  buyer_type_plan_rows: Array<{
+    plan_name: string;
+    first_buyers: number;
+    first_buyers_orders: number;
+    first_buyers_revenue: number;
+    returning_buyers: number;
+    returning_buyers_orders: number;
+    returning_buyers_revenue: number;
+    total_orders: number;
+    total_revenue: number;
+  }>;
+  opportunity_alerts: Array<{ title: string; detail: string; tone: "good" | "warning" | "bad"; action?: string; score?: number; signals?: Record<string, number> }>;
   payment_breakdown: {
     by_currency: Array<{ currency: string; revenue: number; orders: number; customers: number }>;
     by_provider: Array<{ provider: string; revenue: number; orders: number; customers: number }>;
