@@ -6489,8 +6489,8 @@ export default function Home() {
 
   function manualOrderPlanNameDisplay() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
+    if (manualOrderForm.plan_name.trim()) return manualOrderForm.plan_name;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
-    if (manualOrderForm.plan_key === "CUSTOM") return manualOrderForm.plan_name;
     return manualPlanNameFromKey(manualOrderForm.plan_key);
   }
 
@@ -9212,12 +9212,11 @@ export default function Home() {
                   ) : null}
                   <TextField
                     label="Tên gói lưu vào đơn"
-                    value={manualOrderPlanNameDisplay()}
-                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value, plan_key: "CUSTOM", special_group_id: "", special_group_duration: "1M" })}
+                    value={manualOrderForm.plan_name}
+                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, plan_name: event.target.value })}
                     placeholder="VD: Collection 30 Ngày - Hang Cú Prime"
                     size="small"
-                    helperText={manualOrderForm.special_group_id ? "Tên sẽ tự khớp theo Special Group đã chọn." : manualOrderForm.plan_key === "CUSTOM" ? "Đang nhập tay tên gói." : "Tên sẽ tự khớp theo gói đã chọn."}
-                    slotProps={{ input: { readOnly: manualOrderForm.plan_key !== "CUSTOM" && !manualOrderForm.special_group_id } }}
+                    helperText="Có thể sửa tay tên hiển thị trong đơn. Chọn gói vẫn auto-fill lại tên gốc khi cần."
                   />
                   <TextField label="Mã / ghi chú" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
