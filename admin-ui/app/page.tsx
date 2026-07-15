@@ -187,6 +187,7 @@ import {
   getChannelPostEvents,
   getChannelPosts,
   getDashboardOverview,
+  getMarketingStats,
   getAdminNotifications,
   getActivationCodes,
   getCoupons,
@@ -228,6 +229,7 @@ import {
   type HiddenCode,
   type HiddenGroup,
   type DashboardSummary,
+  type MarketingStatsResponse,
   type OverviewDashboard,
   type AdminNotificationItem,
   type VipGroupAuditRow,
@@ -3065,6 +3067,7 @@ export default function Home() {
   const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
+  const [marketingStats, setMarketingStats] = useState<MarketingStatsResponse | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3619,6 +3622,9 @@ export default function Home() {
       addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
       if (overviewLite) {
         addTask(true, () => getDashboardOverview(activeSecret), setDashboardOverview);
+      }
+      if (!light && shouldLoad("analytics", "overview")) {
+        addTask(true, () => getMarketingStats(activeSecret, orderPeriod === "all" ? "month" : orderPeriod), setMarketingStats);
       }
       const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
       const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
@@ -6501,6 +6507,11 @@ export default function Home() {
     return manualOrderForm.admin_label.trim() || manualOrderPlanNameDisplay();
   }
 
+  function orderAdminLabel(order: Pick<Order, "plan_name" | "metadata">) {
+    const metadata = order.metadata && typeof order.metadata === "object" ? order.metadata as Record<string, unknown> : null;
+    return String(metadata?.admin_label || metadata?.display_name || "").trim() || order.plan_name || "-";
+  }
+
   function manualExpiryPreview() {
     if (manualOrderForm.expiry_mode === "date") {
       return `Sẽ áp dụng: ${dateTimePreviewText(manualOrderForm.expire_at, "Chưa chọn ngày hết hạn")}`;
@@ -7292,6 +7303,7 @@ export default function Home() {
             monthStats={monthStats}
             paidRevenueByCurrency={paidRevenueByCurrency}
             paidRevenueByProvider={paidRevenueByProvider}
+            marketingStats={marketingStats}
             formatRevenueCurrency={formatRevenueCurrency}
             providerRevenueFormat={providerRevenueFormat}
             isWithinPeriod={isWithinPeriod}
@@ -9132,7 +9144,18 @@ export default function Home() {
                       ["Số đơn PAID", String(customerQuickLookupResult.paidOrderCount)],
                       ["Số đơn active", String(customerQuickLookupResult.activeOrderCount)],
                       ["Hạn gần nhất", customerQuickLookupResult.latestExpireText],
-                      ["Gói gần nhất", customerQuickLookupResult.latestExpireOrder?.plan_name || "-"],
+                      ["Gói gần nhất", customerQuickLookupResult.latestExpireOrder ? (
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                            {orderAdminLabel(customerQuickLookupResult.latestExpireOrder)}
+                          </Typography>
+                          {orderAdminLabel(customerQuickLookupResult.latestExpireOrder) !== (String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-") ? (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.1 }}>
+                              Kỹ thuật: {String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-"}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      ) : "-"],
                       ["Group gần nhất", customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"],
                     ]}
                   />
@@ -10037,6 +10060,9 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
       {sorted.map((order) => (
         (() => {
           const canEdit = String(order.status || "").toUpperCase() === "PAID";
+          const metadata = order.metadata && typeof order.metadata === "object" ? (order.metadata as Record<string, unknown>) : null;
+          const displayLabel = String(metadata?.admin_label || metadata?.display_name || order.plan_name || "-").trim() || "-";
+          const techLabel = String(order.plan_name || "-").trim() || "-";
           const cardSx = canEdit
             ? undefined
             : {
@@ -10082,7 +10108,18 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
 
               {/* Cột 2: Gói & Nhóm */}
               <Box sx={{ flexGrow: 1, minWidth: 0, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" }, display: "flex", flexDirection: "column", gap: 0.5 }}>
-                <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)" }}>{orderPlanKind(order)}</Typography>
+                <Tooltip title={`Kỹ thuật: ${techLabel}`} arrow>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {displayLabel}
+                    </Typography>
+                    {displayLabel !== techLabel ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        Kỹ thuật: {techLabel}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                </Tooltip>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                   <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
                 </Typography>

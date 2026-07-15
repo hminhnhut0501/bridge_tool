@@ -44,6 +44,7 @@ from support_utils import (
     support_inbox_group_name,
 )
 from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_risk_rows
+from stats_marketing_utils import build_marketing_stats_response
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items
 from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
@@ -1852,6 +1853,17 @@ async def admin_dashboard_overview():
     except Exception as exc:
         print(f"⚠️ Không dựng được dashboard overview: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được dashboard overview: {exc}")
+
+
+@app.get("/admin-api/marketing-stats", dependencies=[Depends(require_admin)])
+async def admin_marketing_stats(range: str = "month"):
+    try:
+        orders = supabase_store.list_orders(limit=5000)
+        payload = build_marketing_stats_response(orders, tz=_backend_timezone(), period=range)
+        return {"data": payload}
+    except Exception as exc:
+        print(f"⚠️ Không dựng được marketing stats: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được marketing stats: {exc}")
 
 
 @app.get("/admin-api/notifications", dependencies=[Depends(require_admin)])

@@ -241,6 +241,70 @@ export type OverviewDashboard = {
   };
 };
 
+export type MarketingStatsPlanRow = {
+  plan_name: string;
+  orders: number;
+  revenue: number;
+  customers: number;
+  active_customers: number;
+  active_share: number;
+  average_order: number;
+  lifetime_share: number;
+};
+
+export type MarketingStatsResponse = {
+  range: string;
+  period: {
+    current_start: string;
+    current_end: string;
+    previous_start: string;
+    previous_end: string;
+  };
+  overview: {
+    orders: number;
+    paid_orders: number;
+    customers: number;
+    revenue: number;
+    average_order: number;
+    conversion: number;
+  };
+  revenue_compare: {
+    current: number;
+    previous: number;
+    delta: number;
+    delta_percent: number | null;
+    paid_current: number;
+    paid_previous: number;
+    customers_current: number;
+    customers_previous: number;
+    conversion_current: number;
+    conversion_previous: number;
+  };
+  plan_stats: MarketingStatsPlanRow[];
+  retention_stats: {
+    active_customers: number;
+    active_orders: number;
+    renewal_orders: number;
+    renewal_rate: number;
+    lifetime_upgrades: number;
+    lifetime_upgrade_rate: number;
+    lifetime_paid_orders: number;
+    first_paid_at_by_user: Record<string, string>;
+    last_paid_at_by_user: Record<string, string>;
+    active_by_plan: Record<string, number>;
+  };
+  payment_breakdown: {
+    by_currency: Array<{ currency: string; revenue: number; orders: number; customers: number }>;
+    by_provider: Array<{ provider: string; revenue: number; orders: number; customers: number }>;
+  };
+  time_stats: {
+    by_day: Array<{ day: string; revenue: number; orders: number; customers: number }>;
+    by_hour: Array<{ hour: string; revenue: number; orders: number; customers: number }>;
+    by_weekday: Array<{ weekday: string; revenue: number; orders: number }>;
+  };
+  insights: Array<{ title: string; detail: string; tone: "good" | "warning" | "bad" }>;
+};
+
 export type AdminNotificationItem = {
   id: string;
   kind: "order" | "message";
@@ -578,6 +642,11 @@ export async function getDashboardSummary(secret: string) {
 
 export async function getDashboardOverview(secret: string) {
   return request<{ data: OverviewDashboard }>("/admin-api/dashboard-overview", secret);
+}
+
+export async function getMarketingStats(secret: string, range = "month") {
+  const params = new URLSearchParams({ range });
+  return request<{ data: MarketingStatsResponse }>(`/admin-api/marketing-stats?${params.toString()}`, secret);
 }
 
 export async function getAdminNotifications(secret: string, limit = 20) {

@@ -8,7 +8,8 @@ import { Metric } from "./metric-card";
 import { orderAmountValue } from "./dashboard-helpers";
 
 export function AnalyticsSection(props: any) {
-  const { orders, monthStats, paidRevenueByCurrency, paidRevenueByProvider, isWithinPeriod } = props;
+  const { orders, monthStats, paidRevenueByCurrency, paidRevenueByProvider, isWithinPeriod, marketingStats } = props;
+  const stats = marketingStats?.data || marketingStats || null;
   const monthGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "month")), "day");
   const yearGroups = props.groupOrders(orders.filter((item: any) => isWithinPeriod(item.created_at, "year")), "month");
   const monthPeak = Math.max(1, ...monthGroups.map((item: any) => item.stats.revenue));
@@ -70,6 +71,15 @@ export function AnalyticsSection(props: any) {
   }[];
   const monthOrdersPaid = orders.filter((item: any) => item.status === "PAID" && isWithinPeriod(item.created_at, "month"));
   const monthCustomers = new Set(monthOrdersPaid.map((item: any) => item.telegram_user_id)).size;
+  const compareDelta = Number(stats?.revenue_compare?.delta || 0);
+  const compareDeltaPct = stats?.revenue_compare?.delta_percent;
+  const compareTone: "good" | "warn" | "bad" = compareDelta >= 0 ? "good" : "bad";
+  const topPlans = (stats?.plan_stats || []).slice(0, 6);
+  const topActivePlans = [...(stats?.plan_stats || [])].sort((a: any, b: any) => (b.active_customers || 0) - (a.active_customers || 0)).slice(0, 6);
+  const timeByHour = (stats?.time_stats?.by_hour || []).slice().sort((a: any, b: any) => String(a.hour).localeCompare(String(b.hour)));
+  const timeByDay = (stats?.time_stats?.by_day || []).slice().sort((a: any, b: any) => String(a.day).localeCompare(String(b.day)));
+  const topPaymentProviders = (stats?.payment_breakdown?.by_provider || []).slice(0, 6);
+  const topCurrencies = (stats?.payment_breakdown?.by_currency || []).slice(0, 6);
 
   return (
     <Stack spacing={2.5}>
@@ -84,14 +94,114 @@ export function AnalyticsSection(props: any) {
         ))}
       </Box>
 
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" } }}>
+        <Metric
+          label="So với kỳ trước"
+          value={compareDeltaPct === null || compareDeltaPct === undefined ? "N/A" : `${compareDeltaPct > 0 ? "+" : ""}${compareDeltaPct}%`}
+          accent={compareTone === "good" ? "emerald" : "rose"}
+          icon={<TrendingUp size={16} />}
+          note={`${props.formatRevenueCurrency("VND", Number(stats?.revenue_compare?.current || 0))} so với ${props.formatRevenueCurrency("VND", Number(stats?.revenue_compare?.previous || 0))}`}
+        />
+        <Metric label="Renewal rate" value={`${Number(stats?.retention_stats?.renewal_rate || 0)}%`} accent="amber" icon={<CalendarClock size={16} />} note={`${Number(stats?.retention_stats?.renewal_orders || 0)} đơn gia hạn`} />
+        <Metric label="Lifetime upgrade" value={`${Number(stats?.retention_stats?.lifetime_upgrade_rate || 0)}%`} accent="violet" icon={<BadgeDollarSign size={16} />} note={`${Number(stats?.retention_stats?.lifetime_upgrades || 0)} khách upgrade lên trọn đời`} />
+        <Metric label="Active khách" value={String(stats?.retention_stats?.active_customers ?? 0)} accent="cyan" icon={<Users size={16} />} note={`${String(stats?.retention_stats?.active_orders ?? 0)} đơn còn hạn / active`} />
+      </Box>
+
+      {stats?.insights?.length ? (
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+          {stats.insights.map((item: any) => (
+            <Box key={item.title} sx={{ p: 2, borderRadius: 3, border: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <strong>{item.title}</strong>
+                <Chip size="small" label={item.tone === "good" ? "Tốt" : item.tone === "warning" ? "Cần xem" : "Rủi ro"} color={item.tone === "good" ? "success" : item.tone === "warning" ? "warning" : "error"} variant="outlined" />
+              </Box>
+              <div className="muted" style={{ marginTop: 8 }}>{item.detail}</div>
+            </Box>
+          ))}
+        </Box>
+      ) : null}
+
       <Box sx={{ width: "100%", animation: "fadeUp 0.6s ease-out 0.4s both" }}>
         <RevenueBarChart title="Doanh thu theo ngày" subtitle="Biểu đồ trực quan hóa xu hướng dòng tiền tăng trưởng hàng ngày." accent="blue" items={monthChartData.slice().reverse()} />
       </Box>
 
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.6s both" }}>
         <DonutChart title="Cơ cấu trạng thái tháng" subtitle="Tỉ trọng đơn để đọc nhanh trạng thái." accent="emerald" segments={paymentStatusBreakdown} centerLabel={`${monthStats.conversion}%`} />
-        <BreakdownChart title="Doanh thu theo phương thức" subtitle="PayOS, PayPal và USDT." accent="violet" items={providerBreakdown.length ? providerBreakdown : [{ label: "Không có", value: 0 }]} />
-        <BreakdownChart title="Doanh thu theo currency" subtitle="Biết ngay dòng tiền chính nằm ở đâu." accent="cyan" items={currencyBreakdown.length ? currencyBreakdown : [{ label: "Không có", value: 0 }]} />
+        <BreakdownChart title="Doanh thu theo phương thức" subtitle="PayOS, PayPal và USDT." accent="violet" items={(topPaymentProviders.length ? topPaymentProviders : providerBreakdown).map((item: any) => ({ label: item.provider || item.label, value: Number(item.revenue ?? item.value ?? 0), note: props.formatRevenueCurrency(item.currency || "VND", Number(item.revenue ?? item.value ?? 0)) }))} />
+        <BreakdownChart title="Doanh thu theo currency" subtitle="Biết ngay dòng tiền chính nằm ở đâu." accent="cyan" items={(topCurrencies.length ? topCurrencies : currencyBreakdown).map((item: any) => ({ label: item.currency || item.label, value: Number(item.revenue ?? item.value ?? 0), note: props.formatRevenueCurrency(item.currency || item.label || "VND", Number(item.revenue ?? item.value ?? 0)) }))} />
+      </Box>
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.7s both" }}>
+        <div className="table-wrap summary-wrap">
+          <table>
+            <thead>
+              <tr><th>Gói</th><th>Đơn</th><th>Doanh thu</th><th>Active</th><th>AOV</th><th>Lifetime</th></tr>
+            </thead>
+            <tbody>
+              {topPlans.length ? topPlans.map((item: any) => (
+                <tr key={item.plan_name}>
+                  <td><strong>{item.plan_name}</strong></td>
+                  <td>{item.orders}</td>
+                  <td>{props.formatRevenueCurrency("VND", Number(item.revenue || 0))}</td>
+                  <td>{item.active_customers}</td>
+                  <td>{props.formatRevenueCurrency("VND", Number(item.average_order || 0))}</td>
+                  <td>{item.lifetime_share}%</td>
+                </tr>
+              )) : <tr><td colSpan={6} className="empty-state">Chưa có dữ liệu gói.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="table-wrap summary-wrap">
+          <table>
+            <thead>
+              <tr><th>Gói active</th><th>Active</th><th>Đơn</th><th>Doanh thu</th><th>Tỉ lệ</th></tr>
+            </thead>
+            <tbody>
+              {topActivePlans.length ? topActivePlans.map((item: any) => (
+                <tr key={`active-${item.plan_name}`}>
+                  <td><strong>{item.plan_name}</strong></td>
+                  <td>{item.active_customers}</td>
+                  <td>{item.orders}</td>
+                  <td>{props.formatRevenueCurrency("VND", Number(item.revenue || 0))}</td>
+                  <td>{item.active_share}%</td>
+                </tr>
+              )) : <tr><td colSpan={5} className="empty-state">Chưa có dữ liệu active.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Box>
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, animation: "fadeUp 0.5s ease-out 0.75s both" }}>
+        <div className="table-wrap summary-wrap">
+          <table>
+            <thead><tr><th>Giờ</th><th>Đơn</th><th>Doanh thu</th><th>Khách</th></tr></thead>
+            <tbody>
+              {timeByHour.length ? timeByHour.slice().reverse().map((item: any) => (
+                <tr key={`hour-${item.hour}`}>
+                  <td><strong>{item.hour}</strong></td>
+                  <td>{item.orders}</td>
+                  <td>{props.formatRevenueCurrency("VND", Number(item.revenue || 0))}</td>
+                  <td>{item.customers}</td>
+                </tr>
+              )) : <tr><td colSpan={4} className="empty-state">Chưa có dữ liệu theo giờ.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="table-wrap summary-wrap">
+          <table>
+            <thead><tr><th>Ngày</th><th>Đơn</th><th>Doanh thu</th><th>Khách</th></tr></thead>
+            <tbody>
+              {timeByDay.length ? timeByDay.slice().reverse().map((item: any) => (
+                <tr key={`day-${item.day}`}>
+                  <td><strong>{item.day}</strong></td>
+                  <td>{item.orders}</td>
+                  <td>{props.formatRevenueCurrency("VND", Number(item.revenue || 0))}</td>
+                  <td>{item.customers}</td>
+                </tr>
+              )) : <tr><td colSpan={4} className="empty-state">Chưa có dữ liệu theo ngày.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </Box>
 
       <Box sx={{ animation: "fadeUp 0.5s ease-out 0.8s both" }}>
