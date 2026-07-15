@@ -209,6 +209,20 @@ export type BotScheduleStatus = {
   activeHours: string;
 };
 
+export type DashboardSummary = {
+  orders_total: number;
+  orders_paid: number;
+  orders_pending: number;
+  support_events: number;
+  activity_events: number;
+  coupons: number;
+  hidden_groups: number;
+  hidden_codes: number;
+  blacklist_active: number;
+  broadcast_campaigns: number;
+  channel_posts: number;
+};
+
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -509,6 +523,10 @@ async function request<T>(path: string, secret: string, init?: RequestInit): Pro
 
 export async function getOrders(secret: string, limit = 5000) {
   return request<{ data: Order[] }>(`/admin-api/orders?limit=${limit}`, secret);
+}
+
+export async function getDashboardSummary(secret: string) {
+  return request<{ data: DashboardSummary }>("/admin-api/dashboard-summary", secret);
 }
 
 export async function getUsers(secret: string) {

@@ -1682,6 +1682,29 @@ async def admin_orders(limit: int = 200):
     return {"data": supabase_store.list_orders(limit=limit)}
 
 
+@app.get("/admin-api/dashboard-summary", dependencies=[Depends(require_admin)])
+async def admin_dashboard_summary():
+    try:
+        return {
+            "data": {
+                "orders_total": supabase_store.count_rows("orders"),
+                "orders_paid": supabase_store.count_rows("orders", params={"status": "eq.PAID"}),
+                "orders_pending": supabase_store.count_rows("orders", params={"status": "eq.PENDING"}),
+                "support_events": supabase_store.count_rows("support_events"),
+                "activity_events": supabase_store.count_rows("analytics_events"),
+                "coupons": supabase_store.count_rows("coupons"),
+                "hidden_groups": supabase_store.count_rows("hidden_groups"),
+                "hidden_codes": supabase_store.count_rows("hidden_codes"),
+                "blacklist_active": supabase_store.count_rows("security_blacklist", params={"is_active": "eq.true"}),
+                "broadcast_campaigns": supabase_store.count_rows("broadcast_campaigns"),
+                "channel_posts": supabase_store.count_rows("channel_posts"),
+            }
+        }
+    except Exception as exc:
+        print(f"⚠️ Không dựng được dashboard summary: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được dashboard summary: {exc}")
+
+
 @app.patch("/admin-api/orders/{order_id}", dependencies=[Depends(require_admin)])
 async def admin_update_order(order_id: str, request: Request):
     body = await request.json()

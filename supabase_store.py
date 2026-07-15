@@ -1,4 +1,6 @@
 import os
+import copy
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -137,6 +139,8 @@ class SupabaseStore:
     def __init__(self):
         self.url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
         self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        self._short_cache = {}
+        self._short_cache_ttl = int(os.getenv("SUPABASE_SHORT_CACHE_TTL_SECONDS", "15"))
 
     @property
     def enabled(self):
@@ -175,6 +179,61 @@ class SupabaseStore:
         if not response.text:
             return []
         return response.json()
+
+    def _cache_key(self, prefix, table, params=None, json=None, prefer=None):
+        return (
+            prefix,
+            table,
+            tuple(sorted((params or {}).items())),
+            tuple(sorted((json or {}).items())) if isinstance(json, dict) else None,
+            prefer or "",
+        )
+
+    def _cache_get(self, key):
+        entry = self._short_cache.get(key)
+        if not entry:
+            return None
+        expires_at, value = entry
+        if expires_at <= time.time():
+            self._short_cache.pop(key, None)
+            return None
+        return copy.deepcopy(value)
+
+    def _cache_set(self, key, value, ttl=None):
+        ttl_seconds = int(ttl if ttl is not None else self._short_cache_ttl)
+        if ttl_seconds <= 0:
+            return value
+        self._short_cache[key] = (time.time() + ttl_seconds, copy.deepcopy(value))
+        return value
+
+    def _cached_request(self, method, table, *, params=None, json=None, prefer=None, ttl=None):
+        key = self._cache_key(method, table, params=params, json=json, prefer=prefer)
+        cached = self._cache_get(key)
+        if cached is not None:
+            return cached
+        value = self._request(method, table, params=params, json=json, prefer=prefer)
+        return self._cache_set(key, value, ttl=ttl)
+
+    def count_rows(self, table, *, params=None):
+        self.connect()
+        query_params = dict(params or {})
+        query_params.setdefault("select", "id")
+        query_params.setdefault("limit", "1")
+        response = requests.get(
+            self._url(table),
+            headers=self._headers(prefer="count=exact"),
+            params=query_params,
+            timeout=30,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f"Supabase count {table} failed: {response.status_code} {response.text}")
+        content_range = response.headers.get("content-range", "")
+        if "/" in content_range:
+            try:
+                return int(content_range.split("/")[-1])
+            except ValueError:
+                pass
+        return len(response.json() if response.text else [])
 
     def list_config(self):
         return self.get_config()
@@ -237,7 +296,7 @@ class SupabaseStore:
         )
 
     def list_orders(self, limit=200):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
@@ -301,7 +360,7 @@ class SupabaseStore:
         return [_normalize_payment_provider(row) for row in rows]
 
     def list_pending_orders(self, limit=1000):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -314,7 +373,7 @@ class SupabaseStore:
         return [_normalize_payment_provider(row) for row in rows]
 
     def list_scheduler_orders(self, limit=1000):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -329,7 +388,7 @@ class SupabaseStore:
     def list_scheduler_due_orders(self, due_before, limit=1000):
         due_value = _parse_datetime(due_before) or str(due_before)
         select_fields = "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata"
-        paid_rows = self._request(
+        paid_rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -344,7 +403,7 @@ class SupabaseStore:
         remaining = max(0, int(limit) - len(paid_rows))
         if remaining <= 0:
             return paid_rows
-        expired_rows = self._request(
+        expired_rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -361,7 +420,7 @@ class SupabaseStore:
     def list_scheduler_due_rows(self, due_before, limit=1000):
         due_value = _parse_datetime(due_before) or str(due_before)
         select_fields = "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata"
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -374,7 +433,7 @@ class SupabaseStore:
         return [_normalize_payment_provider(row) for row in rows]
 
     def list_paid_orders_for_user(self, telegram_user_id, limit=100):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -388,7 +447,7 @@ class SupabaseStore:
         return [_normalize_payment_provider(row) for row in rows]
 
     def list_scheduler_expired_due_orders(self, limit=1000):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -440,7 +499,7 @@ class SupabaseStore:
         ]
 
     def list_users(self, limit=200):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -1058,14 +1117,14 @@ class SupabaseStore:
         )
 
     def list_blacklist(self, limit=500):
-        return self._request(
+        return self._cached_request(
             "GET",
             "security_blacklist",
             params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
         )
 
     def get_blacklist_entry(self, telegram_user_id):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "security_blacklist",
             params={
@@ -1391,7 +1450,7 @@ class SupabaseStore:
         return rows
 
     def list_support_events(self, limit=500):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "support_events",
             params={
@@ -1403,7 +1462,7 @@ class SupabaseStore:
         return self._enrich_support_event_names(rows)
 
     def list_support_events_page(self, limit=500, offset=0):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "support_events",
             params={
@@ -1428,11 +1487,11 @@ class SupabaseStore:
             params["order_id"] = f"eq.{_clean_text(order_id)}"
         if chat_id is not None:
             params["chat_id"] = f"eq.{_clean_text(chat_id)}"
-        rows = self._request("GET", "support_events", params=params)
+        rows = self._cached_request("GET", "support_events", params=params)
         return rows[0] if rows else None
 
     def get_coupon(self, code):
-        rows = self._request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
+        rows = self._cached_request("GET", "coupons", params={"select": "*", "code": f"eq.{_clean_text(code).upper()}", "limit": "1"})
         return rows[0] if rows else None
 
     def _coupon_payload_from_sheet_row(self, raw):
@@ -1659,7 +1718,7 @@ class SupabaseStore:
         params = {"select": "*", "order": "redeemed_at.desc", "limit": str(limit)}
         if code:
             params["coupon_code"] = f"eq.{_clean_text(code).upper()}"
-        return self._request("GET", "coupon_redemptions", params=params)
+        return self._cached_request("GET", "coupon_redemptions", params=params)
 
     def insert_analytics_events(self, events):
         payload = [
@@ -1676,7 +1735,7 @@ class SupabaseStore:
 
     def list_analytics_events(self, limit=500):
         fetch_limit = min(max(int(limit) * 5, int(limit)), 5000)
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "analytics_events",
             params={"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(fetch_limit)},
@@ -1693,7 +1752,7 @@ class SupabaseStore:
         return visible
 
     def list_analytics_events_page(self, limit=500, offset=0):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "analytics_events",
             params={
@@ -1706,7 +1765,7 @@ class SupabaseStore:
         return rows
 
     def _recent_interacted_users(self, limit=5000):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "analytics_events",
             params={"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(limit)},
@@ -1727,7 +1786,7 @@ class SupabaseStore:
         return users
 
     def _orders_by_user_for_campaigns(self, limit=5000):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "orders",
             params={
@@ -1839,7 +1898,7 @@ class SupabaseStore:
         return {"total": len(recipients), "counts": counts, "sample": recipients[:20]}
 
     def list_broadcast_campaigns(self, limit=100):
-        campaigns = self._request(
+        campaigns = self._cached_request(
             "GET",
             "broadcast_campaigns",
             params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "order": "created_at.desc", "limit": str(limit)},
@@ -1847,7 +1906,7 @@ class SupabaseStore:
         return campaigns
 
     def get_broadcast_campaign(self, campaign_id):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "broadcast_campaigns",
             params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
@@ -1863,7 +1922,7 @@ class SupabaseStore:
         }
         if status:
             params["status"] = f"eq.{_clean_text(status).upper()}"
-        return self._request("GET", "broadcast_recipients", params=params)
+        return self._cached_request("GET", "broadcast_recipients", params=params)
 
     def create_broadcast_campaign(self, raw):
         title = _clean_text(raw.get("title") or raw.get("name"))

@@ -178,6 +178,7 @@ import {
   getActivityLog,
   getBlacklist,
   getBotScheduleStatus,
+  getDashboardSummary,
   getCampaignRecipients,
   getCampaigns,
   getChannelPostEvents,
@@ -221,6 +222,7 @@ import {
   upsertSaleRule,
   type HiddenCode,
   type HiddenGroup,
+  type DashboardSummary,
   type VipGroupAuditRow,
   type VipMemberAuditRow,
   type SupportGroupCheck,
@@ -3014,6 +3016,7 @@ export default function Home() {
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
   const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3505,6 +3508,7 @@ export default function Home() {
         if (enabled) tasks.push(promiseFactory().then((res) => setter(res.data)));
       };
 
+      addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
       const needsOrders = !light && shouldLoad("overview", "analytics", "orders", "customers", "campaigns", "renewals");
       const needsUsers = !light && shouldLoad("overview", "analytics");
       const needsConfig = !light;
@@ -4926,6 +4930,19 @@ export default function Home() {
     const revenue = orders.filter((item) => item.status === "PAID").reduce((sum, item) => sum + orderAmountValue(item), 0);
     return { paid, pending, revenue, users: users.length, coupons: coupons.length, menu: menuPages.length };
   }, [orders, users, coupons, menuPages]);
+  const summaryCounts = useMemo(() => ({
+    orders: dashboardSummary?.orders_total ?? orders.length,
+    ordersPaid: dashboardSummary?.orders_paid ?? metrics.paid,
+    ordersPending: dashboardSummary?.orders_pending ?? metrics.pending,
+    supportEvents: dashboardSummary?.support_events ?? supportEvents.length,
+    activityEvents: dashboardSummary?.activity_events ?? activityEvents.length,
+    coupons: dashboardSummary?.coupons ?? coupons.length,
+    hiddenGroups: dashboardSummary?.hidden_groups ?? hiddenGroups.length,
+    hiddenCodes: dashboardSummary?.hidden_codes ?? hiddenCodes.length,
+    blacklist: dashboardSummary?.blacklist_active ?? blacklist.filter((item) => item.is_active).length,
+    campaigns: dashboardSummary?.broadcast_campaigns ?? campaigns.length,
+    channelPosts: dashboardSummary?.channel_posts ?? channelPosts.length,
+  }), [activityEvents.length, blacklist, campaigns.length, channelPosts.length, coupons.length, dashboardSummary, hiddenCodes.length, hiddenGroups.length, metrics, orders.length, supportEvents.length]);
   const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
   const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
   const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
@@ -6519,14 +6536,14 @@ export default function Home() {
               textColor="inherit"
               sx={sidebarTabSx}
             >
-              <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(orders.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="overview" icon={<Activity size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Tổng quan", "Overview")}</span><Chip size="small" label={String(summaryCounts.orders)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="analytics" icon={<BarChart3 size={16} />} iconPosition="start" label={ui("Thống kê", "Analytics")} />
               <Tab value="setup" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Nhóm & giá", "Groups & pricing")} />
-              <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(orders.filter((item) => item.status === "PENDING").length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="orders" icon={<ShoppingCart size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Đơn hàng", "Orders")}</span><Chip size="small" label={String(summaryCounts.ordersPending)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="customers" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>{ui("Khách hàng", "Customers")}</span><Chip size="small" label={String(customerSummaries.length || summaryCounts.orders)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="activityLog" icon={<ClipboardList size={16} />} iconPosition="start" label={ui("Nhật ký", "Activity log")} />
-              <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(campaigns.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
-              <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(channelPosts.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(summaryCounts.campaigns)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(summaryCounts.channelPosts)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
             </Tabs>
           </Box>
@@ -6549,12 +6566,12 @@ export default function Home() {
               <Tab value="botVi" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Việt" />
               <Tab value="botEn" icon={<FileText size={16} />} iconPosition="start" label="UI Bot tiếng Anh" />
               <Tab value="botTools" icon={<ClipboardList size={16} />} iconPosition="start" label="Phản hồi & cảnh báo" />
-              <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(hiddenGroups.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="specialGroups" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Special Group</span><Chip size="small" label={String(summaryCounts.hiddenGroups)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="menuBot" icon={<FileText size={16} />} iconPosition="start" label="Menu Bot" />
-              <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(coupons.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
+              <Tab value="coupons" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Coupon</span><Chip size="small" label={String(summaryCounts.coupons)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="activationCodes" icon={<Ticket size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Activation code</span><Chip size="small" label={String(activationCodes.length)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="security" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("Bảo mật", "Security")} />
-              <Tab value="vipAudit" icon={<Users size={16} />} iconPosition="start" label="VIP audit" />
+              <Tab value="vipAudit" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>VIP audit</span><Chip size="small" label={String(summaryCounts.blacklist)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
               <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
             </Tabs>
