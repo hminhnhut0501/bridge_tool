@@ -1706,6 +1706,143 @@ async def admin_dashboard_summary():
         raise HTTPException(status_code=500, detail=f"Không dựng được dashboard summary: {exc}")
 
 
+@app.get("/admin-api/dashboard-overview", dependencies=[Depends(require_admin)])
+async def admin_dashboard_overview():
+    try:
+        now = now_local()
+        orders = supabase_store.list_orders(limit=50)
+        support_events = supabase_store.list_support_events(limit=25)
+        activity_events = supabase_store.list_analytics_events(limit=25)
+
+        recent_orders = [
+            {
+                "order_id": order.get("order_id") or "",
+                "telegram_user_id": order.get("telegram_user_id") or "",
+                "full_name": order.get("full_name") or "",
+                "plan_name": order.get("plan_name") or "",
+                "amount": order.get("amount"),
+                "status": order.get("status") or "",
+                "created_at": order.get("created_at") or "",
+                "expire_at": order.get("expire_at") or "",
+                "payment_currency": order.get("payment_currency") or "",
+                "payment_provider": order.get("payment_provider") or "",
+            }
+            for order in orders[:10]
+        ]
+        top_paid_orders = [order for order in orders if _backend_text(order.get("status")).upper() == "PAID"]
+        paid_order_count = len(top_paid_orders)
+        pending_order_count = len([order for order in orders if _backend_text(order.get("status")).upper() == "PENDING"])
+        overview_trend = []
+        for order in top_paid_orders:
+            created = _backend_parse_datetime(order.get("created_at"))
+            label = created.astimezone(_backend_timezone()).strftime("%d/%m") if created else "-"
+            overview_trend.append({
+                "label": label,
+                "order_id": order.get("order_id") or "",
+                "plan_name": order.get("plan_name") or "",
+                "value": float(order.get("amount") or 0),
+                "vip": order.get("telegram_user_id") or "",
+            })
+        recent_user_activity = []
+        for event in activity_events[:10]:
+            payload = event.get("payload") or {}
+            chat_type = _backend_text(payload.get("chat_type")).lower()
+            if chat_type in {"group", "supergroup", "channel"}:
+                continue
+            recent_user_activity.append({
+                "id": event.get("id"),
+                "event_name": event.get("event_name"),
+                "telegram_user_id": event.get("telegram_user_id"),
+                "payload": payload,
+                "created_at": event.get("created_at"),
+            })
+            if len(recent_user_activity) >= 10:
+                break
+        recent_notifications = []
+        for event in support_events:
+            if event.get("event_type") not in {
+                "manual_order_created",
+                "manual_activation_link_generated",
+                "manual_activation_link_failed",
+                "activation_link_cleanup_done",
+                "activation_link_cleanup_failed",
+                "expired_notice_sent",
+                "renewal_reminder_sent",
+                "member_kicked",
+                "member_muted",
+                "member_unmuted",
+                "support_joined",
+                "support_left",
+                "vip_joined",
+                "vip_left",
+            }:
+                continue
+            recent_notifications.append({
+                "id": event.get("id"),
+                "event_type": event.get("event_type"),
+                "telegram_user_id": event.get("telegram_user_id"),
+                "full_name": event.get("full_name"),
+                "plan_name": event.get("plan_name"),
+                "order_id": event.get("order_id"),
+                "raw_data": event.get("raw_data") or {},
+                "created_at": event.get("created_at"),
+            })
+            if len(recent_notifications) >= 10:
+                break
+        expiring_customers = []
+        for order in orders:
+            if _backend_text(order.get("status")).upper() != "PAID":
+                continue
+            if order_is_lifetime(order.get("plan_name")):
+                continue
+            expire_at = order_datetime(order.get("expire_at"))
+            if not expire_at:
+                continue
+            days_remaining = int((expire_at.date() - now.date()).days)
+            if 0 <= days_remaining <= 3:
+                expiring_customers.append({
+                    "order_id": order.get("order_id") or "",
+                    "telegram_user_id": order.get("telegram_user_id") or "",
+                    "full_name": order.get("full_name") or "",
+                    "plan_name": order.get("plan_name") or "",
+                    "expire_at": order.get("expire_at") or "",
+                    "days_remaining": days_remaining,
+                })
+            if len(expiring_customers) >= 10:
+                break
+        health_alerts = []
+        health_alerts.append({"title": "Webhook", "detail": "Xem trạng thái ở khối trên", "tone": "good"})
+        health_alerts.append({"title": "Bot", "detail": "Sẵn sàng", "tone": "good"})
+        health_alerts.append({"title": "Đơn chờ", "detail": f"{pending_order_count} đơn đang chờ", "tone": "warning" if pending_order_count else "good"})
+        health_alerts.append({"title": "Sắp hết hạn", "detail": f"{len(expiring_customers)} khách trong khung nhắc", "tone": "warning" if expiring_customers else "good"})
+        priority_alerts = []
+        if pending_order_count:
+            priority_alerts.append({"title": "Đơn đang chờ", "detail": f"{pending_order_count} đơn chưa chốt trạng thái", "tone": "warning"})
+        if expiring_customers:
+            priority_alerts.append({"title": "Khách sắp hết hạn", "detail": f"{len(expiring_customers)} khách cần nhắc gia hạn", "tone": "warning"})
+        return {
+            "data": {
+                "recent_orders": recent_orders,
+                "recent_user_activity": recent_user_activity,
+                "recent_notifications": recent_notifications,
+                "expiring_customers": expiring_customers,
+                "health_alerts": health_alerts[:5],
+                "priority_alerts": priority_alerts[:4],
+                "trend_points": overview_trend[:10],
+                "counts": {
+                    "orders": len(orders),
+                    "paid_orders": paid_order_count,
+                    "pending_orders": pending_order_count,
+                    "support_events": len(support_events),
+                    "activity_events": len(activity_events),
+                },
+            }
+        }
+    except Exception as exc:
+        print(f"⚠️ Không dựng được dashboard overview: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được dashboard overview: {exc}")
+
+
 @app.patch("/admin-api/orders/{order_id}", dependencies=[Depends(require_admin)])
 async def admin_update_order(order_id: str, request: Request):
     body = await request.json()

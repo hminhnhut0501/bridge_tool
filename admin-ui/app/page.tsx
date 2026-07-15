@@ -183,6 +183,7 @@ import {
   getCampaigns,
   getChannelPostEvents,
   getChannelPosts,
+  getDashboardOverview,
   getActivationCodes,
   getCoupons,
   getHiddenCodes,
@@ -223,6 +224,7 @@ import {
   type HiddenCode,
   type HiddenGroup,
   type DashboardSummary,
+  type OverviewDashboard,
   type VipGroupAuditRow,
   type VipMemberAuditRow,
   type SupportGroupCheck,
@@ -3017,6 +3019,7 @@ export default function Home() {
   const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
   const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
@@ -3508,8 +3511,11 @@ export default function Home() {
         if (enabled) tasks.push(promiseFactory().then((res) => setter(res.data)));
       };
 
-      addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
       const overviewLite = scope === "overview";
+      addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
+      if (overviewLite) {
+        addTask(true, () => getDashboardOverview(activeSecret), setDashboardOverview);
+      }
       const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
       const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
       const needsConfig = !light;
@@ -3529,7 +3535,7 @@ export default function Home() {
       const needsWebhook = !light;
       const needsBotScheduleStatus = !light;
 
-      addTask(needsOrders, () => getOrders(activeSecret, overviewLite ? 100 : 5000), setOrders);
+      addTask(needsOrders, () => getOrders(activeSecret, overviewLite ? 50 : 5000), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
       addTask(needsConfig, () => getConfig(activeSecret), setConfig);
       addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
@@ -5887,17 +5893,29 @@ export default function Home() {
   }, [channelPosts]);
   const botScheduleStatus = botScheduleStatusApi;
   const overviewRecentOrders = useMemo(() => {
+    if (dashboardOverview?.recent_orders?.length) return dashboardOverview.recent_orders as Order[];
     return [...orders]
       .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0))
       .slice(0, 10);
-  }, [orders]);
+  }, [dashboardOverview?.recent_orders, orders]);
   const overviewNewCustomers = useMemo(() => {
+    if (dashboardOverview?.expiring_customers?.length) {
+      return dashboardOverview.expiring_customers.map((item) => {
+        const raw = item as { telegram_user_id?: string; order_id?: string; full_name?: string };
+        return {
+        id: String(raw.telegram_user_id || raw.order_id || ""),
+        name: String(raw.full_name || raw.telegram_user_id || ""),
+        orders: [],
+        };
+      }) as Array<{ id: string; name: string; orders: Order[] }>;
+    }
     return [...customerSummaries]
       .filter((item) => item.lastOrderAt || item.hasAnyPaidOrder || item.orders.length)
       .sort((a, b) => (safeDateMillis(b.lastOrderAt) ?? 0) - (safeDateMillis(a.lastOrderAt) ?? 0))
       .slice(0, 10);
-  }, [customerSummaries]);
+  }, [customerSummaries, dashboardOverview?.expiring_customers]);
   const overviewRecentUserActivity = useMemo(() => {
+    if (dashboardOverview?.recent_user_activity?.length) return dashboardOverview.recent_user_activity as ActivityEvent[];
     return [...activityEvents]
       .filter((event) => {
         const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
@@ -5905,8 +5923,21 @@ export default function Home() {
       })
       .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0))
       .slice(0, 10);
-  }, [activityEvents]);
+  }, [activityEvents, dashboardOverview?.recent_user_activity]);
   const overviewRecentNotifications = useMemo(() => {
+    if (dashboardOverview?.recent_notifications?.length) {
+      return dashboardOverview.recent_notifications.map((item) => ({
+        key: `support-${String(item.id || "")}`,
+        kind: "bot" as const,
+        title: supportEventLabel(String(item.event_type || "")),
+        detail: (() => {
+          const raw = item as { full_name?: string; plan_name?: string; order_id?: string; raw_data?: { reason?: string } };
+          return [String(raw.full_name || ""), String(raw.plan_name || ""), String(raw.order_id || "")].filter(Boolean).join(" • ") || String(raw.raw_data?.reason || "-");
+        })(),
+        createdAt: String((item as { created_at?: string }).created_at || ""),
+        userId: String((item as { telegram_user_id?: string }).telegram_user_id || ""),
+      }));
+    }
     const userEvents = activityEvents
       .filter((event) => {
         const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
@@ -5952,8 +5983,21 @@ export default function Home() {
         userId: event.telegram_user_id || "",
       }));
     return [...userEvents, ...botEvents].sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0)).slice(0, 10);
-  }, [activityEvents, supportEvents]);
+  }, [activityEvents, dashboardOverview?.recent_notifications, supportEvents]);
   const overviewExpiringCustomers = useMemo(() => {
+    if (dashboardOverview?.expiring_customers?.length) {
+      return dashboardOverview.expiring_customers.map((item) => {
+        const raw = item as { order_id?: string; telegram_user_id?: string; full_name?: string; plan_name?: string; expire_at?: string; days_remaining?: number };
+        return {
+          order_id: String(raw.order_id || ""),
+          telegram_user_id: String(raw.telegram_user_id || ""),
+          full_name: String(raw.full_name || ""),
+          plan_name: String(raw.plan_name || ""),
+          expire_at: String(raw.expire_at || ""),
+          daysRemaining: Number(raw.days_remaining || 0),
+        };
+      });
+    }
     return [...customerSummaries]
       .filter((item) => item.expiringWithinWindow || item.activeOrders.some((order) => daysUntil(order.expire_at) >= 0 && daysUntil(order.expire_at) <= reminderNoticeDays))
       .sort((a, b) => {
@@ -5962,8 +6006,9 @@ export default function Home() {
         return aDays - bDays;
       })
       .slice(0, 10);
-  }, [customerSummaries, reminderNoticeDays]);
+  }, [customerSummaries, dashboardOverview?.expiring_customers, reminderNoticeDays]);
   const overviewHealthAlerts = useMemo(() => {
+    if (dashboardOverview?.health_alerts?.length) return dashboardOverview.health_alerts;
     const alerts: { title: string; detail: string; tone: "good" | "warning" | "bad" }[] = [];
     if (webhookMeta?.maintenance_override?.active) alerts.push({ title: "Webhook", detail: webhookMeta.maintenance_override.reason || "Bot đang bảo trì do webhook lỗi", tone: "bad" });
     else if (!webhook?.url) alerts.push({ title: "Webhook", detail: "Chưa có URL webhook đang hoạt động", tone: "bad" });
@@ -5977,17 +6022,32 @@ export default function Home() {
       alerts.push({ title: "Thiếu cấu hình", detail: missingCore[0], tone: "bad" });
     }
     return alerts.slice(0, 5);
-  }, [botScheduleStatus, expiringSoon.length, metrics.pending, missingCore, webhook]);
+  }, [botScheduleStatus, dashboardOverview?.health_alerts, expiringSoon.length, metrics.pending, missingCore, webhook]);
   const overviewPriorityAlerts = useMemo(() => {
+    if (dashboardOverview?.priority_alerts?.length) return dashboardOverview.priority_alerts;
     const rows: { title: string; detail: string; tone: "warning" | "bad" }[] = [];
     if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
     if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
     if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
     if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Nhóm hỗ trợ", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
-  }, [expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
+  }, [dashboardOverview?.priority_alerts, expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
 
   const actionableFeed = useMemo(() => {
+    if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_notifications?.length || dashboardOverview?.recent_user_activity?.length) {
+      const overview = dashboardOverview!;
+      const feed: { type: string; id: string; priority: number; title: string; detail: string; time: string; tone: "critical" | "warning" | "good" }[] = [];
+      overview.priority_alerts.forEach((item, idx) => feed.push({ type: "alert", id: `summary-alert-${idx}`, priority: item.tone === "bad" ? 10 : 8, title: item.title, detail: item.detail, time: new Date().toISOString(), tone: item.tone === "bad" ? "critical" : "warning" }));
+      overview.recent_notifications.slice(0, 5).forEach((item, idx) => {
+        const raw = item as { event_type?: string; full_name?: string; plan_name?: string; order_id?: string; created_at?: string };
+        feed.push({ type: "bot", id: `summary-bot-${idx}`, priority: 4, title: supportEventLabel(String(raw.event_type || "")), detail: [String(raw.full_name || ""), String(raw.plan_name || ""), String(raw.order_id || "")].filter(Boolean).join(" • ") || "-", time: String(raw.created_at || new Date().toISOString()), tone: "good" });
+      });
+      overview.recent_orders.slice(0, 5).forEach((item, idx) => {
+        const raw = item as { order_id?: string; full_name?: string; plan_name?: string; created_at?: string };
+        feed.push({ type: "order", id: `summary-order-${idx}`, priority: 2, title: `Đơn mới: ${String(raw.order_id || "")}`, detail: `${String(raw.full_name || "Khách ẩn danh")} • ${String(raw.plan_name || "")}`, time: String(raw.created_at || new Date().toISOString()), tone: "good" });
+      });
+      return feed.sort((a, b) => b.priority - a.priority || (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0)).slice(0, 10);
+    }
     const feed: { type: string; id: string; priority: number; title: string; detail: string; time: string; tone: "critical" | "warning" | "good" }[] = [];
     
     // Priority Alerts (Critical)
@@ -6017,6 +6077,15 @@ export default function Home() {
   }, [missingCore, webhookMeta, webhook, botScheduleStatus, orders, expiringSoon]);
 
   const activityStream = useMemo(() => {
+    if (dashboardOverview?.recent_user_activity?.length) {
+      return dashboardOverview.recent_user_activity.slice(0, 20).map((e) => ({
+        id: `act-${String(e.id || "")}`,
+        type: String(e.event_name || "event"),
+        title: activityEventLabel(String(e.event_name || "event")),
+        detail: String(e.telegram_user_id || "Không rõ"),
+        time: String(e.created_at || new Date().toISOString()),
+      }));
+    }
     const stream: { id: string; type: string; title: string; detail: string; time: string }[] = [];
     overviewRecentUserActivity.slice(0, 20).forEach((e) => {
       stream.push({
@@ -6028,7 +6097,7 @@ export default function Home() {
       });
     });
     return stream.sort((a, b) => (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0));
-  }, [overviewRecentUserActivity, customerNameById]);
+  }, [dashboardOverview?.recent_user_activity, overviewRecentUserActivity, customerNameById]);
   const visibleChannelPosts = useMemo(() => {
     return channelPosts
       .filter((item) => channelPostTabFor(item) === channelPostTab)

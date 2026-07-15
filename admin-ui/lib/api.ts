@@ -224,6 +224,23 @@ export type DashboardSummary = {
   channel_posts: number;
 };
 
+export type OverviewDashboard = {
+  recent_orders: Array<Record<string, unknown>>;
+  recent_user_activity: Array<Record<string, unknown>>;
+  recent_notifications: Array<Record<string, unknown>>;
+  expiring_customers: Array<Record<string, unknown>>;
+  health_alerts: Array<{ title: string; detail: string; tone: "good" | "warning" | "bad" }>;
+  priority_alerts: Array<{ title: string; detail: string; tone: "warning" | "bad" }>;
+  trend_points: Array<Record<string, unknown>>;
+  counts: {
+    orders: number;
+    paid_orders: number;
+    pending_orders: number;
+    support_events: number;
+    activity_events: number;
+  };
+};
+
 export type KickAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -528,6 +545,10 @@ export async function getOrders(secret: string, limit = 5000) {
 
 export async function getDashboardSummary(secret: string) {
   return request<{ data: DashboardSummary }>("/admin-api/dashboard-summary", secret);
+}
+
+export async function getDashboardOverview(secret: string) {
+  return request<{ data: OverviewDashboard }>("/admin-api/dashboard-overview", secret);
 }
 
 export async function getUsers(secret: string) {
