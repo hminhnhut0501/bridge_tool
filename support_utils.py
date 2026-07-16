@@ -82,6 +82,51 @@ def support_inbox_enabled():
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def support_inbox_auto_reply_enabled():
+    raw = str(db.get_config("SUPPORT_INBOX_AUTO_REPLY_ENABLED", "ON") or "ON").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def support_inbox_auto_reply_text(language="vi"):
+    lang = str(language or "").strip().lower()
+    key = "SUPPORT_INBOX_AUTO_REPLY_TEXT_EN" if lang == "en" else "SUPPORT_INBOX_AUTO_REPLY_TEXT_VI"
+    default_text = (
+        "✅ Thanks for messaging us. Our support team will reply soon."
+        if lang == "en"
+        else "✅ Cảm ơn bạn đã nhắn cho support. Team sẽ phản hồi sớm nhất có thể."
+    )
+    return str(db.get_config(key, default_text) or default_text).strip()
+
+
+def render_support_inbox_auto_reply_text(*, user_id=None, ticket=None, language=None):
+    lang = str(language or "").strip().lower()
+    if lang not in {"vi", "en"}:
+        try:
+            lang = get_user_language(user_id)
+        except Exception:
+            lang = "vi"
+    template = support_inbox_auto_reply_text(lang)
+    ticket_no = ""
+    full_name = ""
+    username = ""
+    subject = ""
+    if ticket:
+        ticket_no = str(ticket.get("ticket_no") or "").strip()
+        full_name = str(ticket.get("full_name") or "").strip()
+        username = str(ticket.get("username") or "").strip()
+        subject = str(ticket.get("subject") or "").strip()
+    replacements = {
+        "{ticket_no}": escape_html(ticket_no),
+        "{full_name}": escape_html(full_name),
+        "{username}": escape_html(username),
+        "{subject}": escape_html(subject),
+    }
+    text = template
+    for key, value in replacements.items():
+        text = text.replace(key, value)
+    return text.strip()
+
+
 def support_ticket_prefix():
     return str(db.get_config("SUPPORT_TICKET_PREFIX", "SUP") or "SUP").strip().upper()[:6] or "SUP"
 
@@ -249,6 +294,14 @@ async def create_support_case_from_private_message(message, *, source="private_u
         )
     except Exception:
         pass
+
+    if created_new and support_inbox_auto_reply_enabled():
+        try:
+            reply_text = render_support_inbox_auto_reply_text(user_id=message.from_user.id, ticket=ticket)
+            if reply_text:
+                await message.answer(reply_text, parse_mode="HTML", disable_web_page_preview=True)
+        except Exception as exc:
+            print(f"⚠️ Không gửi được auto reply support inbox cho {message.from_user.id}: {exc}")
 
     await send_support_connecting_status(message, ticket)
 

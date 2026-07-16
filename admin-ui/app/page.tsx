@@ -1598,6 +1598,31 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
       { label: "Tắt", value: "OFF" },
     ],
   },
+  {
+    key: "SUPPORT_INBOX_AUTO_REPLY_ENABLED",
+    label: "Bật auto-reply support",
+    placeholder: "ON",
+    help: "Tự gửi 1 tin nhắn chào / xác nhận khi khách lần đầu mở ticket support. Có mẫu riêng cho vi/en.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "SUPPORT_INBOX_AUTO_REPLY_TEXT_VI",
+    label: "Auto-reply tiếng Việt",
+    placeholder: "✅ Cảm ơn bạn đã nhắn cho support. Team sẽ phản hồi sớm nhất có thể.",
+    help: "Biến hỗ trợ: {ticket_no}, {full_name}, {username}, {subject}.",
+    kind: "textarea",
+  },
+  {
+    key: "SUPPORT_INBOX_AUTO_REPLY_TEXT_EN",
+    label: "Auto-reply tiếng Anh",
+    placeholder: "✅ Thanks for messaging us. Our support team will reply soon.",
+    help: "Biến hỗ trợ: {ticket_no}, {full_name}, {username}, {subject}.",
+    kind: "textarea",
+  },
 ];
 
 const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
