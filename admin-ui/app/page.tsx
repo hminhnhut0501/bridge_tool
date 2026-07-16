@@ -9713,13 +9713,13 @@ export default function Home() {
                     borderColor: "rgba(148, 163, 184, 0.15)",
                     bgcolor: "rgba(255, 255, 255, 0.6)",
                     backdropFilter: "blur(12px)",
-                    borderRadius: 4,
+                    borderRadius: 3,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
                   }}
                 >
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                     {selectedCustomerIsBlacklisted ? (
-                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "error.lighter", border: 1, borderColor: "error.light" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "error.lighter", border: 1, borderColor: "error.light" }}>
                         <Typography variant="subtitle2" color="error.main" sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 0.5 }}>
                           <XCircle size={16} /> Khách bị Blacklist
                         </Typography>
@@ -9729,26 +9729,26 @@ export default function Home() {
 
                     {/* Compact Metrics Grid */}
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Đơn PAID</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.paidOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Đang active</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.activeOrders.length}</Typography>
                       </Box>
-                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Hạn gần nhất</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--ink)", mt: 0.5 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
                       </Box>
-                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Doanh thu</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", mt: 0.5 }}>{formatDisplayCurrency(Number(selectedCustomer.revenue || 0), "VND")}</Typography>
                       </Box>
                     </Box>
 
                     {/* Attention Point */}
-                    <Box sx={{ p: 1.5, borderRadius: 3, background: "linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)", border: 1, borderColor: "rgba(59,130,246,0.2)" }}>
+                    <Box sx={{ p: 1.5, borderRadius: 2.5, background: "linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)", border: 1, borderColor: "rgba(59,130,246,0.2)" }}>
                       <Typography variant="caption" color="primary.main" sx={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>Gợi ý Gia Hạn</Typography>
                       <Typography sx={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", mt: 0.5 }}>
                         {selectedCustomerRenewTargetOrder ? selectedCustomerRenewTargetOrder.plan_name : "Khách chưa có đơn gợi ý"}
@@ -9797,8 +9797,79 @@ export default function Home() {
                 </Box>
 
               <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0, display: "flex", flexDirection: "column" }}>
+                {customerDetailTab !== "orders" ? (
+                  <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
+                    <PanelHead
+                      title="Nhóm active & Dấu vết"
+                      subtitle="Tóm tắt nhanh quyền hiện tại và audit group của khách trong cùng một khối."
+                    />
+                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.2fr" } }}>
+                      <Box
+                        sx={{
+                          p: 1.75,
+                          borderRadius: 3,
+                          border: 1,
+                          borderColor: "rgba(37,99,235,0.16)",
+                          bgcolor: "rgba(37,99,235,0.04)",
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                          Nhóm còn active
+                        </Typography>
+                        {selectedCustomerActiveGroups.length ? (
+                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                            {selectedCustomerActiveGroups.map((group) => (
+                              <Box
+                                key={group}
+                                component="span"
+                                sx={{
+                                  fontSize: 14,
+                                  fontWeight: 800,
+                                  px: 1.5,
+                                  py: 1,
+                                  borderRadius: 999,
+                                  background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
+                                  border: "1px solid rgba(37,99,235,0.18)",
+                                  color: "#1e3a8a",
+                                }}
+                              >
+                                {group}
+                              </Box>
+                            ))}
+                          </Box>
+                        ) : (
+                          <div className="empty-card">Chưa có nhóm active nào.</div>
+                        )}
+                      </Box>
+
+                      <Box
+                        sx={{
+                          p: 1.75,
+                          borderRadius: 3,
+                          border: 1,
+                          borderColor: "rgba(99,102,241,0.14)",
+                          bgcolor: "rgba(255,255,255,0.75)",
+                          minWidth: 0,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                          Dấu vết group
+                        </Typography>
+                        {selectedCustomerGroupAuditRows.length ? (
+                          <SimpleTable
+                            headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
+                            rows={selectedCustomerGroupAuditRows}
+                          />
+                        ) : (
+                          <div className="empty-card">Chưa có audit group nào cho khách này.</div>
+                        )}
+                      </Box>
+                    </Box>
+                  </section>
+                ) : null}
+
                 {/* Sleek Header Bar */}
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 3, p: 2, borderRadius: 4, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 2.5, p: 2, borderRadius: 3, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                     <Chip
                       label={selectedCustomer.statusLabel}
@@ -9852,65 +9923,6 @@ export default function Home() {
                     />
                   </>
                 ) : null}
-                {customerDetailTab === "groups" ? (
-                    <>
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Group active" value={String(selectedCustomer.activeOrders.length)} accent="blue" icon={<Users size={16} />} />
-                      <Metric label="Còn trong hệ thống" value={selectedCustomerActiveGroups.length ? String(selectedCustomerActiveGroups.length) : "0"} accent="emerald" icon={<ShieldCheck size={16} />} />
-                      <Metric label="Audit group" value={String(selectedCustomerGroupAuditSummary.total)} accent="violet" icon={<ClipboardList size={16} />} />
-                      <Metric label="Có live check" value={String(selectedCustomerGroupAuditSummary.liveChecked)} accent="cyan" icon={<Eye size={16} />} />
-                    </Box>
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Giữ quyền" value={String(selectedCustomerGroupAuditSummary.retained)} accent="emerald" icon={<CheckCircle2 size={16} />} />
-                      <Metric label="Đã kick" value={String(selectedCustomerGroupAuditSummary.kicked)} accent="rose" icon={<XCircle size={16} />} />
-                      <Metric label="Nhóm hiện tại" value={String(selectedCustomerGroupAuditSummary.currentGroups)} accent="amber" icon={<Users size={16} />} />
-                      <Metric label="Có dữ liệu lịch sử" value={String(selectedCustomerGroupAuditSummary.total > 0 ? 1 : 0)} accent="indigo" icon={<Activity size={16} />} />
-                    </Box>
-                    <section className="panel nested-panel" style={{ borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: "var(--mui-palette-primary-main)" }}>
-                      <PanelHead title="Nhóm còn active" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
-                      {selectedCustomerActiveGroups.length ? (
-                        <div
-                          className="tag-list"
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "10px",
-                            padding: "6px 0 2px",
-                          }}
-                        >
-                          {selectedCustomerActiveGroups.map((group) => (
-                            <span
-                              key={group}
-                              style={{
-                                fontSize: "14px",
-                                fontWeight: 800,
-                                padding: "10px 14px",
-                                borderRadius: "999px",
-                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
-                                border: "1px solid rgba(37,99,235,0.18)",
-                                color: "#1e3a8a",
-                                boxShadow: "0 8px 18px rgba(37,99,235,0.08)",
-                              }}
-                            >
-                              {group}
-                            </span>
-                          ))}
-                        </div>
-                      ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
-                    </section>
-                    <section className="panel nested-panel">
-                      <PanelHead title="Dấu vết group" subtitle="Audit mà bot ghi nhận được từ quyền hiện tại, live check và trạng thái kick/giữ quyền." />
-                      {selectedCustomerGroupAuditRows.length ? (
-                        <SimpleTable
-                          headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
-                          rows={selectedCustomerGroupAuditRows}
-                        />
-                      ) : (
-                        <div className="empty-card">Chưa có audit group nào cho khách này.</div>
-                      )}
-                    </section>
-                  </>
-                ) : null}
                 {customerDetailTab === "timeline" ? (
                   <>
                     <Tabs
@@ -9935,7 +9947,7 @@ export default function Home() {
                       <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} accent="amber" icon={<TrendingUp size={16} />} />
                       <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} accent="rose" icon={<XCircle size={16} />} />
                     </Box>
-                    <section className="panel nested-panel">
+                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
                       <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
                       <SimpleTable
                         headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
