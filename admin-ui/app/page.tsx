@@ -5323,7 +5323,7 @@ export default function Home() {
       {
         at: selectedOrderForEditor.created_at,
         title: "Đơn được tạo",
-        detail: `${orderPlanKind(selectedOrderForEditor)} • ${orderStatusLabel(selectedOrderForEditor.status)}${orderNoteText(selectedOrderForEditor) ? ` • ${orderNoteText(selectedOrderForEditor)}` : ""}`,
+        detail: `${orderAdminLabel(selectedOrderForEditor)} • ${orderStatusLabel(selectedOrderForEditor.status)}${orderNoteText(selectedOrderForEditor) ? ` • ${orderNoteText(selectedOrderForEditor)}` : ""}`,
       },
       selectedOrderForEditor.paid_at ? {
         at: selectedOrderForEditor.paid_at,
@@ -5340,7 +5340,8 @@ export default function Home() {
         title: event.event_type,
         detail: (() => {
           const rawData = (event.raw_data && typeof event.raw_data === "object") ? (event.raw_data as Record<string, unknown>) : null;
-          const parts = [event.plan_name || "", String(rawData?.note || ""), String(rawData?.deleted_at || "")].filter(Boolean);
+          const displayPlan = String(rawData?.admin_label || rawData?.display_name || event.plan_name || "").trim();
+          const parts = [displayPlan || "", String(rawData?.note || ""), String(rawData?.deleted_at || "")].filter(Boolean);
           return parts.join(" • ") || `${event.telegram_user_id || userId || "-"}${event.order_id ? ` • ${event.order_id}` : ""}`;
         })(),
       })),
@@ -9222,11 +9223,6 @@ export default function Home() {
                           <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
                             {orderAdminLabel(customerQuickLookupResult.latestExpireOrder)}
                           </Typography>
-                          {orderAdminLabel(customerQuickLookupResult.latestExpireOrder) !== resolveOrderTechLabel(customerQuickLookupResult.latestExpireOrder) ? (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.1 }}>
-                              Kỹ thuật: {resolveOrderTechLabel(customerQuickLookupResult.latestExpireOrder)}
-                            </Typography>
-                          ) : null}
                         </Box>
                       ) : "-"],
                       ["Group gần nhất", customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"],
@@ -9370,12 +9366,11 @@ export default function Home() {
                 <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 3 }}>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
                   <Alert severity="info" variant="outlined">
-                    <strong>Kỹ thuật:</strong> {manualOrderResult.plan_name}
+                    <strong>Hiển thị:</strong> {manualOrderResult.admin_label || manualOrderResult.plan_name}
                     {manualOrderResult.admin_label && manualOrderResult.admin_label !== manualOrderResult.plan_name ? (
-                      <>
-                        {" "}
-                        · <strong>Hiển thị:</strong> {manualOrderResult.admin_label}
-                      </>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                        Kỹ thuật: {manualOrderResult.plan_name}
+                      </Typography>
                     ) : null}
                   </Alert>
                   
@@ -10180,16 +10175,11 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
 
               {/* Cột 2: Gói & Nhóm */}
               <Box sx={{ flexGrow: 1, minWidth: 0, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" }, display: "flex", flexDirection: "column", gap: 0.5 }}>
-                <Tooltip title={`Kỹ thuật: ${techLabel}`} arrow>
+                <Tooltip title={techLabel !== displayLabel ? `Kỹ thuật: ${techLabel}` : displayLabel} arrow>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {displayLabel}
                     </Typography>
-                    {displayLabel !== techLabel ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        Kỹ thuật: {techLabel}
-                      </Typography>
-                    ) : null}
                   </Box>
                 </Tooltip>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
