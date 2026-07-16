@@ -36,7 +36,7 @@ import { dateText, dateTextShort, dateTimePreviewText, daysUntil, dayKey, friend
 import { ManualOrderDialog, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
-type MobileAction = "lookup" | "manual";
+type MobileTab = "manual" | "lookup" | "orders" | "logs";
 
 function getStoredSecret() {
   if (typeof window === "undefined") return "";
@@ -67,7 +67,7 @@ export default function MobileAdminPage() {
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
-  const [manualTab, setManualTab] = useState<MobileAction>("manual");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("manual");
   const [manualDrawerOpen, setManualDrawerOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualOrderResult | null>(null);
@@ -287,7 +287,7 @@ export default function MobileAdminPage() {
   }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel]);
 
   function openManualDrawerFromCustomer(customer?: CustomerSearchResult | null) {
-    setManualTab("manual");
+    setMobileTab("manual");
     if (customer) {
       const activeOrder = customer.activeOrders?.[0] || null;
       const latestPaidOrder = customer.paidOrders?.[0] || null;
@@ -427,9 +427,11 @@ export default function MobileAdminPage() {
           </Stack>
         </Box>
         <Box sx={{ px: 1.5, pb: 1.25 }}>
-          <Tabs value={manualTab} onChange={(_, value) => setManualTab(value)} variant="scrollable" scrollButtons="auto" sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 } }}>
-            <Tab value="manual" label="Tác vụ" />
+          <Tabs value={mobileTab} onChange={(_, value) => setMobileTab(value)} variant="scrollable" scrollButtons="auto" sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 } }}>
+            <Tab value="manual" label="Tạo đơn" />
             <Tab value="lookup" label="Tra cứu" />
+            <Tab value="orders" label="Đơn hàng" />
+            <Tab value="logs" label="Nhật ký" />
           </Tabs>
         </Box>
       </Box>
@@ -445,7 +447,7 @@ export default function MobileAdminPage() {
 
         {copyNote ? <Alert severity={copyNote.includes("thất bại") ? "error" : "success"} variant="outlined">{copyNote}</Alert> : null}
 
-        {manualTab === "lookup" ? (
+        {mobileTab === "lookup" ? (
           <AppSection title="Tra cứu khách hàng" subtitle="Nhập Telegram ID, tên, hoặc từ khóa gói." accent="violet">
             <Stack spacing={1.25}>
               <TextField size="small" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Ví dụ: 7508222302, @username, tên khách" fullWidth />
@@ -493,7 +495,7 @@ export default function MobileAdminPage() {
           </AppSection>
         ) : null}
 
-        {manualTab === "manual" ? (
+        {mobileTab === "manual" ? (
           <AppSection
             title="Tạo đơn thủ công"
             subtitle="Mở drawer tạo đơn theo đúng luồng PC, rồi lấy active code/join link ngay trong kết quả."
@@ -506,6 +508,7 @@ export default function MobileAdminPage() {
           </AppSection>
         ) : null}
 
+        {mobileTab === "orders" ? (
         <AppSection
           title="Danh sách đơn hàng"
           subtitle="Giữ cùng data source với PC, nhưng hiển thị responsive để bám thao tác trên điện thoại."
@@ -549,7 +552,9 @@ export default function MobileAdminPage() {
             <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} label="đơn" />
           </Stack>
         </AppSection>
+        ) : null}
 
+        {mobileTab === "logs" ? (
         <AppSection
           title="Nhật ký gần đây"
           subtitle="Bộ lọc và cách hiển thị bám theo tab Nhật ký của PC."
@@ -606,6 +611,7 @@ export default function MobileAdminPage() {
             <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredActivityLog.length} onPage={setLogPage} label="event" />
           </Stack>
         </AppSection>
+        ) : null}
 
         {manualResult ? (
           <AppSection title="Kết quả gần nhất" subtitle="Nhanh tay copy ngay khi cần." accent="emerald">

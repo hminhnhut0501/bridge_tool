@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Alert, Box, Button, Chip, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
@@ -93,6 +93,7 @@ export function ManualOrderDialog({
     return `Sẽ áp dụng: ${form.duration_days || "30"} ngày`;
   }, [form.duration_days, form.expire_at, form.expiry_mode, planName]);
   const orderLabel = result ? resolveOrderLabel(result) : null;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
     <MuiDialogShell
@@ -151,43 +152,52 @@ export function ManualOrderDialog({
                 <MenuItem value="LIFE">Trọn đời</MenuItem>
               </TextField>
             ) : null}
-            <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
+            <Button variant="text" onClick={() => setAdvancedOpen((current) => !current)} sx={{ justifyContent: "flex-start", px: 0, mt: -0.5 }}>
+              {advancedOpen ? "Ẩn bớt tuỳ chọn" : "Hiện thêm tuỳ chọn"}
+            </Button>
+            {advancedOpen ? (
+              <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
+            ) : null}
           </Stack>
 
           <Stack spacing={2}>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-              <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
-              <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
-                const nextCurrency = event.target.value;
-                const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;
-                setForm((current) => ({
-                  ...current,
-                  payment_currency: nextCurrency,
-                  amount: selectedGroup ? String(hiddenGroupManualPrice(selectedGroup, form.special_group_duration || "1M", nextCurrency) || "0") : current.amount,
-                }));
-              }} size="small">
-                <MenuItem value="VND">VNĐ</MenuItem>
-                <MenuItem value="USD">USD</MenuItem>
-                <MenuItem value="USDT">USDT</MenuItem>
-              </TextField>
-            </Box>
-            <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
-              <MenuItem value="MANUAL">Thủ công</MenuItem>
-              <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
-              <MenuItem value="PAYPAL">PayPal</MenuItem>
-              <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
-            </TextField>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-              <TextField select label="Kiểu hết hạn" value={form.expiry_mode} onChange={(event) => setForm((current) => ({ ...current, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
-                <MenuItem value="days">Theo số ngày</MenuItem>
-                <MenuItem value="date">Ngày cụ thể</MenuItem>
-              </TextField>
-              {form.expiry_mode === "days" ? (
-                <TextField label="Số ngày sử dụng" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={form.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview} />
-              ) : (
-                <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
-              )}
-            </Box>
+            {advancedOpen ? (
+              <>
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
+                  <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
+                  <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
+                    const nextCurrency = event.target.value;
+                    const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;
+                    setForm((current) => ({
+                      ...current,
+                      payment_currency: nextCurrency,
+                      amount: selectedGroup ? String(hiddenGroupManualPrice(selectedGroup, form.special_group_duration || "1M", nextCurrency) || "0") : current.amount,
+                    }));
+                  }} size="small">
+                    <MenuItem value="VND">VNĐ</MenuItem>
+                    <MenuItem value="USD">USD</MenuItem>
+                    <MenuItem value="USDT">USDT</MenuItem>
+                  </TextField>
+                </Box>
+                <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+                  <MenuItem value="MANUAL">Thủ công</MenuItem>
+                  <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
+                  <MenuItem value="PAYPAL">PayPal</MenuItem>
+                  <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+                </TextField>
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                  <TextField select label="Kiểu hết hạn" value={form.expiry_mode} onChange={(event) => setForm((current) => ({ ...current, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
+                    <MenuItem value="days">Theo số ngày</MenuItem>
+                    <MenuItem value="date">Ngày cụ thể</MenuItem>
+                  </TextField>
+                  {form.expiry_mode === "days" ? (
+                    <TextField label="Số ngày sử dụng" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={form.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview} />
+                  ) : (
+                    <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
+                  )}
+                </Box>
+              </>
+            ) : null}
             <TextField label="Ghi chú nội bộ cho đơn" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công..." size="small" multiline minRows={2} />
           </Stack>
         </Box>
