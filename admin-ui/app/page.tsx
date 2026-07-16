@@ -157,6 +157,7 @@ import {
   MenuPage,
   Order,
   SaleRule,
+  SupportCaseItem,
   SupportEvent,
   UserRow,
   WebhookInfo,
@@ -205,6 +206,7 @@ import {
   getOrders,
   getSaleRules,
   searchCustomers,
+  getSupportCases,
   getSupportEvents,
   getCustomerIdentityHistory,
   getUsers,
@@ -3071,6 +3073,9 @@ export default function Home() {
   const activityLogRequestIdRef = useRef(0);
   const [adminReplyOpen, setAdminReplyOpen] = useState(false);
   const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string } | null>(null);
+  const [adminReplyThread, setAdminReplyThread] = useState<SupportCaseItem | null>(null);
+  const [adminReplyThreadLoading, setAdminReplyThreadLoading] = useState(false);
+  const [adminReplyVisibleMessages, setAdminReplyVisibleMessages] = useState(5);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
@@ -3084,6 +3089,20 @@ export default function Home() {
   const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [supportInboxSeenIds, setSupportInboxSeenIds] = useState<string[]>([]);
   const [supportInboxMenuAnchorEl, setSupportInboxMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [supportInboxCases, setSupportInboxCases] = useState<SupportCaseItem[]>([]);
+  const [supportInboxCasesLoading, setSupportInboxCasesLoading] = useState(false);
+  const refreshSupportInboxCases = useCallback(async () => {
+    if (!savedSecret) return;
+    setSupportInboxCasesLoading(true);
+    try {
+      const res = await getSupportCases(savedSecret, "", 12);
+      setSupportInboxCases(res.data || []);
+    } catch (err) {
+      console.warn("⚠️ Không tải được support cases:", err);
+    } finally {
+      setSupportInboxCasesLoading(false);
+    }
+  }, [savedSecret]);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
   const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
@@ -3399,6 +3418,15 @@ export default function Home() {
     }, 30 * 1000);
     return () => window.clearInterval(interval);
   }, [savedSecret]);
+
+  useEffect(() => {
+    if (!savedSecret) return;
+    void refreshSupportInboxCases();
+    const interval = window.setInterval(() => {
+      void refreshSupportInboxCases();
+    }, 15 * 1000);
+    return () => window.clearInterval(interval);
+  }, [savedSecret, refreshSupportInboxCases]);
 
   useEffect(() => {
     if (!savedSecret || tab !== "campaigns") return;
@@ -4359,7 +4387,21 @@ export default function Home() {
       sourceText: entry.title || entry.detail || "",
     });
     setAdminReplyText("");
+    setAdminReplyThread(null);
+    setAdminReplyVisibleMessages(5);
     setAdminReplyOpen(true);
+    void (async () => {
+      setAdminReplyThreadLoading(true);
+      try {
+        const res = await getSupportCases(savedSecret, entry.userId, 1);
+        setAdminReplyThread(res.data?.[0] || null);
+      } catch (err) {
+        console.warn("⚠️ Không tải được thread support:", err);
+        setAdminReplyThread(null);
+      } finally {
+        setAdminReplyThreadLoading(false);
+      }
+    })();
   }
 
   async function submitAdminReply() {
@@ -6221,50 +6263,37 @@ export default function Home() {
   const previousUnreadCountRef = useRef(0);
 
   const supportInboxItems = useMemo(() => {
-    const grouped = new Map<string, {
-      id: string;
-      event_type: string;
-      telegram_user_id: string;
-      username: string;
-      full_name: string;
-      title: string;
-      detail: string;
-      created_at: string;
-      ticket_id: string;
-      ticket_no: string;
-      order_id: string;
-      plan_name: string;
-    }>();
-
-    for (const item of [...supportEvents]
-      .filter((item) => ["support_ticket_created", "support_ticket_reused"].includes(item.event_type))
-      .sort((a, b) => (safeDateMillis(a.created_at) ?? 0) - (safeDateMillis(b.created_at) ?? 0))) {
-      const raw = item.raw_data || {};
-      const previewText = displayText(
-        String(raw.message_text || raw.text || raw.caption || raw.reason || raw.subject || item.order_id || item.plan_name || "")
-      );
-      const hasMedia = Boolean(raw.media_type || raw.file_name || raw.file_id);
-      const ticketId = String(raw.ticket_id || "").trim();
-      const telegramUserId = String(item.telegram_user_id || raw.telegram_user_id || "").trim();
-      const threadKey = ticketId || telegramUserId || item.id;
-      grouped.set(threadKey, {
-        id: item.id,
-        event_type: item.event_type,
-        telegram_user_id: telegramUserId,
-        username: String(item.username || raw.username || "").trim(),
-        full_name: String(item.full_name || raw.full_name || "").trim(),
-        title: displayText(item.full_name || item.username) || String(telegramUserId || "Khách"),
-        detail: previewText || (hasMedia ? "Tin nhắn có tệp/ảnh" : "Tin nhắn riêng"),
-        created_at: item.created_at,
-        ticket_id: ticketId,
-        ticket_no: String(raw.ticket_no || "").trim(),
-        order_id: String(item.order_id || "").trim(),
-        plan_name: String(item.plan_name || "").trim(),
-      });
-    }
-
-    return Array.from(grouped.values()).sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
-  }, [supportEvents]);
+    return [...supportInboxCases]
+      .map((item) => {
+        const ticket = item.ticket;
+        const messages = [...(item.messages || [])].sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
+        const latestMessage = messages[0] || null;
+        const latestUserMessage = messages.find((message) => String(message.direction || "").toLowerCase().includes("user")) || latestMessage;
+        const previewText = displayText(
+          String(latestUserMessage?.text || latestMessage?.text || ticket.subject || ticket.full_name || ticket.telegram_user_id || "")
+        );
+        const hasExtraMessages = messages.length > 1;
+        return {
+          id: ticket.id,
+          event_type: "support_case",
+          telegram_user_id: String(ticket.telegram_user_id || "").trim(),
+          username: String(ticket.username || "").trim(),
+          full_name: String(ticket.full_name || "").trim(),
+          title: displayText(ticket.full_name || ticket.username) || String(ticket.telegram_user_id || "Khách"),
+          detail: previewText || "Tin nhắn riêng",
+          created_at: latestMessage?.created_at || ticket.updated_at || ticket.created_at,
+          ticket_id: ticket.id,
+          ticket_no: String(ticket.ticket_no || "").trim(),
+          order_id: String(ticket.subject || "").trim(),
+          plan_name: String(ticket.source || "").trim(),
+          latestMessageText: previewText,
+          messageCount: messages.length,
+          hasExtraMessages,
+          messages,
+        };
+      })
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
+  }, [supportInboxCases]);
 
   const unreadSupportInboxItems = useMemo(() => {
     const seen = new Set(supportInboxSeenIds);
@@ -7067,15 +7096,7 @@ export default function Home() {
                   <Tooltip title="Làm mới">
                     <IconButton
                       size="small"
-                      onClick={async () => {
-                        if (!savedSecret) return;
-                        try {
-                          const res = await getSupportEvents(savedSecret);
-                          setSupportEvents(res.data || []);
-                        } catch (err) {
-                          console.warn("⚠️ Không tải được support inbox:", err);
-                        }
-                      }}
+                      onClick={() => void refreshSupportInboxCases()}
                     >
                       <RefreshCw size={17} />
                     </IconButton>
@@ -7083,7 +7104,11 @@ export default function Home() {
                 </Stack>
               </Box>
               <Box sx={{ maxHeight: 420, overflowY: "auto" }}>
-                {supportInboxItems.length ? supportInboxItems.map((item) => {
+                {supportInboxCasesLoading && !supportInboxItems.length ? (
+                  <Box sx={{ px: 1.5, py: 2.5, textAlign: "center", color: "text.secondary" }}>
+                    Đang tải inbox hỗ trợ...
+                  </Box>
+                ) : supportInboxItems.length ? supportInboxItems.map((item) => {
                   const unread = !supportInboxSeenIds.includes(item.id);
                   return (
                     <Box key={item.id} sx={{ borderBottom: 1, borderColor: "rgba(148,163,184,0.10)", bgcolor: unread ? "rgba(14,165,233,0.03)" : "background.paper" }}>
@@ -7120,7 +7145,7 @@ export default function Home() {
                             ID: {item.telegram_user_id || "-"}
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {dateText(item.created_at)}
+                            {item.detail || "Tin nhắn riêng"} · {dateText(item.created_at)}
                           </Typography>
                         </Box>
                         <Button
@@ -9312,9 +9337,71 @@ export default function Home() {
         {adminReplyOpen && adminReplyTarget ? (
           <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="sm">
             <Box sx={{ display: "grid", gap: 1.25 }}>
-              <Alert severity="info" variant="outlined">
-                Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
-              </Alert>
+              <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(59,130,246,0.04)" }}>
+                <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Chuỗi tin nhắn gần nhất</Typography>
+                {adminReplyThreadLoading ? (
+                  <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
+                ) : adminReplyThread?.messages?.length ? (
+                  <Stack spacing={0.65} sx={{ maxHeight: 320, overflowY: "auto", pr: 0.5 }}>
+                    {adminReplyThread.messages.slice(Math.max(0, adminReplyThread.messages.length - adminReplyVisibleMessages)).map((message) => {
+                      const isAdmin = String(message.direction || "").toLowerCase().includes("manager") || String(message.direction || "").toLowerCase().includes("bot");
+                      const bubbleSx = isAdmin
+                        ? {
+                            alignSelf: "flex-end",
+                            bgcolor: "rgba(37,99,235,0.10)",
+                            color: "rgb(15,23,42)",
+                            borderTopRightRadius: 1.5,
+                            borderTopLeftRadius: 3,
+                          }
+                        : {
+                            alignSelf: "flex-start",
+                            bgcolor: "#f8fafc",
+                            color: "rgb(15,23,42)",
+                            borderTopLeftRadius: 1.5,
+                            borderTopRightRadius: 3,
+                          };
+                      return (
+                        <Box
+                          key={message.id}
+                          sx={{
+                            ...bubbleSx,
+                            maxWidth: "86%",
+                            px: 1.15,
+                            py: 0.85,
+                            borderRadius: 2.5,
+                            boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                            border: "1px solid rgba(148,163,184,0.10)",
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 13.25, lineHeight: 1.42, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: "right", fontSize: 10.5 }}>
+                            {dateText(message.created_at)}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: "center", pt: 0.25 }}>
+                      {adminReplyThread.messages.length > adminReplyVisibleMessages ? (
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={() => setAdminReplyVisibleMessages((current) => Math.min(current + 5, adminReplyThread.messages.length))}
+                          sx={{ fontWeight: 800 }}
+                        >
+                          Tải thêm tin cũ hơn
+                        </Button>
+                      ) : null}
+                    </Stack>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
+                  </Typography>
+                )}
+              </Box>
               <TextField
                 autoFocus
                 label="Nội dung trả lời"

@@ -124,6 +124,35 @@ export type SupportEvent = {
   created_at: string;
 };
 
+export type SupportMessage = {
+  id: string;
+  ticket_id: string;
+  direction: string;
+  telegram_message_id: string | null;
+  manager_group_message_id: string | null;
+  manager_topic_message_id: string | null;
+  reply_to_manager_message_id: string | null;
+  text: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type SupportCaseItem = {
+  ticket: {
+    id: string;
+    ticket_no: string;
+    telegram_user_id: string;
+    username: string | null;
+    full_name: string | null;
+    subject: string | null;
+    status: string;
+    source: string | null;
+    updated_at: string;
+    created_at: string;
+  };
+  messages: SupportMessage[];
+};
+
 export type CustomerIdentityHistoryRow = {
   id: string;
   telegram_user_id: string;
@@ -946,6 +975,15 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
 
 export async function getSupportEvents(secret: string, limit = 1000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
+}
+
+export async function getSupportCases(secret: string, query = "", limit = 20, status = "") {
+  const params = new URLSearchParams({
+    query,
+    limit: String(limit),
+    status,
+  });
+  return request<{ data: SupportCaseItem[] }>(`/admin-api/support-cases?${params.toString()}`, secret);
 }
 
 export async function getCustomerIdentityHistory(secret: string, telegramUserId: string, limit = 50) {
