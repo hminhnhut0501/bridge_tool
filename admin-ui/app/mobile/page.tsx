@@ -29,7 +29,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order, OverviewDashboard } from "@/lib/api";
+import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, MuiDialogShell, statusChipSx } from "../dashboard-components";
 import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
@@ -60,7 +60,6 @@ export default function MobileAdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [overview, setOverview] = useState<OverviewDashboard | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerLoading, setCustomerLoading] = useState(false);
@@ -86,6 +85,7 @@ export default function MobileAdminPage() {
 
   const lastOrders = useMemo(() => [...orders].slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 12), [orders]);
   const topActivity = useMemo(() => activityLog.slice(0, 12), [activityLog]);
+  const uniqueCustomerCount = useMemo(() => new Set(orders.map((item) => String(item.telegram_user_id || "").trim()).filter(Boolean)).size, [orders]);
   const selectedCustomerOrderLabel = useMemo(() => {
     const activeOrder = selectedCustomer?.activeOrders?.[0] || null;
     const latestPaidOrder = selectedCustomer?.paidOrders?.[0] || null;
@@ -107,14 +107,13 @@ export default function MobileAdminPage() {
     const load = async () => {
       setRefreshing(true);
       try {
-        const [ordersRes, overviewRes, activityRes] = await Promise.all([
+        const [ordersRes, , activityRes] = await Promise.all([
           getOrders(savedSecret, 120),
           getDashboardOverview(savedSecret),
           getActivityLog(savedSecret, { page: 1, limit: 30, direction: "all", type: "ALL", date: "ALL" }),
         ]);
         if (!active) return;
         setOrders(ordersRes.data || []);
-        setOverview(overviewRes.data || null);
         setActivityLog(activityRes.data || []);
       } catch (error) {
         console.error(error);
@@ -205,7 +204,6 @@ export default function MobileAdminPage() {
         telegram_user_id: manualForm.telegram_user_id.trim(),
         full_name: displayText(manualForm.full_name) || undefined,
         plan_name: manualForm.plan_name.trim(),
-        admin_label: displayText(manualForm.admin_label) || undefined,
         amount: manualForm.amount.trim() || undefined,
         duration_days: manualForm.duration_days.trim() || undefined,
         expire_at: manualForm.expire_at.trim() || undefined,
@@ -306,7 +304,7 @@ export default function MobileAdminPage() {
         <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
           <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{orders.length}</Typography></CardContent></Card>
           <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">PAID</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{orders.filter((item) => item.status === "PAID").length}</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{overview?.counts?.orders ?? selectedCustomer?.paidOrderCount ?? 0}</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{uniqueCustomerCount}</Typography></CardContent></Card>
           <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Log</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{activityLog.length}</Typography></CardContent></Card>
         </Box>
 
@@ -438,7 +436,7 @@ export default function MobileAdminPage() {
         ) : null}
       </Box>
 
-        <MuiDialogShell
+      <MuiDialogShell
         open={manualDrawerOpen}
         title="Tạo đơn thủ công"
         subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."

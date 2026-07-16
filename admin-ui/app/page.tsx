@@ -1844,15 +1844,15 @@ const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_INFO_TEMPLATE",
     label: "Khối thông tin đơn",
-    placeholder: "🧾 Đơn hàng: {order_id}\\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\\n📦 Gói: {admin_label}\\n⏳ Hạn dùng: {expire_at}",
-    help: "Dùng trong cả 2 tin. Biến: {order_id}, {telegram_user_id}, {full_name}, {admin_label}, {plan_name}, {expire_at}.",
+    placeholder: "🧾 Đơn hàng: {order_id}\\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\\n📦 Gói: {plan_name}\\n⏳ Hạn dùng: {expire_at}",
+    help: "Dùng trong cả 2 tin. Biến: {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}.",
     kind: "textarea",
   },
   {
     key: "MANUAL_ORDER_MESSAGE_TEMPLATE",
     label: "Tin copy gửi khách",
     placeholder: "{success_text}\\n\\n{order_text}\\n\\n{bot_link_title}\\n{activation_url}\\n\\n{bot_link_subtitle}",
-    help: "Tin hiển thị ở CP admin để copy gửi khách. Biến: {success_text}, {order_text}, {admin_label}, {bot_link_title}, {activation_url}, {bot_link_subtitle}.",
+    help: "Tin hiển thị ở CP admin để copy gửi khách. Biến: {success_text}, {order_text}, {plan_name}, {bot_link_title}, {activation_url}, {bot_link_subtitle}.",
     kind: "textarea",
   },
   { key: "MANUAL_ORDER_LINK_TITLE", label: "Tiêu đề link bot", placeholder: "🔗 Link kích hoạt", help: "Biến: không cần placeholder. Đây là tiêu đề trước URL bot." },
@@ -2733,6 +2733,7 @@ const EMPTY_MANUAL_ORDER_FORM = {
   plan_key: "FULL_1M",
   plan_name: "",
   admin_label: "",
+  
   special_group_id: "",
   special_group_duration: "1M",
   note: "",
@@ -6539,7 +6540,7 @@ export default function Home() {
       ...manualOrderForm,
       plan_key: value,
       plan_name: nextPlanName,
-      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : nextPlanName,
+  
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "days" : manualOrderForm.expiry_mode || "days",
       duration_days: lifetime ? String(lifetimeCouponDays || 3650) : "30",
@@ -6560,7 +6561,7 @@ export default function Home() {
       special_group_id: groupId,
       special_group_duration: normalizedDuration,
       plan_name: nextPlanName || manualOrderForm.plan_name || manualPlanNameFromKey("FULL_1M"),
-      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : (nextPlanName || manualOrderForm.plan_name || manualPlanNameFromKey("FULL_1M")),
+      
       amount: nextAmount,
       expiry_mode: "days",
       duration_days: normalizedDuration === "LIFE"
@@ -6580,14 +6581,6 @@ export default function Home() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
     return manualOrderTechnicalPlanName();
-  }
-
-  function manualOrderAdminLabelDisplay() {
-    return manualOrderForm.admin_label.trim() || resolveOrderLabel({ plan_name: manualOrderPlanNameDisplay() }).displayLabel;
-  }
-
-  function orderAdminLabel(order: Pick<Order, "plan_name" | "metadata">) {
-    return resolveOrderLabel(order).displayLabel;
   }
 
   function manualExpiryPreview() {
@@ -6649,7 +6642,6 @@ export default function Home() {
     const specialGroup = activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null;
     const specialPlanName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualOrderForm.special_group_duration || "1M") : "";
     const planName = specialPlanName || manualOrderTechnicalPlanName();
-    const adminLabel = manualOrderForm.admin_label.trim() || planName;
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
     const isLifetime = isLifetimeText(planName);
@@ -6660,7 +6652,6 @@ export default function Home() {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
         plan_name: planName,
-        admin_label: adminLabel,
         note: manualOrderForm.note.trim(),
         amount: manualOrderForm.amount,
         duration_days: durationDays,
@@ -6673,7 +6664,7 @@ export default function Home() {
         skip_active_code: true,
       });
       setManualOrderResult(res.data);
-      setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), admin_label: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
+      setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
       await loadAll();
     });
   }
@@ -6811,7 +6802,6 @@ export default function Home() {
       telegram_user_id: nextCustomerId,
       full_name: customer?.name && customer.name !== "-" ? customer.name : current.full_name,
       plan_name: customer?.paidOrders.length ? current.plan_name : manualPlanNameFromKey("FULL_1M"),
-      admin_label: customer?.paidOrders.length ? current.admin_label : manualPlanNameFromKey("FULL_1M"),
       special_group_id: "",
       special_group_duration: "1M",
       expiry_mode: "days",

@@ -562,7 +562,7 @@ class SupabaseStore:
             value("telegram_user_id"),
             value("full_name"),
             value("plan_name"),
-            _clean_text(metadata.get("admin_label") or metadata.get("display_name") or ""),
+            "",
             value("amount"),
             value("status"),
             value("paid_at"),
