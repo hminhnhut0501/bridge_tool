@@ -9,8 +9,6 @@ import {
   Phone,
   Plus,
   RefreshCw,
-  Send,
-  Ticket,
 } from "lucide-react";
 import {
   Alert,
@@ -22,18 +20,18 @@ import {
   Divider,
   IconButton,
   MenuItem,
-  Tooltip,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "../dashboard-components";
 import { dateText, dateTextShort, dateTimePreviewText, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
-import { ManualOrderDialog, type ManualOrderFormState } from "../manual-order-dialog";
+import { ManualOrderDialog, ManualOrderResultPanel, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
 type MobileTab = "manual" | "lookup" | "orders" | "logs";
@@ -617,60 +615,14 @@ export default function MobileAdminPage() {
 
         {manualResult ? (
           <AppSection title="Kết quả tạo đơn" subtitle="Đồng bộ kiểu PC để dễ đối soát và copy nhanh." accent="emerald">
-            <Stack spacing={2}>
-              <Alert severity="info" variant="outlined" sx={{ alignItems: "center" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                  <strong>Hiển thị:</strong>
-                  <Typography component="span" sx={{ fontWeight: 800 }}>{resolveOrderLabel(manualResult).displayLabel || manualResult.plan_name}</Typography>
-                  <Chip size="small" label="Mới" color="success" variant="outlined" sx={{ height: 22 }} />
-                </Box>
-              </Alert>
-
-              <Box sx={{ display: "grid", gap: 1.25 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{manualResult.manual_order_message_title || "Tin active code"}</Typography>
-                {!manualResult.manual_order_text ? (
-                  <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
-                    <CardContent sx={{ p: 2, textAlign: "center" }}>
-                      <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có active code cho đơn này.</Typography>
-                      <Button variant="contained" onClick={() => void submitActiveCode()} startIcon={<Ticket size={14} />}>
-                        {manualResult.manual_order_message_button_label || "Gen active code"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <TextField value={manualResult.manual_order_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={4} />
-                )}
-              </Box>
-
-              <Box sx={{ display: "grid", gap: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{manualResult.manual_order_join_title || "Link tham gia nhóm"}</Typography>
-                {!manualResult.manual_order_join_text ? (
-                  <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
-                    <CardContent sx={{ p: 2, textAlign: "center" }}>
-                      <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có link tham gia nhóm cho đơn này.</Typography>
-                      <Button variant="contained" onClick={() => void submitJoinLink()} startIcon={<Send size={14} />}>
-                        {manualResult.manual_order_join_button_label || "Gen join"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <TextField value={manualResult.manual_order_join_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={3} />
-                )}
-              </Box>
-
-              <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                <Button size="small" variant="contained" onClick={() => void submitActiveCode()} startIcon={<Ticket size={14} />}>
-                  {manualResult.manual_order_text ? "Gen lại active" : "Gen active code"}
-                </Button>
-                <Button size="small" variant="outlined" onClick={() => void submitJoinLink()} startIcon={<Send size={14} />}>
-                  {manualResult.manual_order_join_text ? "Gen lại join" : "Gen join"}
-                </Button>
-              </Box>
-
-              <Button size="small" variant="text" onClick={() => void copyText(manualResult.manual_order_text || manualResult.manual_order_join_text || "", "manual text")} sx={{ justifyContent: "flex-start", px: 0 }}>
-                Copy nhanh
-              </Button>
-            </Stack>
+            <ManualOrderResultPanel
+              result={manualResult}
+              onGenerateActiveCode={submitActiveCode}
+              onGenerateJoinLink={submitJoinLink}
+              onCopy={(value) => copyText(value, "manual text")}
+              saving={manualSubmitting}
+              compact
+            />
           </AppSection>
         ) : null}
       </Box>

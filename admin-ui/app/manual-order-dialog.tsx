@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Alert, Box, Button, Chip, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
+import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Loader2, Plus, RefreshCw, Send, Ticket } from "lucide-react";
 import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
 import { MuiDialogShell } from "./dashboard-components";
 import { dateTimePreviewText, isLifetimeText, resolveOrderLabel } from "./dashboard-helpers";
@@ -50,8 +50,92 @@ export type ManualOrderDialogProps = {
   onCopy: (value: string, label: string) => void | Promise<void>;
 };
 
+export type ManualOrderResultPanelProps = {
+  result: ManualOrderResult;
+  onGenerateActiveCode: () => void | Promise<void>;
+  onGenerateJoinLink: () => void | Promise<void>;
+  onCopy: (value: string, label: string) => void | Promise<void>;
+  saving?: boolean;
+  compact?: boolean;
+};
+
 function isLifetimePlan(value: string) {
   return isLifetimeText(value);
+}
+
+export function ManualOrderResultPanel({
+  result,
+  onGenerateActiveCode,
+  onGenerateJoinLink,
+  onCopy,
+  saving = false,
+  compact = false,
+}: ManualOrderResultPanelProps) {
+  const orderLabel = resolveOrderLabel(result);
+  const mainButtonLabel = result.manual_order_text ? "Gen lại active" : "Tạo link active code";
+  const joinButtonLabel = result.manual_order_join_text ? "Gen lại join" : "Tạo link tham gia nhóm";
+  const activeButtonLabel = result.manual_order_message_button_label || "Tạo link active code";
+  const joinCardButtonLabel = result.manual_order_join_button_label || "Tạo link tham gia nhóm";
+  const activeMinRows = compact ? 3 : 4;
+  const joinMinRows = compact ? 2 : 3;
+  return (
+    <Stack spacing={compact ? 1.5 : 2}>
+      <Alert severity="info" variant="outlined" sx={{ alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+          <strong>Hiển thị:</strong>
+          <Typography component="span" sx={{ fontWeight: 800 }}>{orderLabel.displayLabel || result.plan_name}</Typography>
+          {orderLabel.showTechLabel ? (
+            <Chip size="small" label="i" variant="outlined" sx={{ height: 20, minWidth: 20, fontWeight: 800 }} />
+          ) : null}
+        </Box>
+      </Alert>
+
+      <Box sx={{ display: "grid", gap: 1.25 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{result.manual_order_message_title || "Tin active code"}</Typography>
+        {!result.manual_order_text ? (
+          <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
+            <CardContent sx={{ p: compact ? 1.5 : 2, textAlign: "center" }}>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có active code cho đơn này.</Typography>
+              <Button variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={<RefreshCw size={16} />}>
+                {activeButtonLabel}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <TextField value={result.manual_order_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={activeMinRows} />
+        )}
+      </Box>
+
+      <Box sx={{ display: "grid", gap: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{result.manual_order_join_title || "Link tham gia nhóm"}</Typography>
+        {!result.manual_order_join_text ? (
+          <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
+            <CardContent sx={{ p: compact ? 1.5 : 2, textAlign: "center" }}>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có link tham gia nhóm cho đơn này.</Typography>
+              <Button variant="contained" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={<Plus size={16} />}>
+                {joinCardButtonLabel}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <TextField value={result.manual_order_join_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={joinMinRows} />
+        )}
+      </Box>
+
+      <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <Button size={compact ? "small" : "medium"} variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={<Ticket size={14} />}>
+          {mainButtonLabel}
+        </Button>
+        <Button size={compact ? "small" : "medium"} variant="outlined" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={<Send size={14} />}>
+          {joinButtonLabel}
+        </Button>
+      </Box>
+
+      <Button size="small" variant="text" onClick={() => void onCopy(result.manual_order_text || result.manual_order_join_text || "", "manual text")} sx={{ justifyContent: "flex-start", px: 0 }}>
+        Copy nhanh
+      </Button>
+    </Stack>
+  );
 }
 
 export function ManualOrderDialog({
@@ -92,9 +176,6 @@ export function ManualOrderDialog({
     if (isLifetimePlan(planName)) return `Sẽ áp dụng: ${form.duration_days || "3650"} ngày (lifetime)`;
     return `Sẽ áp dụng: ${form.duration_days || "30"} ngày`;
   }, [form.duration_days, form.expire_at, form.expiry_mode, planName]);
-  const orderLabel = result ? resolveOrderLabel(result) : null;
-  const [resultDetailsOpen, setResultDetailsOpen] = useState(false);
-
   return (
     <MuiDialogShell
       open={open}
@@ -196,59 +277,13 @@ export function ManualOrderDialog({
         {result ? (
           <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 2 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
-            <Alert severity="info" variant="outlined">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                <strong>Hiển thị:</strong>
-                <Typography component="span" sx={{ fontWeight: 700 }}>{orderLabel?.displayLabel || result.plan_name}</Typography>
-                {orderLabel?.showTechLabel ? (
-                  <Tooltip title={`Kỹ thuật: ${orderLabel.techLabel}`} arrow>
-                    <Chip size="small" label="i" variant="outlined" sx={{ height: 20, minWidth: 20, fontWeight: 800 }} />
-                  </Tooltip>
-                ) : null}
-              </Box>
-            </Alert>
-
-            <Box sx={{ display: "grid", gap: 1.25 }}>
-              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{result.manual_order_message_title || "Tin active code"}</Typography>
-                {result.manual_order_text ? (
-                  <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => onCopy(result.manual_order_text || "", "manual_order_text")}>
-                    {result.manual_order_message_button_label || "Copy"}
-                  </Button>
-                ) : null}
-              </Stack>
-              {!result.manual_order_text ? (
-                <Box sx={{ p: 3, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
-                  <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có active code cho đơn này.</Typography>
-                  <Button variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                    Gen active code
-                  </Button>
-                </Box>
-              ) : (
-                <TextField value={result.manual_order_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={4} />
-              )}
-            </Box>
-
-            <Box sx={{ display: "flex", gap: 1, position: "sticky", bottom: 8, zIndex: 2, bgcolor: "background.paper", py: 0.5 }}>
-              <Button fullWidth variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                {result.manual_order_text ? "Gen lại active" : "Gen active code"}
-              </Button>
-              <Button fullWidth variant="outlined" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}>
-                {result.manual_order_join_text ? "Gen lại join" : "Gen join"}
-              </Button>
-            </Box>
-
-            <Button variant="text" onClick={() => setResultDetailsOpen((current) => !current)} sx={{ justifyContent: "flex-start", px: 0 }}>
-              {resultDetailsOpen ? "Ẩn chi tiết" : "Xem thêm chi tiết"}
-            </Button>
-
-            {resultDetailsOpen ? (
-              <Box sx={{ display: "grid", gap: 1.25 }}>
-                {result.activation_url ? <TextField value={result.activation_url} slotProps={{ input: { readOnly: true } }} fullWidth size="small" label="Link active" /> : null}
-                {result.links_text ? <TextField value={result.links_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={3} label="Join text" /> : null}
-                {result.support_text ? <TextField value={result.support_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={3} label="Support" /> : null}
-              </Box>
-            ) : null}
+            <ManualOrderResultPanel
+              result={result}
+              onGenerateActiveCode={onGenerateActiveCode}
+              onGenerateJoinLink={onGenerateJoinLink}
+              onCopy={onCopy}
+              saving={saving}
+            />
           </Box>
         ) : null}
       </Box>
