@@ -93,7 +93,7 @@ export function ManualOrderDialog({
     return `Sẽ áp dụng: ${form.duration_days || "30"} ngày`;
   }, [form.duration_days, form.expire_at, form.expiry_mode, planName]);
   const orderLabel = result ? resolveOrderLabel(result) : null;
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [resultDetailsOpen, setResultDetailsOpen] = useState(false);
 
   return (
     <MuiDialogShell
@@ -152,58 +152,49 @@ export function ManualOrderDialog({
                 <MenuItem value="LIFE">Trọn đời</MenuItem>
               </TextField>
             ) : null}
-            <Button variant="text" onClick={() => setAdvancedOpen((current) => !current)} sx={{ justifyContent: "flex-start", px: 0, mt: -0.5 }}>
-              {advancedOpen ? "Ẩn bớt tuỳ chọn" : "Hiện thêm tuỳ chọn"}
-            </Button>
-            {advancedOpen ? (
-              <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
-            ) : null}
+            <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
           </Stack>
 
           <Stack spacing={2}>
-            {advancedOpen ? (
-              <>
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-                  <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
-                  <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
-                    const nextCurrency = event.target.value;
-                    const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;
-                    setForm((current) => ({
-                      ...current,
-                      payment_currency: nextCurrency,
-                      amount: selectedGroup ? String(hiddenGroupManualPrice(selectedGroup, form.special_group_duration || "1M", nextCurrency) || "0") : current.amount,
-                    }));
-                  }} size="small">
-                    <MenuItem value="VND">VNĐ</MenuItem>
-                    <MenuItem value="USD">USD</MenuItem>
-                    <MenuItem value="USDT">USDT</MenuItem>
-                  </TextField>
-                </Box>
-                <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
-                  <MenuItem value="MANUAL">Thủ công</MenuItem>
-                  <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
-                  <MenuItem value="PAYPAL">PayPal</MenuItem>
-                  <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
-                </TextField>
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                  <TextField select label="Kiểu hết hạn" value={form.expiry_mode} onChange={(event) => setForm((current) => ({ ...current, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
-                    <MenuItem value="days">Theo số ngày</MenuItem>
-                    <MenuItem value="date">Ngày cụ thể</MenuItem>
-                  </TextField>
-                  {form.expiry_mode === "days" ? (
-                    <TextField label="Số ngày sử dụng" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={form.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview} />
-                  ) : (
-                    <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
-                  )}
-                </Box>
-              </>
-            ) : null}
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
+              <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
+              <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
+                const nextCurrency = event.target.value;
+                const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;
+                setForm((current) => ({
+                  ...current,
+                  payment_currency: nextCurrency,
+                  amount: selectedGroup ? String(hiddenGroupManualPrice(selectedGroup, form.special_group_duration || "1M", nextCurrency) || "0") : current.amount,
+                }));
+              }} size="small">
+                <MenuItem value="VND">VNĐ</MenuItem>
+                <MenuItem value="USD">USD</MenuItem>
+                <MenuItem value="USDT">USDT</MenuItem>
+              </TextField>
+            </Box>
+            <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+              <MenuItem value="MANUAL">Thủ công</MenuItem>
+              <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
+              <MenuItem value="PAYPAL">PayPal</MenuItem>
+              <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+            </TextField>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+              <TextField select label="Kiểu hết hạn" value={form.expiry_mode} onChange={(event) => setForm((current) => ({ ...current, expiry_mode: event.target.value, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
+                <MenuItem value="days">Theo số ngày</MenuItem>
+                <MenuItem value="date">Ngày cụ thể</MenuItem>
+              </TextField>
+              {form.expiry_mode === "days" ? (
+                <TextField label="Số ngày sử dụng" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={form.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview} />
+              ) : (
+                <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
+              )}
+            </Box>
             <TextField label="Ghi chú nội bộ cho đơn" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công..." size="small" multiline minRows={2} />
           </Stack>
         </Box>
 
         {result ? (
-          <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 3 }}>
+          <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 2 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
             <Alert severity="info" variant="outlined">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
@@ -217,47 +208,47 @@ export function ManualOrderDialog({
               </Box>
             </Alert>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <Box sx={{ display: "grid", gap: 1.25 }}>
               <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{result.manual_order_message_title || "Tin active code"}</Typography>
                 {result.manual_order_text ? (
                   <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => onCopy(result.manual_order_text || "", "manual_order_text")}>
-                    {result.manual_order_message_button_label || "Copy tin active code"}
+                    {result.manual_order_message_button_label || "Copy"}
                   </Button>
                 ) : null}
               </Stack>
               {!result.manual_order_text ? (
-                <Box sx={{ p: 4, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
-                  <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>Bạn chưa tạo active code cho đơn hàng này.</Typography>
+                <Box sx={{ p: 3, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
+                  <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có active code cho đơn này.</Typography>
                   <Button variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                    Tạo link active code
+                    Gen active code
                   </Button>
                 </Box>
               ) : (
-                <TextField value={result.manual_order_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={6} />
+                <TextField value={result.manual_order_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={4} />
               )}
             </Box>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary" }}>{result.manual_order_join_title || "Tin join group"}</Typography>
-                {result.manual_order_join_text ? (
-                  <Button size="small" variant="outlined" sx={{ borderRadius: 4, height: 28 }} onClick={() => onCopy(result.manual_order_join_text || "", "manual_order_join_text")}>
-                    {result.manual_order_join_button_label || "Copy tin tham gia"}
-                  </Button>
-                ) : null}
-              </Stack>
-              {!result.manual_order_join_text ? (
-                <Box sx={{ p: 4, border: "1px dashed", borderColor: "divider", borderRadius: 3, textAlign: "center", bgcolor: "background.default" }}>
-                  <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>Bạn chưa tạo link tham gia nhóm cho đơn hàng này.</Typography>
-                  <Button variant="contained" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                    Tạo link tham gia nhóm
-                  </Button>
-                </Box>
-              ) : (
-                <TextField value={result.manual_order_join_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={6} />
-              )}
+            <Box sx={{ display: "flex", gap: 1, position: "sticky", bottom: 8, zIndex: 2, bgcolor: "background.paper", py: 0.5 }}>
+              <Button fullWidth variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+                {result.manual_order_text ? "Gen lại active" : "Gen active code"}
+              </Button>
+              <Button fullWidth variant="outlined" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={saving ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}>
+                {result.manual_order_join_text ? "Gen lại join" : "Gen join"}
+              </Button>
             </Box>
+
+            <Button variant="text" onClick={() => setResultDetailsOpen((current) => !current)} sx={{ justifyContent: "flex-start", px: 0 }}>
+              {resultDetailsOpen ? "Ẩn chi tiết" : "Xem thêm chi tiết"}
+            </Button>
+
+            {resultDetailsOpen ? (
+              <Box sx={{ display: "grid", gap: 1.25 }}>
+                {result.activation_url ? <TextField value={result.activation_url} slotProps={{ input: { readOnly: true } }} fullWidth size="small" label="Link active" /> : null}
+                {result.links_text ? <TextField value={result.links_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={3} label="Join text" /> : null}
+                {result.support_text ? <TextField value={result.support_text} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={3} label="Support" /> : null}
+              </Box>
+            ) : null}
           </Box>
         ) : null}
       </Box>
