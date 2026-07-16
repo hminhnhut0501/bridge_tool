@@ -564,6 +564,7 @@ export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
   plan_name: string;
+  admin_label?: string;
   plan_mode?: "CUSTOM_DURATION" | string;
   entitlement_type?: "ALL_ACCESS" | "GROUP_COLLECTION" | string;
   entitlement_key?: string;

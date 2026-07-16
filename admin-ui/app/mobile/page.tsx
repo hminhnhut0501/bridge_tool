@@ -21,7 +21,6 @@ import {
   Chip,
   Divider,
   IconButton,
-  MenuItem,
   Tooltip,
   Stack,
   Tab,
@@ -29,10 +28,12 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order } from "@/lib/api";
-import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
-import { AppSection, AppToolbar, MuiDialogShell, statusChipSx } from "../dashboard-components";
+import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
+import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
+import { AppSection, AppToolbar, statusChipSx } from "../dashboard-components";
 import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { ManualOrderDialog, type ManualOrderFormState } from "../manual-order-dialog";
+import { getConfigValue } from "../dashboard-business";
 
 type MobileAction = "lookup" | "manual";
 
@@ -53,6 +54,10 @@ function miniStatusChipLabel(order: Order) {
   return String(order.status || "-");
 }
 
+function isLifetimePlanKey(value: string) {
+  return String(value || "").toUpperCase() === "FULL_LIFE";
+}
+
 export default function MobileAdminPage() {
   const router = useRouter();
   const [secret, setSecret] = useState("");
@@ -61,6 +66,8 @@ export default function MobileAdminPage() {
   const [reloadTick, setReloadTick] = useState(0);
   const [orders, setOrders] = useState<Order[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
+  const [config, setConfig] = useState<ConfigRow[]>([]);
+  const [hiddenGroups, setHiddenGroups] = useState<HiddenGroup[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([]);
@@ -69,18 +76,22 @@ export default function MobileAdminPage() {
   const [manualDrawerOpen, setManualDrawerOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualOrderResult | null>(null);
-  const [customDurationEnabled, setCustomDurationEnabled] = useState(true);
   const [copyNote, setCopyNote] = useState("");
-  const [manualForm, setManualForm] = useState({
+  const [manualForm, setManualForm] = useState<ManualOrderFormState>({
     telegram_user_id: "",
     full_name: "",
-    plan_name: "FULL_1M",
+    plan_key: "FULL_1M",
+    plan_name: getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày",
     plan_mode: "",
     entitlement_type: "ALL_ACCESS",
     entitlement_key: "",
+    special_group_id: "",
+    special_group_duration: "1M",
     amount: "",
+    expiry_mode: "days",
     duration_days: "30",
     expire_at: "",
+    coupon_code: "",
     payment_currency: "VND",
     payment_provider: "PAYOS",
     note: "",
@@ -95,6 +106,85 @@ export default function MobileAdminPage() {
     const targetOrder = activeOrder || latestPaidOrder || selectedCustomer?.latestExpireOrder || null;
     return targetOrder ? resolveOrderLabel(targetOrder) : null;
   }, [selectedCustomer]);
+  const configuredGroups = useMemo(() => Array.from({ length: 12 }, (_, idx) => idx + 1).filter((item) => getConfigValue(config, `BTN_G${item}`)), [config]);
+  const activeSpecialGroups = useMemo(() => hiddenGroups, [hiddenGroups]);
+  const customDurationFlag = getConfigValue(config, "MANUAL_CUSTOM_DURATION_ENABLED", "ON").toUpperCase();
+  const customDurationEnabledValue = ["ON", "1", "TRUE", "YES"].includes(customDurationFlag);
+  const manualPlanKeyOptions = useMemo(() => [
+    "FULL_1M",
+    "FULL_LIFE",
+    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
+  ], [configuredGroups]);
+
+  function manualPlanNameFromKey(value: string) {
+    if (value === "FULL_1M") return getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày";
+    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời") || "All Access Trọn Đời";
+    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    if (!match) return "";
+    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
+    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : "Collection Trọn Đời";
+    const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
+    const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
+    return `${prefix} - ${groupName}`;
+  }
+
+  function manualPriceFromKey(value: string) {
+    if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
+    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
+    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    if (!match) return "";
+    return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
+  }
+
+  function hiddenGroupDurationLabel(group: HiddenGroup, durationKey: string) {
+    return String(durationKey).toUpperCase() === "LIFE" ? "Trọn đời" : `${group.duration_1m_days || 30} Ngày`;
+  }
+
+  function hiddenGroupManualPrice(group: HiddenGroup, durationKey: string, currency: string) {
+    const useUsd = String(currency || "VND").toUpperCase() === "USD";
+    if (String(durationKey).toUpperCase() === "LIFE") return useUsd ? group.price_life_usd : group.price_life_vnd;
+    return useUsd ? group.price_1m_usd : group.price_1m_vnd;
+  }
+
+  function hiddenGroupManualPlanName(group: HiddenGroup, durationKey: string) {
+    return `Hidden - ${group.name} - ${hiddenGroupDurationLabel(group, durationKey)} [PT:HG:${group.id}:${String(durationKey).toUpperCase() === "LIFE" ? "LIFE" : "1M"}]`;
+  }
+
+  function changeManualPlanKey(value: string) {
+    const customDuration = value === "CUSTOM_DURATION";
+    const lifetime = isLifetimePlanKey(value);
+    const nextPlanName = value === "CUSTOM" ? (manualForm.plan_name.trim() || manualPlanNameFromKey("FULL_1M")) : manualPlanNameFromKey(value);
+    setManualForm((current) => ({
+      ...current,
+      plan_key: value,
+      plan_name: nextPlanName,
+      plan_mode: customDuration ? "CUSTOM_DURATION" : "",
+      entitlement_type: customDuration ? "ALL_ACCESS" : current.entitlement_type,
+      entitlement_key: customDuration ? "" : current.entitlement_key,
+      amount: manualPriceFromKey(value) || current.amount,
+      expiry_mode: lifetime ? "days" : current.expiry_mode || "days",
+      duration_days: customDuration ? "1" : (lifetime ? "3650" : "30"),
+      expire_at: lifetime ? "" : current.expire_at,
+      special_group_id: value === "CUSTOM" ? current.special_group_id : "",
+      special_group_duration: value === "CUSTOM" ? current.special_group_duration : "1M",
+    }));
+  }
+
+  function changeManualSpecialGroup(groupId: string, durationKey = manualForm.special_group_duration || "1M") {
+    const group = activeSpecialGroups.find((item) => item.id === groupId) || null;
+    const normalizedDuration = String(durationKey || "1M").toUpperCase() === "LIFE" ? "LIFE" : "1M";
+    const nextPlanName = group ? hiddenGroupManualPlanName(group, normalizedDuration) : "";
+    const nextAmount = group ? String(hiddenGroupManualPrice(group, normalizedDuration, manualForm.payment_currency) || "0") : manualForm.amount;
+    setManualForm((current) => ({
+      ...current,
+      special_group_id: groupId,
+      special_group_duration: normalizedDuration,
+      plan_key: groupId ? current.plan_key : current.plan_key,
+      plan_mode: groupId ? "CUSTOM" : current.plan_mode,
+      plan_name: nextPlanName || current.plan_name,
+      amount: nextAmount,
+    }));
+  }
 
   useEffect(() => {
     const stored = getStoredSecret();
@@ -110,17 +200,19 @@ export default function MobileAdminPage() {
     const load = async () => {
       setRefreshing(true);
       try {
-        const [ordersRes, , activityRes, configRes] = await Promise.all([
+        const [ordersRes, overviewRes, activityRes, configRes, hiddenGroupsRes] = await Promise.all([
           getOrders(savedSecret, 120),
           getDashboardOverview(savedSecret),
           getActivityLog(savedSecret, { page: 1, limit: 30, direction: "all", type: "ALL", date: "ALL" }),
           getConfig(savedSecret),
+          getHiddenGroups(savedSecret),
         ]);
         if (!active) return;
         setOrders(ordersRes.data || []);
+        void overviewRes;
         setActivityLog(activityRes.data || []);
-        const customFlag = (configRes.data || []).find((item) => item.key === "MANUAL_CUSTOM_DURATION_ENABLED")?.value;
-        setCustomDurationEnabled(!customFlag || ["ON", "1", "TRUE", "YES"].includes(String(customFlag).toUpperCase()));
+        setConfig(configRes.data || []);
+        setHiddenGroups((hiddenGroupsRes.data || []).filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
       } catch (error) {
         console.error(error);
       } finally {
@@ -155,12 +247,18 @@ export default function MobileAdminPage() {
 
   useEffect(() => {
     if (!savedSecret) return;
-    setManualForm((current) => ({
-      ...current,
-      telegram_user_id: selectedCustomer?.id || current.telegram_user_id,
-      full_name: selectedCustomer?.name && selectedCustomer.name !== "-" ? selectedCustomer.name : current.full_name,
-      plan_name: selectedCustomerOrderLabel?.techLabel || current.plan_name,
-    }));
+    setManualForm((current) => {
+      const latest = selectedCustomer?.activeOrders?.[0] || selectedCustomer?.paidOrders?.[0] || selectedCustomer?.latestExpireOrder || null;
+      const latestLabel = latest ? resolveOrderLabel(latest) : null;
+      const nextPlanKey = latest?.plan_name && ["FULL_1M", "FULL_LIFE"].includes(String(latest.plan_name)) ? String(latest.plan_name) : current.plan_key;
+      return {
+        ...current,
+        telegram_user_id: selectedCustomer?.id || current.telegram_user_id,
+        full_name: selectedCustomer?.name && selectedCustomer.name !== "-" ? selectedCustomer.name : current.full_name,
+        plan_key: nextPlanKey,
+        plan_name: latestLabel?.techLabel || current.plan_name,
+      };
+    });
   }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel]);
 
   function openManualDrawerFromCustomer(customer?: CustomerSearchResult | null) {
@@ -174,6 +272,7 @@ export default function MobileAdminPage() {
         ...current,
         telegram_user_id: customer.id || current.telegram_user_id,
         full_name: customer.name && customer.name !== "-" ? customer.name : current.full_name,
+        plan_key: targetOrder?.plan_name && ["FULL_1M", "FULL_LIFE"].includes(String(targetOrder.plan_name)) ? String(targetOrder.plan_name) : current.plan_key,
         plan_name: latestLabel?.techLabel || current.plan_name,
       }));
     }
@@ -204,13 +303,17 @@ export default function MobileAdminPage() {
     setManualSubmitting(true);
     setCopyNote("");
     try {
+      const specialGroup = manualForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualForm.special_group_id) || null : null;
+      const planMode = manualForm.plan_mode || (manualForm.plan_key === "CUSTOM_DURATION" ? "CUSTOM_DURATION" : "");
+      const planName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualForm.special_group_duration || "1M") : manualForm.plan_name.trim();
       const res = await createManualOrder(savedSecret, {
         telegram_user_id: manualForm.telegram_user_id.trim(),
         full_name: displayText(manualForm.full_name) || undefined,
-        plan_name: manualForm.plan_name.trim(),
-        plan_mode: manualForm.plan_mode || undefined,
-        entitlement_type: manualForm.plan_mode === "CUSTOM_DURATION" ? manualForm.entitlement_type : undefined,
-        entitlement_key: manualForm.plan_mode === "CUSTOM_DURATION" ? manualForm.entitlement_key : undefined,
+        plan_name: planName || manualPlanNameFromKey(manualForm.plan_key) || manualForm.plan_name.trim(),
+        admin_label: planName || manualPlanNameFromKey(manualForm.plan_key) || manualForm.plan_name.trim(),
+        plan_mode: planMode || undefined,
+        entitlement_type: planMode === "CUSTOM_DURATION" ? manualForm.entitlement_type : undefined,
+        entitlement_key: planMode === "CUSTOM_DURATION" ? manualForm.entitlement_key : undefined,
         amount: manualForm.amount.trim() || undefined,
         duration_days: manualForm.duration_days.trim() || undefined,
         expire_at: manualForm.expire_at.trim() || undefined,
@@ -443,71 +546,27 @@ export default function MobileAdminPage() {
         ) : null}
       </Box>
 
-      <MuiDialogShell
+      <ManualOrderDialog
         open={manualDrawerOpen}
-        title="Tạo đơn thủ công"
-        subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
         onClose={() => setManualDrawerOpen(false)}
-        maxWidth="md"
-        fullScreenOnMobile
-        actions={
-          <>
-            <Button variant="outlined" onClick={() => setManualDrawerOpen(false)}>Đóng</Button>
-            <Button variant="contained" onClick={() => void submitManualOrder()} disabled={manualSubmitting} startIcon={manualSubmitting ? <Loader2 size={16} className="spin" /> : <ClipboardList size={16} />}>Tạo đơn</Button>
-          </>
-        }
-      >
-        <Box sx={{ maxHeight: { xs: "100dvh", md: "66vh" }, overflowY: "auto", pr: 0.5 }}>
-          <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, pb: 0.5 }}>
-            <Stack spacing={1.5}>
-              <TextField label="Telegram ID" value={manualForm.telegram_user_id} onChange={(event) => setManualForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
-              <TextField label="Tên khách" value={manualForm.full_name} onChange={(event) => setManualForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-              <TextField select label="Gói lưu vào đơn" value={manualForm.plan_mode === "CUSTOM_DURATION" ? "CUSTOM_DURATION" : manualForm.plan_name} onChange={(event) => setManualForm((current) => event.target.value === "CUSTOM_DURATION" ? ({ ...current, plan_name: "Tùy chỉnh", plan_mode: "CUSTOM_DURATION", entitlement_type: "ALL_ACCESS", entitlement_key: "", duration_days: "1", expire_at: "" }) : ({ ...current, plan_name: event.target.value, plan_mode: "", entitlement_key: "" }))} size="small" helperText="Chọn gói thường hoặc Tùy chỉnh thời hạn.">
-                <MenuItem value="FULL_1M">All Access - 30 ngày</MenuItem>
-                <MenuItem value="FULL_LIFE">All Access - Trọn đời</MenuItem>
-                <MenuItem value="CUSTOM">Tự nhập tên gói</MenuItem>
-                {customDurationEnabled ? <MenuItem value="CUSTOM_DURATION">Tùy chỉnh thời hạn</MenuItem> : null}
-              </TextField>
-              {manualForm.plan_mode === "CUSTOM_DURATION" ? (
-                <>
-                  <TextField select label="Phạm vi cấp quyền" value={manualForm.entitlement_type} onChange={(event) => setManualForm((current) => ({ ...current, entitlement_type: event.target.value, entitlement_key: "" }))} size="small">
-                    <MenuItem value="ALL_ACCESS">All Access</MenuItem>
-                    <MenuItem value="GROUP_COLLECTION">Group / Collection</MenuItem>
-                  </TextField>
-                  {manualForm.entitlement_type === "GROUP_COLLECTION" ? (
-                    <TextField label="Group / Collection" value={manualForm.entitlement_key} onChange={(event) => setManualForm((current) => ({ ...current, entitlement_key: event.target.value }))} placeholder="VD: G4" size="small" required helperText="Nhập key group đã cấu hình, ví dụ G4." />
-                  ) : null}
-                </>
-              ) : null}
-              <TextField label="Mã / ghi chú" value={manualForm.note} onChange={(event) => setManualForm((current) => ({ ...current, note: event.target.value }))} placeholder="VD: MANUAL_ADMIN" size="small" />
-            </Stack>
-            <Stack spacing={1.5}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-                <TextField label="Số tiền" value={manualForm.amount} onChange={(event) => setManualForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
-                <TextField select label="Tiền tệ" value={manualForm.payment_currency} onChange={(event) => setManualForm((current) => ({ ...current, payment_currency: event.target.value }))} size="small">
-                  <MenuItem value="VND">VNĐ</MenuItem>
-                  <MenuItem value="USD">USD</MenuItem>
-                  <MenuItem value="USDT">USDT</MenuItem>
-                </TextField>
-              </Box>
-              <TextField select label="Phương thức thanh toán" value={manualForm.payment_provider} onChange={(event) => setManualForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
-                <MenuItem value="MANUAL">Thủ công</MenuItem>
-                <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
-                <MenuItem value="PAYPAL">PayPal</MenuItem>
-                <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
-              </TextField>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                <TextField select label="Kiểu hết hạn" value={manualForm.expire_at ? "date" : "days"} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value === "days" ? current.duration_days || (current.plan_mode === "CUSTOM_DURATION" ? "1" : "30") : current.duration_days, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
-                  <MenuItem value="days">Theo số ngày</MenuItem>
-                  <MenuItem value="date">Ngày cụ thể</MenuItem>
-                </TextField>
-                <TextField label="Số ngày sử dụng" value={manualForm.duration_days} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={manualForm.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={`Sẽ áp dụng: ${manualForm.duration_days || (manualForm.plan_mode === "CUSTOM_DURATION" ? "1" : "30")} ngày`} />
-              </Box>
-              <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualForm.expire_at} onChange={(event) => setManualForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText="Dùng khi muốn set giờ cụ thể thay vì số ngày." />
-            </Stack>
-          </Box>
-        </Box>
-      </MuiDialogShell>
+        saving={manualSubmitting}
+        onSave={submitManualOrder}
+        form={manualForm}
+        setForm={setManualForm}
+        result={manualResult}
+        onGenerateActiveCode={submitActiveCode}
+        onGenerateJoinLink={submitJoinLink}
+        activeSpecialGroups={activeSpecialGroups}
+        configuredGroups={configuredGroups}
+        customDurationEnabled={customDurationEnabledValue}
+        manualPlanKeyOptions={manualPlanKeyOptions}
+        manualPlanNameFromKey={manualPlanNameFromKey}
+        hiddenGroupManualPrice={hiddenGroupManualPrice}
+        hiddenGroupManualPlanName={hiddenGroupManualPlanName}
+        onChangePlanKey={changeManualPlanKey}
+        onChangeSpecialGroup={changeManualSpecialGroup}
+        onCopy={(value) => copyText(value, "nội dung")}
+      />
     </Box>
   );
 }
