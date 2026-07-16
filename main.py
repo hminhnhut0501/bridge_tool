@@ -58,7 +58,7 @@ def load_all_modules():
     print("🔍 Đang quét thư mục 'modules' để nạp tính năng...")
     loaded_count = 0
     module_dir = "modules"
-    excluded_modules = {"mod_support_inbox"}
+    excluded_modules = set()
     
     if not os.path.exists(module_dir):
         os.makedirs(module_dir)

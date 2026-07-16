@@ -1491,7 +1491,7 @@ def parse_chat_id(value):
 def load_all_modules():
     loaded_count = 0
     module_dir = "modules"
-    excluded_modules = {"mod_support_inbox"}
+    excluded_modules = set()
     if not os.path.exists(module_dir):
         return loaded_count
 
