@@ -1,8 +1,11 @@
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import ChatMemberUpdated
 
+from bot_instance import bot
 from support_utils import is_support_group, record_support_event
 from database import db
+from scheduler import evaluate_group_join_access
 
 router = Router()
 
@@ -70,13 +73,87 @@ async def vip_group_member_update(event: ChatMemberUpdated):
     new_can_send = member_can_send(event.new_chat_member)
     event_type = ""
 
+    if old_status in {"left", "kicked"} and new_status in {"member", "restricted"}:
+        access = await evaluate_group_join_access(
+            event.chat.id,
+            user.id,
+            chat_title=event.chat.title or "",
+            chat_member=event.new_chat_member,
+        )
+        if not access["allowed"]:
+            try:
+                await bot.ban_chat_member(chat_id=event.chat.id, user_id=int(user.id))
+                await bot.unban_chat_member(chat_id=event.chat.id, user_id=int(user.id))
+                record_support_event(
+                    "member_kicked",
+                    user.id,
+                    username=user.username or "",
+                    full_name=user.full_name or "",
+                    chat_id=str(event.chat.id),
+                    chat_title=event.chat.title or "",
+                    raw_data={
+                        "reason": access["reason"],
+                        "source": "join_guard",
+                        "old_status": old_status,
+                        "new_status": new_status,
+                        **(access.get("details") or {}),
+                    },
+                )
+            except TelegramBadRequest as exc:
+                record_support_event(
+                    "member_kick_failed",
+                    user.id,
+                    username=user.username or "",
+                    full_name=user.full_name or "",
+                    chat_id=str(event.chat.id),
+                    chat_title=event.chat.title or "",
+                    raw_data={
+                        "reason": access["reason"],
+                        "source": "join_guard",
+                        "error": str(exc),
+                        "old_status": old_status,
+                        "new_status": new_status,
+                        **(access.get("details") or {}),
+                    },
+                )
+            except Exception as exc:
+                record_support_event(
+                    "member_kick_failed",
+                    user.id,
+                    username=user.username or "",
+                    full_name=user.full_name or "",
+                    chat_id=str(event.chat.id),
+                    chat_title=event.chat.title or "",
+                    raw_data={
+                        "reason": access["reason"],
+                        "source": "join_guard",
+                        "error": str(exc),
+                        "old_status": old_status,
+                        "new_status": new_status,
+                        **(access.get("details") or {}),
+                    },
+                )
+            return
+
+        event_type = "vip_joined"
+        record_support_event(
+            event_type,
+            user.id,
+            username=user.username or "",
+            full_name=user.full_name or "",
+            chat_id=str(event.chat.id),
+            chat_title=event.chat.title or "",
+            raw_data={
+                "old_status": old_status,
+                "new_status": new_status,
+                "source": "join_guard",
+                **(access.get("details") or {}),
+            },
+        )
+        return
+
     if new_status in {"left", "kicked"}:
         event_type = "vip_kicked" if new_status == "kicked" else "vip_left"
-    elif old_status in {"left", "kicked"} and new_status in {"member", "restricted"}:
-        if is_restricted_status(new_status) and new_can_send is False:
-            event_type = "vip_restricted_changed"
-        else:
-            event_type = "vip_joined"
     elif is_restricted_status(new_status):
         if new_can_send is False:
             event_type = "vip_restricted_changed"

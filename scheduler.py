@@ -87,6 +87,128 @@ def normalize_chat_id(value):
         raw = raw[:-2]
     return raw
 
+def parse_admin_ids():
+    raw = str(db.get_config("ADMIN_IDS", "") or "").strip()
+    if not raw:
+        return set()
+    ids = set()
+    for item in re.split(r"[\n,;| ]+", raw):
+        token = normalize_chat_id(item)
+        if token.isdigit():
+            ids.add(token)
+    return ids
+
+def join_guard_active_orders(orders, now, plan_group_cache=None):
+    active_orders = []
+    active_group_ids = set()
+    for order in orders or []:
+        plan_name = str(order.get("plan_name") or "").strip()
+        if not plan_name:
+            continue
+        if str(order.get("status") or "").upper() != "PAID":
+            continue
+        if is_lifetime_order(plan_name) or is_lifetime_plan(plan_name):
+            active_orders.append(order)
+            active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
+            continue
+        expire_raw = str(order.get("expire_at") or "").strip()
+        expire_date = parse_expire_datetime(expire_raw)
+        if expire_date and expire_date > now:
+            active_orders.append(order)
+            active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
+        elif expire_raw and not expire_date:
+            active_orders.append(order)
+            active_group_ids.update(cached_plan_group_ids(plan_name, plan_group_cache))
+            logging.warning(
+                "⚠️ User %s có đơn PAID %s nhưng expire_at không đọc được ('%s'); giữ quyền để tránh kick nhầm.",
+                order.get("telegram_user_id") or "",
+                order.get("order_id") or "",
+                expire_raw,
+            )
+    return active_orders, active_group_ids
+
+async def evaluate_group_join_access(chat_id, user_id, *, chat_title="", chat_member=None, user_orders=None, now=None, plan_group_cache=None):
+    normalized_chat_id = normalize_chat_id(chat_id)
+    normalized_user_id = str(user_id or "").strip()
+    if not normalized_chat_id or not normalized_user_id:
+        return {"action": "review", "allowed": False, "reason": "missing_chat_or_user", "details": {}}
+
+    admin_ids = parse_admin_ids()
+    if normalized_user_id in admin_ids:
+        return {"action": "allow", "allowed": True, "reason": "admin_allowlist", "details": {}}
+
+    if chat_member is not None and member_is_admin_or_owner(chat_member):
+        return {"action": "allow", "allowed": True, "reason": "group_admin_or_owner", "details": {}}
+
+    now_value = now or now_local()
+    if user_orders is None:
+        try:
+            user_orders = supabase_store.list_paid_orders_for_user(normalized_user_id, limit=200)
+        except Exception as exc:
+            return {
+                "action": "review",
+                "allowed": False,
+                "reason": "orders_lookup_failed",
+                "details": {"error": str(exc)},
+            }
+
+    active_orders, active_group_ids = join_guard_active_orders(user_orders, now_value, plan_group_cache=plan_group_cache)
+    support_gid = support_group_id()
+    is_support_chat = support_group_enabled() and support_gid and normalized_chat_id == support_gid
+
+    if is_support_chat:
+        if active_orders:
+            return {
+                "action": "allow",
+                "allowed": True,
+                "reason": "active_membership_support",
+                "details": {
+                    "active_order_ids": [str(order.get("order_id") or "") for order in active_orders],
+                    "active_group_ids": sorted(active_group_ids),
+                },
+            }
+        return {
+            "action": "kick",
+            "allowed": False,
+            "reason": "no_active_membership_support",
+            "details": {
+                "active_order_ids": [],
+                "active_group_ids": sorted(active_group_ids),
+            },
+        }
+
+    if normalized_chat_id in active_group_ids:
+        return {
+            "action": "allow",
+            "allowed": True,
+            "reason": "active_membership_group",
+            "details": {
+                "active_order_ids": [str(order.get("order_id") or "") for order in active_orders],
+                "active_group_ids": sorted(active_group_ids),
+            },
+        }
+
+    if not active_orders:
+        return {
+            "action": "kick",
+            "allowed": False,
+            "reason": "no_active_membership",
+            "details": {
+                "active_order_ids": [],
+                "active_group_ids": sorted(active_group_ids),
+            },
+        }
+
+    return {
+        "action": "kick",
+        "allowed": False,
+        "reason": "group_not_in_active_membership",
+        "details": {
+            "active_order_ids": [str(order.get("order_id") or "") for order in active_orders],
+            "active_group_ids": sorted(active_group_ids),
+        },
+    }
+
 def row_value(row, index, default=""):
     if len(row) <= index or row[index] is None:
         return default
