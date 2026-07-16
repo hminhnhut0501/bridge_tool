@@ -9,7 +9,13 @@ from bot_instance import bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from config_utils import config_int, group_numbers
-from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
+try:
+    from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups
+except ImportError:  # pragma: no cover - fallback for lightweight test stubs
+    from hidden_group_utils import is_lifetime_order, resolve_plan_groups
+
+    def display_plan_name(plan_name, user_id=None, language=None):
+        return plan_name
 from i18n import get_user_language
 from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store

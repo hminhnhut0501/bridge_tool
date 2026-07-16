@@ -153,6 +153,23 @@ export function orderCouponCode(order: Order) {
   return displayText(order.coupon_code || "");
 }
 
+function orderMetadata(order: { metadata?: unknown }) {
+  return order.metadata && typeof order.metadata === "object" ? (order.metadata as Record<string, unknown>) : null;
+}
+
+export function resolveOrderDisplayLabel(order: { plan_name?: string | null; metadata?: unknown }) {
+  const metadata = orderMetadata(order);
+  return displayText(metadata?.admin_label || metadata?.display_name || order.plan_name || "-") || "-";
+}
+
+export function resolveOrderTechLabel(order: { plan_name?: string | null }) {
+  return displayText(order.plan_name || "-") || "-";
+}
+
+export function resolveOrderCaption(order: { plan_name?: string | null; metadata?: unknown }) {
+  return resolveOrderDisplayLabel(order);
+}
+
 export function orderPlanKind(order: Order) {
   if (isLifetimeText(order.plan_name)) return "Trọn đời";
   return displayText(stripPlanToken(String(order.plan_name || ""))) || "-";

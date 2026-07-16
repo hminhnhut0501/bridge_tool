@@ -114,6 +114,9 @@ import {
   orderAmountValue,
   orderMoney,
   orderNoteText,
+  resolveOrderCaption,
+  resolveOrderDisplayLabel,
+  resolveOrderTechLabel,
   payloadText,
   providerRevenueFormat,
   safeDateMillis,
@@ -4270,7 +4273,7 @@ export default function Home() {
       "Mã đơn": item.order_id || "-",
       "Telegram ID": item.telegram_user_id || "-",
       "Khách": item.full_name || "-",
-      "Gói": item.plan_name || "-",
+      "Gói": resolveOrderCaption(item),
       "Số tiền": orderMoney(item),
       "Trạng thái": orderStatusLabel(item.status),
       "Thanh toán lúc": item.paid_at ? dateText(item.paid_at) : "-",
@@ -4307,7 +4310,7 @@ export default function Home() {
         "Khách": item.customer_name || "-",
         "Telegram ID": item.telegram_user_id || "-",
         "Đơn": item.order_id || "-",
-        "Gói": item.plan_name || "-",
+        "Gói": resolveOrderCaption({ plan_name: item.plan_name }),
         "Hết hạn": item.expire_at ? dateText(item.expire_at) : "-",
         "Group": item.group_name || "-",
         "Group ID": item.group_id || "-",
@@ -5432,7 +5435,7 @@ export default function Home() {
             <div className="muted">{dateText(item.expire_at || "")}</div>
           </div>,
           <div key={`audit-plan-${item.audit_id}`}>
-            <strong>{item.plan_name || "-"}</strong>
+            <strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong>
             <div className="muted">{item.current_group_names?.join(" • ") || item.group_name || "-"}</div>
           </div>,
           <div key={`audit-group-${item.audit_id}`}>
@@ -5468,7 +5471,7 @@ export default function Home() {
               <div className="muted">{item.group_id || "-"}</div>
             </Box>
           </Tooltip>,
-          <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
+          <><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">{item.order_id || "-"}</div></>,
           item.expire_at ? dateText(item.expire_at) : "-",
           <Tooltip key={`vip-${item.audit_id}-live-tip`} title={item.live_checked ? `Mã live: ${item.live_status || "-"}` : "Chưa kiểm tra live"} arrow>
             <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
@@ -5494,7 +5497,7 @@ export default function Home() {
               <div className="muted">{item.group_id || "-"}</div>
             </Box>
           </Tooltip>,
-          <><strong>{item.plan_name || "-"}</strong><div className="muted">{item.order_id || "-"}</div></>,
+          <><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">{item.order_id || "-"}</div></>,
           item.expire_at ? dateText(item.expire_at) : "-",
           <Tooltip key={`kick-${item.audit_id}-live-tip`} title={item.live_checked ? `Mã live: ${item.live_status || "-"}` : "Chưa kiểm tra live"} arrow>
             <span>{item.live_checked ? `${item.live_status || "-"}${item.live_present === true ? " / còn trong group" : item.live_present === false ? " / đã rời" : ""}` : "Chưa live"}</span>
@@ -5944,7 +5947,7 @@ export default function Home() {
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded }),
           cells: [
             <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
-            <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+            <Fragment key="plan"><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Còn {daysUntil(item.expire_at)} ngày</div></Fragment>,
             reminderEvent ? <Fragment key="reminder"><strong>{dateText(reminderEvent.created_at)}</strong><div className="muted">{renewalNoticeBatch(reminderEvent)}</div></Fragment> : item.last_reminder_date || "Chưa nhắc",
             <Chip key="status" size="small" label={unreminded ? "Chưa nhắc" : "Đã nhắc"} color={unreminded ? "warning" : "success"} variant="outlined" />,
@@ -5958,7 +5961,7 @@ export default function Home() {
         flags: renewalRowFlags(String(item.telegram_user_id || "")),
         cells: [
           <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
-          <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+          <Fragment key="plan"><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           <Fragment key="type"><strong>{renewalNoticeLabel(item)}</strong><div className="muted">{renewalNoticeBatch(item)}</div></Fragment>,
           <Fragment key="at"><strong>{dateText(item.created_at)}</strong><div className="muted">{isTodayDate(item.created_at) ? "Hôm nay" : "Đã gửi"}</div></Fragment>,
           item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
@@ -5978,7 +5981,7 @@ export default function Home() {
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: summary.status !== "Đã kick" }),
           cells: [
             <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
-            <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+            <Fragment key="plan"><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status"><Chip size="small" label={summary.status} color={tone} variant="outlined" />{summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}</Fragment>,
             <Box key="groups" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -6014,7 +6017,7 @@ export default function Home() {
         flags: renewalRowFlags(String(item.telegram_user_id || "")),
         cells: [
           <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
-          <Fragment key="plan"><strong>{item.plan_name || "-"}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+          <Fragment key="plan"><strong>{resolveOrderCaption({ plan_name: item.plan_name })}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           dateText(item.paid_at || item.created_at),
           [item.payment_provider || item.source_type || "PAID", inferOrderCurrency(item)].filter(Boolean).join(" / "),
           groupNamesForOrder(item).join(", ") || "All Access / trọn đời",
@@ -6357,7 +6360,7 @@ export default function Home() {
       });
       overview.recent_orders.slice(0, 5).forEach((item, idx) => {
         const raw = item as { order_id?: string; full_name?: string; plan_name?: string; created_at?: string };
-        feed.push({ type: "order", id: `summary-order-${idx}`, priority: 2, title: `Đơn mới: ${String(raw.order_id || "")}`, detail: `${String(raw.full_name || "Khách ẩn danh")} • ${String(raw.plan_name || "")}`, time: String(raw.created_at || new Date().toISOString()), tone: "good" });
+        feed.push({ type: "order", id: `summary-order-${idx}`, priority: 2, title: `Đơn mới: ${String(raw.order_id || "")}`, detail: `${String(raw.full_name || "Khách ẩn danh")} • ${resolveOrderCaption({ plan_name: raw.plan_name })}`, time: String(raw.created_at || new Date().toISOString()), tone: "good" });
       });
       return feed.sort((a, b) => b.priority - a.priority || (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0)).slice(0, 10);
     }
@@ -6576,8 +6579,7 @@ export default function Home() {
   }
 
   function orderAdminLabel(order: Pick<Order, "plan_name" | "metadata">) {
-    const metadata = order.metadata && typeof order.metadata === "object" ? order.metadata as Record<string, unknown> : null;
-    return String(metadata?.admin_label || metadata?.display_name || "").trim() || order.plan_name || "-";
+    return resolveOrderDisplayLabel(order);
   }
 
   function manualExpiryPreview() {
@@ -7016,7 +7018,7 @@ export default function Home() {
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {dateText(item.created_at)}
-                            {item.plan_name ? ` · ${item.plan_name}` : ""}
+                            {item.plan_name ? ` · ${resolveOrderCaption({ plan_name: item.plan_name })}` : ""}
                           </Typography>
                         </Box>
                         <IconButton
@@ -9220,9 +9222,9 @@ export default function Home() {
                           <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
                             {orderAdminLabel(customerQuickLookupResult.latestExpireOrder)}
                           </Typography>
-                          {orderAdminLabel(customerQuickLookupResult.latestExpireOrder) !== (String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-") ? (
+                          {orderAdminLabel(customerQuickLookupResult.latestExpireOrder) !== resolveOrderTechLabel(customerQuickLookupResult.latestExpireOrder) ? (
                             <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.1 }}>
-                              Kỹ thuật: {String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-"}
+                              Kỹ thuật: {resolveOrderTechLabel(customerQuickLookupResult.latestExpireOrder)}
                             </Typography>
                           ) : null}
                         </Box>
@@ -9868,7 +9870,7 @@ export default function Home() {
                           </Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                             {dateText(item.created_at)}
-                            {item.plan_name ? ` · ${item.plan_name}` : ""}
+                            {item.plan_name ? ` · ${resolveOrderCaption({ plan_name: item.plan_name })}` : ""}
                           </Typography>
                         </Box>
                       </CardContent>
@@ -10131,9 +10133,8 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
       {sorted.map((order) => (
         (() => {
           const canEdit = String(order.status || "").toUpperCase() === "PAID";
-          const metadata = order.metadata && typeof order.metadata === "object" ? (order.metadata as Record<string, unknown>) : null;
-          const displayLabel = String(metadata?.admin_label || metadata?.display_name || order.plan_name || "-").trim() || "-";
-          const techLabel = String(order.plan_name || "-").trim() || "-";
+          const displayLabel = resolveOrderDisplayLabel(order);
+          const techLabel = resolveOrderTechLabel(order);
           const cardSx = canEdit
             ? undefined
             : {
