@@ -118,6 +118,18 @@ def should_skip_reminder(row, today_str):
 def should_skip_expired_notice(row):
     return bool(row_value(row, 11))
 
+
+def should_send_expired_notice(row, today_str):
+    if not config_enabled("EXPIRED_NOTICE_ENABLED", "ON"):
+        return False
+    if should_skip_expired_notice(row):
+        return False
+    expire_str = row_value(row, 7)
+    expire_date = parse_expire_datetime(expire_str)
+    if not expire_date:
+        return False
+    return expire_date.date() < datetime.strptime(today_str, "%Y-%m-%d").date()
+
 def parse_event_datetime(event):
     return parse_expire_datetime((event or {}).get("created_at"))
 
@@ -789,6 +801,42 @@ async def check_expirations_professional():
                 continue
             await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
             await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
+
+            if should_send_expired_notice(row, today_str):
+                expire_date = parse_expire_datetime(expire_str)
+                if not expire_date:
+                    continue
+                days_grace = support_group_grace_days()
+                plan_label = display_plan_name(plan_name, user_id)
+                msg_expired = (
+                    db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn vào <b>{date}</b>.\n\nNếu muốn tiếp tục dùng bot, vui lòng gia hạn ngay nhé:")
+                    .replace("\\n", "\n")
+                    .replace("{plan}", plan_label)
+                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
+                    .replace("{grace_days}", str(days_grace))
+                )
+                kb = InlineKeyboardBuilder()
+                if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
+                else:
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
+                try:
+                    await send_html_message(user_id, msg_expired, kb.as_markup())
+                    record_support_event(
+                        "expired_notice_sent",
+                        user_id,
+                        order_id=order_id,
+                        plan_name=plan_label,
+                        raw_data={"expire_at": expire_str, "grace_days": days_grace, "plan_name_raw": plan_name},
+                    )
+                    summary["expired_notice"] += 1
+                    if use_supabase:
+                        supabase_store.mark_expired_notice(order_id, now.strftime("%Y-%m-%d %H:%M:%S"))
+                    else:
+                        db.users_sheet.update_cell(row_number, 12, now.strftime("%Y-%m-%d %H:%M:%S"))
+                    logging.info("📮 Đã gửi tin báo hết hạn cho User %s, đơn/dòng %s, plan=%s.", user_id, offer_ref, plan_label)
+                except Exception as e:
+                    logging.error(f"❌ Lỗi gửi tin báo hết hạn cho {user_id}: {e}")
 
         # Pass 2: xử lý PAID reminder.
         for offset, row in reminder_rows:
