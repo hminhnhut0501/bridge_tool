@@ -144,6 +144,7 @@ class SupabaseStore:
         self._table_cache_ttl = {
             "orders": int(os.getenv("SUPABASE_CACHE_TTL_ORDERS", "10")),
             "support_events": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_EVENTS", "20")),
+            "customer_identity_history": int(os.getenv("SUPABASE_CACHE_TTL_CUSTOMER_IDENTITY_HISTORY", "20")),
             "analytics_events": int(os.getenv("SUPABASE_CACHE_TTL_ANALYTICS_EVENTS", "30")),
             "security_blacklist": int(os.getenv("SUPABASE_CACHE_TTL_BLACKLIST", "20")),
             "coupons": int(os.getenv("SUPABASE_CACHE_TTL_COUPONS", "20")),
@@ -1256,7 +1257,74 @@ class SupabaseStore:
             "plan_name": _clean_text(kwargs.get("plan_name")),
             "raw_data": kwargs.get("raw_data") or {},
         }
-        return self._request("POST", "support_events", json=payload, prefer="return=representation")
+        rows = self._request("POST", "support_events", json=payload, prefer="return=representation")
+        try:
+            self.record_customer_identity_history(
+                telegram_user_id,
+                username=payload.get("username") or "",
+                full_name=payload.get("full_name") or "",
+                source_event_type=payload.get("event_type") or "",
+                source_order_id=payload.get("order_id") or "",
+                source_chat_id=payload.get("chat_id") or "",
+                raw_data=payload.get("raw_data") or {},
+            )
+        except Exception:
+            pass
+        return rows
+
+    def get_customer_identity_history(self, telegram_user_id, limit=50):
+        user_id = _clean_text(telegram_user_id)
+        if not user_id:
+            return []
+        rows = self._request(
+            "GET",
+            "customer_identity_history",
+            params={
+                "select": "*",
+                "telegram_user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "limit": str(max(1, min(int(limit or 50), 500))),
+            },
+        )
+        return rows
+
+    def get_customer_identity_history_latest(self, telegram_user_id):
+        rows = self.get_customer_identity_history(telegram_user_id, limit=1)
+        return rows[0] if rows else None
+
+    def record_customer_identity_history(self, telegram_user_id, *, username="", full_name="", source_event_type="", source_order_id="", source_chat_id="", raw_data=None):
+        user_id = _clean_text(telegram_user_id)
+        username_clean = _clean_display_text(username).lstrip("@")
+        full_name_clean = _clean_display_text(full_name)
+        if not user_id or (not username_clean and not full_name_clean):
+            return None
+
+        latest = self.get_customer_identity_history_latest(user_id)
+        latest_username = _clean_display_text((latest or {}).get("username")).lstrip("@")
+        latest_full_name = _clean_display_text((latest or {}).get("full_name"))
+        if latest and latest_username == username_clean and latest_full_name == full_name_clean:
+            return latest
+
+        previous = latest or {}
+        changed_fields = []
+        if latest_username != username_clean:
+            changed_fields.append("username")
+        if latest_full_name != full_name_clean:
+            changed_fields.append("full_name")
+
+        payload = {
+            "telegram_user_id": user_id,
+            "username": username_clean,
+            "full_name": full_name_clean,
+            "previous_username": latest_username,
+            "previous_full_name": latest_full_name,
+            "changed_fields": changed_fields,
+            "source_event_type": _clean_text(source_event_type),
+            "source_order_id": _clean_text(source_order_id),
+            "source_chat_id": _clean_text(source_chat_id),
+            "raw_data": raw_data or {},
+        }
+        return self._request("POST", "customer_identity_history", json=payload, prefer="return=representation")
 
     def create_support_ticket(self, payload):
         return self._request("POST", "support_tickets", json=payload, prefer="return=representation")
@@ -1416,6 +1484,29 @@ class SupabaseStore:
         user_id = _clean_text(telegram_user_id)
         if not user_id:
             return {}
+
+        try:
+            rows = self._request(
+                "GET",
+                "customer_identity_history",
+                params={
+                    "select": "telegram_user_id,username,full_name",
+                    "telegram_user_id": f"eq.{user_id}",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+            if rows:
+                latest = rows[0]
+                result = {}
+                if _clean_text(latest.get("username")):
+                    result["username"] = _clean_text(latest.get("username"))
+                if _clean_text(latest.get("full_name")):
+                    result["full_name"] = _clean_text(latest.get("full_name"))
+                if result:
+                    return result
+        except Exception:
+            pass
 
         try:
             rows = self._request(

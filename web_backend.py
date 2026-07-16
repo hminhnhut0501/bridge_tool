@@ -2754,6 +2754,19 @@ async def admin_support_events(limit: int = 1000):
         return {"data": []}
 
 
+@app.get("/admin-api/customer-identity-history/{telegram_user_id}", dependencies=[Depends(require_admin)])
+async def admin_customer_identity_history(telegram_user_id: str, limit: int = 50):
+    try:
+        safe_limit = max(1, min(int(limit or 50), 500))
+        return {"data": supabase_store.get_customer_identity_history(telegram_user_id, limit=safe_limit)}
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "customer_identity_history"):
+            warn_missing_table_once("customer_identity_history", exc)
+        else:
+            print(f"⚠️ Không đọc được customer_identity_history: {exc}")
+        return {"data": []}
+
+
 @app.get("/admin-api/support-cases", dependencies=[Depends(require_admin)])
 async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""):
     try:

@@ -259,6 +259,21 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
             "raw_data": raw_data or {},
         }
         created = supabase_store.create_support_ticket(payload)
+        try:
+            supabase_store.record_customer_identity_history(
+                user_id,
+                username=payload["username"],
+                full_name=payload["full_name"],
+                source_event_type="support_ticket_created",
+                source_chat_id=payload["chat_id"],
+                raw_data={
+                    "source": payload["source"],
+                    "subject": payload["subject"],
+                    "ticket_no": payload["ticket_no"],
+                },
+            )
+        except Exception as exc:
+            print(f"⚠️ Không ghi được customer identity history cho {telegram_user_id}: {exc}")
         return created[0] if created else None, ""
     except Exception as exc:
         print(f"⚠️ Không tạo được support ticket cho user {telegram_user_id}: {exc}")

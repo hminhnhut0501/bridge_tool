@@ -124,6 +124,21 @@ export type SupportEvent = {
   created_at: string;
 };
 
+export type CustomerIdentityHistoryRow = {
+  id: string;
+  telegram_user_id: string;
+  username: string | null;
+  full_name: string | null;
+  previous_username: string | null;
+  previous_full_name: string | null;
+  changed_fields: string[] | null;
+  source_event_type: string | null;
+  source_order_id: string | null;
+  source_chat_id: string | null;
+  raw_data: Record<string, unknown>;
+  created_at: string;
+};
+
 export type ActivityEvent = {
   id: string;
   event_name: string;
@@ -925,6 +940,10 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
 
 export async function getSupportEvents(secret: string, limit = 1000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
+}
+
+export async function getCustomerIdentityHistory(secret: string, telegramUserId: string, limit = 50) {
+  return request<{ data: CustomerIdentityHistoryRow[] }>(`/admin-api/customer-identity-history/${encodeURIComponent(telegramUserId)}?limit=${limit}`, secret);
 }
 
 export async function getKickAudit(secret: string, live = false) {

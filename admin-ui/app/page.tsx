@@ -202,6 +202,7 @@ import {
   getSaleRules,
   searchCustomers,
   getSupportEvents,
+  getCustomerIdentityHistory,
   getUsers,
   getWebhookInfo,
   kickAuditMember,
@@ -234,6 +235,7 @@ import {
   type AdminNotificationItem,
   type VipGroupAuditRow,
   type VipMemberAuditRow,
+  type CustomerIdentityHistoryRow,
   type SupportGroupCheck,
 } from "@/lib/api";
 
@@ -3071,6 +3073,7 @@ export default function Home() {
   const [marketingRange, setMarketingRange] = useState<"today" | "7d" | "month" | "year">("month");
   const marketingRefreshTimerRef = useRef<number | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [customerIdentityHistory, setCustomerIdentityHistory] = useState<CustomerIdentityHistoryRow[]>([]);
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
@@ -3444,6 +3447,24 @@ export default function Home() {
       .then((res) => setChannelEvents(res.data))
       .catch(() => setChannelEvents([]));
   }, [savedSecret, selectedChannelPostId, channelPosts]);
+
+  useEffect(() => {
+    if (!savedSecret || !selectedCustomerId) {
+      setCustomerIdentityHistory([]);
+      return;
+    }
+    let cancelled = false;
+    getCustomerIdentityHistory(savedSecret, selectedCustomerId, 50)
+      .then((res) => {
+        if (!cancelled) setCustomerIdentityHistory(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerIdentityHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedSecret, selectedCustomerId]);
 
   function selectTab(nextTab: Tab) {
     setTab(nextTab);
@@ -5552,7 +5573,22 @@ export default function Home() {
         detail: friendlyDetailText(item.latest_error || (item.live_checked ? `${item.live_status || "-"}` : "Chưa kiểm tra live") || "-"),
       }));
 
-    const rows = [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace]
+    const identityTrace: CustomerTraceEvent[] = customerIdentityHistory
+      .filter((item) => String(item.telegram_user_id || "").trim() === customerId)
+      .map((item) => ({
+        key: `identity-${item.id}`,
+        type: "identity_changed",
+        group: item.source_event_type || "identity",
+        order: item.source_order_id || "-",
+        createdAt: item.created_at,
+        detail: [
+          item.previous_full_name && item.previous_full_name !== item.full_name ? `Tên: ${item.previous_full_name} → ${item.full_name || "-"}` : "",
+          item.previous_username && item.previous_username !== item.username ? `Username: ${item.previous_username} → ${item.username || "-"}` : "",
+          item.source_chat_id ? `Chat: ${item.source_chat_id}` : "",
+        ].filter(Boolean).join(" • ") || "Identity snapshot",
+      }));
+
+    const rows = [...orderTrace, ...supportTrace, ...kickTrace, ...vipTrace, ...identityTrace]
       .filter((item) => item.createdAt)
       .sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0))
       .map((item) => ({
@@ -6485,7 +6521,9 @@ export default function Home() {
 
   function changeManualPlanKey(value: string) {
     const lifetime = isLifetimePlanKey(value);
-    const nextPlanName = value === "CUSTOM" ? manualOrderForm.plan_name : manualPlanNameFromKey(value);
+    const nextPlanName = value === "CUSTOM"
+      ? (manualOrderForm.plan_name.trim() || manualPlanNameFromKey("FULL_1M"))
+      : manualPlanNameFromKey(value);
     setManualOrderForm({
       ...manualOrderForm,
       plan_key: value,
@@ -6510,8 +6548,8 @@ export default function Home() {
       plan_key: group ? "CUSTOM" : manualOrderForm.plan_key,
       special_group_id: groupId,
       special_group_duration: normalizedDuration,
-      plan_name: nextPlanName || manualOrderForm.plan_name,
-      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : (nextPlanName || manualOrderForm.plan_name),
+      plan_name: nextPlanName || manualOrderForm.plan_name || manualPlanNameFromKey("FULL_1M"),
+      admin_label: manualOrderForm.admin_label.trim() ? manualOrderForm.admin_label : (nextPlanName || manualOrderForm.plan_name || manualPlanNameFromKey("FULL_1M")),
       amount: nextAmount,
       expiry_mode: "days",
       duration_days: normalizedDuration === "LIFE"
@@ -6520,10 +6558,17 @@ export default function Home() {
     });
   }
 
+  function manualOrderTechnicalPlanName() {
+    const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
+    if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
+    if (manualOrderForm.plan_key === "CUSTOM") return manualOrderForm.plan_name.trim() || manualPlanNameFromKey("FULL_1M");
+    return manualPlanNameFromKey(manualOrderForm.plan_key);
+  }
+
   function manualOrderPlanNameDisplay() {
     const group = manualOrderForm.special_group_id ? activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null : null;
     if (group) return hiddenGroupManualPlanName(group, manualOrderForm.special_group_duration || "1M");
-    return manualPlanNameFromKey(manualOrderForm.plan_key);
+    return manualOrderTechnicalPlanName();
   }
 
   function manualOrderAdminLabelDisplay() {
@@ -6593,7 +6638,7 @@ export default function Home() {
   async function saveManualOrder() {
     const specialGroup = activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null;
     const specialPlanName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualOrderForm.special_group_duration || "1M") : "";
-    const planName = specialPlanName || (manualOrderForm.plan_key === "CUSTOM" ? manualOrderForm.plan_name.trim() : manualPlanNameFromKey(manualOrderForm.plan_key));
+    const planName = specialPlanName || manualOrderTechnicalPlanName();
     const adminLabel = manualOrderForm.admin_label.trim() || planName;
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
