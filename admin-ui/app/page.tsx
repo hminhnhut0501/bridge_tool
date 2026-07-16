@@ -6249,10 +6249,10 @@ export default function Home() {
   const visibleAdminNotifications = useMemo(() => {
     return adminNotifications.filter((item) => {
       if (item.kind === "order" && !notificationOrdersEnabled) return false;
-      if (item.kind === "message" && !notificationPrivateMessagesEnabled) return false;
+      if (item.kind === "message") return false;
       return true;
     });
-  }, [adminNotifications, notificationOrdersEnabled, notificationPrivateMessagesEnabled]);
+  }, [adminNotifications, notificationOrdersEnabled]);
 
   const unreadAdminNotifications = useMemo(() => {
     const seen = new Set(notificationSeenIds);
@@ -6261,6 +6261,7 @@ export default function Home() {
 
   const unreadAdminNotificationCount = unreadAdminNotifications.length;
   const previousUnreadCountRef = useRef(0);
+  const previousSupportUnreadCountRef = useRef(0);
 
   const supportInboxItems = useMemo(() => {
     return [...supportInboxCases]
@@ -6455,6 +6456,46 @@ export default function Home() {
     }
     previousUnreadCountRef.current = unreadAdminNotificationCount;
   }, [playNotificationSound, unreadAdminNotificationCount]);
+
+  const playSupportInboxSound = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const now = Date.now();
+    if (now - notificationSoundRef.current.playedAt < 1400) return;
+    notificationSoundRef.current.playedAt = now;
+    try {
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audioContext = new AudioContextCtor();
+      const gain = audioContext.createGain();
+      gain.gain.value = 0.0001;
+      gain.connect(audioContext.destination);
+      const attack = audioContext.currentTime;
+      const tones = [659.25, 988];
+      tones.forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator();
+        oscillator.type = index === 0 ? "sine" : "triangle";
+        oscillator.frequency.value = frequency;
+        oscillator.connect(gain);
+        oscillator.start(attack + index * 0.035);
+        oscillator.stop(attack + 0.22 + index * 0.035);
+      });
+      gain.gain.exponentialRampToValueAtTime(0.07, attack + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, attack + 0.28);
+      window.setTimeout(() => {
+        void audioContext.close().catch(() => undefined);
+      }, 380);
+    } catch {
+      // ignore autoplay / browser audio errors
+    }
+  }, []);
+
+  useEffect(() => {
+    const previous = previousSupportUnreadCountRef.current;
+    if (unreadSupportInboxCount > previous && previous >= 0) {
+      playSupportInboxSound();
+    }
+    previousSupportUnreadCountRef.current = unreadSupportInboxCount;
+  }, [playSupportInboxSound, unreadSupportInboxCount]);
 
   const actionableFeed = useMemo(() => {
     if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_notifications?.length || dashboardOverview?.recent_user_activity?.length) {
@@ -6974,14 +7015,21 @@ export default function Home() {
                 sx={{
                   width: 42,
                   height: 42,
-                  border: unreadSupportInboxCount > 0 ? "1px solid rgba(14,165,233,0.28)" : "1px solid rgba(148,163,184,0.18)",
-                  bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.10)" : "rgba(15,23,42,0.03)",
+                  border: unreadSupportInboxCount > 0 ? "1px solid rgba(14,165,233,0.30)" : "1px solid rgba(148,163,184,0.18)",
+                  bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.12)" : "rgba(15,23,42,0.03)",
                   color: unreadSupportInboxCount > 0 ? "info.main" : "text.secondary",
-                  boxShadow: unreadSupportInboxCount > 0 ? "0 14px 30px rgba(14,165,233,0.20), 0 0 0 6px rgba(14,165,233,0.07)" : "inset 0 1px 0 rgba(255,255,255,0.76)",
+                  boxShadow: unreadSupportInboxCount > 0 ? "0 14px 30px rgba(14,165,233,0.24), 0 0 0 6px rgba(14,165,233,0.08)" : "inset 0 1px 0 rgba(255,255,255,0.76)",
+                  animation: unreadSupportInboxCount > 0 ? "supportInboxPing 1.1s ease-in-out infinite" : "none",
                   transition: "transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease",
+                  "@keyframes supportInboxPing": {
+                    "0%, 100%": { transform: "translateY(0px) scale(1)" },
+                    "18%": { transform: "translateY(-2px) scale(1.08)" },
+                    "42%": { transform: "translateY(0px) scale(0.98)" },
+                    "68%": { transform: "translateY(-1px) scale(1.05)" },
+                  },
                   "&:hover": {
-                    bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.14)" : "rgba(59,130,246,0.12)",
-                    boxShadow: unreadSupportInboxCount > 0 ? "0 16px 34px rgba(14,165,233,0.24)" : "0 14px 28px rgba(59,130,246,0.16)",
+                    bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.16)" : "rgba(59,130,246,0.12)",
+                    boxShadow: unreadSupportInboxCount > 0 ? "0 16px 34px rgba(14,165,233,0.28)" : "0 14px 28px rgba(59,130,246,0.16)",
                   },
                 }}
               >
@@ -6997,6 +7045,13 @@ export default function Home() {
                       px: 0.45,
                       bgcolor: unreadSupportInboxCount > 0 ? "#0ea5e9" : undefined,
                       color: "#fff",
+                      animation: unreadSupportInboxCount > 0 ? "supportInboxBadgePop 0.8s ease-in-out infinite" : "none",
+                      "@keyframes supportInboxBadgePop": {
+                        "0%, 100%": { transform: "scale(1)" },
+                        "20%": { transform: "scale(1.2)" },
+                        "55%": { transform: "scale(0.96)" },
+                        "80%": { transform: "scale(1.12)" },
+                      },
                     },
                   }}
                 >
