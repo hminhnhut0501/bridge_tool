@@ -7,7 +7,6 @@ from database import db
 from i18n import t
 from i18n import get_user_language
 from supabase_store import supabase_store
-from helpers import safe_delete_private_message
 
 
 def escape_html(text):
@@ -81,88 +80,6 @@ def is_support_group(chat_id):
 def support_inbox_enabled():
     raw = str(db.get_config("SUPPORT_INBOX_ENABLED", "ON") or "ON").strip()
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
-
-
-def support_inbox_status_enabled():
-    raw = str(db.get_config("SUPPORT_INBOX_STATUS_ENABLED", "ON") or "ON").strip()
-    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
-
-
-def support_inbox_status_style():
-    raw = str(db.get_config("SUPPORT_INBOX_STATUS_STYLE", "pulse") or "pulse").strip().lower()
-    return raw if raw in {"pulse", "dots", "blink", "wave", "custom"} else "pulse"
-
-
-def support_inbox_status_frames():
-    return str(db.get_config("SUPPORT_INBOX_STATUS_FRAMES", "") or "").strip()
-
-
-def support_inbox_status_frame_delay_ms():
-    try:
-        return max(120, int(float(str(db.get_config("SUPPORT_INBOX_STATUS_FRAME_DELAY_MS", "420")).strip())))
-    except (TypeError, ValueError):
-        return 420
-
-
-def support_inbox_status_final_hold_ms():
-    try:
-        return max(0, int(float(str(db.get_config("SUPPORT_INBOX_STATUS_FINAL_HOLD_MS", "800")).strip())))
-    except (TypeError, ValueError):
-        return 800
-
-
-def support_inbox_status_total_ms(frame_count=None):
-    configured = str(db.get_config("SUPPORT_INBOX_STATUS_TOTAL_MS", "") or "").strip()
-    if configured:
-        try:
-            return max(1200, int(float(configured)))
-        except (TypeError, ValueError):
-            pass
-    # Fallback for older data: keep the transition visible long enough for at least two full frame cycles.
-    safe_frame_count = max(1, int(frame_count or 0) or 1)
-    return max(1200, support_inbox_status_frame_delay_ms() * safe_frame_count * 2 + support_inbox_status_final_hold_ms())
-
-
-def support_inbox_connecting_text():
-    return str(db.get_config("SUPPORT_INBOX_CONNECTING_TEXT", "Đang kết nối") or "Đang kết nối").strip()
-
-
-def support_inbox_ready_text():
-    return str(db.get_config("SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") or "{staff_name} đã sẵn sàng hỗ trợ 🤗").strip()
-
-
-def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_username="", ticket_no=""):
-    text = support_inbox_ready_text()
-    replacements = {
-        "{staff_name}": str(staff_name or "Admin"),
-        "{admin_name}": str(admin_name or ""),
-        "{admin_username}": str(admin_username or ""),
-        "{ticket_no}": str(ticket_no or ""),
-    }
-    for key, value in replacements.items():
-        text = text.replace(key, value)
-    return text
-
-
-def support_admin_presence_text(online=True):
-    return "🟢 Admin đang online" if online else "⚪ Admin đang offline"
-
-
-def support_inbox_status_frame_list(base_message=""):
-    message = str(base_message or support_inbox_connecting_text()).strip() or "Đang kết nối"
-    raw_frames = support_inbox_status_frames()
-    if support_inbox_status_style() == "custom" and raw_frames:
-        frames = [line.strip() for line in raw_frames.splitlines() if line.strip()]
-        return [frame.replace("{message}", message) for frame in frames] or [message]
-
-    style = support_inbox_status_style()
-    if style == "dots":
-        return [message, f"{message}.", f"{message}..", f"{message}..."]
-    if style == "blink":
-        return [f"● {message}", f"○ {message}", f"● {message}"]
-    if style == "wave":
-        return [message, f"{message} ~", f"{message} ~~", f"{message} ~~~"]
-    return [f"{message} ·", f"{message} ··", f"{message} ···"]
 
 
 def support_ticket_prefix():
@@ -333,7 +250,7 @@ async def create_support_case_from_private_message(message, *, source="private_u
     except Exception:
         pass
 
-    await send_support_connecting_status(message, ticket, delete_source_message=True)
+    await send_support_connecting_status(message, ticket)
 
     return ticket, ""
 
@@ -376,75 +293,7 @@ def _render_template(template: str, context: dict[str, object], default_text: st
 
 
 async def send_support_connecting_status(message, ticket, *, delete_source_message=False):
-    try:
-        initial_frames = support_inbox_status_frame_list(support_inbox_connecting_text())
-        initial_text = initial_frames[0] if initial_frames else support_inbox_connecting_text()
-        status_message = await message.answer(
-            initial_text,
-        )
-        if delete_source_message:
-            await safe_delete_private_message(message)
-        if support_inbox_status_enabled():
-            try:
-                from modules.mod_support_inbox import _play_support_inbox_status_effect
-            except Exception as exc:
-                print(f"⚠️ Không nạp được effect support inbox: {exc}")
-                _play_support_inbox_status_effect = None
-
-            if _play_support_inbox_status_effect:
-                from helpers import create_background_task
-
-                create_background_task(
-                    _play_support_inbox_status_effect(
-                        chat_id=message.chat.id,
-                        message_id=status_message.message_id,
-                        ticket_no=str(ticket.get("ticket_no", "")),
-                    ),
-                    name=f"support_inbox_status_{ticket.get('ticket_no', '')}",
-                    context="support_inbox",
-                )
-            else:
-                from helpers import create_background_task
-                import asyncio
-
-                async def _finalize_support_status():
-                    await asyncio.sleep(support_inbox_status_total_ms(len(initial_frames)) / 1000.0)
-                    await status_message.edit_text(
-                        f"{support_admin_presence_text(True)}\n"
-                        f"{render_support_inbox_ready_text(staff_name='Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
-                    )
-
-                create_background_task(
-                    _finalize_support_status(),
-                    name=f"support_inbox_status_fallback_{ticket.get('ticket_no', '')}",
-                    context="support_inbox",
-                )
-        else:
-            from helpers import create_background_task
-            import asyncio
-
-            async def _finalize_support_status():
-                await asyncio.sleep(support_inbox_status_total_ms(len(initial_frames)) / 1000.0)
-                await status_message.edit_text(
-                    f"{support_admin_presence_text(True)}\n"
-                    f"{render_support_inbox_ready_text(staff_name='Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
-                )
-
-            create_background_task(
-                _finalize_support_status(),
-                name=f"support_inbox_status_disabled_{ticket.get('ticket_no', '')}",
-                context="support_inbox",
-            )
-    except Exception:
-        try:
-            if delete_source_message:
-                await safe_delete_private_message(message)
-            await message.answer(
-                "✅ Đã ghi nhận tin nhắn hỗ trợ.\n"
-                f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
-            )
-        except Exception:
-            pass
+    return None
 
 
 async def record_support_message(ticket_id, direction, *, telegram_message_id=None, manager_group_message_id=None, manager_topic_message_id=None, reply_to_manager_message_id=None, text="", payload=None):

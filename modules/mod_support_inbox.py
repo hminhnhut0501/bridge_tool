@@ -1,22 +1,10 @@
-import asyncio
-
-from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram import Router
 from aiogram.types import Message
 
-from bot_instance import bot
-from helpers import create_background_task
 from message_classifier_utils import classify_private_message
 from supabase_store import supabase_store
 from support_utils import (
     create_support_case_from_private_message,
-    support_admin_presence_text,
-    render_support_inbox_ready_text,
-    support_inbox_connecting_text,
-    support_inbox_status_enabled,
-    support_inbox_status_frame_delay_ms,
-    support_inbox_status_frame_list,
-    support_inbox_status_total_ms,
     support_inbox_enabled,
 )
 
@@ -76,41 +64,6 @@ def has_open_support_ticket(user_id):
         return False
 
 
-async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ticket_no: str):
-    frames = support_inbox_status_frame_list(support_inbox_connecting_text())
-    if not frames:
-        return
-
-    delay_ms = support_inbox_status_frame_delay_ms()
-    total_visible_ms = support_inbox_status_total_ms(len(frames))
-    animation_window_ms = max(delay_ms, total_visible_ms)
-    elapsed_ms = 0
-    frame_index = 0
-
-    while elapsed_ms < animation_window_ms:
-        frame = frames[frame_index % len(frames)]
-        try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=frame)
-        except TelegramBadRequest as exc:
-            if "message is not modified" not in str(exc).lower():
-                return
-        except Exception:
-            return
-        sleep_ms = min(delay_ms, animation_window_ms - elapsed_ms)
-        await asyncio.sleep(sleep_ms / 1000.0)
-        elapsed_ms += sleep_ms
-        frame_index += 1
-
-    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name='Admin', ticket_no=ticket_no)}"
-    try:
-        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
-    except TelegramBadRequest as exc:
-        if "message is not modified" not in str(exc).lower():
-            return
-    except Exception:
-        return
-
-
 @router.message(_is_support_inbox_private_message)
 async def support_private_inbox(message: Message):
     try:
@@ -125,8 +78,3 @@ async def support_private_inbox(message: Message):
             print(f"ℹ️ support inbox ticket={ticket.get('ticket_no', '')} user={message.from_user.id}")
     except Exception as exc:
         print(f"⚠️ Không xử lý support inbox cho user {message.from_user.id}: {exc}")
-
-
-@router.message(F.chat.type.in_({"group", "supergroup"}))
-async def support_group_legacy_passthrough(message: Message):
-    return
