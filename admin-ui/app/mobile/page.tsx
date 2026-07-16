@@ -21,6 +21,8 @@ import {
   Chip,
   Divider,
   IconButton,
+  MenuItem,
+  Tooltip,
   Stack,
   Tab,
   Tabs,
@@ -29,7 +31,7 @@ import {
 } from "@mui/material";
 import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order, OverviewDashboard } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
-import { AppSection, AppToolbar, statusChipSx } from "../dashboard-components";
+import { AppSection, AppToolbar, MuiDialogShell, statusChipSx } from "../dashboard-components";
 import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 
 type MobileAction = "lookup" | "manual";
@@ -65,6 +67,7 @@ export default function MobileAdminPage() {
   const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
   const [manualTab, setManualTab] = useState<MobileAction>("manual");
+  const [manualDrawerOpen, setManualDrawerOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualOrderResult | null>(null);
   const [copyNote, setCopyNote] = useState("");
@@ -83,6 +86,12 @@ export default function MobileAdminPage() {
 
   const lastOrders = useMemo(() => [...orders].slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 12), [orders]);
   const topActivity = useMemo(() => activityLog.slice(0, 12), [activityLog]);
+  const selectedCustomerOrderLabel = useMemo(() => {
+    const activeOrder = selectedCustomer?.activeOrders?.[0] || null;
+    const latestPaidOrder = selectedCustomer?.paidOrders?.[0] || null;
+    const targetOrder = activeOrder || latestPaidOrder || selectedCustomer?.latestExpireOrder || null;
+    return targetOrder ? resolveOrderLabel(targetOrder) : null;
+  }, [selectedCustomer]);
 
   useEffect(() => {
     const stored = getStoredSecret();
@@ -145,8 +154,28 @@ export default function MobileAdminPage() {
       ...current,
       telegram_user_id: selectedCustomer?.id || current.telegram_user_id,
       full_name: selectedCustomer?.name && selectedCustomer.name !== "-" ? selectedCustomer.name : current.full_name,
+      plan_name: selectedCustomerOrderLabel?.techLabel || current.plan_name,
+      admin_label: selectedCustomerOrderLabel?.displayLabel || current.admin_label,
     }));
-  }, [savedSecret, selectedCustomer]);
+  }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel]);
+
+  function openManualDrawerFromCustomer(customer?: CustomerSearchResult | null) {
+    setManualTab("manual");
+    if (customer) {
+      const activeOrder = customer.activeOrders?.[0] || null;
+      const latestPaidOrder = customer.paidOrders?.[0] || null;
+      const targetOrder = activeOrder || latestPaidOrder || customer.latestExpireOrder || null;
+      const latestLabel = targetOrder ? resolveOrderLabel(targetOrder) : null;
+      setManualForm((current) => ({
+        ...current,
+        telegram_user_id: customer.id || current.telegram_user_id,
+        full_name: customer.name && customer.name !== "-" ? customer.name : current.full_name,
+        plan_name: latestLabel?.techLabel || current.plan_name,
+        admin_label: latestLabel?.displayLabel || current.admin_label,
+      }));
+    }
+    setManualDrawerOpen(true);
+  }
 
   async function login() {
     const value = secret.trim();
@@ -314,9 +343,16 @@ export default function MobileAdminPage() {
                     <Typography variant="body2" color="text.secondary">{selectedCustomer.id}</Typography>
                     <Divider />
                     <Typography variant="body2">Gói gần nhất: <strong>{selectedCustomer.latestExpireOrder ? resolveOrderLabel(selectedCustomer.latestExpireOrder).displayLabel : "-"}</strong></Typography>
-                    <Typography variant="body2">Tên kỹ thuật: {selectedCustomer.latestExpireOrder ? resolveOrderLabel(selectedCustomer.latestExpireOrder).techLabel : "-"}</Typography>
+                    {selectedCustomer.latestExpireOrder ? (
+                      <Tooltip title={`Kỹ thuật: ${resolveOrderLabel(selectedCustomer.latestExpireOrder).techLabel}`} arrow>
+                        <Chip size="small" label="Thông tin kỹ thuật" variant="outlined" sx={{ width: "fit-content", fontWeight: 700 }} />
+                      </Tooltip>
+                    ) : null}
                     <Typography variant="body2">Hạn gần nhất: {selectedCustomer.latestExpireText}</Typography>
-                    <Button variant="outlined" onClick={() => setManualTab("manual")} startIcon={<Plus size={16} />}>Dùng thông tin này để tạo đơn</Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button variant="outlined" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<Plus size={16} />}>Dùng thông tin này để tạo đơn</Button>
+                      <Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở lại drawer</Button>
+                    </Stack>
                   </CardContent>
                 </Card>
               ) : null}
@@ -325,23 +361,14 @@ export default function MobileAdminPage() {
         ) : null}
 
         {manualTab === "manual" ? (
-          <AppSection title="Tạo đơn thủ công" subtitle="Màn hình ngắn gọn để tạo order và lấy active code/join link." accent="blue">
+          <AppSection
+            title="Tạo đơn thủ công"
+            subtitle="Mở drawer tạo đơn theo đúng luồng PC, rồi lấy active code/join link ngay trong kết quả."
+            accent="blue"
+            action={<Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Tạo đơn</Button>}
+          >
             <Stack spacing={1.25}>
-              <TextField size="small" label="Telegram ID" value={manualForm.telegram_user_id} onChange={(event) => setManualForm((current) => ({ ...current, telegram_user_id: event.target.value }))} fullWidth />
-              <TextField size="small" label="Tên khách" value={manualForm.full_name} onChange={(event) => setManualForm((current) => ({ ...current, full_name: event.target.value }))} fullWidth />
-              <TextField size="small" label="Plan name" value={manualForm.plan_name} onChange={(event) => setManualForm((current) => ({ ...current, plan_name: event.target.value }))} fullWidth />
-              <TextField size="small" label="Admin label" value={manualForm.admin_label} onChange={(event) => setManualForm((current) => ({ ...current, admin_label: event.target.value }))} fullWidth />
-              <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                <TextField size="small" label="Số tiền" value={manualForm.amount} onChange={(event) => setManualForm((current) => ({ ...current, amount: event.target.value }))} />
-                <TextField size="small" label="Số ngày" value={manualForm.duration_days} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value }))} />
-              </Box>
-              <TextField size="small" label="Expire at" value={manualForm.expire_at} onChange={(event) => setManualForm((current) => ({ ...current, expire_at: event.target.value }))} placeholder="YYYY-MM-DD HH:mm" fullWidth />
-              <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                <TextField size="small" label="Currency" value={manualForm.payment_currency} onChange={(event) => setManualForm((current) => ({ ...current, payment_currency: event.target.value }))} />
-                <TextField size="small" label="Provider" value={manualForm.payment_provider} onChange={(event) => setManualForm((current) => ({ ...current, payment_provider: event.target.value }))} />
-              </Box>
-              <TextField size="small" label="Note" value={manualForm.note} onChange={(event) => setManualForm((current) => ({ ...current, note: event.target.value }))} multiline minRows={2} fullWidth />
-              <Button variant="contained" onClick={() => void submitManualOrder()} disabled={manualSubmitting} startIcon={manualSubmitting ? <Loader2 size={16} className="spin" /> : <ClipboardList size={16} />}>Tạo đơn</Button>
+              <Alert severity="info" variant="outlined">Bấm nút Tạo đơn để mở drawer giống PC, form sẽ giữ cùng nhịp thao tác nhưng tối ưu cho màn nhỏ.</Alert>
             </Stack>
           </AppSection>
         ) : null}
@@ -410,6 +437,68 @@ export default function MobileAdminPage() {
           </AppSection>
         ) : null}
       </Box>
+
+        <MuiDialogShell
+        open={manualDrawerOpen}
+        title="Tạo đơn thủ công"
+        subtitle="Nhập thông tin khách, tạo order PAID và gen link join group."
+        onClose={() => setManualDrawerOpen(false)}
+        maxWidth="md"
+        fullScreenOnMobile
+        actions={
+          <>
+            <Button variant="outlined" onClick={() => setManualDrawerOpen(false)}>Đóng</Button>
+            <Button variant="contained" onClick={() => void submitManualOrder()} disabled={manualSubmitting} startIcon={manualSubmitting ? <Loader2 size={16} className="spin" /> : <ClipboardList size={16} />}>Tạo đơn</Button>
+          </>
+        }
+      >
+        <Box sx={{ maxHeight: { xs: "100dvh", md: "66vh" }, overflowY: "auto", pr: 0.5 }}>
+          <Box sx={{ display: "grid", gap: 1.75, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, pb: 0.5 }}>
+            <Stack spacing={1.5}>
+              <TextField label="Telegram ID" value={manualForm.telegram_user_id} onChange={(event) => setManualForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
+              <TextField label="Tên khách" value={manualForm.full_name} onChange={(event) => setManualForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị để dễ quản lý" size="small" />
+              <TextField select label="Gói lưu vào đơn" value={manualForm.plan_name} onChange={(event) => setManualForm((current) => ({ ...current, plan_name: event.target.value }))} size="small" helperText="Chọn gói thường. Nếu chọn Special Group bên dưới, hệ thống sẽ tự đổi sang special.">
+                <MenuItem value="FULL_1M">All Access - 30 ngày</MenuItem>
+                <MenuItem value="FULL_LIFE">All Access - Trọn đời</MenuItem>
+                <MenuItem value="CUSTOM">Tự nhập tên gói</MenuItem>
+              </TextField>
+              <TextField
+                label="Tên hiển thị trong đơn"
+                value={manualForm.admin_label}
+                onChange={(event) => setManualForm((current) => ({ ...current, admin_label: event.target.value }))}
+                placeholder="VD: Gói thử 1 ngày"
+                size="small"
+                helperText={`Tên đẹp cho admin và lịch sử đơn. Kỹ thuật vẫn là: ${manualForm.plan_name}`}
+              />
+              <TextField label="Mã / ghi chú" value={manualForm.note} onChange={(event) => setManualForm((current) => ({ ...current, note: event.target.value }))} placeholder="VD: MANUAL_ADMIN" size="small" />
+            </Stack>
+            <Stack spacing={1.5}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
+                <TextField label="Số tiền" value={manualForm.amount} onChange={(event) => setManualForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
+                <TextField select label="Tiền tệ" value={manualForm.payment_currency} onChange={(event) => setManualForm((current) => ({ ...current, payment_currency: event.target.value }))} size="small">
+                  <MenuItem value="VND">VNĐ</MenuItem>
+                  <MenuItem value="USD">USD</MenuItem>
+                  <MenuItem value="USDT">USDT</MenuItem>
+                </TextField>
+              </Box>
+              <TextField select label="Phương thức thanh toán" value={manualForm.payment_provider} onChange={(event) => setManualForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+                <MenuItem value="MANUAL">Thủ công</MenuItem>
+                <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
+                <MenuItem value="PAYPAL">PayPal</MenuItem>
+                <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
+              </TextField>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                <TextField select label="Kiểu hết hạn" value={manualForm.duration_days ? "days" : "date"} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value === "days" ? current.duration_days || "30" : current.duration_days, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
+                  <MenuItem value="days">Theo số ngày</MenuItem>
+                  <MenuItem value="date">Ngày cụ thể</MenuItem>
+                </TextField>
+                <TextField label="Số ngày sử dụng" value={manualForm.duration_days} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder="30" inputMode="numeric" size="small" helperText="Sẽ áp dụng: 30 ngày" />
+              </Box>
+              <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualForm.expire_at} onChange={(event) => setManualForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText="Dùng khi muốn set giờ cụ thể thay vì số ngày." />
+            </Stack>
+          </Box>
+        </Box>
+      </MuiDialogShell>
     </Box>
   );
 }

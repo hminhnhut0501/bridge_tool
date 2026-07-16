@@ -23,6 +23,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { CheckCircle2, Loader2, Pencil, Save, Trash2, XCircle } from "lucide-react";
 import { type ReactNode, useId, useState, useEffect } from "react";
@@ -571,9 +572,18 @@ export function SettingsConfigModal(props: { title: string; subtitle: string; fi
   );
 }
 
-export function MuiDialogShell({ open, title, subtitle, onClose, children, actions, maxWidth = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; actions?: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
+export function MuiDialogShell({ open, title, subtitle, onClose, children, actions, maxWidth = "md", fullScreenOnMobile = false }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; actions?: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl"; fullScreenOnMobile?: boolean }) {
+  const isMobile = useMediaQuery("(max-width: 900px)");
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth={maxWidth} scroll="paper">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth={maxWidth}
+      scroll="paper"
+      fullScreen={fullScreenOnMobile && isMobile}
+      slotProps={fullScreenOnMobile && isMobile ? { paper: { sx: { m: 0, height: "100dvh", maxHeight: "100dvh", borderRadius: 0 } } } : undefined}
+    >
       <DialogTitle sx={{ position: "relative", pr: 6 }}>
         <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.15 }}>{title}</Typography>
         {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.9, maxWidth: 760, lineHeight: 1.5 }}>{subtitle}</Typography> : null}
