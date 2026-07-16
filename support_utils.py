@@ -280,13 +280,51 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
         return None, str(exc)
 
 
+async def get_or_create_support_ticket_for_user(*, telegram_user_id, chat_id=None, username="", full_name="", subject="", source="private_user_message", raw_data=None):
+    if not supabase_store.enabled:
+        return None, False, "Supabase support is disabled."
+
+    try:
+        existing = supabase_store.get_open_support_ticket_by_user(telegram_user_id)
+        if existing:
+            ticket = existing
+            inbox_gid = support_inbox_group_id()
+            updates = {"updated_at": datetime.now().isoformat()}
+            if inbox_gid and normalize_chat_id(ticket.get("manager_chat_id") or "") != inbox_gid:
+                updates["manager_chat_id"] = inbox_gid
+            if subject and not str(ticket.get("subject") or "").strip():
+                updates["subject"] = subject
+            if len(updates) > 1:
+                try:
+                    updated_ticket = supabase_store.update_support_ticket(ticket["id"], updates)
+                    if updated_ticket:
+                        ticket = updated_ticket[0]
+                except Exception as exc:
+                    print(f"⚠️ Không cập nhật support ticket đang mở cho {telegram_user_id}: {exc}")
+            return ticket, False, ""
+
+        ticket, error = await create_support_ticket_for_user(
+            telegram_user_id=telegram_user_id,
+            chat_id=chat_id,
+            username=username,
+            full_name=full_name,
+            subject=subject,
+            source=source,
+            raw_data=raw_data,
+        )
+        return ticket, True, error
+    except Exception as exc:
+        print(f"⚠️ Không lấy/tạo support ticket cho user {telegram_user_id}: {exc}")
+        return None, False, str(exc)
+
+
 async def create_support_case_from_private_message(message, *, source="private_user_message", subject=None):
     if not supabase_store.enabled or not message or not getattr(message, "from_user", None):
         return None, ""
 
     message_text = str(getattr(message, "text", "") or getattr(message, "caption", "") or "").strip()
     ticket_subject = str(subject or message_text or "").strip() or "Tin nhắn hỗ trợ"
-    ticket, ticket_error = await create_support_ticket_for_user(
+    ticket, created_new, ticket_error = await get_or_create_support_ticket_for_user(
         telegram_user_id=message.from_user.id,
         chat_id=message.chat.id,
         username=message.from_user.username or "",
@@ -352,9 +390,10 @@ async def create_support_case_from_private_message(message, *, source="private_u
         except Exception as exc:
             print(f"⚠️ Không lưu support message fallback: {exc}")
 
+    event_type = "support_ticket_created" if created_new else "support_ticket_reused"
     try:
         record_support_event(
-            "support_ticket_created",
+            event_type,
             message.from_user.id,
             username=message.from_user.username or "",
             full_name=message.from_user.full_name or "",

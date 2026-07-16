@@ -10,7 +10,7 @@ from helpers import create_background_task, is_admin_user
 from message_classifier_utils import classify_private_message
 from support_utils import (
     copy_support_message_to_group,
-    create_support_case_from_private_message,
+    get_or_create_support_ticket_for_user,
     post_support_ticket_to_group,
     prepare_support_group_delivery,
     render_support_group_header,
@@ -369,17 +369,24 @@ async def _forward_private_message_to_group(message: Message, ticket):
 async def support_private_inbox(message: Message):
     ticket = None
     try:
-        ticket = supabase_store.get_open_support_ticket_by_user(message.from_user.id)
+        ticket, _, ticket_error = await get_or_create_support_ticket_for_user(
+            telegram_user_id=message.from_user.id,
+            chat_id=message.chat.id,
+            username=message.from_user.username or "",
+            full_name=message.from_user.full_name or "",
+            subject=str(getattr(message, "text", "") or getattr(message, "caption", "") or "").strip() or "Tin nhắn hỗ trợ",
+            source="private_user_message",
+            raw_data={
+                "message_id": getattr(message, "message_id", None),
+                "chat_type": getattr(message.chat, "type", ""),
+                "kind": "private_message",
+                "message_text": _message_text(message),
+            },
+        )
+        if ticket_error:
+            print(f"⚠️ Không lấy/tạo support ticket cho user {message.from_user.id}: {ticket_error}")
     except Exception as exc:
         print(f"⚠️ Không đọc được ticket support đang mở cho user {message.from_user.id}: {exc}")
-    if not ticket:
-        try:
-            ticket, ticket_error = await create_support_case_from_private_message(message, source="private_user_message")
-            if ticket_error:
-                print(f"⚠️ Không tự tạo support ticket từ tin nhắn private: {ticket_error}")
-        except Exception as exc:
-            print(f"⚠️ Không tạo được support ticket từ private message: {exc}")
-            return
     if not ticket:
         return
     await _forward_private_message_to_group(message, ticket)
