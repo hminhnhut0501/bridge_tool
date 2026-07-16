@@ -553,7 +553,6 @@ class SupabaseStore:
     def order_to_sheet_row(self, order):
         if not order:
             return []
-        metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
         def value(key):
             return order.get(key) or ""
 
@@ -562,7 +561,6 @@ class SupabaseStore:
             value("telegram_user_id"),
             value("full_name"),
             value("plan_name"),
-            "",
             value("amount"),
             value("status"),
             value("paid_at"),
