@@ -13,6 +13,19 @@ def normalize_coupon_code(text: str) -> str:
     return raw.replace(" ", "")
 
 
+def _looks_like_coupon_code(text: str, coupon_prefixes=None) -> bool:
+    normalized = str(text or "").strip().upper()
+    if not normalized:
+        return False
+    if coupon_prefixes:
+        for prefix in coupon_prefixes:
+            if normalized.startswith(str(prefix or "").strip().upper()):
+                return True
+    if normalized.startswith("HANGCU_"):
+        return True
+    return False
+
+
 def classify_private_message(message, *, coupon_prefixes=None):
     """
     Unified classifier for private inbound user content.
@@ -26,7 +39,15 @@ def classify_private_message(message, *, coupon_prefixes=None):
         }
     """
     text = normalize_message_text(message)
-    if not text:
+    has_media = bool(
+        getattr(message, "photo", None)
+        or getattr(message, "document", None)
+        or getattr(message, "video", None)
+        or getattr(message, "voice", None)
+        or getattr(message, "audio", None)
+        or getattr(message, "sticker", None)
+    )
+    if not text and not has_media:
         return {"kind": "other", "text": "", "code": "", "reason": "empty"}
 
     if text.startswith("/start "):
@@ -39,12 +60,21 @@ def classify_private_message(message, *, coupon_prefixes=None):
         if payload:
             return {"kind": "activation", "text": text, "code": payload, "reason": "start_legacy_activation"}
         return {"kind": "other", "text": text, "code": "", "reason": "start_no_payload"}
+    if text.startswith("/"):
+        return {"kind": "other", "text": text, "code": "", "reason": "command"}
 
     code = normalize_coupon_code(text)
-    if not code:
-        return {"kind": "support", "text": text, "code": "", "reason": "plain_text"}
+    if code:
+        try:
+            hidden_code = get_hidden_code(code)
+        except Exception:
+            hidden_code = None
+        if hidden_code:
+            return {"kind": "hidden", "text": text, "code": code, "reason": "hidden_match"}
+        if _looks_like_coupon_code(code, coupon_prefixes=coupon_prefixes):
+            return {"kind": "coupon", "text": text, "code": code, "reason": "coupon_prefix"}
 
-    return {"kind": "support", "text": text, "code": code, "reason": "plain_text"}
+    return {"kind": "support", "text": text, "code": code if code else "", "reason": "plain_text" if text else "media_only"}
 
 
 def classify_message_text(text: str, *, coupon_prefixes=None):

@@ -34,6 +34,7 @@ def _install_stubs():
             return values.get(key, default)
 
     database_mod.db = FakeDB()
+    database_mod.normalize_key = lambda value: str(value or "").strip().upper()
     sys.modules["database"] = database_mod
 
     bot_instance_mod = types.ModuleType("bot_instance")

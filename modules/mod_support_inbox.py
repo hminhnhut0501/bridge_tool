@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot_instance import bot
-from helpers import create_background_task, has_open_support_ticket, is_admin_user
+from helpers import create_background_task, is_admin_user
 from message_classifier_utils import classify_private_message
 from support_utils import (
     copy_support_message_to_group,
@@ -198,10 +198,7 @@ def _is_support_inbox_private_message(message: Message) -> bool:
             f"ℹ️ support inbox skip kind={classified['kind']} user={message.from_user.id} reason={classified['reason']}"
         )
         return False
-    try:
-        return True if classified["kind"] == "support" else bool(has_open_support_ticket(message.from_user.id))
-    except Exception:
-        return False
+    return classified["kind"] == "support"
 
 
 async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ticket_no: str):
