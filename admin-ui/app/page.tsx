@@ -20,6 +20,7 @@ import {
   Loader2,
   Megaphone,
   MessageSquare,
+  MessagesSquare,
   Pencil,
   Search,
   Plus,
@@ -3150,6 +3151,8 @@ export default function Home() {
   const [notificationSeenIds, setNotificationSeenIds] = useState<string[]>([]);
   const [notificationExpandedIds, setNotificationExpandedIds] = useState<string[]>([]);
   const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [supportInboxSeenIds, setSupportInboxSeenIds] = useState<string[]>([]);
+  const [supportInboxMenuAnchorEl, setSupportInboxMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
   const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
@@ -3347,6 +3350,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("prive_admin_support_inbox_seen_ids");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setSupportInboxSeenIds(parsed.map((item) => String(item)).filter(Boolean));
+        }
+      }
+    } catch {
+      setSupportInboxSeenIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!savedSecret) return;
     void loadAdminNotifications(savedSecret, { silent: true });
   }, [savedSecret, notificationEnabled, notificationOrdersEnabled, notificationPrivateMessagesEnabled]);
@@ -3380,6 +3398,15 @@ export default function Home() {
       // ignore storage errors
     }
   }, [notificationSeenIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("prive_admin_support_inbox_seen_ids", JSON.stringify(supportInboxSeenIds));
+    } catch {
+      // ignore storage errors
+    }
+  }, [supportInboxSeenIds]);
 
   useEffect(() => {
     if (!savedSecret || tab !== "activityLog") return;
@@ -6249,6 +6276,59 @@ export default function Home() {
   const unreadAdminNotificationCount = unreadAdminNotifications.length;
   const previousUnreadCountRef = useRef(0);
 
+  const supportInboxItems = useMemo(() => {
+    const grouped = new Map<string, {
+      id: string;
+      event_type: string;
+      telegram_user_id: string;
+      username: string;
+      full_name: string;
+      title: string;
+      detail: string;
+      created_at: string;
+      ticket_id: string;
+      ticket_no: string;
+      order_id: string;
+      plan_name: string;
+    }>();
+
+    for (const item of [...supportEvents]
+      .filter((item) => ["support_ticket_created", "support_ticket_reused"].includes(item.event_type))
+      .sort((a, b) => (safeDateMillis(a.created_at) ?? 0) - (safeDateMillis(b.created_at) ?? 0))) {
+      const raw = item.raw_data || {};
+      const previewText = displayText(
+        String(raw.message_text || raw.text || raw.caption || raw.reason || raw.subject || item.order_id || item.plan_name || "")
+      );
+      const hasMedia = Boolean(raw.media_type || raw.file_name || raw.file_id);
+      const ticketId = String(raw.ticket_id || "").trim();
+      const telegramUserId = String(item.telegram_user_id || raw.telegram_user_id || "").trim();
+      const threadKey = ticketId || telegramUserId || item.id;
+      grouped.set(threadKey, {
+        id: item.id,
+        event_type: item.event_type,
+        telegram_user_id: telegramUserId,
+        username: String(item.username || raw.username || "").trim(),
+        full_name: String(item.full_name || raw.full_name || "").trim(),
+        title: displayText(item.full_name || item.username) || String(telegramUserId || "Khách"),
+        detail: previewText || (hasMedia ? "Tin nhắn có tệp/ảnh" : "Tin nhắn riêng"),
+        created_at: item.created_at,
+        ticket_id: ticketId,
+        ticket_no: String(raw.ticket_no || "").trim(),
+        order_id: String(item.order_id || "").trim(),
+        plan_name: String(item.plan_name || "").trim(),
+      });
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
+  }, [supportEvents]);
+
+  const unreadSupportInboxItems = useMemo(() => {
+    const seen = new Set(supportInboxSeenIds);
+    return supportInboxItems.filter((item) => !seen.has(item.id));
+  }, [supportInboxItems, supportInboxSeenIds]);
+
+  const unreadSupportInboxCount = unreadSupportInboxItems.length;
+
   const markAllNotificationsRead = useCallback(() => {
     setNotificationSeenIds((current) => {
       const seen = new Set(current);
@@ -6256,6 +6336,14 @@ export default function Home() {
       return Array.from(seen);
     });
   }, [visibleAdminNotifications]);
+
+  const markAllSupportInboxRead = useCallback(() => {
+    setSupportInboxSeenIds((current) => {
+      const seen = new Set(current);
+      supportInboxItems.forEach((item) => seen.add(item.id));
+      return Array.from(seen);
+    });
+  }, [supportInboxItems]);
 
   const openNotificationMenu = useCallback((event: MouseEvent<HTMLElement>) => {
     setNotificationMenuAnchorEl(event.currentTarget);
@@ -6265,9 +6353,42 @@ export default function Home() {
     setNotificationMenuAnchorEl(null);
   }, []);
 
+  const openSupportInboxMenu = useCallback((event: MouseEvent<HTMLElement>) => {
+    setSupportInboxMenuAnchorEl(event.currentTarget);
+  }, []);
+
+  const closeSupportInboxMenu = useCallback(() => {
+    setSupportInboxMenuAnchorEl(null);
+  }, []);
+
   const toggleNotificationExpanded = useCallback((id: string) => {
     setNotificationExpandedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }, []);
+
+  const openSupportInboxItem = useCallback((item: {
+    id: string;
+    telegram_user_id: string;
+    title: string;
+    detail: string;
+    full_name: string;
+    username: string;
+    order_id: string;
+    plan_name: string;
+  }) => {
+    setSupportInboxSeenIds((current) => uniqueValues([...current, item.id]));
+    closeSupportInboxMenu();
+    selectTab("supportGroup");
+    setSupportTab("all");
+    if (item.telegram_user_id) setQuery(item.telegram_user_id);
+    openAdminReply({
+      id: item.id,
+      userId: item.telegram_user_id,
+      fullName: item.full_name || item.title || item.telegram_user_id,
+      username: item.username || "",
+      title: item.title,
+      detail: item.detail,
+    });
+  }, [closeSupportInboxMenu, openAdminReply, selectTab, setQuery, setSupportTab]);
 
   const openNotificationItem = useCallback((item: AdminNotificationItem) => {
     setNotificationSeenIds((current) => uniqueValues([...current, item.id]));
@@ -6873,6 +6994,43 @@ export default function Home() {
             </Typography>
           </Box>
           <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "nowrap", justifyContent: "flex-end" }}>
+            <Tooltip title="Inbox hỗ trợ" placement="bottom">
+              <IconButton
+                onClick={openSupportInboxMenu}
+                aria-label="Inbox hỗ trợ"
+                sx={{
+                  width: 42,
+                  height: 42,
+                  border: unreadSupportInboxCount > 0 ? "1px solid rgba(14,165,233,0.28)" : "1px solid rgba(148,163,184,0.18)",
+                  bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.10)" : "rgba(15,23,42,0.03)",
+                  color: unreadSupportInboxCount > 0 ? "info.main" : "text.secondary",
+                  boxShadow: unreadSupportInboxCount > 0 ? "0 14px 30px rgba(14,165,233,0.20), 0 0 0 6px rgba(14,165,233,0.07)" : "inset 0 1px 0 rgba(255,255,255,0.76)",
+                  transition: "transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease",
+                  "&:hover": {
+                    bgcolor: unreadSupportInboxCount > 0 ? "rgba(14,165,233,0.14)" : "rgba(59,130,246,0.12)",
+                    boxShadow: unreadSupportInboxCount > 0 ? "0 16px 34px rgba(14,165,233,0.24)" : "0 14px 28px rgba(59,130,246,0.16)",
+                  },
+                }}
+              >
+                <Badge
+                  badgeContent={unreadSupportInboxCount}
+                  color={unreadSupportInboxCount > 0 ? "info" : "primary"}
+                  overlap="circular"
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      fontWeight: 800,
+                      minWidth: unreadSupportInboxCount > 0 ? 20 : 18,
+                      height: unreadSupportInboxCount > 0 ? 20 : 18,
+                      px: 0.45,
+                      bgcolor: unreadSupportInboxCount > 0 ? "#0ea5e9" : undefined,
+                      color: "#fff",
+                    },
+                  }}
+                >
+                  <MessagesSquare size={18} />
+                </Badge>
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Thông báo" placement="bottom">
               <IconButton
                 onClick={openNotificationMenu}
@@ -6924,6 +7082,138 @@ export default function Home() {
                 </Badge>
               </IconButton>
             </Tooltip>
+            <Menu
+              anchorEl={supportInboxMenuAnchorEl}
+              open={Boolean(supportInboxMenuAnchorEl)}
+              onClose={closeSupportInboxMenu}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              slotProps={{
+                paper: {
+                  sx: {
+                    mt: 1,
+                    width: { xs: "min(356px, calc(100vw - 24px))", sm: 400 },
+                    maxWidth: "calc(100vw - 24px)",
+                    borderRadius: 3,
+                    boxShadow: "0 18px 48px rgba(15,23,42,0.16)",
+                    overflow: "hidden",
+                  },
+                },
+              }}
+            >
+              <Box sx={{ px: 1.25, py: 1.1, bgcolor: "rgba(14,165,233,0.06)", borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800, lineHeight: 1.15, fontSize: 17 }}>Inbox hỗ trợ</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {unreadSupportInboxCount} mới · {supportInboxItems.length} tổng
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0 }}>
+                  <Tooltip title="Đánh dấu đã đọc">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        markAllSupportInboxRead();
+                        closeSupportInboxMenu();
+                      }}
+                    >
+                      <CheckCircle2 size={17} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Làm mới">
+                    <IconButton
+                      size="small"
+                      onClick={async () => {
+                        if (!savedSecret) return;
+                        try {
+                          const res = await getSupportEvents(savedSecret);
+                          setSupportEvents(res.data || []);
+                        } catch (err) {
+                          console.warn("⚠️ Không tải được support inbox:", err);
+                        }
+                      }}
+                    >
+                      <RefreshCw size={17} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Box>
+              <Box sx={{ maxHeight: 420, overflowY: "auto" }}>
+                {supportInboxItems.length ? supportInboxItems.map((item) => {
+                  const unread = !supportInboxSeenIds.includes(item.id);
+                  return (
+                    <Box key={item.id} sx={{ borderBottom: 1, borderColor: "rgba(148,163,184,0.10)", bgcolor: unread ? "rgba(14,165,233,0.03)" : "background.paper" }}>
+                      <MenuItem
+                        onClick={() => openSupportInboxItem(item)}
+                        sx={{
+                          alignItems: "flex-start",
+                          gap: 1,
+                          py: 0.95,
+                          px: 1.25,
+                          minWidth: 0,
+                        }}
+                      >
+                        <Box sx={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                          bgcolor: "rgba(14,165,233,0.14)",
+                          color: "#0284c7",
+                          mt: 0.1,
+                          boxShadow: "0 0 0 1px rgba(14,165,233,0.10) inset",
+                        }}>
+                          <MessageSquare size={15} />
+                        </Box>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography sx={{ fontWeight: unread ? 900 : 700, lineHeight: 1.15, fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {item.title}
+                            {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "info.main", boxShadow: "0 0 0 5px rgba(14,165,233,0.10)" }} /> : null}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              mt: 0.25,
+                              lineHeight: 1.25,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {item.detail || "-"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {dateText(item.created_at)}
+                            {item.plan_name ? ` · ${item.plan_name}` : ""}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openSupportInboxItem(item);
+                          }}
+                          sx={{ flexShrink: 0, mt: 0.05 }}
+                        >
+                          Trả lời
+                        </Button>
+                      </MenuItem>
+                    </Box>
+                  );
+                }) : (
+                  <Box sx={{ px: 1.5, py: 2.5, textAlign: "center", color: "text.secondary" }}>
+                    Chưa có tin nhắn hỗ trợ mới.
+                  </Box>
+                )}
+              </Box>
+            </Menu>
             <Menu
               anchorEl={notificationMenuAnchorEl}
               open={Boolean(notificationMenuAnchorEl)}
