@@ -1586,9 +1586,9 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
 const SUPPORT_INBOX_FIELDS: ConfigField[] = [
   {
     key: "SUPPORT_INBOX_ENABLED",
-    label: "Bật flow tin nhắn bot",
+    label: "Bật inbox support",
     placeholder: "ON",
-    help: "Tắt ON để vô hiệu hoá luồng inbox user ↔ admin, nhưng vẫn giữ các cấu hình để bật lại nhanh.",
+    help: "Bắt cả tin riêng, ảnh, file, voice... gửi thẳng vào bot để vào luồng support.",
     kind: "select",
     options: [
       { label: "Bật", value: "ON" },
@@ -7817,6 +7817,9 @@ export default function Home() {
                   )}
                 </section>
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Inbox hỗ trợ" subtitle="Luồng tin nhắn riêng từ khách vào bot, group inbox, tên admin và quyền xoá inbox." fields={SUPPORT_INBOX_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Hiệu ứng inbox hỗ trợ" subtitle="Trạng thái đang kết nối, kiểu hiệu ứng và các frame preview cho luồng hỗ trợ riêng tư." fields={SUPPORT_INBOX_EFFECT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
+                <ConfigEditor title="Template inbox hỗ trợ" subtitle="Cấu hình nội dung ticket mới, follow-up và reply từ admin gửi về user." fields={SUPPORT_INBOX_TEMPLATE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </>
             ) : null}
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và USDT TRC20 dùng giá riêng. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
