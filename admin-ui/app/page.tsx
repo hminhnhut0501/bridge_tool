@@ -1864,7 +1864,7 @@ const ORDER_FIELDS: ConfigField[] = [
   { key: "MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", label: "Nút copy tin active code", placeholder: "Copy tin active code", help: "Text nút admin copy tin active code." },
   { key: "MANUAL_ORDER_JOIN_LINK_TITLE", label: "Tiêu đề tin join group", placeholder: "💬 Tin nhắn join group", help: "Tiêu đề cho khối tin nhắn hoàn chỉnh có link join group." },
   { key: "MANUAL_ORDER_JOIN_LINK_SUBTITLE", label: "Mô tả tin join group", placeholder: "Dùng tin này để gửi khách khi cần có sẵn link join group.", help: "Mô tả dưới khối tin join group.", kind: "textarea" },
-  { key: "MANUAL_ORDER_JOIN_LINK_TEMPLATE", label: "Template tin join group", placeholder: "{order_text}\\n\\n{bot_link_title}\\n{links_text}\\n\\n{bot_link_subtitle}\\n\\n{support_text}", help: "Biến: {order_text}, {admin_label}, {links_text}, {support_text}. Dùng để xuất tin hoàn chỉnh có link join group.", kind: "textarea" },
+  { key: "MANUAL_ORDER_JOIN_LINK_TEMPLATE", label: "Template tin join group", placeholder: "{order_text}\\n\\n{bot_link_title}\\n{links_text}\\n\\n{bot_link_subtitle}\\n\\n{support_text}", help: "Biến: {order_text}, {plan_name}, {links_text}, {support_text}. Dùng để xuất tin hoàn chỉnh có link join group.", kind: "textarea" },
   { key: "MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", label: "Nút copy tin join group", placeholder: "Copy tin join group", help: "Text nút admin copy tin join group." },
   { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin bot báo hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
   { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
@@ -2732,7 +2732,6 @@ const EMPTY_MANUAL_ORDER_FORM = {
   full_name: "",
   plan_key: "FULL_1M",
   plan_name: "",
-  admin_label: "",
   
   special_group_id: "",
   special_group_duration: "1M",
@@ -5331,7 +5330,7 @@ export default function Home() {
       {
         at: selectedOrderForEditor.created_at,
         title: "Đơn được tạo",
-        detail: `${orderAdminLabel(selectedOrderForEditor)} • ${orderStatusLabel(selectedOrderForEditor.status)}${orderNoteText(selectedOrderForEditor) ? ` • ${orderNoteText(selectedOrderForEditor)}` : ""}`,
+        detail: `${selectedOrderForEditor.plan_name || "-"} • ${orderStatusLabel(selectedOrderForEditor.status)}${orderNoteText(selectedOrderForEditor) ? ` • ${orderNoteText(selectedOrderForEditor)}` : ""}`,
       },
       selectedOrderForEditor.paid_at ? {
         at: selectedOrderForEditor.paid_at,
@@ -5348,7 +5347,7 @@ export default function Home() {
         title: event.event_type,
         detail: (() => {
           const rawData = (event.raw_data && typeof event.raw_data === "object") ? (event.raw_data as Record<string, unknown>) : null;
-          const displayPlan = String(rawData?.admin_label || rawData?.display_name || event.plan_name || "").trim();
+          const displayPlan = String(event.plan_name || "").trim();
           const parts = [displayPlan || "", String(rawData?.note || ""), String(rawData?.deleted_at || "")].filter(Boolean);
           return parts.join(" • ") || `${event.telegram_user_id || userId || "-"}${event.order_id ? ` • ${event.order_id}` : ""}`;
         })(),
@@ -9218,7 +9217,7 @@ export default function Home() {
                       ["Gói gần nhất", customerQuickLookupResult.latestExpireOrder ? (
                         <Box sx={{ minWidth: 0 }}>
                           <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                            {orderAdminLabel(customerQuickLookupResult.latestExpireOrder)}
+                            {String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-"}
                           </Typography>
                         </Box>
                       ) : "-"],
@@ -9309,14 +9308,6 @@ export default function Home() {
                       <MenuItem value="LIFE">Trọn đời</MenuItem>
                     </TextField>
                   ) : null}
-                  <TextField
-                    label="Tên hiển thị trong đơn"
-                    value={manualOrderForm.admin_label}
-                    onChange={(event) => setManualOrderForm({ ...manualOrderForm, admin_label: event.target.value })}
-                    placeholder="VD: Gói thử 1 ngày"
-                    size="small"
-                    helperText={`Tên đẹp cho admin và lịch sử đơn. Kỹ thuật vẫn là: ${manualOrderPlanNameDisplay()}`}
-                  />
                   <TextField label="Mã / ghi chú" value={manualOrderForm.coupon_code} onChange={(event) => setManualOrderForm({ ...manualOrderForm, coupon_code: event.target.value.toUpperCase() })} placeholder="VD: MANUAL_ADMIN" size="small" />
                 </Box>
 

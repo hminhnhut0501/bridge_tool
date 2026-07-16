@@ -95,7 +95,7 @@ class ManualOrderEndpointTests(unittest.IsolatedAsyncioTestCase):
         if self.original_build_invite_links is not None:
             web_backend.build_manual_order_result.__globals__["build_invite_links"] = self.original_build_invite_links
 
-    async def test_admin_create_manual_order_falls_back_to_plan_name_when_admin_label_missing(self):
+    async def test_admin_create_manual_order_uses_plan_name_as_the_only_label(self):
         request = FakeRequest({
             "telegram_user_id": "42",
             "full_name": "Alice",
@@ -110,10 +110,11 @@ class ManualOrderEndpointTests(unittest.IsolatedAsyncioTestCase):
 
         result = await web_backend.admin_create_manual_order(request)
 
-        self.assertEqual(result["data"]["admin_label"], "VIP 30 Ngày - Prime")
-        self.assertEqual(self.store.created_orders[0]["metadata"]["admin_label"], "VIP 30 Ngày - Prime")
+        removed_label_key = "admin_" + "label"
+        self.assertNotIn(removed_label_key, result["data"])
+        self.assertNotIn(removed_label_key, self.store.created_orders[0]["metadata"])
         self.assertEqual(self.store.events[0][2]["plan_name"], "VIP 30 Ngày - Prime")
-        self.assertEqual(self.store.events[0][2]["raw_data"]["admin_label"], "VIP 30 Ngày - Prime")
+        self.assertEqual(self.store.events[0][2]["raw_data"]["plan_name"], "VIP 30 Ngày - Prime")
         self.assertEqual(self.store.events[0][1], "42")
 
 

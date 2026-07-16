@@ -789,13 +789,12 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
 def render_manual_order_info_text(context: dict[str, object]):
     template = normalize_template_text(safe_db_config(
         "MANUAL_ORDER_INFO_TEMPLATE",
-        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {admin_label}\n⏳ Hạn dùng: {expire_at}",
+        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
     ) or "")
     values = {
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
-        "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
     }
@@ -812,7 +811,6 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
-        "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
         "order_text": context.get("order_text", ""),
@@ -887,7 +885,6 @@ def build_manual_order_join_message_text(context: dict[str, object]):
         normalize_manual_order_join_template(safe_db_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
         {
             **context,
-            "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
             "activation_url": context.get("activation_url", ""),
             "message_url": context.get("message_url", ""),
             "links_text": context.get("links_text", ""),
@@ -900,7 +897,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
     full_name = str(body.get("full_name", "")).strip()
     plan_name = str(body.get("plan_name", "")).strip()
-    admin_label = str(body.get("admin_label", "")).strip()
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
@@ -913,8 +909,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         raise HTTPException(status_code=400, detail="Cần nhập Telegram ID.")
     if not plan_name:
         raise HTTPException(status_code=400, detail="Cần chọn hoặc nhập tên gói.")
-    if not admin_label:
-        admin_label = plan_name
     try:
         user_id = int(telegram_user_id)
     except ValueError:
@@ -1000,7 +994,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                 "payment_provider": payment_provider,
                 "language": user_language,
                 "note": note,
-                "admin_label": admin_label,
             },
         )
         order_data = supabase_store.mark_order_paid(
@@ -1073,7 +1066,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                     "order_id": order_id,
                     "telegram_user_id": telegram_user_id,
                     "plan_name": plan_name,
-                    "admin_label": admin_label,
                     "expire_at": expire_at.isoformat(timespec="seconds"),
                 },
             )
@@ -1088,9 +1080,8 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             telegram_user_id,
             full_name=full_name,
             order_id=order_id,
-            plan_name=admin_label,
+            plan_name=plan_name,
             raw_data={
-                "admin_label": admin_label,
                 "amount": amount,
                 "coupon_code": coupon_code,
                 "note": note,
@@ -1112,7 +1103,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "telegram_user_id": telegram_user_id,
         "full_name": full_name,
         "plan_name": plan_name,
-        "admin_label": admin_label,
         "amount": amount,
         "note": note,
         "payment_currency": payment_currency,
@@ -1144,7 +1134,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
-                "admin_label": admin_label,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
             "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
@@ -1164,7 +1153,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
-                "admin_label": admin_label,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
             "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
@@ -1271,10 +1259,6 @@ def group_label_for_chat_id(chat_id):
 
 def resolve_order_display_label(order, support_events):
     user_id = str(order.get("telegram_user_id") or "")
-    metadata = order.get("metadata") if isinstance(order.get("metadata"), dict) else {}
-    admin_label = str(metadata.get("admin_label") or metadata.get("display_name") or "").strip()
-    if admin_label and admin_label != "-":
-        return admin_label
     direct = str(order.get("full_name") or "").strip()
     if direct and direct != "-":
         return direct

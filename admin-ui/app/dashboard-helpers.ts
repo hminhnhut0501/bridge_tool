@@ -160,7 +160,7 @@ function orderMetadata(order: { metadata?: unknown }) {
 export function resolveOrderLabel(order: { plan_name?: string | null; metadata?: unknown }) {
   const metadata = orderMetadata(order);
   const techLabel = displayText(order.plan_name || "-") || "-";
-  const displayLabel = displayText(metadata?.admin_label || metadata?.display_name || techLabel || "-") || "-";
+  const displayLabel = techLabel;
   return {
     displayLabel,
     techLabel,

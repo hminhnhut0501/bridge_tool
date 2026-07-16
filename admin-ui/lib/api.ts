@@ -564,7 +564,6 @@ export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
   plan_name: string;
-  admin_label?: string;
   note?: string;
   amount?: string;
   duration_days?: string;

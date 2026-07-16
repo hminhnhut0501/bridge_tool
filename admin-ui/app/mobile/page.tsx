@@ -74,7 +74,6 @@ export default function MobileAdminPage() {
     telegram_user_id: "",
     full_name: "",
     plan_name: "FULL_1M",
-    admin_label: "Full 1 tháng",
     amount: "",
     duration_days: "30",
     expire_at: "",
@@ -154,7 +153,6 @@ export default function MobileAdminPage() {
       telegram_user_id: selectedCustomer?.id || current.telegram_user_id,
       full_name: selectedCustomer?.name && selectedCustomer.name !== "-" ? selectedCustomer.name : current.full_name,
       plan_name: selectedCustomerOrderLabel?.techLabel || current.plan_name,
-      admin_label: selectedCustomerOrderLabel?.displayLabel || current.admin_label,
     }));
   }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel]);
 
@@ -170,7 +168,6 @@ export default function MobileAdminPage() {
         telegram_user_id: customer.id || current.telegram_user_id,
         full_name: customer.name && customer.name !== "-" ? customer.name : current.full_name,
         plan_name: latestLabel?.techLabel || current.plan_name,
-        admin_label: latestLabel?.displayLabel || current.admin_label,
       }));
     }
     setManualDrawerOpen(true);
@@ -460,14 +457,6 @@ export default function MobileAdminPage() {
                 <MenuItem value="FULL_LIFE">All Access - Trọn đời</MenuItem>
                 <MenuItem value="CUSTOM">Tự nhập tên gói</MenuItem>
               </TextField>
-              <TextField
-                label="Tên hiển thị trong đơn"
-                value={manualForm.admin_label}
-                onChange={(event) => setManualForm((current) => ({ ...current, admin_label: event.target.value }))}
-                placeholder="VD: Gói thử 1 ngày"
-                size="small"
-                helperText={`Tên đẹp cho admin và lịch sử đơn. Kỹ thuật vẫn là: ${manualForm.plan_name}`}
-              />
               <TextField label="Mã / ghi chú" value={manualForm.note} onChange={(event) => setManualForm((current) => ({ ...current, note: event.target.value }))} placeholder="VD: MANUAL_ADMIN" size="small" />
             </Stack>
             <Stack spacing={1.5}>
