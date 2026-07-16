@@ -9700,9 +9700,9 @@ export default function Home() {
         {customerModalOpen && selectedCustomer ? (
           <MuiDialogShell open title={selectedCustomer.name} subtitle={`Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerModalOpen(false)} maxWidth="xl">
               <Box sx={{ display: "flex", gap: 2, alignItems: "stretch", minHeight: "72vh", flexDirection: { xs: "column", md: "row" } }}>
-                <Box
-                  component="aside"
-                  sx={{
+	                <Box
+	                  component="aside"
+	                  sx={{
                     width: { xs: "100%", md: 320 },
                     flexShrink: 0,
                     display: "flex",
@@ -9715,11 +9715,38 @@ export default function Home() {
                     backdropFilter: "blur(12px)",
                     borderRadius: 3,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)",
-                  }}
-                >
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                    {selectedCustomerIsBlacklisted ? (
-                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "error.lighter", border: 1, borderColor: "error.light" }}>
+	                  }}
+	                >
+	                  <Tabs
+	                    orientation="vertical"
+	                    value={customerDetailTab}
+	                    onChange={(_, next) => setCustomerDetailTab(next)}
+	                    textColor="inherit"
+	                    indicatorColor="primary"
+	                    sx={{
+	                      ...customerPopupTabSx,
+	                      "& .MuiTab-root": {
+	                        borderRadius: 2,
+	                        mb: 0.5,
+	                        justifyContent: "flex-start",
+	                        textAlign: "left",
+	                        padding: "10px 16px",
+	                      },
+	                      "& .Mui-selected": {
+	                        bgcolor: "var(--primary)",
+	                        color: "white !important",
+	                        boxShadow: "0 4px 10px rgba(59,130,246,0.3)",
+	                      }
+	                    }}
+	                  >
+	                    <Tab value="orders" label="Đơn hàng" iconPosition="start" icon={<CreditCard size={16} />} sx={{ minHeight: 44 }} />
+	                    <Tab value="groups" label="Nhóm active" iconPosition="start" icon={<Users size={16} />} sx={{ minHeight: 44 }} />
+	                    <Tab value="timeline" label="Dấu vết" iconPosition="start" icon={<Activity size={16} />} sx={{ minHeight: 44 }} />
+	                  </Tabs>
+
+	                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+	                    {selectedCustomerIsBlacklisted ? (
+	                      <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "error.lighter", border: 1, borderColor: "error.light" }}>
                         <Typography variant="subtitle2" color="error.main" sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 0.5 }}>
                           <XCircle size={16} /> Khách bị Blacklist
                         </Typography>
@@ -9766,108 +9793,12 @@ export default function Home() {
                     </Box>
                   </Box>
 
-                  <Box sx={{ flexGrow: 1 }} />
+	                  <Box sx={{ flexGrow: 1 }} />
+	                </Box>
 
-                  <Tabs
-                    orientation="vertical"
-                    value={customerDetailTab}
-                    onChange={(_, next) => setCustomerDetailTab(next)}
-                    textColor="inherit"
-                    indicatorColor="primary"
-                    sx={{
-                      ...customerPopupTabSx,
-                      "& .MuiTab-root": {
-                        borderRadius: 2,
-                        mb: 0.5,
-                        justifyContent: "flex-start",
-                        textAlign: "left",
-                        padding: "10px 16px",
-                      },
-                      "& .Mui-selected": {
-                        bgcolor: "var(--primary)",
-                        color: "white !important",
-                        boxShadow: "0 4px 10px rgba(59,130,246,0.3)",
-                      }
-                    }}
-                  >
-                    <Tab value="orders" label="Đơn hàng" iconPosition="start" icon={<CreditCard size={16} />} sx={{ minHeight: 44 }} />
-                    <Tab value="groups" label="Nhóm active" iconPosition="start" icon={<Users size={16} />} sx={{ minHeight: 44 }} />
-                    <Tab value="timeline" label="Dấu vết" iconPosition="start" icon={<Activity size={16} />} sx={{ minHeight: 44 }} />
-                  </Tabs>
-                </Box>
-
-              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0, display: "flex", flexDirection: "column" }}>
-                <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
-                  <PanelHead
-                    title="Nhóm active & Dấu vết"
-                    subtitle="Tóm tắt nhanh quyền hiện tại và audit group của khách trong cùng một khối."
-                  />
-                  <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.2fr" } }}>
-                    <Box
-                      sx={{
-                        p: 1.75,
-                        borderRadius: 3,
-                        border: 1,
-                        borderColor: "rgba(37,99,235,0.16)",
-                        bgcolor: "rgba(37,99,235,0.04)",
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-                        Nhóm còn active
-                      </Typography>
-                      {selectedCustomerActiveGroups.length ? (
-                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                          {selectedCustomerActiveGroups.map((group) => (
-                            <Box
-                              key={group}
-                              component="span"
-                              sx={{
-                                fontSize: 14,
-                                fontWeight: 800,
-                                px: 1.5,
-                                py: 1,
-                                borderRadius: 999,
-                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
-                                border: "1px solid rgba(37,99,235,0.18)",
-                                color: "#1e3a8a",
-                              }}
-                            >
-                              {group}
-                            </Box>
-                          ))}
-                        </Box>
-                      ) : (
-                        <div className="empty-card">Chưa có nhóm active nào.</div>
-                      )}
-                    </Box>
-
-                    <Box
-                      sx={{
-                        p: 1.75,
-                        borderRadius: 3,
-                        border: 1,
-                        borderColor: "rgba(99,102,241,0.14)",
-                        bgcolor: "rgba(255,255,255,0.75)",
-                        minWidth: 0,
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-                        Dấu vết group
-                      </Typography>
-                      {selectedCustomerGroupAuditRows.length ? (
-                        <SimpleTable
-                          headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
-                          rows={selectedCustomerGroupAuditRows}
-                        />
-                      ) : (
-                        <div className="empty-card">Chưa có audit group nào cho khách này.</div>
-                      )}
-                    </Box>
-                  </Box>
-                </section>
-
-                {/* Sleek Header Bar */}
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 2.5, p: 2, borderRadius: 3, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
+	              <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0, display: "flex", flexDirection: "column" }}>
+	                {/* Sleek Header Bar */}
+	                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 2.5, p: 2, borderRadius: 3, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                     <Chip
                       label={selectedCustomer.statusLabel}
@@ -9953,8 +9884,55 @@ export default function Home() {
                       />
                     </section>
                   </>
-                  ) : null}
-              </Box>
+	                ) : null}
+	                {customerDetailTab === "groups" ? (
+	                  <>
+	                    <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
+	                      <PanelHead title="Nhóm còn active" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
+	                      {selectedCustomerActiveGroups.length ? (
+	                        <div
+	                          className="tag-list"
+	                          style={{
+	                            display: "flex",
+	                            flexWrap: "wrap",
+	                            gap: "10px",
+	                            padding: "6px 0 2px",
+	                          }}
+	                        >
+	                          {selectedCustomerActiveGroups.map((group) => (
+	                            <span
+	                              key={group}
+	                              style={{
+	                                fontSize: "14px",
+	                                fontWeight: 800,
+	                                padding: "10px 14px",
+	                                borderRadius: "999px",
+	                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
+	                                border: "1px solid rgba(37,99,235,0.18)",
+	                                color: "#1e3a8a",
+	                                boxShadow: "0 8px 18px rgba(37,99,235,0.08)",
+	                              }}
+	                            >
+	                              {group}
+	                            </span>
+	                          ))}
+	                        </div>
+	                      ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
+	                    </section>
+	                  </>
+	                ) : null}
+	                {customerDetailTab === "timeline" ? (
+	                  <>
+	                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
+	                      <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+	                      <SimpleTable
+	                        headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
+	                        rows={selectedCustomerTimelineRows.slice(0, 12)}
+	                      />
+	                    </section>
+	                  </>
+	                ) : null}
+	              </Box>
               </Box>
           </MuiDialogShell>
         ) : null}
