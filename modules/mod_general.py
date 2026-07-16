@@ -507,6 +507,7 @@ async def deliver_activation_order(message: Message, code: str):
                 "order_id": activation.get("order_id", ""),
                 "telegram_user_id": telegram_user_id,
                 "full_name": activation.get("full_name", ""),
+                "admin_label": activation.get("admin_label") or activation.get("display_name") or plan_name,
                 "plan_name": plan_name,
                 "expire_at": format_manual_expire(expire_at),
                 "support_group_name": db.get_config("SUPPORT_GROUP_NAME", "support group"),
@@ -560,7 +561,7 @@ async def deliver_activation_order(message: Message, code: str):
                     "links_status": "partial" if failed_groups else "ok",
                     "order_text": render_cfg(
                         "MANUAL_ORDER_INFO_TEMPLATE",
-                        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+                        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {admin_label}\n⏳ Hạn dùng: {expire_at}",
                         render_context,
                     ),
                 },

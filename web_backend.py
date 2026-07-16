@@ -789,12 +789,13 @@ def render_manual_order_support_text(template: str, context: dict[str, object]):
 def render_manual_order_info_text(context: dict[str, object]):
     template = normalize_template_text(safe_db_config(
         "MANUAL_ORDER_INFO_TEMPLATE",
-        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {plan_name}\n⏳ Hạn dùng: {expire_at}",
+        "🧾 Đơn hàng: {order_id}\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\n📦 Gói: {admin_label}\n⏳ Hạn dùng: {expire_at}",
     ) or "")
     values = {
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
+        "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
     }
@@ -811,6 +812,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
         "order_id": context.get("order_id", ""),
         "telegram_user_id": context.get("telegram_user_id", ""),
         "full_name": context.get("full_name", ""),
+        "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
         "plan_name": context.get("plan_name", ""),
         "expire_at": format_manual_expire_at(context.get("expire_at", "")),
         "order_text": context.get("order_text", ""),
@@ -885,6 +887,7 @@ def build_manual_order_join_message_text(context: dict[str, object]):
         normalize_manual_order_join_template(safe_db_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
         {
             **context,
+            "admin_label": context.get("admin_label") or context.get("display_name") or context.get("plan_name", ""),
             "activation_url": context.get("activation_url", ""),
             "message_url": context.get("message_url", ""),
             "links_text": context.get("links_text", ""),
