@@ -30,7 +30,7 @@ import {
 import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order, OverviewDashboard } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, statusChipSx } from "../dashboard-components";
-import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderDisplayLabel, resolveOrderTechLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 
 type MobileAction = "lookup" | "manual";
 
@@ -313,8 +313,8 @@ export default function MobileAdminPage() {
                     <Typography sx={{ fontWeight: 900 }}>{selectedCustomer.name || "-"}</Typography>
                     <Typography variant="body2" color="text.secondary">{selectedCustomer.id}</Typography>
                     <Divider />
-                    <Typography variant="body2">Gói gần nhất: <strong>{selectedCustomer.latestExpireOrder ? resolveOrderDisplayLabel(selectedCustomer.latestExpireOrder) : "-"}</strong></Typography>
-                    <Typography variant="body2">Tên kỹ thuật: {selectedCustomer.latestExpireOrder ? resolveOrderTechLabel(selectedCustomer.latestExpireOrder) : "-"}</Typography>
+                    <Typography variant="body2">Gói gần nhất: <strong>{selectedCustomer.latestExpireOrder ? resolveOrderLabel(selectedCustomer.latestExpireOrder).displayLabel : "-"}</strong></Typography>
+                    <Typography variant="body2">Tên kỹ thuật: {selectedCustomer.latestExpireOrder ? resolveOrderLabel(selectedCustomer.latestExpireOrder).techLabel : "-"}</Typography>
                     <Typography variant="body2">Hạn gần nhất: {selectedCustomer.latestExpireText}</Typography>
                     <Button variant="outlined" onClick={() => setManualTab("manual")} startIcon={<Plus size={16} />}>Dùng thông tin này để tạo đơn</Button>
                   </CardContent>
@@ -358,7 +358,7 @@ export default function MobileAdminPage() {
                 <CardContent sx={{ p: 1.5, display: "grid", gap: 0.75 }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "start" }}>
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{resolveOrderDisplayLabel(order)}</Typography>
+                      <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{resolveOrderLabel(order).displayLabel}</Typography>
                       <Typography variant="caption" color="text.secondary">{order.telegram_user_id} · {order.order_id}</Typography>
                     </Box>
                     <Chip size="small" label={miniStatusChipLabel(order)} color={order.status === "PAID" ? "success" : "default"} variant="outlined" />
