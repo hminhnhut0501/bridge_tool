@@ -6315,6 +6315,8 @@ export default function Home() {
           latestMessageText: previewText,
           messageCount: messages.length,
           hasExtraMessages,
+          latestMessageId: latestMessage?.id || "",
+          unreadKey: `${ticket.id}:${latestMessage?.id || "none"}`,
           messages,
         };
       })
@@ -6323,7 +6325,7 @@ export default function Home() {
 
   const unreadSupportInboxItems = useMemo(() => {
     const seen = new Set(supportInboxSeenIds);
-    return supportInboxItems.filter((item) => !seen.has(item.id));
+    return supportInboxItems.filter((item) => !seen.has(item.unreadKey || item.id));
   }, [supportInboxItems, supportInboxSeenIds]);
 
   const unreadSupportInboxCount = unreadSupportInboxItems.length;
@@ -6339,7 +6341,7 @@ export default function Home() {
   const markAllSupportInboxRead = useCallback(() => {
     setSupportInboxSeenIds((current) => {
       const seen = new Set(current);
-      supportInboxItems.forEach((item) => seen.add(item.id));
+      supportInboxItems.forEach((item) => seen.add(item.unreadKey || item.id));
       return Array.from(seen);
     });
   }, [supportInboxItems]);
@@ -6373,8 +6375,9 @@ export default function Home() {
     username: string;
     order_id: string;
     plan_name: string;
+    unreadKey?: string;
   }) => {
-    setSupportInboxSeenIds((current) => uniqueValues([...current, item.id]));
+    setSupportInboxSeenIds((current) => uniqueValues([...current, item.unreadKey || item.id]));
     closeSupportInboxMenu();
     selectTab("supportGroup");
     setSupportTab("all");
@@ -7189,7 +7192,7 @@ export default function Home() {
                     Đang tải inbox hỗ trợ...
                   </Box>
                 ) : supportInboxItems.length ? supportInboxItems.map((item) => {
-                  const unread = !supportInboxSeenIds.includes(item.id);
+                  const unread = !supportInboxSeenIds.includes(item.unreadKey || item.id);
                   return (
                     <Box key={item.id} sx={{ borderBottom: 1, borderColor: "rgba(148,163,184,0.10)", bgcolor: unread ? "rgba(14,165,233,0.03)" : "background.paper" }}>
                       <MenuItem
