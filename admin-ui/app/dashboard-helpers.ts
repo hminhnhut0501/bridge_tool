@@ -153,12 +153,7 @@ export function orderCouponCode(order: Order) {
   return displayText(order.coupon_code || "");
 }
 
-function orderMetadata(order: { metadata?: unknown }) {
-  return order.metadata && typeof order.metadata === "object" ? (order.metadata as Record<string, unknown>) : null;
-}
-
 export function resolveOrderLabel(order: { plan_name?: string | null; metadata?: unknown }) {
-  const metadata = orderMetadata(order);
   const techLabel = displayText(order.plan_name || "-") || "-";
   const displayLabel = techLabel;
   return {

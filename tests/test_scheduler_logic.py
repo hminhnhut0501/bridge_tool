@@ -195,6 +195,51 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         scheduler.now_local = ORIGINAL_NOW_LOCAL
 
+    def test_custom_duration_rows_are_selected_for_reminder(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        rows = [[
+            "custom-1d", "42", "User", "All Access - Tùy chỉnh",
+            "0", "PAID", "", "2026-07-17 09:00:00",
+        ]]
+
+        expired, reminders, users = scheduler.split_scheduler_rows(rows, now, 3)
+
+        self.assertEqual(expired, [])
+        self.assertEqual([row[0] for _, row in reminders], ["custom-1d"])
+        self.assertEqual(users, {"42"})
+
+    async def test_custom_group_expiry_kicks_only_entitled_group(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        rows = [[
+            "custom-group", "42", "User", "Hang Cú Asia - Tùy chỉnh",
+            "0", "EXPIRED", "", "2026-07-15 09:00:00",
+        ]]
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "custom-group", "Hang Cú Asia - Tùy chỉnh",
+            "2026-07-15 09:00:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(self.bot.kicked, [("-100444", "42")])
+
+    async def test_custom_all_access_expiry_kicks_all_configured_groups(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        rows = [[
+            "custom-all", "42", "User", "All Access - Tùy chỉnh",
+            "0", "EXPIRED", "", "2026-07-15 09:00:00",
+        ]]
+
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42", "custom-all", "All Access - Tùy chỉnh",
+            "2026-07-15 09:00:00", rows, now
+        )
+
+        self.assertEqual(expired_groups, ["-100111", "-100222", "-100333", "-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(len(self.bot.kicked), 4)
+
     async def test_expired_vip_kicks_only_expired_group_when_other_group_active(self):
         now = datetime(2026, 5, 25, 12, 0, 0)
         rows = [

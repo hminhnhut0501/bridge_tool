@@ -656,6 +656,38 @@ def order_is_lifetime(plan_name: str | None):
     return any(token in text for token in ("trọn đời", "tron doi", "lifetime", "life", "vĩnh viễn", "vinh vien"))
 
 
+def resolve_manual_order_plan(body: dict[str, object]) -> tuple[str, dict[str, str]]:
+    """Resolve manual-order entitlement and keep custom duration separate from plan identity."""
+    mode = str(body.get("plan_mode") or "").strip().upper()
+    if mode != "CUSTOM_DURATION":
+        plan_name = str(body.get("plan_name") or "").strip()
+        return plan_name, {}
+    if str(db.get_config("MANUAL_CUSTOM_DURATION_ENABLED", "ON") or "ON").strip().upper() not in {"ON", "1", "TRUE", "YES"}:
+        raise HTTPException(status_code=409, detail="Gói tùy chỉnh đang tạm tắt để bảo trì.")
+
+    entitlement_type = str(body.get("entitlement_type") or "").strip().upper()
+    entitlement_key = str(body.get("entitlement_key") or "").strip()
+    if entitlement_type == "ALL_ACCESS":
+        base_name = str(db.get_config("PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") or "All Access 30 Ngày").strip()
+        base_name = re.sub(r"\s+30\s*(?:ngày|days|d)\b", "", base_name, flags=re.IGNORECASE).strip() or "All Access"
+        return f"{base_name} - Tùy chỉnh", {
+            "manual_plan_mode": mode,
+            "entitlement_type": entitlement_type,
+            "entitlement_key": "FULL",
+        }
+    if entitlement_type == "GROUP_COLLECTION" and entitlement_key:
+        group_name = str(db.get_config(f"BTN_G{entitlement_key}", "") or "").strip()
+        if not group_name and entitlement_key.upper().startswith("G"):
+            group_name = str(db.get_config(f"BTN_G{entitlement_key[1:]}", "") or "").strip()
+        if group_name:
+            return f"{group_name} - Tùy chỉnh", {
+                "manual_plan_mode": mode,
+                "entitlement_type": entitlement_type,
+                "entitlement_key": entitlement_key,
+            }
+    raise HTTPException(status_code=400, detail="Gói tùy chỉnh cần chọn All Access hoặc Group/Collection hợp lệ.")
+
+
 def resolve_manual_order_duration_days(plan_name: str | None, duration_days: int, *, telegram_user_id: str = "", full_name: str = ""):
     raw_duration_days = duration_days
     if not order_is_lifetime(plan_name) and duration_days > 365:
@@ -896,7 +928,7 @@ def build_manual_order_join_message_text(context: dict[str, object]):
 async def build_manual_order_result(body: dict[str, object]) -> dict[str, object]:
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
     full_name = str(body.get("full_name", "")).strip()
-    plan_name = str(body.get("plan_name", "")).strip()
+    plan_name, manual_plan_metadata = resolve_manual_order_plan(body)
     note = str(body.get("note", "")).strip()
     coupon_code = str(body.get("coupon_code", "")).strip().upper()
     skip_join_link = str(body.get("skip_join_link", "")).lower() == "true" or body.get("skip_join_link") is True
@@ -951,17 +983,22 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     expire_at = parse_manual_expire_at(body.get("expire_at"))
     if expire_at is None:
         try:
-            duration_days = int(float(str(body.get("duration_days", "30") or 30)))
+            default_duration = "1" if manual_plan_metadata.get("manual_plan_mode") == "CUSTOM_DURATION" else "30"
+            duration_days = int(float(str(body.get("duration_days", default_duration) or default_duration)))
         except (TypeError, ValueError):
-            duration_days = 30
+            duration_days = 1 if manual_plan_metadata.get("manual_plan_mode") == "CUSTOM_DURATION" else 30
         if duration_days <= 0:
-            duration_days = 3650 if order_is_lifetime(plan_name) else 30
-        duration_days = resolve_manual_order_duration_days(
-            plan_name,
-            duration_days,
-            telegram_user_id=telegram_user_id,
-            full_name=full_name,
-        )
+            duration_days = 3650 if order_is_lifetime(plan_name) else (1 if manual_plan_metadata.get("manual_plan_mode") == "CUSTOM_DURATION" else 30)
+        if manual_plan_metadata.get("manual_plan_mode") == "CUSTOM_DURATION":
+            if duration_days > 3650:
+                raise HTTPException(status_code=400, detail="Số ngày tùy chỉnh phải từ 1 đến 3650 ngày.")
+        else:
+            duration_days = resolve_manual_order_duration_days(
+                plan_name,
+                duration_days,
+                telegram_user_id=telegram_user_id,
+                full_name=full_name,
+            )
         expire_at = now_local() + timedelta(days=duration_days)
 
     paid_at = now_local()
@@ -994,6 +1031,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                 "payment_provider": payment_provider,
                 "language": user_language,
                 "note": note,
+                **manual_plan_metadata,
             },
         )
         order_data = supabase_store.mark_order_paid(
@@ -1066,6 +1104,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                     "order_id": order_id,
                     "telegram_user_id": telegram_user_id,
                     "plan_name": plan_name,
+                    **manual_plan_metadata,
                     "expire_at": expire_at.isoformat(timespec="seconds"),
                 },
             )
@@ -1082,6 +1121,8 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             order_id=order_id,
             plan_name=plan_name,
             raw_data={
+                **manual_plan_metadata,
+                "plan_name": plan_name,
                 "amount": amount,
                 "coupon_code": coupon_code,
                 "note": note,
@@ -1103,6 +1144,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "telegram_user_id": telegram_user_id,
         "full_name": full_name,
         "plan_name": plan_name,
+        **manual_plan_metadata,
         "amount": amount,
         "note": note,
         "payment_currency": payment_currency,

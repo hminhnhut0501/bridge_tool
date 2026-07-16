@@ -564,10 +564,13 @@ export type ManualOrderPayload = {
   telegram_user_id: string;
   full_name?: string;
   plan_name: string;
-  note?: string;
-  amount?: string;
+  plan_mode?: "CUSTOM_DURATION" | string;
+  entitlement_type?: "ALL_ACCESS" | "GROUP_COLLECTION" | string;
+  entitlement_key?: string;
   duration_days?: string;
   expire_at?: string;
+  note?: string;
+  amount?: string;
   coupon_code?: string;
   sale_id?: string;
   payment_currency?: string;
@@ -581,6 +584,10 @@ export type ManualOrderResult = {
   telegram_user_id: string;
   full_name: string;
   plan_name: string;
+  plan_mode?: string;
+  entitlement_type?: string;
+  entitlement_key?: string;
+  duration_days?: string;
   note?: string;
   amount: number;
   payment_currency?: string;

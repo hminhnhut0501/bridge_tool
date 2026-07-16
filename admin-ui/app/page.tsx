@@ -2732,6 +2732,9 @@ const EMPTY_MANUAL_ORDER_FORM = {
   full_name: "",
   plan_key: "FULL_1M",
   plan_name: "",
+  plan_mode: "",
+  entitlement_type: "ALL_ACCESS",
+  entitlement_key: "",
   
   special_group_id: "",
   special_group_duration: "1M",
@@ -5186,6 +5189,7 @@ export default function Home() {
     ...discountPlanKeyOptions,
     "CUSTOM",
   ], [discountPlanKeyOptions]);
+  const customDurationEnabled = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "MANUAL_CUSTOM_DURATION_ENABLED", "ON").toUpperCase());
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
     ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
@@ -6532,6 +6536,7 @@ export default function Home() {
 
   function changeManualPlanKey(value: string) {
     const lifetime = isLifetimePlanKey(value);
+    const customDuration = value === "CUSTOM_DURATION";
     const nextPlanName = value === "CUSTOM"
       ? (manualOrderForm.plan_name.trim() || manualPlanNameFromKey("FULL_1M"))
       : manualPlanNameFromKey(value);
@@ -6539,10 +6544,13 @@ export default function Home() {
       ...manualOrderForm,
       plan_key: value,
       plan_name: nextPlanName,
+      plan_mode: customDuration ? "CUSTOM_DURATION" : "",
+      entitlement_type: customDuration ? "ALL_ACCESS" : manualOrderForm.entitlement_type,
+      entitlement_key: customDuration ? "" : manualOrderForm.entitlement_key,
   
       amount: manualPriceFromKey(value) || manualOrderForm.amount,
       expiry_mode: lifetime ? "days" : manualOrderForm.expiry_mode || "days",
-      duration_days: lifetime ? String(lifetimeCouponDays || 3650) : "30",
+      duration_days: customDuration ? "1" : (lifetime ? String(lifetimeCouponDays || 3650) : "30"),
       expire_at: lifetime ? "" : manualOrderForm.expire_at,
       special_group_id: value === "CUSTOM" ? manualOrderForm.special_group_id : "",
       special_group_duration: value === "CUSTOM" ? manualOrderForm.special_group_duration : "1M",
@@ -6640,7 +6648,7 @@ export default function Home() {
   async function saveManualOrder() {
     const specialGroup = activeSpecialGroups.find((item) => item.id === manualOrderForm.special_group_id) || null;
     const specialPlanName = specialGroup ? hiddenGroupManualPlanName(specialGroup, manualOrderForm.special_group_duration || "1M") : "";
-    const planName = specialPlanName || manualOrderTechnicalPlanName();
+    const planName = specialPlanName || (manualOrderForm.plan_mode === "CUSTOM_DURATION" ? "Tùy chỉnh" : manualOrderTechnicalPlanName());
     const paymentCurrency = String(manualOrderForm.payment_currency || "VND").toUpperCase();
     const paymentProvider = String(manualOrderForm.payment_provider || "MANUAL").toUpperCase();
     const isLifetime = isLifetimeText(planName);
@@ -6651,6 +6659,9 @@ export default function Home() {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
         plan_name: planName,
+        plan_mode: manualOrderForm.plan_mode || undefined,
+        entitlement_type: manualOrderForm.plan_mode === "CUSTOM_DURATION" ? manualOrderForm.entitlement_type : undefined,
+        entitlement_key: manualOrderForm.plan_mode === "CUSTOM_DURATION" ? manualOrderForm.entitlement_key : undefined,
         note: manualOrderForm.note.trim(),
         amount: manualOrderForm.amount,
         duration_days: durationDays,
@@ -9291,9 +9302,23 @@ export default function Home() {
                 <Box sx={{ display: "grid", gap: 2, alignContent: "start" }}>
                   <TextField label="Telegram ID" value={manualOrderForm.telegram_user_id} onChange={(event) => setManualOrderForm({ ...manualOrderForm, telegram_user_id: event.target.value })} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
                   <TextField label="Tên khách" value={manualOrderForm.full_name} onChange={(event) => setManualOrderForm({ ...manualOrderForm, full_name: event.target.value })} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" helperText="Chọn gói thường. Nếu chọn Special Group bên dưới, hệ thống sẽ tự đổi sang special." >
-                    {manualPlanKeyOptions.map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : planOptionLabel(item)}</MenuItem>)}
+                  <TextField select label="Gói lưu vào đơn" value={manualOrderForm.plan_key} onChange={(event) => changeManualPlanKey(event.target.value)} size="small" helperText="Chọn gói thường hoặc Tùy chỉnh thời hạn." >
+                    {[...manualPlanKeyOptions, ...(customDurationEnabled ? ["CUSTOM_DURATION"] : [])].map((item) => <MenuItem key={item} value={item}>{item === "CUSTOM" ? "Tự nhập tên gói" : item === "CUSTOM_DURATION" ? "Tùy chỉnh thời hạn" : planOptionLabel(item)}</MenuItem>)}
                   </TextField>
+                  {manualOrderForm.plan_mode === "CUSTOM_DURATION" ? (
+                    <>
+                      <TextField select label="Phạm vi cấp quyền" value={manualOrderForm.entitlement_type} onChange={(event) => setManualOrderForm({ ...manualOrderForm, entitlement_type: event.target.value, entitlement_key: "" })} size="small">
+                        <MenuItem value="ALL_ACCESS">All Access</MenuItem>
+                        <MenuItem value="GROUP_COLLECTION">Group / Collection</MenuItem>
+                      </TextField>
+                      {manualOrderForm.entitlement_type === "GROUP_COLLECTION" ? (
+                        <TextField select label="Group / Collection" value={manualOrderForm.entitlement_key} onChange={(event) => setManualOrderForm({ ...manualOrderForm, entitlement_key: event.target.value })} size="small" required>
+                          <MenuItem value=""><em>Chọn group</em></MenuItem>
+                          {configuredGroups.map((item) => <MenuItem key={item} value={`G${item}`}>{getConfigValue(config, `BTN_G${item}`, `Group ${item}`)}</MenuItem>)}
+                        </TextField>
+                      ) : null}
+                    </>
+                  ) : null}
                   <TextField select label="Special Group" value={manualOrderForm.special_group_id} onChange={(event) => changeManualSpecialGroup(event.target.value, manualOrderForm.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn Special Group riêng. Khi chọn, ô gói thường sẽ tự chuyển sang Special." : "Chưa có Special Group đang hoạt động."}>
                     <MenuItem value="">
                       <em>Không dùng Special Group</em>
@@ -9341,7 +9366,7 @@ export default function Home() {
                       <MenuItem value="date">Ngày cụ thể</MenuItem>
                     </TextField>
                     {manualOrderForm.expiry_mode === "days" ? (
-                      <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder="30" inputMode="numeric" size="small" helperText={manualExpiryPreview()} />
+                      <TextField label="Số ngày sử dụng" value={manualOrderForm.duration_days} onChange={(event) => setManualOrderForm({ ...manualOrderForm, duration_days: event.target.value })} placeholder={manualOrderForm.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview()} />
                     ) : (
                       <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualOrderForm.expire_at} onChange={(event) => setManualOrderForm({ ...manualOrderForm, expire_at: event.target.value })} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview()} />
                     )}

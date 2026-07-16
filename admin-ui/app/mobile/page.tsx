@@ -30,7 +30,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { ActivityLogEntry, CustomerSearchResult, ManualOrderResult, Order } from "@/lib/api";
-import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
+import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, MuiDialogShell, statusChipSx } from "../dashboard-components";
 import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 
@@ -69,11 +69,15 @@ export default function MobileAdminPage() {
   const [manualDrawerOpen, setManualDrawerOpen] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualOrderResult | null>(null);
+  const [customDurationEnabled, setCustomDurationEnabled] = useState(true);
   const [copyNote, setCopyNote] = useState("");
   const [manualForm, setManualForm] = useState({
     telegram_user_id: "",
     full_name: "",
     plan_name: "FULL_1M",
+    plan_mode: "",
+    entitlement_type: "ALL_ACCESS",
+    entitlement_key: "",
     amount: "",
     duration_days: "30",
     expire_at: "",
@@ -106,14 +110,17 @@ export default function MobileAdminPage() {
     const load = async () => {
       setRefreshing(true);
       try {
-        const [ordersRes, , activityRes] = await Promise.all([
+        const [ordersRes, , activityRes, configRes] = await Promise.all([
           getOrders(savedSecret, 120),
           getDashboardOverview(savedSecret),
           getActivityLog(savedSecret, { page: 1, limit: 30, direction: "all", type: "ALL", date: "ALL" }),
+          getConfig(savedSecret),
         ]);
         if (!active) return;
         setOrders(ordersRes.data || []);
         setActivityLog(activityRes.data || []);
+        const customFlag = (configRes.data || []).find((item) => item.key === "MANUAL_CUSTOM_DURATION_ENABLED")?.value;
+        setCustomDurationEnabled(!customFlag || ["ON", "1", "TRUE", "YES"].includes(String(customFlag).toUpperCase()));
       } catch (error) {
         console.error(error);
       } finally {
@@ -201,6 +208,9 @@ export default function MobileAdminPage() {
         telegram_user_id: manualForm.telegram_user_id.trim(),
         full_name: displayText(manualForm.full_name) || undefined,
         plan_name: manualForm.plan_name.trim(),
+        plan_mode: manualForm.plan_mode || undefined,
+        entitlement_type: manualForm.plan_mode === "CUSTOM_DURATION" ? manualForm.entitlement_type : undefined,
+        entitlement_key: manualForm.plan_mode === "CUSTOM_DURATION" ? manualForm.entitlement_key : undefined,
         amount: manualForm.amount.trim() || undefined,
         duration_days: manualForm.duration_days.trim() || undefined,
         expire_at: manualForm.expire_at.trim() || undefined,
@@ -452,11 +462,23 @@ export default function MobileAdminPage() {
             <Stack spacing={1.5}>
               <TextField label="Telegram ID" value={manualForm.telegram_user_id} onChange={(event) => setManualForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
               <TextField label="Tên khách" value={manualForm.full_name} onChange={(event) => setManualForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-              <TextField select label="Gói lưu vào đơn" value={manualForm.plan_name} onChange={(event) => setManualForm((current) => ({ ...current, plan_name: event.target.value }))} size="small" helperText="Chọn gói thường. Nếu chọn Special Group bên dưới, hệ thống sẽ tự đổi sang special.">
+              <TextField select label="Gói lưu vào đơn" value={manualForm.plan_mode === "CUSTOM_DURATION" ? "CUSTOM_DURATION" : manualForm.plan_name} onChange={(event) => setManualForm((current) => event.target.value === "CUSTOM_DURATION" ? ({ ...current, plan_name: "Tùy chỉnh", plan_mode: "CUSTOM_DURATION", entitlement_type: "ALL_ACCESS", entitlement_key: "", duration_days: "1", expire_at: "" }) : ({ ...current, plan_name: event.target.value, plan_mode: "", entitlement_key: "" }))} size="small" helperText="Chọn gói thường hoặc Tùy chỉnh thời hạn.">
                 <MenuItem value="FULL_1M">All Access - 30 ngày</MenuItem>
                 <MenuItem value="FULL_LIFE">All Access - Trọn đời</MenuItem>
                 <MenuItem value="CUSTOM">Tự nhập tên gói</MenuItem>
+                {customDurationEnabled ? <MenuItem value="CUSTOM_DURATION">Tùy chỉnh thời hạn</MenuItem> : null}
               </TextField>
+              {manualForm.plan_mode === "CUSTOM_DURATION" ? (
+                <>
+                  <TextField select label="Phạm vi cấp quyền" value={manualForm.entitlement_type} onChange={(event) => setManualForm((current) => ({ ...current, entitlement_type: event.target.value, entitlement_key: "" }))} size="small">
+                    <MenuItem value="ALL_ACCESS">All Access</MenuItem>
+                    <MenuItem value="GROUP_COLLECTION">Group / Collection</MenuItem>
+                  </TextField>
+                  {manualForm.entitlement_type === "GROUP_COLLECTION" ? (
+                    <TextField label="Group / Collection" value={manualForm.entitlement_key} onChange={(event) => setManualForm((current) => ({ ...current, entitlement_key: event.target.value }))} placeholder="VD: G4" size="small" required helperText="Nhập key group đã cấu hình, ví dụ G4." />
+                  ) : null}
+                </>
+              ) : null}
               <TextField label="Mã / ghi chú" value={manualForm.note} onChange={(event) => setManualForm((current) => ({ ...current, note: event.target.value }))} placeholder="VD: MANUAL_ADMIN" size="small" />
             </Stack>
             <Stack spacing={1.5}>
@@ -475,11 +497,11 @@ export default function MobileAdminPage() {
                 <MenuItem value="TRON_USDT">USDT TRC20</MenuItem>
               </TextField>
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                <TextField select label="Kiểu hết hạn" value={manualForm.duration_days ? "days" : "date"} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value === "days" ? current.duration_days || "30" : current.duration_days, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
+                <TextField select label="Kiểu hết hạn" value={manualForm.expire_at ? "date" : "days"} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value === "days" ? current.duration_days || (current.plan_mode === "CUSTOM_DURATION" ? "1" : "30") : current.duration_days, expire_at: event.target.value === "days" ? "" : current.expire_at }))} size="small">
                   <MenuItem value="days">Theo số ngày</MenuItem>
                   <MenuItem value="date">Ngày cụ thể</MenuItem>
                 </TextField>
-                <TextField label="Số ngày sử dụng" value={manualForm.duration_days} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder="30" inputMode="numeric" size="small" helperText="Sẽ áp dụng: 30 ngày" />
+                <TextField label="Số ngày sử dụng" value={manualForm.duration_days} onChange={(event) => setManualForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={manualForm.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={`Sẽ áp dụng: ${manualForm.duration_days || (manualForm.plan_mode === "CUSTOM_DURATION" ? "1" : "30")} ngày`} />
               </Box>
               <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={manualForm.expire_at} onChange={(event) => setManualForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText="Dùng khi muốn set giờ cụ thể thay vì số ngày." />
             </Stack>

@@ -117,6 +117,41 @@ class ManualOrderEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.events[0][2]["raw_data"]["plan_name"], "VIP 30 Ngày - Prime")
         self.assertEqual(self.store.events[0][1], "42")
 
+    async def test_custom_duration_defaults_to_one_day_for_all_access(self):
+        result = await web_backend.build_manual_order_result({
+            "telegram_user_id": "42",
+            "full_name": "Alice",
+            "plan_mode": "CUSTOM_DURATION",
+            "entitlement_type": "ALL_ACCESS",
+            "amount": "1000",
+            "skip_join_link": True,
+            "fast_mode": True,
+            "skip_active_code": True,
+        })
+
+        self.assertEqual(result["plan_name"], "All Access - Tùy chỉnh")
+        self.assertEqual(result["manual_plan_mode"], "CUSTOM_DURATION")
+        self.assertEqual(result["entitlement_type"], "ALL_ACCESS")
+        self.assertEqual(self.store.paid_orders[0][2], "2026-07-17T09:00:00")
+
+    async def test_custom_duration_supports_group_collection_and_explicit_expiry(self):
+        self.db.config["BTN_G4"] = "VIP Asia"
+        result = await web_backend.build_manual_order_result({
+            "telegram_user_id": "42",
+            "full_name": "Alice",
+            "plan_mode": "CUSTOM_DURATION",
+            "entitlement_type": "GROUP_COLLECTION",
+            "entitlement_key": "G4",
+            "expire_at": "2026-07-20 09:00:00",
+            "skip_join_link": True,
+            "fast_mode": True,
+            "skip_active_code": True,
+        })
+
+        self.assertEqual(result["plan_name"], "VIP Asia - Tùy chỉnh")
+        self.assertEqual(result["entitlement_key"], "G4")
+        self.assertEqual(self.store.paid_orders[-1][2], "2026-07-20T09:00:00+07:00")
+
 
 if __name__ == "__main__":
     unittest.main()

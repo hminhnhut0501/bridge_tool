@@ -53,6 +53,10 @@ def _cfg(key: str, default: str = "") -> str:
         return default
 
 
+def _custom_duration_enabled() -> bool:
+    return _cfg("MANUAL_CUSTOM_DURATION_ENABLED", "ON").upper() in {"ON", "1", "TRUE", "YES"}
+
+
 def _backend_base_url() -> str:
     configured = _cfg("ADMIN_API_BASE_URL", os.getenv("ADMIN_API_BASE_URL", ""))
     if configured:
@@ -313,6 +317,9 @@ class OrderDraft:
     telegram_user_id: str = ""
     full_name: str = ""
     plan_name: str = ""
+    plan_mode: str = ""
+    entitlement_type: str = ""
+    entitlement_key: str = ""
     amount: str = ""
     duration_days: str = ""
     payment_currency: str = "VND"
@@ -450,6 +457,12 @@ def _keyboard(draft: OrderDraft):
             kb.button(text=f"{plan_name} · {days}d", callback_data=f"admin_order:use_plan:{idx}")
         if candidates:
             kb.button(text="More", callback_data="admin_order:more")
+        if _custom_duration_enabled():
+            kb.button(text="Tùy chỉnh · All Access · 1 ngày", callback_data="admin_order:custom_all")
+            for group_no in group_numbers()[:8]:
+                group_name = _cfg(f"BTN_G{group_no}", f"Group {group_no}")
+                if _cfg(f"ID_G{group_no}"):
+                    kb.button(text=f"Tùy chỉnh · {group_name} · 1 ngày", callback_data=f"admin_order:custom_group:G{group_no}")
         kb.button(text="Hủy", callback_data="admin_order:cancel")
         kb.adjust(1)
         return kb.as_markup()
@@ -514,6 +527,9 @@ async def _create_manual_order(draft: OrderDraft) -> dict[str, Any]:
         "telegram_user_id": draft.telegram_user_id,
         "full_name": draft.full_name,
         "plan_name": draft.plan_name,
+        "plan_mode": draft.plan_mode,
+        "entitlement_type": draft.entitlement_type,
+        "entitlement_key": draft.entitlement_key,
         "amount": draft.amount,
         "duration_days": draft.duration_days,
         "payment_currency": draft.payment_currency,
@@ -617,6 +633,16 @@ async def admin_order_actions(callback: CallbackQuery):
         await _render_draft(callback, draft, "Quay lại wizard chính.")
         return
 
+    if action in {"custom_all", "custom_group"}:
+        draft.plan_mode = "CUSTOM_DURATION"
+        draft.entitlement_type = "ALL_ACCESS" if action == "custom_all" else "GROUP_COLLECTION"
+        draft.entitlement_key = "FULL" if action == "custom_all" else (rest[0] if rest else "")
+        draft.plan_name = "Tùy chỉnh"
+        draft.duration_days = "1"
+        draft.step = "duration_days"
+        await _render_draft(callback, draft, "Đã chọn gói tùy chỉnh. Nhập số ngày, mặc định là 1 ngày.")
+        return
+
     if action == "use_plan":
         idx = int(rest[0]) if rest and rest[0].isdigit() else -1
         candidates = _plan_candidates()
@@ -712,6 +738,23 @@ async def admin_order_capture(message: Message):
         return
     if field == "duration_days":
         draft.duration_days = text
+        if draft.plan_mode == "CUSTOM_DURATION":
+            if not draft.telegram_user_id.strip():
+                await _render_draft(message, draft, "Thiếu Telegram ID. Vui lòng nhập ID trước khi tạo đơn.")
+                return
+            try:
+                result = await _create_manual_order(draft)
+            except Exception as exc:
+                await _render_draft(message, draft, f"Lỗi tạo đơn: {_short_error_text(exc)}")
+                return
+            _set_draft(message.from_user.id, None)
+            await message.answer(
+                "✅ Đã tạo đơn tùy chỉnh.\n\n"
+                f"Gói: <code>{_normalize_text(result.get('plan_name') or draft.plan_name or '-')}</code>\n"
+                f"Hạn: <code>{_normalize_text(result.get('expire_at') or '-')}</code>\n"
+                f"Activation: <code>{_normalize_text(result.get('activation_code') or '-')}</code>"
+            )
+            return
         await _render_draft(message, draft, "Đã cập nhật số ngày.")
         return
     if field == "payment_currency":
