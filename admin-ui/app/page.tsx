@@ -9797,76 +9797,74 @@ export default function Home() {
                 </Box>
 
               <Box component="section" sx={{ flex: 1, minWidth: 0, p: 0, display: "flex", flexDirection: "column" }}>
-                {customerDetailTab !== "orders" ? (
-                  <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
-                    <PanelHead
-                      title="Nhóm active & Dấu vết"
-                      subtitle="Tóm tắt nhanh quyền hiện tại và audit group của khách trong cùng một khối."
-                    />
-                    <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.2fr" } }}>
-                      <Box
-                        sx={{
-                          p: 1.75,
-                          borderRadius: 3,
-                          border: 1,
-                          borderColor: "rgba(37,99,235,0.16)",
-                          bgcolor: "rgba(37,99,235,0.04)",
-                        }}
-                      >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-                          Nhóm còn active
-                        </Typography>
-                        {selectedCustomerActiveGroups.length ? (
-                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                            {selectedCustomerActiveGroups.map((group) => (
-                              <Box
-                                key={group}
-                                component="span"
-                                sx={{
-                                  fontSize: 14,
-                                  fontWeight: 800,
-                                  px: 1.5,
-                                  py: 1,
-                                  borderRadius: 999,
-                                  background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
-                                  border: "1px solid rgba(37,99,235,0.18)",
-                                  color: "#1e3a8a",
-                                }}
-                              >
-                                {group}
-                              </Box>
-                            ))}
-                          </Box>
-                        ) : (
-                          <div className="empty-card">Chưa có nhóm active nào.</div>
-                        )}
-                      </Box>
-
-                      <Box
-                        sx={{
-                          p: 1.75,
-                          borderRadius: 3,
-                          border: 1,
-                          borderColor: "rgba(99,102,241,0.14)",
-                          bgcolor: "rgba(255,255,255,0.75)",
-                          minWidth: 0,
-                        }}
-                      >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
-                          Dấu vết group
-                        </Typography>
-                        {selectedCustomerGroupAuditRows.length ? (
-                          <SimpleTable
-                            headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
-                            rows={selectedCustomerGroupAuditRows}
-                          />
-                        ) : (
-                          <div className="empty-card">Chưa có audit group nào cho khách này.</div>
-                        )}
-                      </Box>
+                <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
+                  <PanelHead
+                    title="Nhóm active & Dấu vết"
+                    subtitle="Tóm tắt nhanh quyền hiện tại và audit group của khách trong cùng một khối."
+                  />
+                  <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.2fr" } }}>
+                    <Box
+                      sx={{
+                        p: 1.75,
+                        borderRadius: 3,
+                        border: 1,
+                        borderColor: "rgba(37,99,235,0.16)",
+                        bgcolor: "rgba(37,99,235,0.04)",
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                        Nhóm còn active
+                      </Typography>
+                      {selectedCustomerActiveGroups.length ? (
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                          {selectedCustomerActiveGroups.map((group) => (
+                            <Box
+                              key={group}
+                              component="span"
+                              sx={{
+                                fontSize: 14,
+                                fontWeight: 800,
+                                px: 1.5,
+                                py: 1,
+                                borderRadius: 999,
+                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
+                                border: "1px solid rgba(37,99,235,0.18)",
+                                color: "#1e3a8a",
+                              }}
+                            >
+                              {group}
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : (
+                        <div className="empty-card">Chưa có nhóm active nào.</div>
+                      )}
                     </Box>
-                  </section>
-                ) : null}
+
+                    <Box
+                      sx={{
+                        p: 1.75,
+                        borderRadius: 3,
+                        border: 1,
+                        borderColor: "rgba(99,102,241,0.14)",
+                        bgcolor: "rgba(255,255,255,0.75)",
+                        minWidth: 0,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
+                        Dấu vết group
+                      </Typography>
+                      {selectedCustomerGroupAuditRows.length ? (
+                        <SimpleTable
+                          headers={["Trạng thái", "Group", "Gói / Đơn", "Hạn dùng", "Live", "Chi tiết"]}
+                          rows={selectedCustomerGroupAuditRows}
+                        />
+                      ) : (
+                        <div className="empty-card">Chưa có audit group nào cho khách này.</div>
+                      )}
+                    </Box>
+                  </Box>
+                </section>
 
                 {/* Sleek Header Bar */}
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between", mb: 2.5, p: 2, borderRadius: 3, background: "rgba(255,255,255,0.5)", border: 1, borderColor: "divider", backdropFilter: "blur(10px)" }}>
