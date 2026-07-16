@@ -21,6 +21,7 @@ import {
   Chip,
   Divider,
   IconButton,
+  MenuItem,
   Tooltip,
   Stack,
   Tab,
@@ -30,8 +31,8 @@ import {
 } from "@mui/material";
 import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
-import { AppSection, AppToolbar, statusChipSx } from "../dashboard-components";
-import { dateTextShort, dateTimePreviewText, daysUntil, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "../dashboard-components";
+import { dateText, dateTextShort, dateTimePreviewText, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 import { ManualOrderDialog, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
@@ -40,12 +41,6 @@ type MobileAction = "lookup" | "manual";
 function getStoredSecret() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem("prive_admin_secret") || "";
-}
-
-function formatActivityLabel(item: ActivityLogEntry) {
-  const title = item.title || item.typeLabel || item.type || "log";
-  const detail = item.detail || "-";
-  return { title, detail };
 }
 
 function miniStatusChipLabel(order: Order) {
@@ -77,6 +72,12 @@ export default function MobileAdminPage() {
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualOrderResult | null>(null);
   const [copyNote, setCopyNote] = useState("");
+  const [orderTab, setOrderTab] = useState<"paid" | "other">("paid");
+  const [orderPage, setOrderPage] = useState(1);
+  const [logDirection, setLogDirection] = useState<"all" | "user" | "bot">("all");
+  const [logType, setLogType] = useState("ALL");
+  const [logDate, setLogDate] = useState("ALL");
+  const [logPage, setLogPage] = useState(1);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>({
     telegram_user_id: "",
     full_name: "",
@@ -97,8 +98,24 @@ export default function MobileAdminPage() {
     note: "",
   });
 
-  const lastOrders = useMemo(() => [...orders].slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 12), [orders]);
-  const topActivity = useMemo(() => activityLog.slice(0, 12), [activityLog]);
+  const sortedOrders = useMemo(() => [...orders].slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))), [orders]);
+  const filteredOrders = useMemo(() => sortedOrders.filter((item) => (orderTab === "paid" ? item.status === "PAID" : item.status !== "PAID")), [sortedOrders, orderTab]);
+  const orderPageSize = 6;
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
+  const pagedOrders = useMemo(() => filteredOrders.slice((Math.min(orderPage, totalOrderPages) - 1) * orderPageSize, Math.min(orderPage, totalOrderPages) * orderPageSize), [filteredOrders, orderPage, totalOrderPages]);
+  const logTypeOptions = useMemo(() => Array.from(new Set(activityLog.map((item) => item.type || item.typeLabel || "log"))).sort(), [activityLog]);
+  const logDateOptions = useMemo(() => Array.from(new Set(activityLog.map((item) => dayKey(item.createdAt)))).filter(Boolean).sort().reverse(), [activityLog]);
+  const filteredActivityLog = useMemo(() => activityLog.filter((item) => {
+    const directionOk = logDirection === "all" || item.direction === logDirection;
+    const typeOk = logType === "ALL" || item.type === logType || item.typeLabel === logType;
+    const dateOk = logDate === "ALL" || dayKey(item.createdAt) === logDate;
+    const query = customerQuery.trim().toLowerCase();
+    const queryOk = !query || [item.title, item.detail, item.fullName, item.username, item.userId, item.type, item.typeLabel].some((value) => String(value || "").toLowerCase().includes(query));
+    return directionOk && typeOk && dateOk && queryOk;
+  }), [activityLog, customerQuery, logDate, logDirection, logType]);
+  const logPageSize = 8;
+  const totalLogPages = Math.max(1, Math.ceil(filteredActivityLog.length / logPageSize));
+  const pagedActivityLog = useMemo(() => filteredActivityLog.slice((Math.min(logPage, totalLogPages) - 1) * logPageSize, Math.min(logPage, totalLogPages) * logPageSize), [filteredActivityLog, logPage, totalLogPages]);
   const uniqueCustomerCount = useMemo(() => new Set(orders.map((item) => String(item.telegram_user_id || "").trim()).filter(Boolean)).size, [orders]);
   const selectedCustomerOrderLabel = useMemo(() => {
     const activeOrder = selectedCustomer?.activeOrders?.[0] || null;
@@ -203,7 +220,7 @@ export default function MobileAdminPage() {
         const [ordersRes, overviewRes, activityRes, configRes, hiddenGroupsRes] = await Promise.all([
           getOrders(savedSecret, 120),
           getDashboardOverview(savedSecret),
-          getActivityLog(savedSecret, { page: 1, limit: 30, direction: "all", type: "ALL", date: "ALL" }),
+          getActivityLog(savedSecret, { page: 1, limit: 200, direction: "all", type: "ALL", date: "ALL" }),
           getConfig(savedSecret),
           getHiddenGroups(savedSecret),
         ]);
@@ -244,6 +261,14 @@ export default function MobileAdminPage() {
     }, 350);
     return () => window.clearTimeout(timer);
   }, [savedSecret, customerQuery]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [orderTab]);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [logDirection, logType, logDate, customerQuery]);
 
   useEffect(() => {
     if (!savedSecret) return;
@@ -482,51 +507,103 @@ export default function MobileAdminPage() {
         ) : null}
 
         <AppSection
-          title="Danh sách đơn gần đây"
-          subtitle="Card list gọn để thao tác nhanh trên màn nhỏ."
+          title="Danh sách đơn hàng"
+          subtitle="Giữ cùng data source với PC, nhưng hiển thị responsive để bám thao tác trên điện thoại."
           action={<AppToolbar><Button size="small" variant="outlined" onClick={() => void refreshAll()} startIcon={<RefreshCw size={14} />}>Tải lại</Button></AppToolbar>}
           accent="blue"
         >
-          <Stack spacing={1}>
-            {lastOrders.map((order) => (
-              <Card key={order.order_id} variant="outlined">
-                <CardContent sx={{ p: 1.5, display: "grid", gap: 0.75 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "start" }}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{resolveOrderLabel(order).displayLabel}</Typography>
-                      <Typography variant="caption" color="text.secondary">{order.telegram_user_id} · {order.order_id}</Typography>
+          <Stack spacing={1.25}>
+            <Tabs value={orderTab} onChange={(_, value) => setOrderTab(value)} variant="fullWidth" sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 } }}>
+              <Tab value="paid" label={`PAID (${sortedOrders.filter((item) => item.status === "PAID").length})`} />
+              <Tab value="other" label={`Khác (${sortedOrders.filter((item) => item.status !== "PAID").length})`} />
+            </Tabs>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
+              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Đang hiển thị</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{filteredOrders.length}</Typography></CardContent></Card>
+              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Trang</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{Math.min(orderPage, totalOrderPages)}/{totalOrderPages}</Typography></CardContent></Card>
+            </Box>
+            <Stack spacing={1}>
+              {pagedOrders.map((order) => (
+                <Card key={order.order_id} variant="outlined">
+                  <CardContent sx={{ p: 1.5, display: "grid", gap: 0.85 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "start" }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{resolveOrderLabel(order).displayLabel}</Typography>
+                        <Typography variant="caption" color="text.secondary">{order.telegram_user_id} · {order.order_id}</Typography>
+                      </Box>
+                      <Chip size="small" label={miniStatusChipLabel(order)} color={order.status === "PAID" ? "success" : "default"} variant="outlined" />
                     </Box>
-                    <Chip size="small" label={miniStatusChipLabel(order)} color={order.status === "PAID" ? "success" : "default"} variant="outlined" />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">{orderLifecycleLabel(order)} · {dateTextShort(order.created_at)}</Typography>
-                  <Typography variant="body2">Hạn: <strong>{dateTimePreviewText(order.expire_at)}</strong> · còn {daysUntil(order.expire_at)} ngày</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>{orderNoteText(order) || "Không có note"}</Typography>
-                </CardContent>
-              </Card>
-            ))}
+                    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                      <Chip size="small" label={orderLifecycleLabel(order)} variant="outlined" />
+                      <Chip size="small" label={dateTextShort(order.created_at)} variant="outlined" />
+                    </Box>
+                    <Typography variant="body2">Hạn: <strong>{dateTimePreviewText(order.expire_at)}</strong> · còn {daysUntil(order.expire_at)} ngày</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>{orderNoteText(order) || "Không có note"}</Typography>
+                    <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
+                      <Button size="small" variant="outlined" onClick={() => setManualForm((current) => ({ ...current, telegram_user_id: order.telegram_user_id, full_name: displayText(order.full_name) || current.full_name, plan_name: order.plan_name, plan_key: current.plan_key }))}>Prefill tạo đơn</Button>
+                      <Button size="small" variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+            <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} label="đơn" />
           </Stack>
         </AppSection>
 
         <AppSection
           title="Nhật ký gần đây"
-          subtitle="Dòng log ngắn, đủ để nắm thao tác mới nhất."
+          subtitle="Bộ lọc và cách hiển thị bám theo tab Nhật ký của PC."
           accent="violet"
         >
-          <Stack spacing={1}>
-            {topActivity.map((item) => {
-              const label = formatActivityLabel(item);
-              return (
+          <Stack spacing={1.25}>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" } }}>
+              <TextField select size="small" value={logDirection} onChange={(event) => setLogDirection(event.target.value as "all" | "user" | "bot")}>
+                <MenuItem value="all">Tất cả hướng</MenuItem>
+                <MenuItem value="user">User → Bot</MenuItem>
+                <MenuItem value="bot">Bot → User</MenuItem>
+              </TextField>
+              <TextField select size="small" value={logType} onChange={(event) => setLogType(event.target.value)}>
+                <MenuItem value="ALL">Tất cả loại</MenuItem>
+                {logTypeOptions.map((item) => <MenuItem key={item} value={item}>{logEntryTypeLabel(item)}</MenuItem>)}
+              </TextField>
+              <TextField select size="small" value={logDate} onChange={(event) => setLogDate(event.target.value)}>
+                <MenuItem value="ALL">Tất cả ngày</MenuItem>
+                {logDateOptions.map((item) => <MenuItem key={item} value={item}>{item === "UNKNOWN" ? "Không rõ ngày" : item}</MenuItem>)}
+              </TextField>
+              <TextField size="small" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Tìm trong log..." />
+            </Box>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
+              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Đang hiển thị</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{pagedActivityLog.length}</Typography></CardContent></Card>
+              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Tổng lọc</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{filteredActivityLog.length}</Typography></CardContent></Card>
+            </Box>
+            <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
+              <SimpleTable
+                headers={["Thời điểm", "Hướng", "Khách", "Loại", "Nội dung", "Chi tiết"]}
+                rows={pagedActivityLog.map((item) => [
+                  dateText(item.createdAt),
+                  item.direction === "user" ? "User → Bot" : "Bot → User",
+                  <><strong>{item.fullName || item.username || "-"}</strong><div className="muted">{item.userId || "-"}</div></>,
+                  item.typeLabel || logEntryTypeLabel(item.type),
+                  item.title,
+                  <span key={`detail-${item.id}`}>{friendlyDetailText(item.detail)}</span>,
+                ])}
+              />
+            </Box>
+            <Stack spacing={1} sx={{ display: { xs: "grid", md: "none" } }}>
+              {pagedActivityLog.map((item) => (
                 <Card key={item.id} variant="outlined">
                   <CardContent sx={{ p: 1.5, display: "grid", gap: 0.5 }}>
                     <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                      <Typography sx={{ fontWeight: 800 }}>{label.title}</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>{item.title}</Typography>
                       <Typography variant="caption" color="text.secondary">{dateTextShort(item.createdAt)}</Typography>
                     </Box>
-                    <Typography variant="body2" color="text.secondary">{label.detail}</Typography>
+                    <Typography variant="body2" color="text.secondary">{item.direction === "user" ? "User → Bot" : "Bot → User"} · {item.typeLabel || logEntryTypeLabel(item.type)}</Typography>
+                    <Typography variant="body2">{friendlyDetailText(item.detail)}</Typography>
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))}
+            </Stack>
+            <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredActivityLog.length} onPage={setLogPage} label="event" />
           </Stack>
         </AppSection>
 
