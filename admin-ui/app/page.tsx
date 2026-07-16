@@ -1596,75 +1596,6 @@ const SUPPORT_INBOX_FIELDS: ConfigField[] = [
       { label: "Tắt", value: "OFF" },
     ],
   },
-  {
-    key: "SUPPORT_INBOX_MODE",
-    label: "Chế độ inbox bot",
-    placeholder: "group",
-    help: "group: xử lý trong group. forum: chuẩn bị cho topic riêng.",
-    kind: "select",
-    options: [
-      { label: "Group", value: "group" },
-      { label: "Forum", value: "forum" },
-    ],
-  },
-  {
-    key: "SUPPORT_INBOX_GROUP_ID",
-    label: "Inbox group ID",
-    placeholder: "-1001234567890",
-    help: "ID group riêng để bot nhận tin và admin reply. Không dùng chung với khu vực All Access.",
-  },
-  {
-    key: "SUPPORT_INBOX_GROUP_NAME",
-    label: "Tên group inbox",
-    placeholder: "Nhóm hỗ trợ",
-    help: "Tên hiển thị trong thông báo khi chuyển case sang group inbox.",
-  },
-  {
-    key: "SUPPORT_DELETE_ENABLED",
-    label: "Cho phép /delete inbox",
-    placeholder: "ON",
-    help: "Bật ON để admin có thể xoá message đã gửi sang user bằng /delete.",
-    kind: "select",
-    options: [
-      { label: "Bật", value: "ON" },
-      { label: "Tắt", value: "OFF" },
-    ],
-  },
-  {
-    key: "SUPPORT_TICKET_PREFIX",
-    label: "Tiền tố case inbox",
-    placeholder: "CS",
-    help: "Nhãn hiển thị cho case inbox, ví dụ CS hoặc SUP.",
-  },
-  {
-    key: "SUPPORT_INBOX_STAFF_NAME",
-    label: "Tên admin mặc định",
-    placeholder: "Cú hỗ trợ",
-    help: "Tên mặc định bot dùng trong reply, preview và trạng thái sẵn sàng. Không còn map theo admin ID nữa.",
-  },
-  {
-    key: "SUPPORT_INBOX_REPLY_SHOW_USERNAME",
-    label: "Hiển thị username trong reply",
-    placeholder: "ON",
-    help: "Bật ON để thêm @username vào dòng tên admin khi bot trả lời user.",
-    kind: "select",
-    options: [
-      { label: "Bật", value: "ON" },
-      { label: "Tắt", value: "OFF" },
-    ],
-  },
-  {
-    key: "SUPPORT_ADMIN_ONLINE_TEXT",
-    label: "Tin admin online",
-    placeholder: "🟢 Admin đang online",
-    help: "Hiển thị khi admin đang online trong thẻ trạng thái.",
-  },
-  {
-    key: "SUPPORT_ADMIN_OFFLINE_TEXT",
-    label: "Tin admin offline",
-    placeholder: "⚪ Admin đang offline",
-    help: "Hiển thị khi admin đang offline trong thẻ trạng thái.",
-  },
 ];
 
 const SUPPORT_INBOX_EFFECT_FIELDS: ConfigField[] = [
@@ -3455,6 +3386,19 @@ export default function Home() {
     }, AUTO_REFRESH_SECONDS * 1000);
     return () => window.clearInterval(interval);
   }, [savedSecret, tab]);
+
+  useEffect(() => {
+    if (!savedSecret) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await getSupportEvents(savedSecret, 200);
+        setSupportEvents(res.data || []);
+      } catch (err) {
+        console.warn("⚠️ Không tải được support events nền:", err);
+      }
+    }, 30 * 1000);
+    return () => window.clearInterval(interval);
+  }, [savedSecret]);
 
   useEffect(() => {
     if (!savedSecret || tab !== "campaigns") return;
@@ -7172,24 +7116,11 @@ export default function Home() {
                             {item.title}
                             {unread ? <Box component="span" sx={{ ml: 0.75, display: "inline-block", width: 8, height: 8, borderRadius: "50%", bgcolor: "info.main", boxShadow: "0 0 0 5px rgba(14,165,233,0.10)" }} /> : null}
                           </Typography>
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                              mt: 0.25,
-                              lineHeight: 1.25,
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {item.detail || "-"}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            ID: {item.telegram_user_id || "-"}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {dateText(item.created_at)}
-                            {item.plan_name ? ` · ${item.plan_name}` : ""}
                           </Typography>
                         </Box>
                         <Button
@@ -8108,8 +8039,6 @@ export default function Home() {
                 </section>
                 <ConfigEditor title="Cài đặt bot" subtitle="Bảo trì thủ công, lịch hoạt động giờ Việt Nam, QR và tần suất kiểm tra thanh toán." fields={BOT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
                 <ConfigEditor title="Inbox hỗ trợ" subtitle="Luồng tin nhắn riêng từ khách vào bot, group inbox, tên admin và quyền xoá inbox." fields={SUPPORT_INBOX_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-                <ConfigEditor title="Hiệu ứng inbox hỗ trợ" subtitle="Trạng thái đang kết nối, kiểu hiệu ứng và các frame preview cho luồng hỗ trợ riêng tư." fields={SUPPORT_INBOX_EFFECT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
-                <ConfigEditor title="Template inbox hỗ trợ" subtitle="Cấu hình nội dung ticket mới, follow-up và reply từ admin gửi về user." fields={SUPPORT_INBOX_TEMPLATE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </>
             ) : null}
             {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và USDT TRC20 dùng giá riêng. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}

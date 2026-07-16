@@ -998,7 +998,7 @@ async def coupon_auto_code_received(message: Message):
                 return
         except Exception:
             pass
-    classified = classify_private_message(message, coupon_prefixes=coupon_auto_prefixes())
+    classified = classify_private_message(message)
     if classified["kind"] not in {"coupon", "hidden"}:
         return
     if not config_enabled("COUPON_AUTO_REDEEM_ENABLED", "ON"):

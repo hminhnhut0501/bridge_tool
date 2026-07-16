@@ -72,7 +72,7 @@ def classify_private_message(message, *, coupon_prefixes=None):
         if hidden_code:
             return {"kind": "hidden", "text": text, "code": code, "reason": "hidden_match"}
         if _looks_like_coupon_code(code, coupon_prefixes=coupon_prefixes):
-            return {"kind": "coupon", "text": text, "code": code, "reason": "coupon_prefix"}
+            return {"kind": "support", "text": text, "code": code, "reason": "coupon_prefix"}
 
     return {"kind": "support", "text": text, "code": code if code else "", "reason": "plain_text" if text else "media_only"}
 

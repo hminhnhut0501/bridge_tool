@@ -115,12 +115,6 @@ except ImportError:  # pragma: no cover - lightweight test fallback
 
     def support_group_name():
         return ""
-
-    def support_inbox_group_id():
-        return ""
-
-    def support_inbox_group_name():
-        return ""
 from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_risk_rows
 from stats_marketing_utils import build_marketing_stats_response
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items
@@ -3208,7 +3202,7 @@ async def admin_support_group_check():
             "message": f"{getattr(chat, 'type', '')}: {getattr(chat, 'title', '') or getattr(chat, 'username', '') or gid}",
         }
     except Exception as exc:
-        result["get_chat"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_INBOX_GROUP_ID")
+        result["get_chat"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_GROUP_ID")
         return {"data": result}
 
     try:
@@ -3216,7 +3210,7 @@ async def admin_support_group_check():
         member = await bot.get_chat_member(gid, me.id)
         result["bot_member"] = {"ok": True, "message": str(getattr(member, "status", ""))}
     except Exception as exc:
-        result["bot_member"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_INBOX_GROUP_ID")
+        result["bot_member"]["message"] = explain_support_invite_error(exc, gid, "SUPPORT_GROUP_ID")
 
     try:
         invite = await bot.create_chat_invite_link(
@@ -3232,38 +3226,4 @@ async def admin_support_group_check():
             print(f"⚠️ Không revoke được support diagnostic invite {mask_chat_id(gid)}: {revoke_exc}")
     except Exception as exc:
         result["invite_link"]["message"] = explain_support_invite_error(exc, gid)
-    return {"data": result}
-
-
-@app.get("/admin-api/support-inbox-check", dependencies=[Depends(require_admin)])
-async def admin_support_inbox_check():
-    db.reload_config(force=False)
-    gid = support_inbox_group_id()
-    result = {
-        "group_id": mask_chat_id(gid),
-        "group_name": support_inbox_group_name(),
-        "get_chat": {"ok": False, "message": ""},
-        "bot_member": {"ok": False, "message": ""},
-    }
-    if not gid:
-        result["get_chat"]["message"] = "SUPPORT_INBOX_GROUP_ID đang trống."
-        return {"data": result}
-
-    try:
-        chat = await bot.get_chat(gid)
-        result["get_chat"] = {
-            "ok": True,
-            "message": f"{getattr(chat, 'type', '')}: {getattr(chat, 'title', '') or getattr(chat, 'username', '') or gid}",
-        }
-    except Exception as exc:
-        result["get_chat"]["message"] = explain_support_invite_error(exc, gid)
-        return {"data": result}
-
-    try:
-        me = await bot.get_me()
-        member = await bot.get_chat_member(gid, me.id)
-        result["bot_member"] = {"ok": True, "message": str(getattr(member, "status", ""))}
-    except Exception as exc:
-        result["bot_member"]["message"] = explain_support_invite_error(exc, gid)
-
     return {"data": result}

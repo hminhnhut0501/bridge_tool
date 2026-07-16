@@ -73,17 +73,9 @@ def support_group_mute_enabled():
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
-def support_inbox_group_id():
-    return normalize_chat_id(db.get_config("SUPPORT_INBOX_GROUP_ID", ""))
-
-
-def support_inbox_group_name():
-    return db.get_config("SUPPORT_INBOX_GROUP_NAME", "Nhóm hỗ trợ")
-
-
-def support_inbox_mode():
-    raw = str(db.get_config("SUPPORT_INBOX_MODE", "group") or "group").strip().lower()
-    return raw if raw in {"group", "forum"} else "group"
+def is_support_group(chat_id):
+    gid = support_group_id()
+    return bool(gid and normalize_chat_id(chat_id) == gid)
 
 
 def support_inbox_enabled():
@@ -139,25 +131,6 @@ def support_inbox_ready_text():
     return str(db.get_config("SUPPORT_INBOX_READY_TEXT", "{staff_name} đã sẵn sàng hỗ trợ 🤗") or "{staff_name} đã sẵn sàng hỗ trợ 🤗").strip()
 
 
-def support_inbox_staff_name():
-    configured = str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
-    if configured:
-        return configured
-    return "Admin"
-
-
-def support_inbox_reply_show_username():
-    raw = str(db.get_config("SUPPORT_INBOX_REPLY_SHOW_USERNAME", "ON") or "ON").strip()
-    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
-
-
-def support_inbox_staff_name_for_admin(admin_id, fallback=""):
-    configured = str(db.get_config("SUPPORT_INBOX_STAFF_NAME", "") or "").strip()
-    if configured:
-        return configured
-    return str(fallback or "Admin").strip()
-
-
 def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_username="", ticket_no=""):
     text = support_inbox_ready_text()
     replacements = {
@@ -172,7 +145,7 @@ def render_support_inbox_ready_text(*, staff_name="Admin", admin_name="", admin_
 
 
 def support_admin_presence_text(online=True):
-    return support_admin_online_text() if online else support_admin_offline_text()
+    return "🟢 Admin đang online" if online else "⚪ Admin đang offline"
 
 
 def support_inbox_status_frame_list(base_message=""):
@@ -190,11 +163,6 @@ def support_inbox_status_frame_list(base_message=""):
     if style == "wave":
         return [message, f"{message} ~", f"{message} ~~", f"{message} ~~~"]
     return [f"{message} ·", f"{message} ··", f"{message} ···"]
-
-
-def support_delete_enabled():
-    raw = str(db.get_config("SUPPORT_DELETE_ENABLED", "ON") or "ON").strip()
-    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
 def support_ticket_prefix():
@@ -233,14 +201,6 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
         existing = supabase_store.get_support_ticket_by_user(telegram_user_id)
         if existing:
             ticket = existing
-            inbox_gid = support_inbox_group_id()
-            if inbox_gid and normalize_chat_id(ticket.get("manager_chat_id") or "") != inbox_gid:
-                try:
-                    updated_ticket = supabase_store.update_support_ticket(ticket["id"], {"manager_chat_id": inbox_gid, "updated_at": datetime.now().isoformat()})
-                    if updated_ticket:
-                        ticket = updated_ticket[0]
-                except Exception as exc:
-                    print(f"⚠️ Không cập nhật manager_chat_id cho support ticket cũ {telegram_user_id}: {exc}")
             if subject and not str(ticket.get("subject") or "").strip():
                 ticket = supabase_store.update_support_ticket(ticket["id"], {"subject": subject, "updated_at": datetime.now().isoformat()})[0]
             return ticket, ""
@@ -252,7 +212,6 @@ async def create_support_ticket_for_user(*, telegram_user_id, chat_id=None, user
             "chat_id": str(chat_id or ""),
             "username": str(username or ""),
             "full_name": str(full_name or ""),
-            "manager_chat_id": support_inbox_group_id(),
             "status": "open",
             "subject": str(subject or ""),
             "source": str(source or "bot"),
@@ -288,10 +247,7 @@ async def get_or_create_support_ticket_for_user(*, telegram_user_id, chat_id=Non
         existing = supabase_store.get_open_support_ticket_by_user(telegram_user_id)
         if existing:
             ticket = existing
-            inbox_gid = support_inbox_group_id()
             updates = {"updated_at": datetime.now().isoformat()}
-            if inbox_gid and normalize_chat_id(ticket.get("manager_chat_id") or "") != inbox_gid:
-                updates["manager_chat_id"] = inbox_gid
             if subject and not str(ticket.get("subject") or "").strip():
                 updates["subject"] = subject
             if len(updates) > 1:
@@ -342,53 +298,20 @@ async def create_support_case_from_private_message(message, *, source="private_u
         return None, ticket_error or "Không tạo được ticket hỗ trợ."
 
     try:
-        sent = await post_support_ticket_to_group(ticket, message_text=message_text)
+        await record_support_message(
+            ticket["id"],
+            "user_to_support",
+            telegram_message_id=getattr(message, "message_id", None),
+            text=message_text or "",
+            payload={
+                "chat_id": str(getattr(message.chat, "id", "")),
+                "chat_type": getattr(message.chat, "type", ""),
+                "source": source,
+                "content_type": "media" if getattr(message, "photo", None) or getattr(message, "video", None) or getattr(message, "document", None) or getattr(message, "voice", None) or getattr(message, "audio", None) or getattr(message, "sticker", None) else "text",
+            },
+        )
     except Exception as exc:
-        sent = None
-        print(f"⚠️ Không forward ticket lên group: {exc}")
-
-    if sent:
-        try:
-            supabase_store.update_support_ticket(
-                ticket["id"],
-                {
-                    "manager_group_message_id": sent.message_id,
-                    "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
-                },
-            )
-        except Exception as exc:
-            print(f"⚠️ Không cập nhật ticket group message id: {exc}")
-        try:
-            await record_support_message(
-                ticket["id"],
-                "user_to_support",
-                telegram_message_id=getattr(message, "message_id", None),
-                manager_group_message_id=sent.message_id,
-                text=message_text or "",
-                payload={
-                    "chat_id": str(getattr(message.chat, "id", "")),
-                    "chat_type": getattr(message.chat, "type", ""),
-                    "source": source,
-                },
-            )
-        except Exception as exc:
-            print(f"⚠️ Không lưu support message private->group: {exc}")
-    elif ticket:
-        try:
-            await record_support_message(
-                ticket["id"],
-                "user_to_support",
-                telegram_message_id=getattr(message, "message_id", None),
-                text=message_text or "",
-                payload={
-                    "chat_id": str(getattr(message.chat, "id", "")),
-                    "chat_type": getattr(message.chat, "type", ""),
-                    "source": source,
-                    "forward_status": "failed",
-                },
-            )
-        except Exception as exc:
-            print(f"⚠️ Không lưu support message fallback: {exc}")
+        print(f"⚠️ Không lưu support message private->internal: {exc}")
 
     event_type = "support_ticket_created" if created_new else "support_ticket_reused"
     try:
@@ -452,254 +375,6 @@ def _render_template(template: str, context: dict[str, object], default_text: st
     return text
 
 
-def render_support_group_header(ticket, *, compact=False, template_key=""):
-    try:
-        db.reload_config(force=True)
-    except Exception:
-        pass
-    context = support_ticket_context(ticket)
-    default_text = (
-        "👤 <b>{full_name}</b>"
-        if compact
-        else "🎫 <b>{ticket_no}</b> - {full_name}\n"
-        "ID: <code>{telegram_user_id}</code>\n"
-        "{subject_line}\n"
-        "Trạng thái: <b>{status}</b>"
-    )
-    if not compact:
-        context["subject_line"] = f"🔎 {context['subject']}" if context.get("subject") else ""
-        default_text = default_text.replace("\n\n", "\n").strip()
-    else:
-        context["subject_line"] = ""
-    active_key = template_key or ("SUPPORT_INBOX_GROUP_HEADER_COMPACT" if compact else "SUPPORT_INBOX_GROUP_HEADER_DETAILED")
-    rendered = _render_template(db.get_config(active_key, default_text), context, default_text)
-    return "\n".join([line for line in rendered.splitlines() if str(line).strip()])
-
-
-def render_support_group_message(ticket, message_text="", *, template_key="SUPPORT_INBOX_GROUP_TEMPLATE_FIRST"):
-    try:
-        db.reload_config(force=True)
-    except Exception:
-        pass
-    context = support_ticket_context(ticket, message_text)
-    default_text = (
-        "📩 <b>Tin nhắn từ khách</b>\n"
-        "Ticket: <code>{ticket_no}</code>\n"
-        "Khách: <b>{full_name}</b>\n"
-        "ID: <code>{telegram_user_id}</code>\n\n"
-        "{message}"
-    )
-    return _render_template(db.get_config(template_key, default_text), context, default_text)
-
-
-async def prepare_support_group_delivery(ticket):
-    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
-    if not ticket or not manager_chat_id:
-        return ticket, {}
-    if normalize_chat_id(ticket.get("manager_chat_id") or "") and normalize_chat_id(ticket.get("manager_chat_id") or "") != manager_chat_id:
-        manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or "")
-    ticket = await ensure_support_ticket_topic(ticket)
-    send_kwargs = {
-        "chat_id": manager_chat_id,
-    }
-    thread_id = ticket.get("manager_topic_thread_id")
-    if support_inbox_mode() == "forum" and thread_id:
-        send_kwargs["message_thread_id"] = int(thread_id)
-    return ticket, send_kwargs
-
-
-def render_support_reply_message(ticket, message_text="", admin_name="", admin_username="", admin_status_text="", admin_id=None, show_username=None):
-    display_name = str(admin_name or "").strip()
-    if not display_name:
-        display_name = support_inbox_staff_name_for_admin(admin_id, fallback="Admin")
-
-    show_username = support_inbox_reply_show_username() if show_username is None else bool(show_username)
-    username_suffix = ""
-    if show_username:
-        raw_username = str(admin_username or "").strip().lstrip("@")
-        if raw_username:
-            username_suffix = f" @{raw_username}"
-
-    context = {
-        "ticket_no": escape_html(ticket.get("ticket_no", "")),
-        "full_name": escape_html(ticket.get("full_name", "")),
-        "telegram_user_id": escape_html(ticket.get("telegram_user_id", "")),
-        "subject": escape_html(ticket.get("subject", "")),
-        "status": escape_html(ticket.get("status", "")),
-        "admin_name": escape_html(display_name),
-        "admin_username": escape_html(username_suffix),
-        "admin_status": escape_html(admin_status_text or support_admin_online_text()),
-        "message": escape_html(message_text),
-    }
-    default_text = (
-        "💬 <b>Phản hồi từ hỗ trợ</b>\n"
-        "Ticket: <code>{ticket_no}</code>\n"
-        "{admin_status}\n"
-        "{admin_name}{admin_username}\n\n"
-        "{message}"
-    )
-    return _render_template(db.get_config("SUPPORT_INBOX_REPLY_TEMPLATE", default_text), context, default_text)
-
-
-def support_admin_online_text():
-    return str(db.get_config("SUPPORT_ADMIN_ONLINE_TEXT", "🟢 Admin đang online") or "🟢 Admin đang online").strip()
-
-
-def support_admin_offline_text():
-    return str(db.get_config("SUPPORT_ADMIN_OFFLINE_TEXT", "⚪ Admin đang offline") or "⚪ Admin đang offline").strip()
-
-
-async def post_support_ticket_to_group(ticket, message_text="", join_link="", *, message_is_html=False, wrap_message=True, header_text=""):
-    ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-    if not ticket or not send_kwargs:
-        return None
-    header = str(header_text or "").strip() or support_ticket_header(ticket)
-    body = []
-    if message_text:
-        if message_is_html:
-            body.append(str(message_text or "").strip())
-        elif wrap_message:
-            rendered_body = render_support_group_message(ticket, message_text)
-            if rendered_body:
-                body.append(rendered_body)
-        else:
-            body.append(escape_html(message_text))
-    if join_link:
-        body.append(f"🔗 {escape_html(join_link)}")
-    text = "\n\n".join([header] + body)
-    send_kwargs.update({
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True,
-    })
-    try:
-        return await bot.send_message(**send_kwargs)
-    except TelegramBadRequest as exc:
-        if not _is_missing_forum_topic_error(exc) or support_inbox_mode() != "forum":
-            raise
-        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
-        if not ticket:
-            raise
-        ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-        if not ticket or not send_kwargs:
-            return None
-        send_kwargs.update({
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True,
-        })
-        return await bot.send_message(**send_kwargs)
-
-
-async def copy_support_message_to_group(ticket, source_chat_id, source_message_id, *, reply_to_message_id=None):
-    ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-    if not ticket or not send_kwargs:
-        return None
-    send_kwargs.update({
-        "from_chat_id": int(source_chat_id),
-        "message_id": int(source_message_id),
-    })
-    if reply_to_message_id:
-        send_kwargs["reply_parameters"] = {"message_id": int(reply_to_message_id)}
-    try:
-        return await bot.copy_message(**send_kwargs)
-    except TelegramBadRequest as exc:
-        if not _is_missing_forum_topic_error(exc) or support_inbox_mode() != "forum":
-            raise
-        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
-        if not ticket:
-            raise
-        ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-        if not ticket or not send_kwargs:
-            return None
-        send_kwargs.update({
-            "from_chat_id": int(source_chat_id),
-            "message_id": int(source_message_id),
-        })
-        if reply_to_message_id:
-            send_kwargs["reply_parameters"] = {"message_id": int(reply_to_message_id)}
-        return await bot.copy_message(**send_kwargs)
-
-
-def support_topic_title(ticket):
-    ticket_no = str(ticket.get("ticket_no") or "").strip()
-    full_name = str(ticket.get("full_name") or ticket.get("username") or ticket.get("telegram_user_id") or "Khách").strip()
-    title = f"{full_name} - {ticket_no}" if ticket_no else full_name
-    return title[:120]
-
-
-def _is_missing_forum_topic_error(exc):
-    err = str(exc or "").lower()
-    return any(
-        marker in err
-        for marker in (
-            "message thread not found",
-            "thread not found",
-            "message thread is invalid",
-            "message thread invalid",
-            "forum topic not found",
-            "topic not found",
-        )
-    )
-
-
-async def refresh_support_ticket_topic(ticket, *, reason=""):
-    if not ticket or support_inbox_mode() != "forum":
-        return ticket
-
-    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
-    if not manager_chat_id:
-        return ticket
-
-    payload = {
-        "manager_chat_id": manager_chat_id,
-        "manager_topic_thread_id": None,
-        "manager_topic_name": None,
-        "updated_at": datetime.now().isoformat(),
-    }
-    updated = supabase_store.update_support_ticket(ticket["id"], payload) if supabase_store.enabled else []
-    if updated:
-        ticket = updated[0]
-    else:
-        ticket = {**ticket, **payload}
-    if reason:
-        print(f"ℹ️ Refresh support topic for ticket {ticket.get('ticket_no', '')}: {reason}")
-    return await ensure_support_ticket_topic(ticket)
-
-
-async def ensure_support_ticket_topic(ticket):
-    if not ticket or support_inbox_mode() != "forum":
-        return ticket
-
-    manager_chat_id = normalize_chat_id(ticket.get("manager_chat_id") or support_inbox_group_id())
-    if not manager_chat_id:
-        return ticket
-
-    existing_thread_id = str(ticket.get("manager_topic_thread_id") or "").strip()
-    if existing_thread_id:
-        return ticket
-
-    try:
-        topic = await bot.create_forum_topic(
-            chat_id=manager_chat_id,
-            name=support_topic_title(ticket),
-        )
-        payload = {
-            "manager_chat_id": manager_chat_id,
-            "manager_topic_thread_id": getattr(topic, "message_thread_id", None),
-            "manager_topic_name": getattr(topic, "name", "") or support_topic_title(ticket),
-            "updated_at": datetime.now().isoformat(),
-        }
-        updated = supabase_store.update_support_ticket(ticket["id"], payload) if supabase_store.enabled else []
-        if updated:
-            return updated[0]
-        ticket.update(payload)
-        return ticket
-    except Exception as exc:
-        print(f"⚠️ Không tạo được topic support cho ticket {ticket.get('ticket_no', '')}: {exc}")
-        return ticket
-
-
 async def send_support_connecting_status(message, ticket, *, delete_source_message=False):
     try:
         initial_frames = support_inbox_status_frame_list(support_inbox_connecting_text())
@@ -736,7 +411,7 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
                     await asyncio.sleep(support_inbox_status_total_ms(len(initial_frames)) / 1000.0)
                     await status_message.edit_text(
                         f"{support_admin_presence_text(True)}\n"
-                        f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
+                        f"{render_support_inbox_ready_text(staff_name='Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
                     )
 
                 create_background_task(
@@ -752,7 +427,7 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
                 await asyncio.sleep(support_inbox_status_total_ms(len(initial_frames)) / 1000.0)
                 await status_message.edit_text(
                     f"{support_admin_presence_text(True)}\n"
-                    f"{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
+                    f"{render_support_inbox_ready_text(staff_name='Admin', ticket_no=str(ticket.get('ticket_no', '')))}"
                 )
 
             create_background_task(
@@ -765,7 +440,7 @@ async def send_support_connecting_status(message, ticket, *, delete_source_messa
             if delete_source_message:
                 await safe_delete_private_message(message)
             await message.answer(
-                f"✅ Đã chuyển tin nhắn của bạn sang {support_inbox_group_name()}.\n"
+                "✅ Đã ghi nhận tin nhắn hỗ trợ.\n"
                 f"Ticket: <code>{ticket.get('ticket_no', '')}</code>",
             )
         except Exception:
@@ -801,10 +476,6 @@ def record_support_event(event_type, telegram_user_id=None, **kwargs):
                 if not kwargs.get("full_name") and identity.get("full_name"):
                     kwargs["full_name"] = identity.get("full_name")
 
-        gid = support_group_id()
-        if gid and normalize_chat_id(kwargs.get("chat_id")) == gid and not kwargs.get("chat_title"):
-            kwargs["chat_title"] = support_group_name()
-
         supabase_store.record_support_event(event_type, telegram_user_id, **kwargs)
     except Exception as exc:
         print(f"⚠️ Không ghi được support event {event_type}: {exc}")
@@ -813,11 +484,6 @@ def record_support_event(event_type, telegram_user_id=None, **kwargs):
 def is_lifetime_plan(plan_name):
     upper = str(plan_name or "").upper()
     return "TRỌN ĐỜI" in upper or "LIFE" in upper
-
-
-def is_support_group(chat_id):
-    gid = support_group_id()
-    return bool(gid and normalize_chat_id(chat_id) == gid)
 
 
 async def create_support_invite_link(user_id):

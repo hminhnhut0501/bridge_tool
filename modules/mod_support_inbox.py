@@ -1,41 +1,24 @@
 import asyncio
-from aiogram.exceptions import TelegramBadRequest
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
 
 from bot_instance import bot
-from helpers import create_background_task, is_admin_user
+from helpers import create_background_task
 from message_classifier_utils import classify_private_message
+from supabase_store import supabase_store
 from support_utils import (
-    copy_support_message_to_group,
-    get_or_create_support_ticket_for_user,
-    post_support_ticket_to_group,
-    prepare_support_group_delivery,
-    render_support_group_header,
-    record_support_event,
-    record_support_message,
+    create_support_case_from_private_message,
     support_admin_presence_text,
     render_support_inbox_ready_text,
     support_inbox_connecting_text,
-    support_inbox_status_frame_delay_ms,
-    support_inbox_status_final_hold_ms,
     support_inbox_status_enabled,
+    support_inbox_status_frame_delay_ms,
     support_inbox_status_frame_list,
     support_inbox_status_total_ms,
-    support_inbox_group_id,
-    support_inbox_group_name,
-    support_inbox_staff_name,
-    support_inbox_staff_name_for_admin,
-    support_inbox_reply_show_username,
-    render_support_group_message,
-    render_support_reply_message,
-    support_delete_enabled,
     support_inbox_enabled,
-    refresh_support_ticket_topic,
 )
-from supabase_store import supabase_store
 
 router = Router()
 
@@ -59,130 +42,15 @@ def _message_text(message: Message) -> str:
     return "[message]"
 
 
-def _is_media_like_message(message: Message) -> bool:
-    return bool(
-        message.photo
-        or message.video
-        or message.document
-        or message.voice
-        or message.audio
-        or message.sticker
-        or message.animation
-        or message.video_note
-    )
-
-
-def _supports_caption_embedding(message: Message) -> bool:
-    return bool(
-        message.photo
-        or message.video
-        or message.document
-        or message.animation
-        or message.audio
-    )
-
-
-def _is_support_staff_message(message: Message) -> bool:
-    if not message:
-        return False
-    if message.from_user and is_admin_user(message.from_user.id):
-        return True
-    sender_chat = getattr(message, "sender_chat", None)
-    if sender_chat and str(getattr(sender_chat, "id", "")).strip() == support_inbox_group_id():
-        return True
-    return False
-
-
-def _ticket_status_label(status: str) -> str:
-    normalized = str(status or "").strip().lower()
-    return {
-        "open": "OPEN",
-        "closed": "CLOSED",
-        "pending": "PENDING",
-        "resolved": "RESOLVED",
-    }.get(normalized, normalized.upper() or "UNKNOWN")
-
-
-def _resolve_ticket_from_group_message(message: Message):
-    if not supabase_store.enabled:
-        return None
-    ticket = None
-    try:
-        if message.reply_to_message:
-            row = supabase_store.get_support_message_by_manager_group_message_id(message.reply_to_message.message_id)
-            if row and row.get("ticket_id"):
-                ticket = supabase_store.get_support_ticket_by_id(row.get("ticket_id"))
-            if ticket:
-                return ticket
-    except Exception as exc:
-        print(f"⚠️ Không đọc được ticket theo support message reply target: {exc}")
-    try:
-        if message.reply_to_message:
-            ticket = supabase_store.get_support_ticket_by_manager_group_message_id(message.reply_to_message.message_id)
-    except Exception as exc:
-        print(f"⚠️ Không đọc được ticket theo group message id: {exc}")
-    if not ticket and getattr(message, "message_thread_id", None):
-        try:
-            ticket = supabase_store.get_support_ticket_by_topic_thread_id(message.message_thread_id)
-        except Exception as exc:
-            print(f"⚠️ Không đọc được ticket theo thread id: {exc}")
-    if not ticket:
-        try:
-            print(
-                "⚠️ Không resolve được ticket support từ group message:",
-                {
-                    "message_id": getattr(message, "message_id", None),
-                    "reply_to_message_id": getattr(getattr(message, "reply_to_message", None), "message_id", None),
-                    "message_thread_id": getattr(message, "message_thread_id", None),
-                    "chat_id": getattr(getattr(message, "chat", None), "id", None),
-                },
-            )
-        except Exception:
-            pass
-    return ticket
-
-
-def _resolve_support_message_for_delete(message: Message):
-    if not supabase_store.enabled:
-        return None, None
-    if message.reply_to_message:
-        try:
-            row = supabase_store.get_support_message_by_manager_group_message_id(message.reply_to_message.message_id)
-            if row:
-                ticket = supabase_store.get_support_ticket_by_id(row.get("ticket_id"))
-                return row, ticket
-        except Exception as exc:
-            print(f"⚠️ Không đọc được support message theo reply target: {exc}")
-    if getattr(message, "message_thread_id", None):
-        try:
-            ticket = supabase_store.get_support_ticket_by_topic_thread_id(message.message_thread_id)
-            if ticket:
-                return None, ticket
-        except Exception as exc:
-            print(f"⚠️ Không đọc được ticket theo thread id khi delete: {exc}")
-    return None, None
-
-
 def _is_private_user_message(message: Message) -> bool:
     if message.chat.type != "private":
         return False
-    if not message.from_user:
-        return False
-    if message.from_user.is_bot:
+    if not message.from_user or message.from_user.is_bot:
         return False
     text = str(message.text or "").strip()
     if text.startswith("/"):
         return False
-    return bool(
-        text
-        or message.caption
-        or message.photo
-        or message.document
-        or message.video
-        or message.voice
-        or message.audio
-        or message.sticker
-    )
+    return bool(text or message.caption or message.photo or message.document or message.video or message.voice or message.audio or message.sticker)
 
 
 def _is_support_inbox_private_message(message: Message) -> bool:
@@ -190,15 +58,22 @@ def _is_support_inbox_private_message(message: Message) -> bool:
         return False
     if not support_inbox_enabled():
         return False
-    if not supabase_store.enabled or not message.from_user:
+    if not supabase_store.enabled:
         return False
     classified = classify_private_message(message)
     if classified["kind"] in {"coupon", "hidden", "activation"}:
-        print(
-            f"ℹ️ support inbox skip kind={classified['kind']} user={message.from_user.id} reason={classified['reason']}"
-        )
+        print(f"ℹ️ support inbox skip kind={classified['kind']} user={message.from_user.id} reason={classified['reason']}")
         return False
     return classified["kind"] == "support"
+
+
+def has_open_support_ticket(user_id):
+    if not supabase_store.enabled:
+        return False
+    try:
+        return bool(supabase_store.get_open_support_ticket_by_user(user_id))
+    except Exception:
+        return False
 
 
 async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ticket_no: str):
@@ -226,7 +101,7 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         elapsed_ms += sleep_ms
         frame_index += 1
 
-    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name=support_inbox_staff_name() or 'Admin', ticket_no=ticket_no)}"
+    final_text = f"{support_admin_presence_text(True)}\n{render_support_inbox_ready_text(staff_name='Admin', ticket_no=ticket_no)}"
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=final_text)
     except TelegramBadRequest as exc:
@@ -236,511 +111,22 @@ async def _play_support_inbox_status_effect(*, chat_id: int, message_id: int, ti
         return
 
 
-async def _forward_private_message_to_group(message: Message, ticket):
-    if not supabase_store.enabled or not ticket:
-        return
-
-    message_text = _message_text(message)
-    try:
-        has_history = bool(supabase_store.list_support_messages(ticket["id"], limit=1))
-    except Exception:
-        has_history = False
-    header_text = render_support_group_header(ticket, compact=has_history)
-    template_key = "SUPPORT_INBOX_GROUP_TEMPLATE_FOLLOWUP" if has_history else "SUPPORT_INBOX_GROUP_TEMPLATE_FIRST"
-    try:
-        sent = None
-        media_copy = None
-        if _is_media_like_message(message):
-            if _supports_caption_embedding(message):
-                ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-                if ticket and send_kwargs:
-                    try:
-                        sent = await bot.copy_message(
-                            **send_kwargs,
-                            from_chat_id=message.chat.id,
-                            message_id=message.message_id,
-                            caption="\n\n".join(
-                                part for part in [
-                                    header_text,
-                                    render_support_group_message(ticket, message_text, template_key=template_key),
-                                ] if part
-                            ),
-                            parse_mode="HTML",
-                        )
-                    except TelegramBadRequest as exc:
-                        if "thread not found" not in str(exc).lower() and "message thread" not in str(exc).lower():
-                            raise
-                        ticket = await refresh_support_ticket_topic(ticket, reason=str(exc))
-                        if ticket:
-                            ticket, send_kwargs = await prepare_support_group_delivery(ticket)
-                            if ticket and send_kwargs:
-                                sent = await bot.copy_message(
-                                    **send_kwargs,
-                                    from_chat_id=message.chat.id,
-                                    message_id=message.message_id,
-                                    caption="\n\n".join(
-                                        part for part in [
-                                            header_text,
-                                            render_support_group_message(ticket, message_text, template_key=template_key),
-                                        ] if part
-                                    ),
-                                    parse_mode="HTML",
-                                )
-            else:
-                sent = await post_support_ticket_to_group(
-                    ticket,
-                    message_text=render_support_group_message(ticket, message_text, template_key=template_key),
-                    message_is_html=True,
-                    wrap_message=False,
-                    header_text=header_text,
-                )
-            if sent and not _supports_caption_embedding(message):
-                media_copy = await copy_support_message_to_group(
-                    ticket,
-                    message.chat.id,
-                    message.message_id,
-                    reply_to_message_id=sent.message_id,
-                )
-        else:
-            sent = await post_support_ticket_to_group(
-                ticket,
-                message_text=render_support_group_message(ticket, message_text, template_key=template_key),
-                message_is_html=True,
-                wrap_message=False,
-                header_text=header_text,
-            )
-    except Exception as exc:
-        print(f"⚠️ Không forward ticket lên group: {exc}")
-        return
-
-    if sent:
-        try:
-            supabase_store.update_support_ticket(
-                ticket["id"],
-                {
-                    "manager_group_message_id": sent.message_id,
-                    "last_message_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
-                    "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
-                },
-            )
-        except Exception as exc:
-            print(f"⚠️ Không cập nhật ticket group message id: {exc}")
-        try:
-            await record_support_message(
-                ticket["id"],
-                "user_to_support",
-                telegram_message_id=message.message_id,
-                manager_group_message_id=(media_copy.message_id if media_copy else sent.message_id),
-                manager_topic_message_id=getattr(media_copy or sent, "message_thread_id", None),
-                reply_to_manager_message_id=sent.message_id if media_copy else None,
-                text=message_text,
-                payload={
-                    "chat_id": str(message.chat.id),
-                    "chat_type": message.chat.type,
-                    "source": "private_user_message",
-                    "content_type": "media" if _is_media_like_message(message) else "text",
-                    "header_message_id": sent.message_id,
-                },
-            )
-        except Exception as exc:
-            print(f"⚠️ Không lưu support message private->group: {exc}")
-
-    try:
-        record_support_event(
-            "support_ticket_message_forwarded",
-            message.from_user.id,
-            username=message.from_user.username or "",
-            full_name=message.from_user.full_name or "",
-            chat_id=str(message.chat.id),
-            chat_title="private",
-            order_id=str(ticket.get("subject") or ""),
-            plan_name=str(ticket.get("source") or ""),
-            raw_data={
-                "ticket_id": ticket.get("id", ""),
-                "ticket_no": ticket.get("ticket_no", ""),
-                "source": "private_user_message",
-            },
-        )
-    except Exception:
-        pass
-
-
 @router.message(_is_support_inbox_private_message)
 async def support_private_inbox(message: Message):
-    ticket = None
     try:
-        ticket, _, ticket_error = await get_or_create_support_ticket_for_user(
-            telegram_user_id=message.from_user.id,
-            chat_id=message.chat.id,
-            username=message.from_user.username or "",
-            full_name=message.from_user.full_name or "",
-            subject=str(getattr(message, "text", "") or getattr(message, "caption", "") or "").strip() or "Tin nhắn hỗ trợ",
+        ticket, ticket_error = await create_support_case_from_private_message(
+            message,
             source="private_user_message",
-            raw_data={
-                "message_id": getattr(message, "message_id", None),
-                "chat_type": getattr(message.chat, "type", ""),
-                "kind": "private_message",
-                "message_text": _message_text(message),
-            },
+            subject=_message_text(message) or "Tin nhắn hỗ trợ",
         )
         if ticket_error:
-            print(f"⚠️ Không lấy/tạo support ticket cho user {message.from_user.id}: {ticket_error}")
+            print(f"⚠️ Không tạo được support ticket cho user {message.from_user.id}: {ticket_error}")
+        if ticket:
+            print(f"ℹ️ support inbox ticket={ticket.get('ticket_no', '')} user={message.from_user.id}")
     except Exception as exc:
-        print(f"⚠️ Không đọc được ticket support đang mở cho user {message.from_user.id}: {exc}")
-    if not ticket:
-        return
-    await _forward_private_message_to_group(message, ticket)
+        print(f"⚠️ Không xử lý support inbox cho user {message.from_user.id}: {exc}")
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
-async def support_group_reply(message: Message):
-    if str(message.chat.id).strip() != support_inbox_group_id():
-        return
-    if not support_inbox_enabled():
-        return
-    if not _is_support_staff_message(message):
-        return
-    ticket = _resolve_ticket_from_group_message(message)
-    if not ticket:
-        return
-
-    telegram_user_id = str(ticket.get("telegram_user_id") or "").strip()
-    if not telegram_user_id:
-        return
-
-    body = _message_text(message)
-    admin_name = support_inbox_staff_name_for_admin(
-        message.from_user.id if message.from_user else "",
-        fallback=message.from_user.full_name if message.from_user else (getattr(message, "author_signature", None) or "Admin"),
-    )
-    admin_username = message.from_user.username if message.from_user and message.from_user.username else ""
-    outgoing = render_support_reply_message(
-        ticket,
-        body,
-        admin_name,
-        admin_username,
-        admin_status_text=support_admin_presence_text(True),
-        admin_id=message.from_user.id if message.from_user else None,
-        show_username=support_inbox_reply_show_username(),
-    )
-
-    try:
-        sent = None
-        media_copy = None
-        if _is_media_like_message(message):
-            if _supports_caption_embedding(message):
-                sent = await bot.copy_message(
-                    chat_id=int(telegram_user_id),
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id,
-                    caption=outgoing,
-                    parse_mode="HTML",
-                )
-            else:
-                sent = await bot.send_message(
-                    chat_id=int(telegram_user_id),
-                    text=outgoing,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True,
-                )
-                media_copy = await bot.copy_message(
-                    chat_id=int(telegram_user_id),
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id,
-                )
-        else:
-            sent = await bot.send_message(
-                chat_id=int(telegram_user_id),
-                text=outgoing,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-    except Exception as exc:
-        print(f"⚠️ Không gửi được phản hồi support tới user {telegram_user_id}: {exc}")
-        try:
-            record_support_event(
-                "support_reply_failed",
-                telegram_user_id,
-                username=ticket.get("username") or "",
-                full_name=ticket.get("full_name") or "",
-                chat_id=str(message.chat.id),
-                chat_title=message.chat.title or "",
-                order_id=str(ticket.get("subject") or ""),
-                plan_name=str(ticket.get("source") or ""),
-                raw_data={
-                    "ticket_id": ticket.get("id", ""),
-                    "ticket_no": ticket.get("ticket_no", ""),
-                    "error": str(exc),
-                },
-            )
-        except Exception:
-            pass
-        return
-
-    try:
-        await record_support_message(
-            ticket.get("id"),
-            "support_to_user",
-            telegram_message_id=(media_copy.message_id if media_copy else sent.message_id),
-            manager_group_message_id=message.message_id,
-            manager_topic_message_id=getattr(message, "message_thread_id", None),
-            reply_to_manager_message_id=message.reply_to_message.message_id if message.reply_to_message else None,
-            text=body,
-            payload={
-                "admin_name": admin_name,
-                "admin_username": message.from_user.username if message.from_user else "",
-                "source_chat_id": str(message.chat.id),
-                "content_type": "media" if _is_media_like_message(message) else "text",
-                "header_message_id": sent.message_id if media_copy else None,
-            },
-        )
-    except Exception as exc:
-        print(f"⚠️ Không ghi được support_message reply: {exc}")
-
-    try:
-        supabase_store.update_support_ticket(
-            ticket["id"],
-            {
-                "updated_at": sent.date.isoformat() if getattr(sent, "date", None) else None,
-            },
-        )
-    except Exception:
-        pass
-
-    try:
-        record_support_event(
-            "support_reply_sent",
-            telegram_user_id,
-            username=ticket.get("username") or "",
-            full_name=ticket.get("full_name") or "",
-            chat_id=str(message.chat.id),
-            chat_title=message.chat.title or "",
-            order_id=str(ticket.get("subject") or ""),
-            plan_name=str(ticket.get("source") or ""),
-            raw_data={
-                "ticket_id": ticket.get("id", ""),
-                "ticket_no": ticket.get("ticket_no", ""),
-                "reply_message_id": message.message_id,
-            },
-        )
-    except Exception:
-        pass
-
-
-@router.message(Command("close"))
-async def support_close_ticket(message: Message):
-    if str(message.chat.id).strip() != support_inbox_group_id():
-        return
-    if not support_inbox_enabled():
-        return
-    if not _is_support_staff_message(message):
-        return
-    ticket = _resolve_ticket_from_group_message(message)
-    if not ticket:
-        await message.reply("⚠️ Không tìm thấy ticket để đóng. Hãy reply vào tin ticket hoặc ở đúng topic.")
-        return
-    if not supabase_store.enabled:
-        await message.reply("⚠️ Supabase chưa sẵn sàng.")
-        return
-
-    try:
-        updated = supabase_store.update_support_ticket(
-            ticket["id"],
-            {
-                "status": "closed",
-                "closed_at": message.date.isoformat() if getattr(message, "date", None) else None,
-                "updated_at": message.date.isoformat() if getattr(message, "date", None) else None,
-            },
-        )
-        ticket = updated[0] if updated else ticket
-    except Exception as exc:
-        print(f"⚠️ Không close được ticket {ticket.get('ticket_no')}: {exc}")
-        await message.reply("⚠️ Không đóng được ticket, thử lại sau.")
-        return
-
-    try:
-        await record_support_message(
-            ticket["id"],
-            "support_action",
-            manager_group_message_id=message.message_id,
-            text="/close",
-            payload={
-                "action": "close",
-                "admin_name": message.from_user.full_name if message.from_user else "",
-            },
-        )
-    except Exception:
-        pass
-
-    try:
-        record_support_event(
-            "support_ticket_closed",
-            ticket.get("telegram_user_id") or "",
-            username=ticket.get("username") or "",
-            full_name=ticket.get("full_name") or "",
-            chat_id=str(message.chat.id),
-            chat_title=message.chat.title or "",
-            raw_data={
-                "ticket_id": ticket.get("id", ""),
-                "ticket_no": ticket.get("ticket_no", ""),
-                "closed_by": message.from_user.id if message.from_user else None,
-            },
-        )
-    except Exception:
-        pass
-
-    await message.reply(f"✅ Đã đóng ticket <code>{ticket.get('ticket_no', '')}</code>.")
-
-
-@router.message(Command("reopen"))
-async def support_reopen_ticket(message: Message):
-    if str(message.chat.id).strip() != support_inbox_group_id():
-        return
-    if not support_inbox_enabled():
-        return
-    if not _is_support_staff_message(message):
-        return
-    ticket = _resolve_ticket_from_group_message(message)
-    if not ticket:
-        await message.reply("⚠️ Không tìm thấy ticket để mở lại. Hãy reply vào tin ticket hoặc ở đúng topic.")
-        return
-    if not supabase_store.enabled:
-        await message.reply("⚠️ Supabase chưa sẵn sàng.")
-        return
-
-    try:
-        updated = supabase_store.update_support_ticket(
-            ticket["id"],
-            {
-                "status": "open",
-                "closed_at": None,
-                "updated_at": message.date.isoformat() if getattr(message, "date", None) else None,
-            },
-        )
-        ticket = updated[0] if updated else ticket
-    except Exception as exc:
-        print(f"⚠️ Không reopen được ticket {ticket.get('ticket_no')}: {exc}")
-        await message.reply("⚠️ Không mở lại được ticket, thử lại sau.")
-        return
-
-    try:
-        await record_support_message(
-            ticket["id"],
-            "support_action",
-            manager_group_message_id=message.message_id,
-            text="/reopen",
-            payload={
-                "action": "reopen",
-                "admin_name": message.from_user.full_name if message.from_user else "",
-            },
-        )
-    except Exception:
-        pass
-
-    try:
-        record_support_event(
-            "support_ticket_reopened",
-            ticket.get("telegram_user_id") or "",
-            username=ticket.get("username") or "",
-            full_name=ticket.get("full_name") or "",
-            chat_id=str(message.chat.id),
-            chat_title=message.chat.title or "",
-            raw_data={
-                "ticket_id": ticket.get("id", ""),
-                "ticket_no": ticket.get("ticket_no", ""),
-                "reopened_by": message.from_user.id if message.from_user else None,
-            },
-        )
-    except Exception:
-        pass
-
-    await message.reply(f"✅ Đã mở lại ticket <code>{ticket.get('ticket_no', '')}</code>.")
-
-
-@router.message(Command("delete"))
-async def support_delete_message(message: Message):
-    if str(message.chat.id).strip() != support_inbox_group_id():
-        return
-    if not support_inbox_enabled():
-        return
-    if not message.from_user or not is_admin_user(message.from_user.id):
-        return
-    if not support_delete_enabled():
-        await message.reply("⚠️ Chức năng delete đang tắt trong config.")
-        return
-    if not message.reply_to_message:
-        await message.reply("⚠️ Hãy reply vào tin nhắn cần xoá rồi dùng /delete.")
-        return
-    if not supabase_store.enabled:
-        await message.reply("⚠️ Supabase chưa sẵn sàng.")
-        return
-
-    support_message, ticket = _resolve_support_message_for_delete(message)
-    if not ticket:
-        ticket = _resolve_ticket_from_group_message(message)
-    if not ticket:
-        await message.reply("⚠️ Không tìm thấy case hỗ trợ tương ứng.")
-        return
-
-    telegram_user_id = str(ticket.get("telegram_user_id") or "").strip()
-    target_user_message_id = None
-    if support_message and support_message.get("telegram_message_id"):
-        target_user_message_id = int(support_message["telegram_message_id"])
-    elif support_message and support_message.get("reply_to_manager_message_id"):
-        try:
-            row = supabase_store.get_support_message_by_manager_group_message_id(support_message["reply_to_manager_message_id"])
-            target_user_message_id = int(row["telegram_message_id"]) if row and row.get("telegram_message_id") else None
-        except Exception:
-            target_user_message_id = None
-
-    if not telegram_user_id or not target_user_message_id:
-        await message.reply("⚠️ Không xác định được tin nhắn user cần xoá.")
-        return
-
-    try:
-        await bot.delete_message(chat_id=int(telegram_user_id), message_id=target_user_message_id)
-    except Exception as exc:
-        print(f"⚠️ Không xoá được message user {telegram_user_id}/{target_user_message_id}: {exc}")
-        await message.reply("⚠️ Không xoá được tin nhắn ở phía user.")
-        return
-
-    try:
-        await bot.delete_message(chat_id=message.chat.id, message_id=message.reply_to_message.message_id)
-    except Exception:
-        pass
-
-    try:
-        await record_support_message(
-            ticket["id"],
-            "support_action",
-            manager_group_message_id=message.message_id,
-            reply_to_manager_message_id=message.reply_to_message.message_id,
-            text="/delete",
-            payload={
-                "action": "delete",
-                "deleted_user_message_id": target_user_message_id,
-                "admin_name": message.from_user.full_name if message.from_user else "",
-            },
-        )
-    except Exception:
-        pass
-
-    try:
-        record_support_event(
-            "support_message_deleted",
-            telegram_user_id,
-            username=ticket.get("username") or "",
-            full_name=ticket.get("full_name") or "",
-            chat_id=str(message.chat.id),
-            chat_title=message.chat.title or "",
-            raw_data={
-                "ticket_id": ticket.get("id", ""),
-                "ticket_no": ticket.get("ticket_no", ""),
-                "deleted_user_message_id": target_user_message_id,
-                "deleted_by": message.from_user.id if message.from_user else None,
-            },
-        )
-    except Exception:
-        pass
-
-    await message.reply(f"🗑️ Đã xoá tin nhắn của user trong case <code>{ticket.get('ticket_no', '')}</code>.")
+async def support_group_legacy_passthrough(message: Message):
+    return
