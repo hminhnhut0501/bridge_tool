@@ -157,17 +157,27 @@ function orderMetadata(order: { metadata?: unknown }) {
   return order.metadata && typeof order.metadata === "object" ? (order.metadata as Record<string, unknown>) : null;
 }
 
-export function resolveOrderDisplayLabel(order: { plan_name?: string | null; metadata?: unknown }) {
+export function resolveOrderLabel(order: { plan_name?: string | null; metadata?: unknown }) {
   const metadata = orderMetadata(order);
-  return displayText(metadata?.admin_label || metadata?.display_name || order.plan_name || "-") || "-";
+  const techLabel = displayText(order.plan_name || "-") || "-";
+  const displayLabel = displayText(metadata?.admin_label || metadata?.display_name || techLabel || "-") || "-";
+  return {
+    displayLabel,
+    techLabel,
+    showTechLabel: displayLabel !== techLabel,
+  };
 }
 
-export function resolveOrderTechLabel(order: { plan_name?: string | null }) {
-  return displayText(order.plan_name || "-") || "-";
+export function resolveOrderDisplayLabel(order: { plan_name?: string | null; metadata?: unknown }) {
+  return resolveOrderLabel(order).displayLabel;
+}
+
+export function resolveOrderTechLabel(order: { plan_name?: string | null; metadata?: unknown }) {
+  return resolveOrderLabel(order).techLabel;
 }
 
 export function resolveOrderCaption(order: { plan_name?: string | null; metadata?: unknown }) {
-  return resolveOrderDisplayLabel(order);
+  return resolveOrderLabel(order).displayLabel;
 }
 
 export function orderPlanKind(order: Order) {

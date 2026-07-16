@@ -67,6 +67,7 @@ import {
   Grid,
 } from "@mui/material";
 import { Fragment, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import {
   channelPostStatusClass,
@@ -114,9 +115,8 @@ import {
   orderAmountValue,
   orderMoney,
   orderNoteText,
+  resolveOrderLabel,
   resolveOrderCaption,
-  resolveOrderDisplayLabel,
-  resolveOrderTechLabel,
   payloadText,
   providerRevenueFormat,
   safeDateMillis,
@@ -3044,6 +3044,7 @@ function configIsOn(config: ConfigRow[], key: string, fallback = "OFF") {
 
 export default function Home() {
   const isDevPreview = process.env.NODE_ENV !== "production";
+  const router = useRouter();
   const [secret, setSecret] = useState("");
   const [savedSecret, setSavedSecret] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
@@ -3072,6 +3073,13 @@ export default function Home() {
   const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.pathname !== "/") return;
+    if (window.localStorage.getItem("prive_admin_desktop") === "1") return;
+    if (!window.matchMedia("(max-width: 900px)").matches) return;
+    router.replace("/mobile");
+  }, [router]);
   const [marketingStats, setMarketingStats] = useState<MarketingStatsResponse | null>(null);
   const [marketingRange, setMarketingRange] = useState<"today" | "7d" | "month" | "year">("month");
   const marketingRefreshTimerRef = useRef<number | null>(null);
@@ -6576,11 +6584,11 @@ export default function Home() {
   }
 
   function manualOrderAdminLabelDisplay() {
-    return manualOrderForm.admin_label.trim() || manualOrderPlanNameDisplay();
+    return manualOrderForm.admin_label.trim() || resolveOrderLabel({ plan_name: manualOrderPlanNameDisplay() }).displayLabel;
   }
 
   function orderAdminLabel(order: Pick<Order, "plan_name" | "metadata">) {
-    return resolveOrderDisplayLabel(order);
+    return resolveOrderLabel(order).displayLabel;
   }
 
   function manualExpiryPreview() {
@@ -9366,12 +9374,17 @@ export default function Home() {
                 <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 3 }}>
                   <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
                   <Alert severity="info" variant="outlined">
-                    <strong>Hiển thị:</strong> {manualOrderResult.admin_label || manualOrderResult.plan_name}
-                    {manualOrderResult.admin_label && manualOrderResult.admin_label !== manualOrderResult.plan_name ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                        Kỹ thuật: {manualOrderResult.plan_name}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                      <strong>Hiển thị:</strong>
+                      <Typography component="span" sx={{ fontWeight: 700 }}>
+                        {resolveOrderLabel(manualOrderResult).displayLabel}
                       </Typography>
-                    ) : null}
+                      {resolveOrderLabel(manualOrderResult).showTechLabel ? (
+                        <Tooltip title={`Kỹ thuật: ${resolveOrderLabel(manualOrderResult).techLabel}`} arrow>
+                          <Chip size="small" label="i" variant="outlined" sx={{ height: 20, minWidth: 20, fontWeight: 800 }} />
+                        </Tooltip>
+                      ) : null}
+                    </Box>
                   </Alert>
                   
                   {/* Active Code Box */}
@@ -10128,8 +10141,7 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
       {sorted.map((order) => (
         (() => {
           const canEdit = String(order.status || "").toUpperCase() === "PAID";
-          const displayLabel = resolveOrderDisplayLabel(order);
-          const techLabel = resolveOrderTechLabel(order);
+          const orderLabel = resolveOrderLabel(order);
           const cardSx = canEdit
             ? undefined
             : {
@@ -10175,10 +10187,10 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
 
               {/* Cột 2: Gói & Nhóm */}
               <Box sx={{ flexGrow: 1, minWidth: 0, pl: { sm: 2 }, borderLeft: { sm: "1px dashed rgba(148, 163, 184, 0.3)" }, display: "flex", flexDirection: "column", gap: 0.5 }}>
-                <Tooltip title={techLabel !== displayLabel ? `Kỹ thuật: ${techLabel}` : displayLabel} arrow>
+                <Tooltip title={orderLabel.showTechLabel ? `Kỹ thuật: ${orderLabel.techLabel}` : orderLabel.displayLabel} arrow>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 800, lineHeight: 1.2, color: "var(--ink)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {displayLabel}
+                      {orderLabel.displayLabel}
                     </Typography>
                   </Box>
                 </Tooltip>
