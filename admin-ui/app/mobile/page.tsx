@@ -345,6 +345,8 @@ export default function MobileAdminPage() {
         note: displayText(manualForm.note) || undefined,
         payment_currency: manualForm.payment_currency.trim() || undefined,
         payment_provider: manualForm.payment_provider.trim() || undefined,
+        skip_join_link: true,
+        skip_active_code: true,
       });
       setManualResult(res.data);
       setCopyNote("Đã tạo đơn thủ công.");
@@ -614,17 +616,28 @@ export default function MobileAdminPage() {
         ) : null}
 
         {manualResult ? (
-          <AppSection title="Kết quả gần nhất" subtitle="Nhanh tay copy ngay khi cần." accent="emerald">
-            <Stack spacing={1}>
-              <Card variant="outlined"><CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}><Typography sx={{ fontWeight: 800 }}>{manualResult.manual_order_text}</Typography><Button variant="outlined" onClick={() => void copyText(manualResult.manual_order_text, "manual text")}>Copy text</Button></CardContent></Card>
-              <Box sx={{ position: "sticky", bottom: 12, zIndex: 5, display: "grid", gap: 1, gridTemplateColumns: "repeat(2, minmax(0, 1fr))", p: 1, mt: 0.5, borderRadius: 3, bgcolor: "rgba(255,255,255,0.92)", backdropFilter: "blur(10px)", boxShadow: "0 12px 30px rgba(15,23,42,0.08)", border: "1px solid rgba(148,163,184,0.16)" }}>
-                <Button variant="contained" onClick={() => void submitActiveCode()} startIcon={<Ticket size={16} />}>Gen active code</Button>
-                <Button variant="outlined" onClick={() => void submitJoinLink()} startIcon={<Send size={16} />}>Gen join group</Button>
-              </Box>
-              {manualResult.activation_url ? <Card variant="outlined"><CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}><Typography variant="body2" sx={{ wordBreak: "break-word" }}>{manualResult.activation_url}</Typography><Button size="small" variant="outlined" onClick={() => void copyText(manualResult.activation_url, "active link")}>Copy link</Button></CardContent></Card> : null}
-              {manualResult.links_text ? <Card variant="outlined"><CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}><Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{manualResult.links_text}</Typography><Button size="small" variant="outlined" onClick={() => void copyText(manualResult.links_text, "join text")}>Copy text</Button></CardContent></Card> : null}
-              {manualResult.support_text ? <Card variant="outlined"><CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}><Typography sx={{ fontWeight: 800 }}>Support</Typography><Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{manualResult.support_text}</Typography></CardContent></Card> : null}
-            </Stack>
+          <AppSection title="Kết quả gần nhất" subtitle="Toast kết quả ngắn gọn, copy nhanh." accent="emerald">
+            <Card variant="outlined" sx={{ borderColor: "rgba(16,185,129,0.28)", bgcolor: "rgba(236,253,245,0.72)" }}>
+              <CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: 15 }}>{resolveOrderLabel(manualResult).displayLabel || manualResult.plan_name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>Đơn {manualResult.order_id}</Typography>
+                  </Box>
+                  <Chip size="small" label="Mới" color="success" variant="outlined" />
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {manualResult.manual_order_text || "Chưa gen active code."}
+                </Typography>
+                <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                  <Button size="small" variant="contained" onClick={() => void submitActiveCode()} startIcon={<Ticket size={14} />}>Active</Button>
+                  <Button size="small" variant="outlined" onClick={() => void submitJoinLink()} startIcon={<Send size={14} />}>Join</Button>
+                </Box>
+                <Button size="small" variant="text" onClick={() => void copyText(manualResult.manual_order_text || manualResult.manual_order_join_text || "", "manual text")} sx={{ justifyContent: "flex-start", px: 0 }}>
+                  Copy nhanh
+                </Button>
+              </CardContent>
+            </Card>
           </AppSection>
         ) : null}
       </Box>
