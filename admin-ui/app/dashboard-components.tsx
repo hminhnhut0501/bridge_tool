@@ -139,6 +139,17 @@ export function AppDialog(props: { open: boolean; title: string; subtitle?: stri
   return <MuiDialogShell {...props} />;
 }
 
+function normalizeSupportThreadDirection(value: string) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "user_to_support";
+  if (text === "user_to_support" || text === "support_to_user") return text;
+  if (["user", "incoming", "customer", "client", "private_user"].includes(text)) return "user_to_support";
+  if (["support", "admin", "manager", "bot", "outgoing", "reply"].includes(text)) return "support_to_user";
+  if (text.includes("user") && text.includes("support")) return text.includes("support_to_user") ? "support_to_user" : "user_to_support";
+  if (text.includes("user")) return "user_to_support";
+  return "support_to_user";
+}
+
 export function SupportThreadPanel({
   title = "Chat thread",
   threadLabel,
@@ -166,7 +177,7 @@ export function SupportThreadPanel({
     if (!el) return;
     const updateNearBottom = () => {
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      nearBottomRef.current = distance < 96;
+      nearBottomRef.current = distance < 72;
     };
     updateNearBottom();
     el.addEventListener("scroll", updateNearBottom, { passive: true });
@@ -178,7 +189,9 @@ export function SupportThreadPanel({
     const el = scrollRef.current;
     if (!el) return;
     const raf = window.requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      });
     });
     return () => window.cancelAnimationFrame(raf);
   }, [messages.length, loading]);
@@ -211,8 +224,9 @@ export function SupportThreadPanel({
           <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
         ) : messages.length ? (
           messages.map((message) => {
-            const direction = String(message.direction || "").toLowerCase();
-            const isAdmin = direction.includes("manager") || direction.includes("bot") || direction.includes("admin");
+            const direction = normalizeSupportThreadDirection(message.direction);
+            const isAdmin = direction === "support_to_user";
+            const isUser = direction === "user_to_support";
             const isOptimistic = Boolean((message as SupportMessage & { payload?: Record<string, unknown> }).payload?.optimistic) || String(message.id || "").startsWith("optimistic:");
             return (
               <Box key={message.id} sx={{ display: "flex", justifyContent: isAdmin ? "flex-end" : "flex-start" }}>
@@ -223,7 +237,7 @@ export function SupportThreadPanel({
                     py: 0.9,
                     borderRadius: isAdmin ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
                     backgroundImage: isAdmin ? "linear-gradient(180deg, rgba(37,99,235,0.98) 0%, rgba(29,78,216,0.96) 100%)" : "none",
-                    bgcolor: isAdmin ? "transparent" : "#f8fafc",
+                    bgcolor: isAdmin ? "transparent" : isUser ? "#f8fafc" : "#f8fafc",
                     color: isAdmin ? "#fff" : "inherit",
                     border: isAdmin ? "1px solid rgba(59,130,246,0.22)" : "1px solid rgba(148,163,184,0.12)",
                     boxShadow: isAdmin ? "0 8px 24px rgba(37,99,235,0.16)" : "0 1px 0 rgba(15,23,42,0.03)",
@@ -234,17 +248,18 @@ export function SupportThreadPanel({
                     },
                   }}
                 >
-                  {isOptimistic ? (
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.4, mb: 0.15, fontSize: 9.6, fontWeight: 700, opacity: 0.88, color: isAdmin ? "rgba(255,255,255,0.78)" : "text.secondary" }}>
-                      <Loader2 size={10} className="spin" />
-                      Đang gửi
-                    </Typography>
-                  ) : isAdmin ? (
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.35, mb: 0.15, fontSize: 9.5, fontWeight: 700, opacity: 0.75, color: "rgba(255,255,255,0.7)" }}>
-                      <CheckCircle2 size={10} />
-                      Đã gửi
-                    </Typography>
-                  ) : null}
+                  <Stack direction="row" spacing={0.4} sx={{ alignItems: "center", justifyContent: isAdmin ? "flex-end" : "flex-start", mb: 0.1 }}>
+                    {isOptimistic ? <Loader2 size={10} className="spin" color={isAdmin ? "#fff" : "#64748b"} /> : isAdmin ? <CheckCircle2 size={10} color="rgba(255,255,255,0.72)" /> : null}
+                    {isOptimistic ? (
+                      <Typography variant="caption" sx={{ fontSize: 9.2, fontWeight: 700, color: isAdmin ? "rgba(255,255,255,0.78)" : "text.secondary", lineHeight: 1 }}>
+                        Đang gửi
+                      </Typography>
+                    ) : isAdmin ? (
+                      <Typography variant="caption" sx={{ fontSize: 9.1, fontWeight: 700, color: "rgba(255,255,255,0.72)", lineHeight: 1 }}>
+                        Đã gửi
+                      </Typography>
+                    ) : null}
+                  </Stack>
                   <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
                   </Typography>

@@ -139,6 +139,21 @@ def support_case_id(ticket):
     return ticket_no or (f"U{user_id}" if user_id else "")
 
 
+def normalize_support_message_direction(value):
+    text = str(value or "").strip().lower()
+    if not text:
+        return "user_to_support"
+    if text in {"user", "user_to_support", "private_user", "incoming", "customer", "client"}:
+        return "user_to_support"
+    if text in {"support", "support_to_user", "admin", "manager", "bot", "outgoing", "reply"}:
+        return "support_to_user"
+    if "user" in text and "support" in text:
+        return text
+    if "admin" in text or "manager" in text or "bot" in text:
+        return "support_to_user"
+    return "user_to_support" if "user" in text else "support_to_user"
+
+
 def support_ticket_subject_from_action(action="", provider="", plan_name=""):
     parts = []
     if action:
@@ -354,7 +369,7 @@ async def record_support_message(ticket_id, direction, *, telegram_message_id=No
         return None
     data = {
         "ticket_id": str(ticket_id),
-        "direction": str(direction or "").strip().lower(),
+        "direction": normalize_support_message_direction(direction),
         "telegram_message_id": telegram_message_id,
         "manager_group_message_id": manager_group_message_id,
         "manager_topic_message_id": manager_topic_message_id,

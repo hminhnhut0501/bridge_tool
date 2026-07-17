@@ -3098,7 +3098,7 @@ export default function Home() {
   const activityLogSkipNextFetchRef = useRef(false);
   const activityLogRequestIdRef = useRef(0);
   const [adminReplyOpen, setAdminReplyOpen] = useState(false);
-  const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string } | null>(null);
+  const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string; ticketId?: string } | null>(null);
   const [adminReplyThread, setAdminReplyThread] = useState<SupportCaseItem | null>(null);
   const [adminReplyThreadLoading, setAdminReplyThreadLoading] = useState(false);
   const [adminReplyThreadMessageLimit, setAdminReplyThreadMessageLimit] = useState(12);
@@ -4404,7 +4404,7 @@ export default function Home() {
     });
   }
 
-  function openAdminReply(entry: { id: string; userId: string; fullName: string; username: string; title: string; detail: string }) {
+  function openAdminReply(entry: { id: string; userId: string; fullName: string; username: string; title: string; detail: string; ticketId?: string; initialMessages?: SupportMessage[] }) {
     if (!entry.userId) {
       showNotice("error", "Không có Telegram ID để trả lời khách.");
       return;
@@ -4415,6 +4415,7 @@ export default function Home() {
       fullName: entry.fullName,
       username: entry.username,
       sourceText: entry.title || entry.detail || "",
+      ticketId: entry.ticketId,
     });
     setAdminReplyText("");
     setAdminReplyOptimisticMessage(null);
@@ -4426,11 +4427,30 @@ export default function Home() {
     setAdminReplyThreadMessageLimit(12);
     adminReplyStickToBottomRef.current = true;
     setAdminReplyOpen(true);
+    if (entry.ticketId && entry.initialMessages?.length) {
+      setAdminReplyThread({
+        ticket: {
+          id: entry.ticketId,
+          ticket_no: "",
+          telegram_user_id: entry.userId,
+          username: entry.username || null,
+          full_name: entry.fullName || null,
+          subject: entry.title || entry.detail || null,
+          status: "open",
+          source: "support_inbox",
+          updated_at: entry.initialMessages[entry.initialMessages.length - 1]?.created_at || new Date().toISOString(),
+          created_at: entry.initialMessages[0]?.created_at || new Date().toISOString(),
+        },
+        messages: entry.initialMessages,
+      });
+    }
     void (async () => {
       setAdminReplyThreadLoading(true);
       try {
-        const res = await getSupportCases(savedSecret, entry.userId, 1, "", 12);
-        setAdminReplyThread(res.data?.[0] || null);
+        if (!entry.ticketId) {
+          const res = await getSupportCases(savedSecret, entry.userId, 1, "", 12);
+          setAdminReplyThread(res.data?.[0] || null);
+        }
       } catch (err) {
         console.warn("⚠️ Không tải được thread support:", err);
         setAdminReplyThread(null);
@@ -4455,7 +4475,7 @@ export default function Home() {
       const optimisticMessage: SupportMessage = {
         id: `optimistic:${Date.now()}`,
         ticket_id: adminReplyThread?.ticket?.id || adminReplyTarget.id,
-        direction: "manager",
+        direction: "support_to_user",
         telegram_message_id: null,
         manager_group_message_id: null,
         manager_topic_message_id: null,
@@ -4472,7 +4492,8 @@ export default function Home() {
         messageId: optimisticMessage.id,
         preview: text.slice(0, 80),
       });
-      await sendAdminReply(savedSecret, {
+      const replyRes = await sendAdminReply(savedSecret, {
+        ticket_id: adminReplyTarget.ticketId || adminReplyThread?.ticket?.id || undefined,
         telegram_user_id: adminReplyTarget.userId,
         text,
         source_log_id: adminReplyTarget.id,
@@ -4494,8 +4515,38 @@ export default function Home() {
         });
       }, 8000);
       setAdminReplyText("");
-      const res = await getSupportCases(savedSecret, adminReplyTarget.userId, 1, "", adminReplyThreadMessageLimit);
-      setAdminReplyThread(res.data?.[0] || null);
+      const returnedMessage = replyRes.data?.message || null;
+      const returnedTicketId = String(replyRes.data?.ticket_id || "").trim();
+      if (returnedMessage) {
+        setAdminReplyThread((current) => {
+          if (!current) {
+            const fallbackTicket = returnedTicketId || adminReplyTarget.id;
+            return {
+              ticket: {
+                id: fallbackTicket,
+                ticket_no: "",
+                telegram_user_id: adminReplyTarget.userId,
+                username: adminReplyTarget.username || null,
+                full_name: adminReplyTarget.fullName || null,
+                subject: adminReplyTarget.sourceText || null,
+                status: "open",
+                source: "admin_reply",
+                updated_at: returnedMessage.created_at,
+                created_at: returnedMessage.created_at,
+              },
+              messages: [returnedMessage],
+            };
+          }
+          const messages = [...(current.messages || [])];
+          const exists = messages.some((item) => item.id === returnedMessage.id || (String(item.direction || "").toLowerCase().includes("support_to_user") && item.text === returnedMessage.text && Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(returnedMessage.created_at) ?? 0)) < 120000));
+          if (!exists) messages.push(returnedMessage);
+          return { ...current, messages, ticket: { ...current.ticket, id: returnedTicketId || current.ticket.id } };
+        });
+      } else {
+        const queryTarget = adminReplyTarget.ticketId || adminReplyTarget.userId;
+        const res = await getSupportCases(savedSecret, queryTarget, 1, "", adminReplyThreadMessageLimit);
+        setAdminReplyThread(res.data?.[0] || null);
+      }
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
     });
@@ -6400,7 +6451,7 @@ export default function Home() {
       .sort((a, b) => (safeDateMillis(a.created_at) ?? 0) - (safeDateMillis(b.created_at) ?? 0));
     if (adminReplyOptimisticMessage) {
       const optimisticKey = adminReplyOptimisticMessage.id;
-      const duplicate = messages.some((item) => item.id === optimisticKey || (item.direction === "manager" && item.text === adminReplyOptimisticMessage.text && Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(adminReplyOptimisticMessage.created_at) ?? 0)) < 60000));
+      const duplicate = messages.some((item) => item.id === optimisticKey || (String(item.direction || "").toLowerCase().includes("support_to_user") && item.text === adminReplyOptimisticMessage.text && Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(adminReplyOptimisticMessage.created_at) ?? 0)) < 60000));
       if (!duplicate) messages.push(adminReplyOptimisticMessage);
     }
     return messages;
@@ -6411,7 +6462,7 @@ export default function Home() {
     const messages = adminReplyThread?.messages || [];
     const confirmed = messages.some((item) => {
       if (item.id === adminReplyOptimisticMessage.id) return true;
-      const sameDirection = String(item.direction || "").toLowerCase().includes("manager");
+      const sameDirection = String(item.direction || "").toLowerCase().includes("support_to_user") || String(item.direction || "").toLowerCase().includes("manager");
       const sameText = String(item.text || "").trim() === String(adminReplyOptimisticMessage.text || "").trim();
       const closeTime = Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(adminReplyOptimisticMessage.created_at) ?? 0)) < 120000;
       return sameDirection && sameText && closeTime;
@@ -6489,6 +6540,7 @@ export default function Home() {
 
   const openSupportInboxItem = useCallback((item: {
     id: string;
+    ticket_id?: string;
     telegram_user_id: string;
     title: string;
     detail: string;
@@ -6497,6 +6549,7 @@ export default function Home() {
     order_id: string;
     plan_name: string;
     unreadKey?: string;
+    messages?: SupportMessage[];
   }) => {
     setSupportInboxSeenIds((current) => uniqueValues([...current, item.unreadKey || item.id]));
     closeSupportInboxMenu();
@@ -6510,6 +6563,8 @@ export default function Home() {
       username: item.username || "",
       title: item.title,
       detail: item.detail,
+      ticketId: item.ticket_id,
+      initialMessages: item.messages,
     });
   }, [closeSupportInboxMenu, openAdminReply, selectTab, setQuery, setSupportTab]);
 

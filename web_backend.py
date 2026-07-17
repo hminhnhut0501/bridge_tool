@@ -86,7 +86,9 @@ try:
     from support_utils import (
         create_support_invite_link,
         explain_support_invite_error,
+        get_or_create_support_ticket_for_user,
         mask_chat_id,
+        normalize_support_message_direction,
         record_support_event,
         support_group_enabled,
         support_group_id,
@@ -101,8 +103,14 @@ except ImportError:  # pragma: no cover - lightweight test fallback
     def explain_support_invite_error(*args, **kwargs):
         return ""
 
+    async def get_or_create_support_ticket_for_user(*args, **kwargs):
+        return None, False, ""
+
     def mask_chat_id(chat_id):
         return str(chat_id)
+
+    def normalize_support_message_direction(value):
+        return str(value or "").strip().lower() or "user_to_support"
 
     def record_support_event(*args, **kwargs):
         return None
@@ -2967,14 +2975,37 @@ async def admin_reply_to_customer(request: Request):
         raise HTTPException(status_code=400, detail="Nội dung trả lời quá dài, tối đa 3500 ký tự.")
 
     ticket = None
-    if ticket_id:
-        try:
+    try:
+        if ticket_id:
             ticket = supabase_store.get_support_ticket_by_id(ticket_id)
             if ticket:
                 telegram_user_id = str(ticket.get("telegram_user_id") or telegram_user_id).strip()
                 full_name = str(ticket.get("full_name") or full_name).strip()
-        except Exception as exc:
-            print(f"⚠️ Không đọc được support ticket {ticket_id} trước khi reply: {exc}")
+        if not ticket:
+            ticket = supabase_store.get_support_ticket_by_user(telegram_user_id)
+            if ticket:
+                ticket_id = str(ticket.get("id") or ticket_id).strip()
+                full_name = str(ticket.get("full_name") or full_name).strip()
+        if not ticket:
+            ticket, created_new, ticket_error = await get_or_create_support_ticket_for_user(
+                telegram_user_id=telegram_user_id,
+                full_name=full_name,
+                subject=source_text or text or "Tin nhắn hỗ trợ",
+                source="admin_reply",
+                raw_data={
+                    "source_log_id": source_log_id,
+                    "source_text": source_text,
+                    "created_by": "admin_cp",
+                },
+            )
+            if ticket_error:
+                print(f"⚠️ Không tự tạo support ticket cho {telegram_user_id} trước khi reply: {ticket_error}")
+            if ticket:
+                ticket_id = str(ticket.get("id") or ticket_id).strip()
+                telegram_user_id = str(ticket.get("telegram_user_id") or telegram_user_id).strip()
+                full_name = str(ticket.get("full_name") or full_name).strip()
+    except Exception as exc:
+        print(f"⚠️ Không đọc/tạo support ticket trước khi reply cho {telegram_user_id}: {exc}")
 
     try:
         sent = await bot.send_message(chat_id=int(telegram_user_id), text=text, disable_web_page_preview=True)
@@ -2995,23 +3026,27 @@ async def admin_reply_to_customer(request: Request):
             pass
         raise HTTPException(status_code=500, detail=f"Không gửi được tin nhắn cho khách: {exc}")
 
+    created_message = None
     try:
-        if ticket:
-            supabase_store.create_support_message(
+        message_ticket_id = str(ticket.get("id") or ticket_id or "").strip()
+        if message_ticket_id:
+            created_rows = supabase_store.create_support_message(
                 {
-                    "ticket_id": str(ticket.get("id") or ticket_id),
-                    "direction": "support_to_user",
+                    "ticket_id": message_ticket_id,
+                    "direction": normalize_support_message_direction("support_to_user"),
                     "telegram_message_id": getattr(sent, "message_id", None),
                     "text": text,
                     "payload": {
                         "source": "admin_cp",
                         "source_log_id": source_log_id,
                         "source_text": source_text,
+                        "created_by": "admin_cp",
                     },
                 }
             )
+            created_message = created_rows[0] if created_rows else None
             supabase_store.update_support_ticket(
-                str(ticket.get("id") or ticket_id),
+                message_ticket_id,
                 {
                     "status": "open",
                     "last_message_at": datetime.now().isoformat(),
@@ -3027,13 +3062,21 @@ async def admin_reply_to_customer(request: Request):
                 "source_log_id": source_log_id,
                 "source_text": source_text,
                 "sent_message_id": getattr(sent, "message_id", ""),
+                "ticket_id": message_ticket_id,
             },
         )
     except Exception as exc:
         if not is_missing_supabase_table_error(exc, "support_events"):
             print(f"⚠️ Không ghi được admin_reply_sent: {exc}")
 
-    return {"data": {"ok": True, "message_id": getattr(sent, "message_id", None)}}
+    return {
+        "data": {
+            "ok": True,
+            "ticket_id": message_ticket_id,
+            "message_id": getattr(sent, "message_id", None),
+            "message": created_message,
+        }
+    }
 
 
 def is_missing_campaign_table_error(exc: Exception) -> bool:

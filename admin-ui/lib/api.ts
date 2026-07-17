@@ -950,7 +950,7 @@ export async function regenerateActivationCode(secret: string, code: string) {
 }
 
 export async function sendAdminReply(secret: string, payload: { telegram_user_id: string; text: string; ticket_id?: string; source_log_id?: string; source_text?: string; full_name?: string }) {
-  return request<{ data: { ok: boolean; message_id?: number | null } }>("/admin-api/admin-replies", secret, {
+  return request<{ data: { ok: boolean; ticket_id?: string; message_id?: number | null; message?: SupportMessage | null } }>("/admin-api/admin-replies", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });
