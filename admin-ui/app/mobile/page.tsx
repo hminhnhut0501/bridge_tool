@@ -17,20 +17,18 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
   IconButton,
   MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "../dashboard-components";
-import { dateText, dateTextShort, dateTimePreviewText, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { dateText, dateTextMobileCompact, dateTimePreviewText, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 import { ManualOrderDialog, ManualOrderResultPanel, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
@@ -49,6 +47,56 @@ function miniStatusChipLabel(order: Order) {
 
 function isLifetimePlanKey(value: string) {
   return String(value || "").toUpperCase() === "FULL_LIFE";
+}
+
+function MobileListCard({
+  title,
+  meta,
+  metaSecondary,
+  status,
+  tags,
+  detail,
+  actions,
+  onClick,
+}: {
+  title: React.ReactNode;
+  meta?: React.ReactNode;
+  metaSecondary?: React.ReactNode;
+  status?: React.ReactNode;
+  tags?: React.ReactNode;
+  detail?: React.ReactNode;
+  actions?: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <Card variant="outlined" onClick={onClick} sx={{ cursor: onClick ? "pointer" : "default" }}>
+      <CardContent sx={{ p: 1.5, display: "grid", gap: 0.75 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "start" }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 900, lineHeight: 1.2, wordBreak: "break-word" }}>{title}</Typography>
+            {meta ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>
+                {meta}
+              </Typography>
+            ) : null}
+            {metaSecondary ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>
+                {metaSecondary}
+              </Typography>
+            ) : null}
+          </Box>
+          {status ? <Box sx={{ flexShrink: 0 }}>{status}</Box> : null}
+        </Box>
+        {tags ? <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>{tags}</Box> : null}
+        {detail ? (
+          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+            {detail}
+          </Typography>
+        ) : null}
+        {actions ? <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>{actions}</Box> : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function MobileAdminPage() {
@@ -218,7 +266,7 @@ export default function MobileAdminPage() {
         const [ordersRes, overviewRes, activityRes, configRes, hiddenGroupsRes] = await Promise.all([
           getOrders(savedSecret, 120),
           getDashboardOverview(savedSecret),
-          getActivityLog(savedSecret, { page: 1, limit: 200, direction: "all", type: "ALL", date: "ALL" }),
+          getActivityLog(savedSecret, { page: 1, limit: 500, direction: "all", type: "ALL", date: "ALL" }),
           getConfig(savedSecret),
           getHiddenGroups(savedSecret),
         ]);
@@ -453,43 +501,35 @@ export default function MobileAdminPage() {
               <TextField size="small" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Ví dụ: 7508222302, @username, tên khách" fullWidth />
               {customerLoading ? <Chip icon={<Loader2 size={14} className="spin" />} label="Đang tra cứu" /> : null}
               {customerResults.map((item) => (
-                <Card key={item.id} variant="outlined" onClick={() => setSelectedCustomer(item)} sx={{ cursor: "pointer", borderColor: selectedCustomer?.id === item.id ? "primary.main" : "divider" }}>
-                  <CardContent sx={{ p: 1.5, display: "grid", gap: 0.75 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                      <Box>
-                        <Typography sx={{ fontWeight: 800 }}>{item.name || "-"}</Typography>
-                        <Typography variant="caption" color="text.secondary">{item.id}</Typography>
-                      </Box>
-                      <Chip size="small" label={item.statusText} sx={statusChipSx(item.isBlacklisted ? "error" : item.hasActiveOrder ? "success" : item.hasPaidOrder ? "warning" : "muted")} />
-                    </Box>
-                    <Typography variant="body2" color="text.secondary">{item.latestExpireText}</Typography>
-                    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                <MobileListCard
+                  key={item.id}
+                  onClick={() => setSelectedCustomer(item)}
+                  title={item.name || "-"}
+                  meta={item.id}
+                  metaSecondary={item.latestExpireText}
+                  status={<Chip size="small" label={item.statusText} sx={statusChipSx(item.isBlacklisted ? "error" : item.hasActiveOrder ? "success" : item.hasPaidOrder ? "warning" : "muted")} />}
+                  tags={(
+                    <>
                       <Chip size="small" label={`${item.paidOrderCount} paid`} variant="outlined" />
-                      <Chip size="small" label={`${item.activeOrderCount} active`} variant="outlined" />
-                      {item.isBlacklisted ? <Chip size="small" color="error" label="Blacklist" variant="outlined" /> : null}
-                    </Box>
-                  </CardContent>
-                </Card>
+                      <Chip size="small" label={`${item.activeOrderCount} act`} variant="outlined" />
+                      {item.isBlacklisted ? <Chip size="small" color="error" label="BL" variant="outlined" /> : null}
+                    </>
+                  )}
+                />
               ))}
               {selectedCustomer ? (
-                <Card variant="outlined">
-                  <CardContent sx={{ p: 1.5, display: "grid", gap: 1 }}>
-                    <Typography sx={{ fontWeight: 900 }}>{selectedCustomer.name || "-"}</Typography>
-                    <Typography variant="body2" color="text.secondary">{selectedCustomer.id}</Typography>
-                    <Divider />
-                    <Typography variant="body2">Gói gần nhất: <strong>{selectedCustomer.latestExpireOrder ? resolveOrderLabel(selectedCustomer.latestExpireOrder).displayLabel : "-"}</strong></Typography>
-                    {selectedCustomer.latestExpireOrder ? (
-                      <Tooltip title={`Kỹ thuật: ${resolveOrderLabel(selectedCustomer.latestExpireOrder).techLabel}`} arrow>
-                        <Chip size="small" label="Thông tin kỹ thuật" variant="outlined" sx={{ width: "fit-content", fontWeight: 700 }} />
-                      </Tooltip>
-                    ) : null}
-                    <Typography variant="body2">Hạn gần nhất: {selectedCustomer.latestExpireText}</Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Button variant="outlined" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<Plus size={16} />}>Dùng thông tin này để tạo đơn</Button>
-                      <Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở lại drawer</Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <MobileListCard
+                  title={selectedCustomer.name || "-"}
+                  meta={selectedCustomer.id}
+                  metaSecondary={selectedCustomer.latestExpireText}
+                  detail={selectedCustomer.latestExpireOrder ? `Gói gần nhất: ${resolveOrderLabel(selectedCustomer.latestExpireOrder).displayLabel}` : "Gói gần nhất: -"}
+                  actions={(
+                    <>
+                      <Button variant="outlined" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<Plus size={16} />}>Dùng để tạo đơn</Button>
+                      <Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>
+                    </>
+                  )}
+                />
               ) : null}
             </Stack>
           </AppSection>
@@ -526,27 +566,26 @@ export default function MobileAdminPage() {
             </Box>
             <Stack spacing={1}>
               {pagedOrders.map((order) => (
-                <Card key={order.order_id} variant="outlined">
-                  <CardContent sx={{ p: 1.5, display: "grid", gap: 0.85 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "start" }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{resolveOrderLabel(order).displayLabel}</Typography>
-                        <Typography variant="caption" color="text.secondary">{order.telegram_user_id} · {order.order_id}</Typography>
-                      </Box>
-                      <Chip size="small" label={miniStatusChipLabel(order)} color={order.status === "PAID" ? "success" : "default"} variant="outlined" />
-                    </Box>
-                    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                <MobileListCard
+                  key={order.order_id}
+                  title={resolveOrderLabel(order).displayLabel}
+                  meta={`${displayText(order.full_name) || "Khách chưa rõ"} · ${order.telegram_user_id}`}
+                  metaSecondary={`Order: ${order.order_id}`}
+                  status={<Chip size="small" label={miniStatusChipLabel(order)} color={order.status === "PAID" ? "success" : "default"} variant="outlined" />}
+                  tags={(
+                    <>
                       <Chip size="small" label={orderLifecycleLabel(order)} variant="outlined" />
-                      <Chip size="small" label={dateTextShort(order.created_at)} variant="outlined" />
-                    </Box>
-                    <Typography variant="body2">Hạn: <strong>{dateTimePreviewText(order.expire_at)}</strong> · còn {daysUntil(order.expire_at)} ngày</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>{orderNoteText(order) || "Không có note"}</Typography>
-                    <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
+                      <Chip size="small" label={dateTextMobileCompact(order.created_at)} variant="outlined" />
+                    </>
+                  )}
+                  detail={`Hạn: ${dateTimePreviewText(order.expire_at)} · còn ${daysUntil(order.expire_at)} ngày · Note: ${orderNoteText(order) || "Không có note"}`}
+                  actions={(
+                    <>
                       <Button size="small" variant="outlined" onClick={() => setManualForm((current) => ({ ...current, telegram_user_id: order.telegram_user_id, full_name: displayText(order.full_name) || current.full_name, plan_name: order.plan_name, plan_key: current.plan_key }))}>Prefill tạo đơn</Button>
                       <Button size="small" variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
+                    </>
+                  )}
+                />
               ))}
             </Stack>
             <Pagination page={orderPage} totalPages={totalOrderPages} totalItems={filteredOrders.length} onPage={setOrderPage} label="đơn" />
@@ -596,16 +635,14 @@ export default function MobileAdminPage() {
             </Box>
             <Stack spacing={1} sx={{ display: { xs: "grid", md: "none" } }}>
               {pagedActivityLog.map((item) => (
-                <Card key={item.id} variant="outlined">
-                  <CardContent sx={{ p: 1.5, display: "grid", gap: 0.5 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                      <Typography sx={{ fontWeight: 800 }}>{item.title}</Typography>
-                      <Typography variant="caption" color="text.secondary">{dateTextShort(item.createdAt)}</Typography>
-                    </Box>
-                    <Typography variant="body2" color="text.secondary">{item.direction === "user" ? "User → Bot" : "Bot → User"} · {item.typeLabel || logEntryTypeLabel(item.type)}</Typography>
-                    <Typography variant="body2">{friendlyDetailText(item.detail)}</Typography>
-                  </CardContent>
-                </Card>
+                <MobileListCard
+                  key={item.id}
+                  title={item.fullName || item.username || "Khách"}
+                  meta={`${item.userId || "-"} · ${item.title}`}
+                  metaSecondary={`${item.direction === "user" ? "User → Bot" : "Bot → User"} · ${item.typeLabel || logEntryTypeLabel(item.type)}`}
+                  status={<Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>{dateTextMobileCompact(item.createdAt)}</Typography>}
+                  detail={friendlyDetailText(item.detail)}
+                />
               ))}
             </Stack>
             <Pagination page={logPage} totalPages={totalLogPages} totalItems={filteredActivityLog.length} onPage={setLogPage} label="event" />

@@ -257,6 +257,20 @@ export function dateTextShort(value: string | null | undefined) {
   return dateText(value);
 }
 
+export function dateTextMobileCompact(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = parseSafeDate(value);
+  if (!date) return displayText(value) || "-";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: VI_TIME_ZONE,
+  }).format(date);
+}
+
 export function dateTimePreviewText(value: string | null | undefined, fallback = "-") {
   if (!value) return fallback;
   return dateText(value.includes("T") ? `${value}:00` : value);
