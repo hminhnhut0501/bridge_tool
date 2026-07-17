@@ -26,7 +26,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { CheckCircle2, Loader2, Pencil, Save, Trash2, XCircle } from "lucide-react";
-import { type ReactNode, type RefObject, useId, useState, useEffect } from "react";
+import { type ReactNode, type RefObject, useId, useState, useEffect, useRef } from "react";
 import type { ConfigField } from "./dashboard-types";
 import type { Order, SupportMessage } from "@/lib/api";
 import { dateText, formatDisplayCurrency, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
@@ -158,6 +158,31 @@ export function SupportThreadPanel({
   emptyText?: string;
   bottomRef?: RefObject<HTMLDivElement | null>;
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const nearBottomRef = useRef(true);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const updateNearBottom = () => {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      nearBottomRef.current = distance < 96;
+    };
+    updateNearBottom();
+    el.addEventListener("scroll", updateNearBottom, { passive: true });
+    return () => el.removeEventListener("scroll", updateNearBottom);
+  }, []);
+
+  useEffect(() => {
+    if (!nearBottomRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const raf = window.requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [messages.length, loading]);
+
   return (
     <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(248,250,252,0.9)" }}>
       <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -172,6 +197,7 @@ export function SupportThreadPanel({
         ) : null}
       </Stack>
       <Box
+        ref={scrollRef}
         sx={{
           maxHeight: { xs: "48vh", md: "56vh" },
           overflowY: "auto",
@@ -187,6 +213,7 @@ export function SupportThreadPanel({
           messages.map((message) => {
             const direction = String(message.direction || "").toLowerCase();
             const isAdmin = direction.includes("manager") || direction.includes("bot") || direction.includes("admin");
+            const isOptimistic = Boolean((message as SupportMessage & { payload?: Record<string, unknown> }).payload?.optimistic) || String(message.id || "").startsWith("optimistic:");
             return (
               <Box key={message.id} sx={{ display: "flex", justifyContent: isAdmin ? "flex-end" : "flex-start" }}>
                 <Box
@@ -194,16 +221,34 @@ export function SupportThreadPanel({
                     maxWidth: { xs: "92%", md: "78%" },
                     px: 1.25,
                     py: 0.9,
-                    borderRadius: 3,
-                    bgcolor: isAdmin ? "rgba(37,99,235,0.10)" : "#f8fafc",
-                    border: "1px solid rgba(148,163,184,0.12)",
-                    boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                    borderRadius: isAdmin ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
+                    backgroundImage: isAdmin ? "linear-gradient(180deg, rgba(37,99,235,0.98) 0%, rgba(29,78,216,0.96) 100%)" : "none",
+                    bgcolor: isAdmin ? "transparent" : "#f8fafc",
+                    color: isAdmin ? "#fff" : "inherit",
+                    border: isAdmin ? "1px solid rgba(59,130,246,0.22)" : "1px solid rgba(148,163,184,0.12)",
+                    boxShadow: isAdmin ? "0 8px 24px rgba(37,99,235,0.16)" : "0 1px 0 rgba(15,23,42,0.03)",
+                    animation: messages[messages.length - 1]?.id === message.id ? "supportBubblePop 180ms ease-out" : "none",
+                    "@keyframes supportBubblePop": {
+                      "0%": { transform: "translateY(6px) scale(0.98)", opacity: 0.2 },
+                      "100%": { transform: "translateY(0) scale(1)", opacity: 1 },
+                    },
                   }}
                 >
+                  {isOptimistic ? (
+                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.45, mb: 0.25, fontSize: 10.2, fontWeight: 700, opacity: 0.9, color: isAdmin ? "rgba(255,255,255,0.82)" : "text.secondary" }}>
+                      <Box component="span" sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: isAdmin ? "rgba(255,255,255,0.82)" : "text.secondary", opacity: 0.8 }} />
+                      Đang gửi
+                    </Typography>
+                  ) : isAdmin ? (
+                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.45, mb: 0.25, fontSize: 10.1, fontWeight: 700, opacity: 0.78, color: "rgba(255,255,255,0.72)" }}>
+                      <Box component="span" sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: "rgba(255,255,255,0.72)" }} />
+                      Đã gửi
+                    </Typography>
+                  ) : null}
                   <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: isAdmin ? "right" : "left", fontSize: 10.5 }}>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.2, textAlign: isAdmin ? "right" : "left", fontSize: 9.8, lineHeight: 1.2, color: isAdmin ? "rgba(255,255,255,0.72)" : "text.secondary" }}>
                     {dateText(message.created_at)}
                   </Typography>
                 </Box>

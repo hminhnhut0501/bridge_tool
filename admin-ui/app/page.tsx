@@ -159,6 +159,7 @@ import {
   SaleRule,
   SupportCaseItem,
   SupportEvent,
+  SupportMessage,
   UserRow,
   WebhookInfo,
   WebhookInfoMeta,
@@ -3102,6 +3103,7 @@ export default function Home() {
   const [adminReplyThreadLoading, setAdminReplyThreadLoading] = useState(false);
   const [adminReplyThreadMessageLimit, setAdminReplyThreadMessageLimit] = useState(12);
   const [adminReplyText, setAdminReplyText] = useState("");
+  const [adminReplyOptimisticMessage, setAdminReplyOptimisticMessage] = useState<SupportMessage | null>(null);
   const adminReplyThreadBottomRef = useRef<HTMLDivElement | null>(null);
   const adminReplyStickToBottomRef = useRef(false);
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
@@ -4414,6 +4416,7 @@ export default function Home() {
       sourceText: entry.title || entry.detail || "",
     });
     setAdminReplyText("");
+    setAdminReplyOptimisticMessage(null);
     setAdminReplyThread(null);
     setAdminReplyThreadMessageLimit(12);
     adminReplyStickToBottomRef.current = true;
@@ -4440,6 +4443,20 @@ export default function Home() {
       return;
     }
     await runAction("admin-reply", async () => {
+      const optimisticMessage: SupportMessage = {
+        id: `optimistic:${Date.now()}`,
+        ticket_id: adminReplyThread?.ticket?.id || adminReplyTarget.id,
+        direction: "manager",
+        telegram_message_id: null,
+        manager_group_message_id: null,
+        manager_topic_message_id: null,
+        reply_to_manager_message_id: null,
+        text,
+        payload: { optimistic: true },
+        created_at: new Date().toISOString(),
+      };
+      setAdminReplyOptimisticMessage(optimisticMessage);
+      adminReplyStickToBottomRef.current = true;
       await sendAdminReply(savedSecret, {
         telegram_user_id: adminReplyTarget.userId,
         text,
@@ -4448,9 +4465,9 @@ export default function Home() {
         full_name: adminReplyTarget.fullName,
       });
       setAdminReplyText("");
-      adminReplyStickToBottomRef.current = true;
       const res = await getSupportCases(savedSecret, adminReplyTarget.userId, 1, "", adminReplyThreadMessageLimit);
       setAdminReplyThread(res.data?.[0] || null);
+      setAdminReplyOptimisticMessage(null);
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
     });
@@ -6351,18 +6368,27 @@ export default function Home() {
   const unreadSupportInboxCount = unreadSupportInboxItems.length;
 
   const adminReplyThreadMessages = useMemo(() => {
-    return [...(adminReplyThread?.messages || [])]
+    const messages = [...(adminReplyThread?.messages || [])]
       .sort((a, b) => (safeDateMillis(a.created_at) ?? 0) - (safeDateMillis(b.created_at) ?? 0));
-  }, [adminReplyThread]);
+    if (adminReplyOptimisticMessage) {
+      const optimisticKey = adminReplyOptimisticMessage.id;
+      const duplicate = messages.some((item) => item.id === optimisticKey || (item.direction === "manager" && item.text === adminReplyOptimisticMessage.text && Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(adminReplyOptimisticMessage.created_at) ?? 0)) < 60000));
+      if (!duplicate) messages.push(adminReplyOptimisticMessage);
+    }
+    return messages;
+  }, [adminReplyOptimisticMessage, adminReplyThread]);
 
   useEffect(() => {
     if (!adminReplyOpen) return;
     if (!adminReplyThreadMessages.length) return;
     if (!adminReplyStickToBottomRef.current) return;
-    window.requestAnimationFrame(() => {
-      adminReplyThreadBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        adminReplyThreadBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      });
     });
     adminReplyStickToBottomRef.current = false;
+    return () => window.cancelAnimationFrame(raf);
   }, [adminReplyOpen, adminReplyThreadMessages.length]);
 
   const markAllNotificationsRead = useCallback(() => {
