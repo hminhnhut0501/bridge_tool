@@ -129,7 +129,7 @@ import {
   uniqueValues,
 } from "./dashboard-helpers";
 import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig, isGroupConfigured, orderStats, canonicalConfigKey, type GroupMode } from "./dashboard-business";
-import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, PanelHead, SimpleTable as MuiSimpleTable, statusChipSx } from "./dashboard-components";
+import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, PanelHead, SimpleTable as MuiSimpleTable, SupportThreadPanel, statusChipSx } from "./dashboard-components";
 import { Metric } from "./metric-card";
 import { TrendChart as MuiTrendChart } from "./dashboard-components";
 import type { OrderPeriod } from "./dashboard-types";
@@ -9455,72 +9455,16 @@ export default function Home() {
         {adminReplyOpen && adminReplyTarget ? (
           <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="md">
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-              <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(248,250,252,0.9)" }}>
-                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                  <Typography sx={{ fontWeight: 800 }}>Chat thread</Typography>
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={loadAdminReplyThreadMore}
-                    disabled={adminReplyThreadLoading}
-                    sx={{ fontWeight: 800 }}
-                  >
-                    {adminReplyThreadLoading ? "Đang tải..." : "Tải thêm tin cũ"}
-                  </Button>
-                </Stack>
-                <Box
-                  sx={{
-                    maxHeight: { xs: "48vh", md: "56vh" },
-                    overflowY: "auto",
-                    pr: 0.5,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 1,
-                  }}
-                >
-                  {adminReplyThreadLoading && !adminReplyThreadMessages.length ? (
-                    <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
-                  ) : adminReplyThreadMessages.length ? (
-                    adminReplyThreadMessages.map((message) => {
-                      const direction = String(message.direction || "").toLowerCase();
-                      const isAdmin = direction.includes("manager") || direction.includes("bot") || direction.includes("admin");
-                      return (
-                        <Box
-                          key={message.id}
-                          sx={{
-                            display: "flex",
-                            justifyContent: isAdmin ? "flex-end" : "flex-start",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              maxWidth: { xs: "92%", md: "78%" },
-                              px: 1.25,
-                              py: 0.9,
-                              borderRadius: 3,
-                              bgcolor: isAdmin ? "rgba(37,99,235,0.10)" : "#f8fafc",
-                              border: "1px solid rgba(148,163,184,0.12)",
-                              boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
-                            }}
-                          >
-                            <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                              {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: isAdmin ? "right" : "left", fontSize: 10.5 }}>
-                              {dateText(message.created_at)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      );
-                    })
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
-                    </Typography>
-                  )}
-                  <div ref={adminReplyThreadBottomRef} />
-                </Box>
-              </Box>
+              <SupportThreadPanel
+                title="Chat thread"
+                threadLabel={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`}
+                messages={adminReplyThreadMessages}
+                loading={adminReplyThreadLoading}
+                onLoadMore={loadAdminReplyThreadMore}
+                loadMoreLabel="Tải thêm tin cũ"
+                emptyText={`Tin gần nhất: ${adminReplyTarget.sourceText || "Không có nội dung tin gốc."}`}
+                bottomRef={adminReplyThreadBottomRef}
+              />
               <TextField
                 autoFocus
                 label="Nội dung trả lời"

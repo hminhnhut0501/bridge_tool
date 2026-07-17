@@ -26,9 +26,9 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { CheckCircle2, Loader2, Pencil, Save, Trash2, XCircle } from "lucide-react";
-import { type ReactNode, useId, useState, useEffect } from "react";
+import { type ReactNode, type RefObject, useId, useState, useEffect } from "react";
 import type { ConfigField } from "./dashboard-types";
-import type { Order } from "@/lib/api";
+import type { Order, SupportMessage } from "@/lib/api";
 import { dateText, formatDisplayCurrency, orderMoney, orderStatusLabel, tooltipLabel } from "./dashboard-helpers";
 import { styleGuide } from "./style-guide";
 
@@ -137,6 +137,86 @@ export function AppSection({ title, subtitle, action, children, compact = false,
 
 export function AppDialog(props: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: "sm" | "md" | "lg" | "xl" }) {
   return <MuiDialogShell {...props} />;
+}
+
+export function SupportThreadPanel({
+  title = "Chat thread",
+  threadLabel,
+  messages,
+  loading = false,
+  onLoadMore,
+  loadMoreLabel = "Tải thêm tin cũ",
+  emptyText = "Tin gần nhất không có dữ liệu.",
+  bottomRef,
+}: {
+  title?: string;
+  threadLabel?: ReactNode;
+  messages: SupportMessage[];
+  loading?: boolean;
+  onLoadMore?: () => void;
+  loadMoreLabel?: string;
+  emptyText?: string;
+  bottomRef?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(248,250,252,0.9)" }}>
+      <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>{title}</Typography>
+          {threadLabel ? <Typography variant="caption" color="text.secondary">{threadLabel}</Typography> : null}
+        </Box>
+        {onLoadMore ? (
+          <Button variant="text" size="small" onClick={onLoadMore} disabled={loading} sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>
+            {loading ? "Đang tải..." : loadMoreLabel}
+          </Button>
+        ) : null}
+      </Stack>
+      <Box
+        sx={{
+          maxHeight: { xs: "48vh", md: "56vh" },
+          overflowY: "auto",
+          pr: 0.5,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        {loading && !messages.length ? (
+          <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
+        ) : messages.length ? (
+          messages.map((message) => {
+            const direction = String(message.direction || "").toLowerCase();
+            const isAdmin = direction.includes("manager") || direction.includes("bot") || direction.includes("admin");
+            return (
+              <Box key={message.id} sx={{ display: "flex", justifyContent: isAdmin ? "flex-end" : "flex-start" }}>
+                <Box
+                  sx={{
+                    maxWidth: { xs: "92%", md: "78%" },
+                    px: 1.25,
+                    py: 0.9,
+                    borderRadius: 3,
+                    bgcolor: isAdmin ? "rgba(37,99,235,0.10)" : "#f8fafc",
+                    border: "1px solid rgba(148,163,184,0.12)",
+                    boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: isAdmin ? "right" : "left", fontSize: 10.5 }}>
+                    {dateText(message.created_at)}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })
+        ) : (
+          <Typography variant="body2" color="text.secondary">{emptyText}</Typography>
+        )}
+        <div ref={bottomRef} />
+      </Box>
+    </Box>
+  );
 }
 
 export function TrendChart({
