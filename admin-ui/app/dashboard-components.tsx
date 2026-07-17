@@ -235,20 +235,20 @@ export function SupportThreadPanel({
                   }}
                 >
                   {isOptimistic ? (
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.45, mb: 0.25, fontSize: 10.2, fontWeight: 700, opacity: 0.9, color: isAdmin ? "rgba(255,255,255,0.82)" : "text.secondary" }}>
-                      <Box component="span" sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: isAdmin ? "rgba(255,255,255,0.82)" : "text.secondary", opacity: 0.8 }} />
+                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.4, mb: 0.15, fontSize: 9.6, fontWeight: 700, opacity: 0.88, color: isAdmin ? "rgba(255,255,255,0.78)" : "text.secondary" }}>
+                      <Loader2 size={10} className="spin" />
                       Đang gửi
                     </Typography>
                   ) : isAdmin ? (
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.45, mb: 0.25, fontSize: 10.1, fontWeight: 700, opacity: 0.78, color: "rgba(255,255,255,0.72)" }}>
-                      <Box component="span" sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: "rgba(255,255,255,0.72)" }} />
+                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.35, mb: 0.15, fontSize: 9.5, fontWeight: 700, opacity: 0.75, color: "rgba(255,255,255,0.7)" }}>
+                      <CheckCircle2 size={10} />
                       Đã gửi
                     </Typography>
                   ) : null}
                   <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
                   </Typography>
-                  <Typography variant="caption" sx={{ display: "block", mt: 0.2, textAlign: isAdmin ? "right" : "left", fontSize: 9.8, lineHeight: 1.2, color: isAdmin ? "rgba(255,255,255,0.72)" : "text.secondary" }}>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.1, textAlign: isAdmin ? "right" : "left", fontSize: 9.2, lineHeight: 1.1, color: isAdmin ? "rgba(255,255,255,0.68)" : "text.secondary" }}>
                     {dateText(message.created_at)}
                   </Typography>
                 </Box>

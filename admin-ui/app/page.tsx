@@ -3104,6 +3104,7 @@ export default function Home() {
   const [adminReplyThreadMessageLimit, setAdminReplyThreadMessageLimit] = useState(12);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [adminReplyOptimisticMessage, setAdminReplyOptimisticMessage] = useState<SupportMessage | null>(null);
+  const adminReplyFallbackTimerRef = useRef<number | null>(null);
   const adminReplyThreadBottomRef = useRef<HTMLDivElement | null>(null);
   const adminReplyStickToBottomRef = useRef(false);
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
@@ -4417,6 +4418,10 @@ export default function Home() {
     });
     setAdminReplyText("");
     setAdminReplyOptimisticMessage(null);
+    if (adminReplyFallbackTimerRef.current) {
+      window.clearTimeout(adminReplyFallbackTimerRef.current);
+      adminReplyFallbackTimerRef.current = null;
+    }
     setAdminReplyThread(null);
     setAdminReplyThreadMessageLimit(12);
     adminReplyStickToBottomRef.current = true;
@@ -4443,6 +4448,10 @@ export default function Home() {
       return;
     }
     await runAction("admin-reply", async () => {
+      if (adminReplyFallbackTimerRef.current) {
+        window.clearTimeout(adminReplyFallbackTimerRef.current);
+        adminReplyFallbackTimerRef.current = null;
+      }
       const optimisticMessage: SupportMessage = {
         id: `optimistic:${Date.now()}`,
         ticket_id: adminReplyThread?.ticket?.id || adminReplyTarget.id,
@@ -4457,6 +4466,12 @@ export default function Home() {
       };
       setAdminReplyOptimisticMessage(optimisticMessage);
       adminReplyStickToBottomRef.current = true;
+      console.info("[admin-reply] send start", {
+        userId: adminReplyTarget.userId,
+        sourceLogId: adminReplyTarget.id,
+        messageId: optimisticMessage.id,
+        preview: text.slice(0, 80),
+      });
       await sendAdminReply(savedSecret, {
         telegram_user_id: adminReplyTarget.userId,
         text,
@@ -4464,10 +4479,23 @@ export default function Home() {
         source_text: adminReplyTarget.sourceText,
         full_name: adminReplyTarget.fullName,
       });
+      console.info("[admin-reply] send posted, waiting for thread confirm", {
+        userId: adminReplyTarget.userId,
+        messageId: optimisticMessage.id,
+      });
+      adminReplyFallbackTimerRef.current = window.setTimeout(() => {
+        setAdminReplyOptimisticMessage((current) => {
+          if (!current || current.id !== optimisticMessage.id) return current;
+          console.warn("[admin-reply] confirm timeout fallback", {
+            userId: adminReplyTarget.userId,
+            messageId: optimisticMessage.id,
+          });
+          return { ...current, payload: { ...(current.payload || {}), optimistic: false, pending: false, timeoutFallback: true, confirmed: false }, telegram_message_id: current.telegram_message_id ?? null };
+        });
+      }, 8000);
       setAdminReplyText("");
       const res = await getSupportCases(savedSecret, adminReplyTarget.userId, 1, "", adminReplyThreadMessageLimit);
       setAdminReplyThread(res.data?.[0] || null);
-      setAdminReplyOptimisticMessage(null);
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
     });
@@ -6377,6 +6405,38 @@ export default function Home() {
     }
     return messages;
   }, [adminReplyOptimisticMessage, adminReplyThread]);
+
+  useEffect(() => {
+    if (!adminReplyOptimisticMessage) return;
+    const messages = adminReplyThread?.messages || [];
+    const confirmed = messages.some((item) => {
+      if (item.id === adminReplyOptimisticMessage.id) return true;
+      const sameDirection = String(item.direction || "").toLowerCase().includes("manager");
+      const sameText = String(item.text || "").trim() === String(adminReplyOptimisticMessage.text || "").trim();
+      const closeTime = Math.abs((safeDateMillis(item.created_at) ?? 0) - (safeDateMillis(adminReplyOptimisticMessage.created_at) ?? 0)) < 120000;
+      return sameDirection && sameText && closeTime;
+    });
+    if (confirmed) {
+      if (adminReplyFallbackTimerRef.current) {
+        window.clearTimeout(adminReplyFallbackTimerRef.current);
+        adminReplyFallbackTimerRef.current = null;
+      }
+      console.info("[admin-reply] thread confirmed", {
+        userId: adminReplyTarget?.userId,
+        messageId: adminReplyOptimisticMessage.id,
+      });
+      setAdminReplyOptimisticMessage(null);
+    }
+  }, [adminReplyOptimisticMessage, adminReplyThread]);
+
+  useEffect(() => {
+    return () => {
+      if (adminReplyFallbackTimerRef.current) {
+        window.clearTimeout(adminReplyFallbackTimerRef.current);
+        adminReplyFallbackTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!adminReplyOpen) return;
