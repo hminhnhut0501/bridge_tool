@@ -977,11 +977,12 @@ export async function getSupportEvents(secret: string, limit = 1000) {
   return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
 }
 
-export async function getSupportCases(secret: string, query = "", limit = 20, status = "") {
+export async function getSupportCases(secret: string, query = "", limit = 20, status = "", messageLimit = 20) {
   const params = new URLSearchParams({
     query,
     limit: String(limit),
     status,
+    message_limit: String(messageLimit),
   });
   return request<{ data: SupportCaseItem[] }>(`/admin-api/support-cases?${params.toString()}`, secret);
 }

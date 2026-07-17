@@ -2596,9 +2596,10 @@ async def admin_customer_identity_history(telegram_user_id: str, limit: int = 50
 
 
 @app.get("/admin-api/support-cases", dependencies=[Depends(require_admin)])
-async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""):
+async def admin_support_cases(query: str = "", limit: int = 20, status: str = "", message_limit: int = 20):
     try:
         safe_limit = max(1, min(int(limit or 20), 50))
+        safe_message_limit = max(1, min(int(message_limit or 20), 200))
         normalized_status = str(status or "").strip().lower()
         if normalized_status not in {"open", "closed"}:
             normalized_status = ""
@@ -2611,7 +2612,7 @@ async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""
             rows = [row for row in rows if str(row.get("status") or "").strip().lower() == normalized_status]
         data = []
         for row in rows:
-            messages = supabase_store.list_support_messages(row.get("id"), limit=20)
+            messages = supabase_store.list_support_messages(row.get("id"), limit=safe_message_limit)
             data.append({"ticket": row, "messages": messages})
         return {"data": data}
     except Exception as exc:

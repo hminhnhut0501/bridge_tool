@@ -3100,8 +3100,10 @@ export default function Home() {
   const [adminReplyTarget, setAdminReplyTarget] = useState<{ id: string; userId: string; fullName: string; username: string; sourceText: string } | null>(null);
   const [adminReplyThread, setAdminReplyThread] = useState<SupportCaseItem | null>(null);
   const [adminReplyThreadLoading, setAdminReplyThreadLoading] = useState(false);
-  const [adminReplyVisibleMessages, setAdminReplyVisibleMessages] = useState(5);
+  const [adminReplyThreadMessageLimit, setAdminReplyThreadMessageLimit] = useState(12);
   const [adminReplyText, setAdminReplyText] = useState("");
+  const adminReplyThreadBottomRef = useRef<HTMLDivElement | null>(null);
+  const adminReplyStickToBottomRef = useRef(false);
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
@@ -4413,12 +4415,13 @@ export default function Home() {
     });
     setAdminReplyText("");
     setAdminReplyThread(null);
-    setAdminReplyVisibleMessages(5);
+    setAdminReplyThreadMessageLimit(12);
+    adminReplyStickToBottomRef.current = true;
     setAdminReplyOpen(true);
     void (async () => {
       setAdminReplyThreadLoading(true);
       try {
-        const res = await getSupportCases(savedSecret, entry.userId, 1);
+        const res = await getSupportCases(savedSecret, entry.userId, 1, "", 12);
         setAdminReplyThread(res.data?.[0] || null);
       } catch (err) {
         console.warn("⚠️ Không tải được thread support:", err);
@@ -4444,12 +4447,29 @@ export default function Home() {
         source_text: adminReplyTarget.sourceText,
         full_name: adminReplyTarget.fullName,
       });
-      setAdminReplyOpen(false);
-      setAdminReplyTarget(null);
       setAdminReplyText("");
+      adminReplyStickToBottomRef.current = true;
+      const res = await getSupportCases(savedSecret, adminReplyTarget.userId, 1, "", adminReplyThreadMessageLimit);
+      setAdminReplyThread(res.data?.[0] || null);
       const supportRes = await getSupportEvents(savedSecret);
       setSupportEvents(supportRes.data || []);
     });
+  }
+
+  async function loadAdminReplyThreadMore() {
+    if (!adminReplyTarget || !savedSecret || adminReplyThreadLoading) return;
+    const nextLimit = Math.min(adminReplyThreadMessageLimit + 12, 200);
+    setAdminReplyThreadMessageLimit(nextLimit);
+    adminReplyStickToBottomRef.current = false;
+    setAdminReplyThreadLoading(true);
+    try {
+      const res = await getSupportCases(savedSecret, adminReplyTarget.userId, 1, "", nextLimit);
+      setAdminReplyThread(res.data?.[0] || null);
+    } catch (err) {
+      console.warn("⚠️ Không tải thêm thread support:", err);
+    } finally {
+      setAdminReplyThreadLoading(false);
+    }
   }
 
   function resetMenuForm() {
@@ -6329,6 +6349,21 @@ export default function Home() {
   }, [supportInboxItems, supportInboxSeenIds]);
 
   const unreadSupportInboxCount = unreadSupportInboxItems.length;
+
+  const adminReplyThreadMessages = useMemo(() => {
+    return [...(adminReplyThread?.messages || [])]
+      .sort((a, b) => (safeDateMillis(a.created_at) ?? 0) - (safeDateMillis(b.created_at) ?? 0));
+  }, [adminReplyThread]);
+
+  useEffect(() => {
+    if (!adminReplyOpen) return;
+    if (!adminReplyThreadMessages.length) return;
+    if (!adminReplyStickToBottomRef.current) return;
+    window.requestAnimationFrame(() => {
+      adminReplyThreadBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+    adminReplyStickToBottomRef.current = false;
+  }, [adminReplyOpen, adminReplyThreadMessages.length]);
 
   const markAllNotificationsRead = useCallback(() => {
     setNotificationSeenIds((current) => {
@@ -9418,72 +9453,73 @@ export default function Home() {
         ) : null}
 
         {adminReplyOpen && adminReplyTarget ? (
-          <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="sm">
-            <Box sx={{ display: "grid", gap: 1.25 }}>
-              <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(59,130,246,0.04)" }}>
-                <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Chuỗi tin nhắn gần nhất</Typography>
-                {adminReplyThreadLoading ? (
-                  <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
-                ) : adminReplyThread?.messages?.length ? (
-                  <Stack spacing={0.65} sx={{ maxHeight: 320, overflowY: "auto", pr: 0.5 }}>
-                    {adminReplyThread.messages.slice(Math.max(0, adminReplyThread.messages.length - adminReplyVisibleMessages)).map((message) => {
-                      const isAdmin = String(message.direction || "").toLowerCase().includes("manager") || String(message.direction || "").toLowerCase().includes("bot");
-                      const bubbleSx = isAdmin
-                        ? {
-                            alignSelf: "flex-end",
-                            bgcolor: "rgba(37,99,235,0.10)",
-                            color: "rgb(15,23,42)",
-                            borderTopRightRadius: 1.5,
-                            borderTopLeftRadius: 3,
-                          }
-                        : {
-                            alignSelf: "flex-start",
-                            bgcolor: "#f8fafc",
-                            color: "rgb(15,23,42)",
-                            borderTopLeftRadius: 1.5,
-                            borderTopRightRadius: 3,
-                          };
+          <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="md">
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+              <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(248,250,252,0.9)" }}>
+                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                  <Typography sx={{ fontWeight: 800 }}>Chat thread</Typography>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={loadAdminReplyThreadMore}
+                    disabled={adminReplyThreadLoading}
+                    sx={{ fontWeight: 800 }}
+                  >
+                    {adminReplyThreadLoading ? "Đang tải..." : "Tải thêm tin cũ"}
+                  </Button>
+                </Stack>
+                <Box
+                  sx={{
+                    maxHeight: { xs: "48vh", md: "56vh" },
+                    overflowY: "auto",
+                    pr: 0.5,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1,
+                  }}
+                >
+                  {adminReplyThreadLoading && !adminReplyThreadMessages.length ? (
+                    <Typography variant="body2" color="text.secondary">Đang tải lịch sử hỗ trợ...</Typography>
+                  ) : adminReplyThreadMessages.length ? (
+                    adminReplyThreadMessages.map((message) => {
+                      const direction = String(message.direction || "").toLowerCase();
+                      const isAdmin = direction.includes("manager") || direction.includes("bot") || direction.includes("admin");
                       return (
                         <Box
                           key={message.id}
                           sx={{
-                            ...bubbleSx,
-                            maxWidth: "86%",
-                            px: 1.15,
-                            py: 0.85,
-                            borderRadius: 2.5,
-                            boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
-                            border: "1px solid rgba(148,163,184,0.10)",
-                            whiteSpace: "normal",
+                            display: "flex",
+                            justifyContent: isAdmin ? "flex-end" : "flex-start",
                           }}
                         >
-                          <Typography sx={{ fontSize: 13.25, lineHeight: 1.42, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                            {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: "right", fontSize: 10.5 }}>
-                            {dateText(message.created_at)}
-                          </Typography>
+                          <Box
+                            sx={{
+                              maxWidth: { xs: "92%", md: "78%" },
+                              px: 1.25,
+                              py: 0.9,
+                              borderRadius: 3,
+                              bgcolor: isAdmin ? "rgba(37,99,235,0.10)" : "#f8fafc",
+                              border: "1px solid rgba(148,163,184,0.12)",
+                              boxShadow: "0 1px 0 rgba(15,23,42,0.03)",
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                              {message.text || (isAdmin ? "Tin nhắn admin" : "Tin nhắn khách")}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4, textAlign: isAdmin ? "right" : "left", fontSize: 10.5 }}>
+                              {dateText(message.created_at)}
+                            </Typography>
+                          </Box>
                         </Box>
                       );
-                    })}
-                    <Stack direction="row" spacing={1} sx={{ justifyContent: "center", pt: 0.25 }}>
-                      {adminReplyThread.messages.length > adminReplyVisibleMessages ? (
-                        <Button
-                          variant="text"
-                          size="small"
-                          onClick={() => setAdminReplyVisibleMessages((current) => Math.min(current + 5, adminReplyThread.messages.length))}
-                          sx={{ fontWeight: 800 }}
-                        >
-                          Tải thêm tin cũ hơn
-                        </Button>
-                      ) : null}
-                    </Stack>
-                  </Stack>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
-                  </Typography>
-                )}
+                    })
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Tin gần nhất: {adminReplyTarget.sourceText || "Không có nội dung tin gốc."}
+                    </Typography>
+                  )}
+                  <div ref={adminReplyThreadBottomRef} />
+                </Box>
               </Box>
               <TextField
                 autoFocus
