@@ -151,6 +151,8 @@ class SupabaseStore:
             "broadcast_campaigns": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_CAMPAIGNS", "20")),
             "broadcast_recipients": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_RECIPIENTS", "20")),
             "channel_posts": int(os.getenv("SUPABASE_CACHE_TTL_CHANNEL_POSTS", "20")),
+            "support_tickets": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_TICKETS", "30")),
+            "support_messages": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_MESSAGES", "30")),
         }
 
     @property
@@ -236,6 +238,11 @@ class SupabaseStore:
             return value
         self._short_cache[key] = (time.time() + ttl_seconds, copy.deepcopy(value))
         return value
+
+    def _invalidate_table_cache(self, table):
+        for key in list(self._short_cache):
+            if len(key) > 1 and key[1] == table:
+                self._short_cache.pop(key, None)
 
     def _table_ttl(self, table, ttl=None):
         if ttl is not None:
@@ -595,7 +602,7 @@ class SupabaseStore:
         return list(users.values())
 
     def get_config(self):
-        return self._request("GET", "bot_config", params={"select": "*", "order": "key.asc"})
+        return self._cached_request("GET", "bot_config", params={"select": "*", "order": "key.asc"}, ttl=60)
 
     def set_config(self, key, value):
         normalized_key = _clean_text(key).upper()
@@ -608,6 +615,7 @@ class SupabaseStore:
             json=payload,
             prefer="resolution=merge-duplicates,return=representation",
         )
+        self._invalidate_table_cache("bot_config")
         try:
             from helpers import invalidate_bot_runtime_state_cache
 
@@ -634,6 +642,7 @@ class SupabaseStore:
             json=payload,
             prefer="resolution=merge-duplicates,return=representation",
         )
+        self._invalidate_table_cache("bot_config")
         try:
             from helpers import invalidate_bot_runtime_state_cache
 
@@ -1405,7 +1414,7 @@ class SupabaseStore:
         params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
         if status:
             params["status"] = f"eq.{_clean_text(status)}"
-        return self._request("GET", "support_tickets", params=params)
+        return self._cached_request("GET", "support_tickets", params=params)
 
     def search_support_tickets(self, query, limit=20):
         raw = _clean_text(query)
@@ -1466,7 +1475,7 @@ class SupabaseStore:
         return rows[0] if rows else None
 
     def list_support_messages(self, ticket_id, limit=50):
-        rows = self._request(
+        rows = self._cached_request(
             "GET",
             "support_messages",
             params={
@@ -1477,6 +1486,18 @@ class SupabaseStore:
             },
         )
         return rows
+
+    def list_support_messages_for_tickets(self, ticket_ids, limit=50):
+        ids = [_clean_text(ticket_id) for ticket_id in ticket_ids or [] if _clean_text(ticket_id)]
+        if not ids:
+            return []
+        params = {
+            "select": "*",
+            "ticket_id": f"in.({','.join(ids)})",
+            "order": "created_at.asc",
+            "limit": str(max(1, min(int(limit or 50) * len(ids), 1000))),
+        }
+        return self._cached_request("GET", "support_messages", params=params)
 
     def get_user_identity(self, telegram_user_id):
         user_id = _clean_text(telegram_user_id)
@@ -2314,10 +2335,10 @@ class SupabaseStore:
             return self._request(method, "channel_posts", params=params, json=legacy_payload, prefer=prefer)
 
     def list_channel_posts(self, limit=200, status=None):
-        params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
+        params = {"select": "*", "order": "updated_at.desc", "limit": str(min(int(limit or 200), 100))}
         if status:
             params["status"] = f"eq.{_clean_text(status).lower()}"
-        return self._request("GET", "channel_posts", params=params)
+        return self._cached_request("GET", "channel_posts", params=params, ttl=60)
 
     def get_channel_post(self, post_id):
         rows = self._request(

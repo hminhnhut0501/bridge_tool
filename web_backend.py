@@ -2610,10 +2610,17 @@ async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""
         )
         if normalized_status and str(query or "").strip():
             rows = [row for row in rows if str(row.get("status") or "").strip().lower() == normalized_status]
-        data = []
-        for row in rows:
-            messages = supabase_store.list_support_messages(row.get("id"), limit=safe_message_limit)
-            data.append({"ticket": row, "messages": messages})
+        message_rows = supabase_store.list_support_messages_for_tickets(
+            [row.get("id") for row in rows],
+            limit=safe_message_limit,
+        )
+        messages_by_ticket = {}
+        for message in message_rows:
+            messages_by_ticket.setdefault(str(message.get("ticket_id") or ""), []).append(message)
+        data = [
+            {"ticket": row, "messages": messages_by_ticket.get(str(row.get("id") or ""), [])[-safe_message_limit:]}
+            for row in rows
+        ]
         return {"data": data}
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "support_tickets"):
