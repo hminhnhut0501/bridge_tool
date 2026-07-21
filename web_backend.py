@@ -2368,6 +2368,32 @@ async def admin_create_license(request: Request):
     return {"data": data}
 
 
+@app.get("/admin-api/licenses", dependencies=[Depends(require_admin)])
+async def admin_list_licenses(limit: int = 200):
+    return {"data": supabase_store.list_license_records(limit=limit)}
+
+
+@app.patch("/admin-api/licenses/{license_key}", dependencies=[Depends(require_admin)])
+async def admin_update_license(license_key: str, request: Request):
+    body = await request.json()
+    return {"data": supabase_store.update_license_record(license_key, body)}
+
+
+@app.get("/admin-api/license-sessions", dependencies=[Depends(require_admin)])
+async def admin_list_license_sessions(limit: int = 200):
+    return {"data": supabase_store.list_license_sessions(limit=limit)}
+
+
+@app.get("/admin-api/license-audits", dependencies=[Depends(require_admin)])
+async def admin_list_license_audits(limit: int = 500):
+    rows = supabase_store._request(
+        "GET",
+        "license_audit_events",
+        params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+    )
+    return {"data": rows}
+
+
 @app.post("/license/verify")
 async def verify_license(request: Request):
     if not license_flow_enabled():

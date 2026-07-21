@@ -153,6 +153,9 @@ import {
   BlacklistEntry,
   Coupon,
   KickAuditRow,
+  LicenseRecord,
+  LicenseSession,
+  LicenseAuditEvent,
   ManualOrderResult,
   MenuPage,
   Order,
@@ -197,6 +200,9 @@ import {
   getAdminNotifications,
   getActivationCodes,
   getCoupons,
+  getLicenses,
+  getLicenseSessions,
+  getLicenseAudits,
   getHiddenCodes,
   getHiddenGroups,
   getHiddenRedemptions,
@@ -629,7 +635,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system" | "license";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "groupReplies" | "alerts";
@@ -1469,6 +1475,75 @@ const SYSTEM_FIELDS: ConfigField[] = [
     label: "Chu kỳ quét thông báo",
     placeholder: "20",
     help: "Số giây giữa mỗi lần quét thông báo nổi. Nên để ngắn để icon lên gần realtime mà vẫn nhẹ Render.",
+  },
+];
+
+const LICENSE_FIELDS: ConfigField[] = [
+  {
+    key: "LICENSE_FLOW_ENABLED",
+    label: "Bật license flow",
+    placeholder: "ON",
+    help: "Bật ON để bot nhận /start lic_... và verify qua web.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "LICENSE_VERIFY_REQUIRED",
+    label: "Bắt buộc verify signature",
+    placeholder: "ON",
+    help: "Bật ON để web chỉ chấp nhận verify có chữ ký hợp lệ từ bot.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "LICENSE_RENEWAL_ENABLED",
+    label: "Bật nhắc hạn license",
+    placeholder: "ON",
+    help: "Bật ON để scheduler gửi reminder/revoke cho license.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
+    key: "LICENSE_LINK_TEMPLATE",
+    label: "Template deep link license",
+    placeholder: "https://t.me/bot?start=lic_{code}",
+    help: "Dùng {code}. Đây là link deep link user bấm để kích hoạt license.",
+  },
+  {
+    key: "LICENSE_PLAN_MAPPING_JSON",
+    label: "Map plan -> group",
+    placeholder: '{"VIP_BASIC":{"groups":["group_a"],"duration_days":30,"allow_renew":true}}',
+    help: "JSON mapping plan_code sang group_ids, duration_days, allow_renew.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_LICENSE_REMINDER",
+    label: "Tin nhắc hạn license",
+    placeholder: "⏰ License <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa.",
+    help: "Biến hỗ trợ: {plan}, {days}, {date}.",
+    kind: "textarea",
+  },
+  {
+    key: "MSG_LICENSE_REVOKED",
+    label: "Tin thu hồi license",
+    placeholder: "⛔ License <b>{plan}</b> của bạn đã bị thu hồi.",
+    help: "Gửi khi license bị revoked.",
+    kind: "textarea",
+  },
+  {
+    key: "BTN_LICENSE_RENEW",
+    label: "Nút gia hạn license",
+    placeholder: "🔄 Gia hạn license",
+    help: "Text nút bấm trong reminder license.",
   },
 ];
 
@@ -3033,6 +3108,9 @@ export default function Home() {
   const [kickAudit, setKickAudit] = useState<KickAuditRow[]>([]);
   const [vipGroupAudit, setVipGroupAudit] = useState<VipGroupAuditRow[]>([]);
   const [vipMemberAudit, setVipMemberAudit] = useState<VipMemberAuditRow[]>([]);
+  const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
+  const [licenseSessions, setLicenseSessions] = useState<LicenseSession[]>([]);
+  const [licenseAudits, setLicenseAudits] = useState<LicenseAuditEvent[]>([]);
   const [vipMemberAuditRiskType, setVipMemberAuditRiskType] = useState<"ALL" | "NO_ORDER" | "EXPIRED_ORDER">("ALL");
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [dashboardOverview, setDashboardOverview] = useState<OverviewDashboard | null>(null);
@@ -3698,6 +3776,7 @@ export default function Home() {
       const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
       const needsSales = !light && shouldLoad("sales");
       const needsCoupons = !light && shouldLoad("overview", "coupons");
+      const needsLicense = !light && shouldLoad("license");
       const needsActivationCodes = !light && shouldLoad("activationCodes");
       const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
       const needsBlacklist = !light && shouldLoad("security");
@@ -3717,6 +3796,9 @@ export default function Home() {
       addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
       addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
       addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
+      addTask(needsLicense, () => getLicenses(activeSecret), setLicenses);
+      addTask(needsLicense, () => getLicenseSessions(activeSecret), setLicenseSessions);
+      addTask(needsLicense, () => getLicenseAudits(activeSecret), setLicenseAudits);
       addTask(needsActivationCodes, () => getActivationCodes(activeSecret), setActivationCodes);
       addTask(needsHidden, () => getHiddenGroups(activeSecret), setHiddenGroups);
       addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
@@ -7736,6 +7818,7 @@ export default function Home() {
               <Tab value="vipAudit" icon={<Users size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>VIP audit</span><Chip size="small" label={String(summaryCounts.blacklist)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="sales" icon={<BadgePercent size={16} />} iconPosition="start" label="Sale" />
               <Tab value="system" icon={<Settings size={16} />} iconPosition="start" label={ui("Hệ thống", "System")} />
+              <Tab value="license" icon={<ShieldCheck size={16} />} iconPosition="start" label={ui("License", "License")} />
             </Tabs>
           </Box>
         </Box>
@@ -8982,6 +9065,81 @@ export default function Home() {
             <section className="panel">
               <PanelHead title="Raw config" subtitle="Chỉ dùng khi cần kiểm tra sâu. Các form phía trên đã che key kỹ thuật." />
               <SimpleTable headers={["Tên kỹ thuật", "Giá trị"]} rows={config.map((item) => [item.key, item.value])} />
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "license" ? (
+          <div className="stack">
+            <section className="panel content-hub">
+              <PanelHead
+                title="License control center"
+                subtitle="Quản lý flow license, map plan -> group, template deep link và message mặc định."
+              />
+              <div className="grid" style={{ padding: "0 16px 16px" }}>
+                <Metric label="Licenses" value={String(licenses.length)} accent="blue" icon={<ShieldCheck size={16} />} />
+                <Metric label="Sessions" value={String(licenseSessions.length)} accent="cyan" icon={<Clock3 size={16} />} />
+                <Metric label="Audit logs" value={String(licenseAudits.length)} accent="emerald" icon={<ClipboardList size={16} />} />
+                <Metric label="Config keys" value={String(LICENSE_FIELDS.length)} accent="amber" icon={<Settings size={16} />} />
+              </div>
+              <Tabs value="config" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
+                <Tab value="config" label="Templates & mapping" />
+                <Tab value="records" label={`Records (${licenses.length})`} />
+                <Tab value="sessions" label={`Sessions (${licenseSessions.length})`} />
+                <Tab value="audits" label={`Audit (${licenseAudits.length})`} />
+              </Tabs>
+            </section>
+            <section className="panel">
+              <ConfigEditor
+                title="License templates & mapping"
+                subtitle="Chỉnh trực tiếp flow license: bật/tắt, deep link, JSON map plan -> groups và các message mặc định."
+                fields={LICENSE_FIELDS}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="License records" subtitle="Record chính từ bảng licenses." />
+              <SimpleTable
+                headers={["License", "Plan", "User", "Status", "Expire", "Source"]}
+                rows={licenses.map((item) => [
+                  item.license_key,
+                  item.plan_code,
+                  item.telegram_user_id,
+                  item.status,
+                  item.expires_at || "-",
+                  item.source,
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="License sessions" subtitle="Lượt verify / activate được bot ghi vào runtime." />
+              <SimpleTable
+                headers={["License", "User", "Plan", "Status", "Action", "Verified"]}
+                rows={licenseSessions.map((item) => [
+                  item.license_key,
+                  item.telegram_user_id,
+                  item.plan_code || "-",
+                  item.status,
+                  item.action,
+                  item.verified_at || item.created_at,
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="License audit" subtitle="Nhật ký license: verify, activate, expired, revoked, reminder." />
+              <SimpleTable
+                headers={["License", "User", "Event", "Plan", "Result", "Time"]}
+                rows={licenseAudits.map((item) => [
+                  item.license_key,
+                  item.telegram_user_id,
+                  item.event_type,
+                  item.plan_code || "-",
+                  item.result || "-",
+                  item.created_at,
+                ])}
+              />
             </section>
           </div>
         ) : null}

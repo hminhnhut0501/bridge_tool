@@ -42,6 +42,63 @@ export type ConfigRow = {
   updated_at: string;
 };
 
+export type LicenseRecord = {
+  id: string;
+  license_key: string;
+  order_id: string;
+  telegram_user_id: string;
+  full_name: string | null;
+  plan_code: string;
+  plan_slug: string | null;
+  status: string;
+  expires_at: string | null;
+  is_lifetime: boolean;
+  source: string;
+  activated_at: string | null;
+  last_verified_at: string | null;
+  revoked_at: string | null;
+  group_ids: string[] | null;
+  binding_state: string;
+  raw_data: Record<string, unknown>;
+  last_session_at?: string | null;
+  renew_reminder_sent_at?: string | null;
+  revoked_notice_sent_at?: string | null;
+  lifecycle_metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LicenseSession = {
+  id: string;
+  license_key: string;
+  telegram_user_id: string;
+  plan_code: string | null;
+  status: string;
+  action: string;
+  source: string;
+  request_payload: Record<string, unknown>;
+  response_payload: Record<string, unknown>;
+  raw_data: Record<string, unknown>;
+  verified_at: string | null;
+  activated_at: string | null;
+  expires_at: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LicenseAuditEvent = {
+  id: string;
+  license_key: string;
+  telegram_user_id: string;
+  event_type: string;
+  plan_code: string | null;
+  result: string;
+  source: string;
+  raw_data: Record<string, unknown>;
+  created_at: string;
+};
+
 export type MenuPage = {
   page_id: string;
   image_url: string | null;
@@ -767,6 +824,25 @@ export async function searchCustomers(secret: string, query: string, limit = 20)
 
 export async function getConfig(secret: string) {
   return request<{ data: ConfigRow[] }>("/admin-api/config", secret);
+}
+
+export async function getLicenses(secret: string, limit = 200) {
+  return request<{ data: LicenseRecord[] }>(`/admin-api/licenses?limit=${limit}`, secret);
+}
+
+export async function updateLicense(secret: string, licenseKey: string, payload: Record<string, unknown>) {
+  return request<{ data: LicenseRecord[] }>(`/admin-api/licenses/${encodeURIComponent(licenseKey)}`, secret, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getLicenseSessions(secret: string, limit = 200) {
+  return request<{ data: LicenseSession[] }>(`/admin-api/license-sessions?limit=${limit}`, secret);
+}
+
+export async function getLicenseAudits(secret: string, limit = 500) {
+  return request<{ data: LicenseAuditEvent[] }>(`/admin-api/license-audits?limit=${limit}`, secret);
 }
 
 export async function updateConfig(secret: string, key: string, value: string) {
