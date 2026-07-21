@@ -167,3 +167,29 @@ def test_start_activation_payload_bypasses_maintenance_gate():
 
     mod_general.deliver_activation_order.assert_awaited_once_with(message, "manual_123")
     message.answer.assert_not_awaited()
+
+
+def test_start_license_payload_uses_license_flow_before_maintenance():
+    message = SimpleNamespace(
+        text="/start lic_LIC-ABC1234",
+        from_user=SimpleNamespace(id=789, username="user789", full_name="User 789"),
+        chat=SimpleNamespace(id=789),
+        entities=[],
+        answer=AsyncMock(),
+    )
+
+    mod_general.db.reload_config = lambda force=False: None
+    mod_general.cleanup_welcome = AsyncMock()
+    mod_general.record_start_event = AsyncMock()
+    mod_general.deliver_license_activation = AsyncMock()
+    mod_general.check_protection = AsyncMock(return_value=True)
+    mod_general.send_sale_announcement = AsyncMock(return_value=False)
+    mod_general.render_page = AsyncMock(return_value=False)
+    mod_general.bot_unavailable_reason = lambda now=None: "maintenance"
+    mod_general.is_admin_user = lambda user_id: False
+
+    asyncio.run(mod_general.cmd_start(message))
+
+    mod_general.deliver_license_activation.assert_awaited_once_with(message, "LIC-ABC1234")
+    mod_general.deliver_activation_order.assert_not_awaited()
+    message.answer.assert_not_awaited()

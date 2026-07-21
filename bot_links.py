@@ -49,6 +49,6 @@ def normalize_bot_link_template(value, *, default_payload="act_{code}"):
                     template = f"{template}?{parsed.query}"
         if "?" not in template:
             template = f"{template}?start={default_payload}"
-    if "start=act_{code}" in template or "start={code}" in template:
-        template = template.replace("start={code}", "start=act_{code}")
+    if "start={code}" in template:
+        template = template.replace("start={code}", f"start={default_payload}")
     return template

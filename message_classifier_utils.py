@@ -57,6 +57,8 @@ def classify_private_message(message, *, coupon_prefixes=None):
             return {"kind": "other", "text": text, "code": payload[4:].strip(), "reason": "start_source"}
         if payload_lower.startswith("act_"):
             return {"kind": "activation", "text": text, "code": payload[4:].strip(), "reason": "start_activation"}
+        if payload_lower.startswith("lic_"):
+            return {"kind": "license", "text": text, "code": payload[4:].strip(), "reason": "start_license"}
         if payload:
             return {"kind": "activation", "text": text, "code": payload, "reason": "start_legacy_activation"}
         return {"kind": "other", "text": text, "code": "", "reason": "start_no_payload"}

@@ -29,6 +29,7 @@ from hidden_group_utils import (
     resolve_plan_groups,
     validate_hidden_code_for_user,
 )
+from license_utils import load_license_plan_mapping
 from i18n import get_user_language, localized_default, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
 from supabase_store import supabase_store
@@ -582,6 +583,16 @@ async def send_activation_group_options(message: Message, code, coupon):
 
 
 def resolve_groups(plan_name):
+    plan_code = str(plan_name or "").strip().upper()
+    mapping = load_license_plan_mapping(db)
+    if plan_code in mapping:
+        groups = []
+        for group_id in mapping[plan_code].groups:
+            gid = str(group_id or "").strip()
+            if gid:
+                groups.append((gid, plan_code))
+        if groups:
+            return groups
     return resolve_plan_groups(plan_name)
 
 

@@ -7,6 +7,12 @@ def test_classifier_detects_activation_payload():
     assert result["code"] == "SUP2026ABC"
 
 
+def test_classifier_detects_license_payload():
+    result = classify_message_text("/start lic_LIC-ABC1234")
+    assert result["kind"] == "license"
+    assert result["code"] == "LIC-ABC1234"
+
+
 def test_classifier_keeps_coupon_like_text_as_support():
     result = classify_message_text("HANGCU_DEMO123", coupon_prefixes=["HANGCU_"])
     assert result["kind"] == "coupon"

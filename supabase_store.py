@@ -148,6 +148,7 @@ class SupabaseStore:
             "analytics_events": int(os.getenv("SUPABASE_CACHE_TTL_ANALYTICS_EVENTS", "30")),
             "security_blacklist": int(os.getenv("SUPABASE_CACHE_TTL_BLACKLIST", "20")),
             "coupons": int(os.getenv("SUPABASE_CACHE_TTL_COUPONS", "20")),
+            "licenses": int(os.getenv("SUPABASE_CACHE_TTL_LICENSES", "20")),
             "broadcast_campaigns": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_CAMPAIGNS", "20")),
             "broadcast_recipients": int(os.getenv("SUPABASE_CACHE_TTL_BROADCAST_RECIPIENTS", "20")),
             "channel_posts": int(os.getenv("SUPABASE_CACHE_TTL_CHANNEL_POSTS", "20")),
@@ -990,6 +991,153 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def create_license_record(
+        self,
+        *,
+        license_key,
+        order_id,
+        telegram_user_id,
+        full_name,
+        plan_code,
+        plan_slug="",
+        status="issued",
+        expires_at=None,
+        is_lifetime=False,
+        source="web",
+        activated_at=None,
+        last_verified_at=None,
+        group_ids=None,
+        binding_state="unbound",
+        raw_data=None,
+    ):
+        payload = {
+            "license_key": _clean_text(license_key).upper(),
+            "order_id": _clean_text(order_id),
+            "telegram_user_id": _clean_text(telegram_user_id),
+            "full_name": _clean_text(full_name),
+            "plan_code": _clean_text(plan_code).upper(),
+            "plan_slug": _clean_text(plan_slug),
+            "status": _clean_text(status).lower() or "issued",
+            "is_lifetime": bool(is_lifetime),
+            "source": _clean_text(source).lower() or "web",
+            "binding_state": _clean_text(binding_state).lower() or "unbound",
+            "raw_data": raw_data or {},
+        }
+        if expires_at is not None:
+            payload["expires_at"] = _parse_datetime(expires_at) or expires_at
+        if activated_at is not None:
+            payload["activated_at"] = _parse_datetime(activated_at) or activated_at
+        if last_verified_at is not None:
+            payload["last_verified_at"] = _parse_datetime(last_verified_at) or last_verified_at
+        if group_ids is not None:
+            payload["group_ids"] = group_ids
+        return self._request(
+            "POST",
+            "licenses",
+            params={"on_conflict": "license_key"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def get_license_record(self, license_key):
+        rows = self._request(
+            "GET",
+            "licenses",
+            params={"select": "*", "license_key": f"eq.{_clean_text(license_key).upper()}", "limit": "1"},
+        )
+        return self._normalize_license_row(rows[0]) if rows else None
+
+    def get_license_record_by_order(self, order_id):
+        rows = self._request(
+            "GET",
+            "licenses",
+            params={"select": "*", "order_id": f"eq.{_clean_text(order_id)}", "limit": "1"},
+        )
+        return self._normalize_license_row(rows[0]) if rows else None
+
+    def list_license_records(self, limit=500):
+        rows = self._request(
+            "GET",
+            "licenses",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        return [self._normalize_license_row(row) for row in rows]
+
+    def update_license_record(self, license_key, raw):
+        payload = {}
+        if "status" in raw:
+            payload["status"] = _clean_text(raw.get("status")).lower() or "pending"
+        if "activated_at" in raw:
+            payload["activated_at"] = _parse_datetime(raw.get("activated_at")) or raw.get("activated_at")
+        if "last_verified_at" in raw:
+            payload["last_verified_at"] = _parse_datetime(raw.get("last_verified_at")) or raw.get("last_verified_at")
+        if "expires_at" in raw:
+            payload["expires_at"] = _parse_datetime(raw.get("expires_at")) or raw.get("expires_at")
+        if "is_lifetime" in raw:
+            payload["is_lifetime"] = bool(raw.get("is_lifetime"))
+        if "plan_code" in raw:
+            payload["plan_code"] = _clean_text(raw.get("plan_code")).upper()
+        if "plan_slug" in raw:
+            payload["plan_slug"] = _clean_text(raw.get("plan_slug"))
+        if "group_ids" in raw:
+            payload["group_ids"] = raw.get("group_ids")
+        if "binding_state" in raw:
+            payload["binding_state"] = _clean_text(raw.get("binding_state")).lower() or "unbound"
+        if "telegram_user_id" in raw:
+            payload["telegram_user_id"] = _clean_text(raw.get("telegram_user_id"))
+        if "full_name" in raw:
+            payload["full_name"] = _clean_text(raw.get("full_name"))
+        if "raw_data" in raw:
+            payload["raw_data"] = raw.get("raw_data")
+        if not payload:
+            return []
+        return self._request(
+            "PATCH",
+            "licenses",
+            params={"license_key": f"eq.{_clean_text(license_key).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def revoke_license_record(self, license_key, *, revoked_at=None, raw_data=None):
+        payload = {
+            "status": "revoked",
+        }
+        if revoked_at is not None:
+            payload["revoked_at"] = _parse_datetime(revoked_at) or revoked_at
+        if raw_data is not None:
+            payload["raw_data"] = raw_data
+        return self._request(
+            "PATCH",
+            "licenses",
+            params={"license_key": f"eq.{_clean_text(license_key).upper()}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def create_license_session(self, payload):
+        return self._request("POST", "license_sessions", json=payload, prefer="return=representation")
+
+    def update_license_session(self, session_id, payload):
+        return self._request(
+            "PATCH",
+            "license_sessions",
+            params={"id": f"eq.{_clean_text(session_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def list_license_sessions(self, limit=500):
+        rows = self._request(
+            "GET",
+            "license_sessions",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
+        )
+        return rows
+
+    def record_license_audit(self, payload):
+        return self._request("POST", "license_audit_events", json=payload, prefer="return=representation")
+
     def delete_order_activation_code(self, code):
         return self._request(
             "DELETE",
@@ -997,6 +1145,20 @@ class SupabaseStore:
             params={"code": f"eq.{_clean_text(code).upper()}"},
             prefer="return=representation",
         )
+
+    def _normalize_license_row(self, row):
+        data = dict(row or {})
+        status = _clean_text(data.get("status") or "issued").lower() or "issued"
+        if status not in {"pending", "issued", "redeemed", "active", "expired", "revoked"}:
+            status = "pending"
+        data["status"] = status
+        data["is_lifetime"] = bool(data.get("is_lifetime"))
+        data["group_ids"] = data.get("group_ids") or []
+        data["binding_state"] = _clean_text(data.get("binding_state") or "unbound").lower() or "unbound"
+        return data
+
+    def record_license_session_event(self, payload):
+        return self._request("POST", "license_session_events", json=payload, prefer="return=representation")
 
     def regenerate_order_activation_code(self, old_code, *, new_code, activation_url):
         payload = {

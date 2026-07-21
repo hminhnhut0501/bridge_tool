@@ -130,6 +130,17 @@ from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 from manual_order_helpers import should_skip_manual_active_code
 from admin_notification_utils import admin_notification_from_support_event
+from license_utils import (
+    build_license_deeplink,
+    license_flow_enabled,
+    license_renewal_enabled,
+    license_verify_required,
+    load_license_plan_mapping,
+    normalize_license_key,
+    normalize_license_state,
+    sign_license_request,
+    verify_license_signature,
+)
 
 load_dotenv()
 
@@ -925,6 +936,41 @@ def build_manual_order_join_message_text(context: dict[str, object]):
             "support_text": context.get("support_text", ""),
         },
     )
+
+
+def license_plan_map():
+    mapping = load_license_plan_mapping(db)
+    return {
+        code: {
+            "groups": list(plan.groups),
+            "duration_days": plan.duration_days,
+            "allow_renew": plan.allow_renew,
+        }
+        for code, plan in mapping.items()
+    }
+
+
+def normalize_license_link_template(value: str):
+    template = normalize_bot_link_template(value, default_payload="lic_{code}")
+    if "start=act_{code}" in template:
+        template = template.replace("start=act_{code}", "start=lic_{code}")
+    elif "start={code}" in template:
+        template = template.replace("start={code}", "start=lic_{code}")
+    return template
+
+
+def build_license_activation_url(license_key: str):
+    template = normalize_license_link_template(safe_db_config("LICENSE_LINK_TEMPLATE", "") or "")
+    return template.replace("{code}", normalize_license_key(license_key))
+
+
+def _license_payload_from_request(body: dict[str, object]) -> dict[str, object]:
+    return {
+        "license_key": normalize_license_key(body.get("license_key", "")),
+        "telegram_user_id": str(body.get("telegram_user_id", "")).strip(),
+        "timestamp": int(body.get("timestamp") or 0) or int(datetime.now(tz=backend_timezone()).timestamp()),
+        "nonce": str(body.get("nonce", "")).strip(),
+    }
 
 
 async def build_manual_order_result(body: dict[str, object]) -> dict[str, object]:
@@ -2276,6 +2322,143 @@ async def admin_generate_manual_join_link(request: Request):
             "manual_order_join_text": manual_order_join_text
         }
     }
+
+
+@app.post("/admin-api/licenses/gen-link", dependencies=[Depends(require_admin)])
+async def admin_generate_license_link(request: Request):
+    body = await request.json()
+    license_key = normalize_license_key(body.get("license_key", ""))
+    if not license_key:
+        raise HTTPException(status_code=400, detail="Thiếu license_key.")
+    return {"data": {"license_key": license_key, "activation_url": build_license_activation_url(license_key)}}
+
+
+@app.post("/admin-api/licenses", dependencies=[Depends(require_admin)])
+async def admin_create_license(request: Request):
+    body = await request.json()
+    license_key = normalize_license_key(body.get("license_key", "") or body.get("license", ""))
+    order_id = str(body.get("order_id", "")).strip()
+    telegram_user_id = str(body.get("telegram_user_id", "")).strip()
+    plan_code = str(body.get("plan_code", "")).strip().upper()
+    if not license_key or not order_id or not telegram_user_id or not plan_code:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin license.")
+    plan = license_plan_map().get(plan_code)
+    if not plan:
+        raise HTTPException(status_code=400, detail="plan_code không hợp lệ.")
+    data = supabase_store.create_license_record(
+        license_key=license_key,
+        order_id=order_id,
+        telegram_user_id=telegram_user_id,
+        full_name=str(body.get("full_name", "")).strip(),
+        plan_code=plan_code,
+        plan_slug=str(body.get("plan_slug", "")).strip(),
+        status=str(body.get("status", "issued")).strip().lower(),
+        expires_at=body.get("expires_at") or body.get("ends_at"),
+        is_lifetime=bool(body.get("is_lifetime", False)),
+        source=str(body.get("source", "web")).strip().lower() or "web",
+        activated_at=body.get("activated_at"),
+        last_verified_at=body.get("last_verified_at"),
+        group_ids=body.get("group_ids") or plan["groups"],
+        binding_state=str(body.get("binding_state", "unbound")).strip().lower(),
+        raw_data=body.get("raw_data") or {
+            "license_plan_code": plan_code,
+            "license_plan_slug": body.get("plan_slug", ""),
+        },
+    )
+    return {"data": data}
+
+
+@app.post("/license/verify")
+async def verify_license(request: Request):
+    if not license_flow_enabled():
+        raise HTTPException(status_code=404, detail="license flow disabled")
+    body = await request.json()
+    license_key = normalize_license_key(body.get("license_key", ""))
+    telegram_user_id = str(body.get("telegram_user_id", "")).strip()
+    signature = str(body.get("signature", "")).strip()
+    payload = _license_payload_from_request(body)
+    if not license_key or not telegram_user_id:
+        raise HTTPException(status_code=400, detail="Missing license_key or telegram_user_id")
+    if license_verify_required() and not verify_license_signature(payload, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    record = supabase_store.get_license_record(license_key)
+    session_payload = {
+        "license_key": license_key,
+        "telegram_user_id": telegram_user_id,
+        "request_payload": payload,
+        "signature_valid": bool(not license_verify_required() or verify_license_signature(payload, signature)),
+        "verified_at": datetime.now(tz=backend_timezone()).isoformat(),
+        "result_status": "pending" if not record else normalize_license_state(record.get("status") or "issued"),
+    }
+    try:
+        supabase_store.create_license_session(session_payload)
+    except Exception as exc:
+        print(f"⚠️ Không tạo được license session {license_key}: {exc}")
+    if not record:
+        try:
+            supabase_store.record_license_audit(
+                {
+                    "license_key": license_key,
+                    "telegram_user_id": telegram_user_id,
+                    "event_type": "license_verify_pending",
+                    "result": "pending",
+                    "raw_data": {"request": payload},
+                    "created_at": datetime.now(tz=backend_timezone()).isoformat(),
+                }
+            )
+        except Exception:
+            pass
+        return {"success": True, "data": {"status": "pending", "license_plan_code": "", "license_plan_slug": "", "is_lifetime": False}}
+    if record.get("telegram_user_id") and str(record.get("telegram_user_id")) != telegram_user_id:
+        try:
+            supabase_store.record_license_audit(
+                {
+                    "license_key": license_key,
+                    "telegram_user_id": telegram_user_id,
+                    "event_type": "license_verify_redeemed",
+                    "result": "redeemed",
+                    "raw_data": {"record_user_id": record.get("telegram_user_id")},
+                    "created_at": datetime.now(tz=backend_timezone()).isoformat(),
+                }
+            )
+        except Exception:
+            pass
+        return {"success": True, "data": {"status": "redeemed", "license_plan_code": record.get("plan_code") or "", "license_plan_slug": record.get("plan_slug") or "", "is_lifetime": bool(record.get("is_lifetime")), "telegram_user_id": record.get("telegram_user_id")}}
+    now_iso = datetime.now(tz=backend_timezone()).isoformat()
+    data = {
+        "license_plan_code": record.get("plan_code") or "",
+        "license_plan_slug": record.get("plan_slug") or "",
+        "status": normalize_license_state(record.get("status") or "issued"),
+        "starts_at": record.get("activated_at") or now_iso,
+        "ends_at": record.get("expires_at") or "",
+        "is_lifetime": bool(record.get("is_lifetime")),
+    }
+    try:
+        supabase_store.update_license_record(
+            license_key,
+            {
+                "last_verified_at": now_iso,
+                "status": "active" if data["status"] in {"issued", "redeemed", "active"} else data["status"],
+                "telegram_user_id": telegram_user_id,
+            },
+        )
+    except Exception as exc:
+        print(f"⚠️ Không cập nhật last_verified_at cho license {license_key}: {exc}")
+    try:
+        supabase_store.record_license_audit(
+            {
+                "license_key": license_key,
+                "telegram_user_id": telegram_user_id,
+                "event_type": "license_verify_success",
+                "result": data["status"],
+                "plan_code": data["license_plan_code"],
+                "raw_data": data,
+                "created_at": now_iso,
+            }
+        )
+    except Exception:
+        pass
+    return {"success": True, "data": data}
 
 
 @app.get("/admin-api/users", dependencies=[Depends(require_admin)])

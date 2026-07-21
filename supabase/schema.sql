@@ -56,6 +56,33 @@ create index if not exists idx_order_activation_codes_code on public.order_activ
 create index if not exists idx_order_activation_codes_order_id on public.order_activation_codes (order_id);
 create index if not exists idx_order_activation_codes_telegram_user_id on public.order_activation_codes (telegram_user_id);
 
+create table if not exists public.licenses (
+  id uuid primary key default gen_random_uuid(),
+  license_key text not null unique,
+  order_id text not null unique,
+  telegram_user_id text not null,
+  full_name text,
+  plan_code text not null,
+  plan_slug text,
+  status text not null default 'issued',
+  expires_at timestamptz,
+  is_lifetime boolean not null default false,
+  source text not null default 'web',
+  activated_at timestamptz,
+  last_verified_at timestamptz,
+  revoked_at timestamptz,
+  group_ids jsonb not null default '[]'::jsonb,
+  binding_state text not null default 'unbound',
+  raw_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_licenses_license_key on public.licenses (license_key);
+create index if not exists idx_licenses_order_id on public.licenses (order_id);
+create index if not exists idx_licenses_telegram_user_id on public.licenses (telegram_user_id);
+create index if not exists idx_licenses_status on public.licenses (status);
+
 create index if not exists idx_orders_telegram_user_id on public.orders (telegram_user_id);
 create index if not exists idx_orders_status on public.orders (status);
 create index if not exists idx_orders_expire_at on public.orders (expire_at);

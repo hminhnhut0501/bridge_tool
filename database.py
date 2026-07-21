@@ -142,13 +142,24 @@ class Database:
                 break
         if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
             return self._normalize_manual_order_link_template(value)
+        if normalized_key == "LICENSE_LINK_TEMPLATE":
+            return self._normalize_license_link_template(value)
+        if normalized_key in {"LICENSE_PLAN_MAPPING", "LICENSE_PLAN_MAPPING_JSON"}:
+            return str(value).strip()
         return value
 
     def set_config(self, key, value):
         normalized_key = canonical_config_key(key)
         if not normalized_key:
             raise ValueError("Config key không hợp lệ")
-        normalized_value = self._normalize_manual_order_link_template(value) if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE" else str(value)
+        if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
+            normalized_value = self._normalize_manual_order_link_template(value)
+        elif normalized_key == "LICENSE_LINK_TEMPLATE":
+            normalized_value = self._normalize_license_link_template(value)
+        elif normalized_key in {"LICENSE_PLAN_MAPPING", "LICENSE_PLAN_MAPPING_JSON"}:
+            normalized_value = str(value).strip()
+        else:
+            normalized_value = str(value)
         if self.backend == "supabase" and supabase_store.enabled:
             rows = supabase_store.set_configs(config_write_items(normalized_key, normalized_value))
             for row in rows or []:
@@ -167,6 +178,9 @@ class Database:
 
     def _normalize_manual_order_link_template(self, value):
         return normalize_bot_link_template(value, default_payload="act_{code}")
+
+    def _normalize_license_link_template(self, value):
+        return normalize_bot_link_template(value, default_payload="lic_{code}")
 
     def get_page(self, page_id):
         current_time = time.time()

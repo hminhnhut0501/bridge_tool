@@ -21,6 +21,7 @@ from renewal_utils import build_early_renew_block, build_early_renew_offer
 from supabase_store import supabase_store
 from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, revoke_support_invite_link, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
 from bot_links import is_legacy_bot
+from license_utils import license_renewal_enabled, load_license_plan_mapping
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -47,6 +48,11 @@ def parse_int_config(key, default=0, minimum=0):
         return max(minimum, int(float(str(db.get_config(key, default) or default).strip())))
     except (TypeError, ValueError):
         return max(minimum, int(default))
+
+
+def license_plan_config(plan_code):
+    mapping = load_license_plan_mapping(db)
+    return mapping.get(str(plan_code or "").strip().upper())
 
 def parse_expire_datetime(value):
     raw = str(value or "").strip()
@@ -86,6 +92,10 @@ def normalize_chat_id(value):
     if raw.endswith(".0"):
         raw = raw[:-2]
     return raw
+
+
+def parse_license_expire_datetime(value):
+    return parse_expire_datetime(value)
 
 def parse_admin_ids():
     raw = str(db.get_config("ADMIN_IDS", "") or "").strip()
@@ -1017,6 +1027,179 @@ async def check_expirations_professional():
                     logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
             else:
                 summary["skipped_not_due"] += 1
+
+        if use_supabase and license_renewal_enabled():
+            try:
+                license_rows = supabase_store.list_license_records(limit=config_int("SCHEDULER_LICENSE_LIMIT", 1000, minimum=100))
+            except Exception as exc:
+                logging.warning("⚠️ Không đọc được licenses để nhắc gia hạn: %s", exc)
+                license_rows = []
+            for row in license_rows:
+                license_key = str(row.get("license_key") or "").strip().upper()
+                telegram_user_id = str(row.get("telegram_user_id") or "").strip()
+                plan_code = str(row.get("plan_code") or "").strip().upper()
+                plan = license_plan_config(plan_code)
+                if not license_key or not telegram_user_id or not plan:
+                    continue
+                if row.get("is_lifetime") or plan.duration_days is None or not plan.allow_renew:
+                    continue
+                raw_data = row.get("raw_data") if isinstance(row.get("raw_data"), dict) else {}
+                if str(row.get("status") or "").strip().lower() == "revoked":
+                    if raw_data.get("revoked_notice_sent_at"):
+                        continue
+                    revoke_text = db.get_config(
+                        "MSG_LICENSE_REVOKED",
+                        "⛔ License <b>{plan}</b> của bạn đã bị thu hồi. Vui lòng liên hệ hỗ trợ nếu cần kiểm tra lại.",
+                    ).replace("\\n", "\n").replace("{plan}", display_plan_name(plan_code, telegram_user_id))
+                    try:
+                        await send_html_message(telegram_user_id, revoke_text)
+                        record_support_event(
+                            "license_revoked_notice_sent",
+                            telegram_user_id,
+                            order_id=str(row.get("order_id") or ""),
+                            plan_name=display_plan_name(plan_code, telegram_user_id),
+                            raw_data={
+                                "license_key": license_key,
+                                "plan_code": plan_code,
+                                "source": row.get("source") or "web",
+                            },
+                        )
+                        try:
+                            supabase_store.update_license_record(
+                                license_key,
+                                {
+                                    "raw_data": {
+                                        **raw_data,
+                                        "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
+                                    }
+                                },
+                            )
+                        except Exception as exc:
+                            logging.warning("⚠️ Không stamp revoked notice cho license %s: %s", license_key, exc)
+                        try:
+                            supabase_store.update_license_record(
+                                license_key,
+                                {
+                                    "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
+                                    "raw_data": {
+                                        **raw_data,
+                                        "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
+                                    },
+                                },
+                            )
+                        except Exception as exc:
+                            logging.warning("⚠️ Không cập nhật revoked_notice_sent_at cho license %s: %s", license_key, exc)
+                        try:
+                            supabase_store.record_license_audit(
+                                {
+                                    "license_key": license_key,
+                                    "telegram_user_id": telegram_user_id,
+                                    "event_type": "license_revoked_notice_sent",
+                                    "plan_code": plan_code,
+                                    "result": "revoked",
+                                    "raw_data": {"source": row.get("source") or "web"},
+                                    "created_at": now.isoformat(timespec="seconds"),
+                                }
+                            )
+                        except Exception:
+                            pass
+                    except Exception as exc:
+                        logging.error("❌ Lỗi gửi revoke notice cho %s: %s", telegram_user_id, exc)
+                    continue
+                expire_date = parse_license_expire_datetime(row.get("expires_at"))
+                if not expire_date:
+                    continue
+                days_remaining = (expire_date.date() - now.date()).days
+                notif_key = f"license_{license_key}_{today_str}"
+                if days_remaining < 0:
+                    if str(row.get("status") or "").strip().lower() != "expired":
+                        try:
+                            supabase_store.update_license_record(license_key, {
+                                "status": "expired",
+                                "raw_data": {
+                                    **(row.get("raw_data") or {}),
+                                    "scheduler_expired_at": now.isoformat(timespec="seconds"),
+                                },
+                            })
+                        except Exception as exc:
+                            logging.warning("⚠️ Không cập nhật trạng thái expired cho license %s: %s", license_key, exc)
+                    try:
+                        record_support_event(
+                            "license_expired",
+                            telegram_user_id,
+                            order_id=str(row.get("order_id") or ""),
+                            plan_name=display_plan_name(plan_code, telegram_user_id),
+                            raw_data={
+                                "license_key": license_key,
+                                "plan_code": plan_code,
+                                "expires_at": row.get("expires_at") or "",
+                                "source": row.get("source") or "web",
+                            },
+                        )
+                    except Exception:
+                        pass
+                    continue
+                if not (0 <= days_remaining <= days_notice):
+                    continue
+                if notif_key in notified_users:
+                    continue
+                message_text = (
+                    db.get_config(
+                        "MSG_LICENSE_REMINDER",
+                        "⏰ License <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa.\n\nVui lòng gia hạn để giữ quyền truy cập không gián đoạn.",
+                    )
+                    .replace("\\n", "\n")
+                    .replace("{plan}", display_plan_name(plan_code, telegram_user_id))
+                    .replace("{days}", str(days_remaining))
+                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
+                )
+                kb = InlineKeyboardBuilder()
+                kb.row(InlineKeyboardButton(text=db.get_config("BTN_LICENSE_RENEW", "🔄 Gia hạn license"), callback_data=f"nav:license_renew:{license_key}"))
+                try:
+                    await send_html_message(telegram_user_id, message_text, kb.as_markup())
+                    notified_users.add(notif_key)
+                    record_support_event(
+                        "license_renewal_reminder_sent",
+                        telegram_user_id,
+                        order_id=str(row.get("order_id") or ""),
+                        plan_name=display_plan_name(plan_code, telegram_user_id),
+                        raw_data={
+                            "license_key": license_key,
+                            "plan_code": plan_code,
+                            "days_remaining": days_remaining,
+                            "expires_at": row.get("expires_at") or "",
+                            "source": row.get("source") or "web",
+                        },
+                    )
+                    try:
+                        supabase_store.record_license_audit(
+                            {
+                                "license_key": license_key,
+                                "telegram_user_id": telegram_user_id,
+                                "event_type": "license_renew_reminder_sent",
+                                "plan_code": plan_code,
+                                "result": "reminded",
+                                "raw_data": {"days_remaining": days_remaining, "expires_at": row.get("expires_at") or ""},
+                                "created_at": now.isoformat(timespec="seconds"),
+                            }
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        supabase_store.update_license_record(
+                            license_key,
+                            {
+                                "renew_reminder_sent_at": now.isoformat(timespec="seconds"),
+                                "raw_data": {
+                                    **raw_data,
+                                    "renew_reminder_sent_at": now.isoformat(timespec="seconds"),
+                                },
+                            },
+                        )
+                    except Exception as exc:
+                        logging.warning("⚠️ Không cập nhật renew_reminder_sent_at cho license %s: %s", license_key, exc)
+                except Exception as exc:
+                    logging.error("❌ Lỗi gửi nhắc license cho %s: %s", telegram_user_id, exc)
 
         logging.info(
             "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s.",

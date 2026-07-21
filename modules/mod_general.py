@@ -23,9 +23,18 @@ from sale_utils import build_sale_announcement
 from scheduler import check_expirations_professional
 from renewal_utils import is_early_renew_enabled
 from processor import escape_html
+from license_utils import (
+    license_flow_enabled,
+    normalize_license_key,
+    license_request_payload,
+    sign_license_request,
+    load_license_plan_mapping,
+    normalize_license_state,
+)
 
 router = Router()
 _activation_code_locks: dict[str, asyncio.Lock] = {}
+_license_locks: dict[str, asyncio.Lock] = {}
 
 
 def _get_activation_code_lock(code: str) -> asyncio.Lock:
@@ -34,6 +43,15 @@ def _get_activation_code_lock(code: str) -> asyncio.Lock:
     if lock is None:
         lock = asyncio.Lock()
         _activation_code_locks[normalized] = lock
+    return lock
+
+
+def _get_license_lock(key: str) -> asyncio.Lock:
+    normalized = str(key or "").strip().upper()
+    lock = _license_locks.get(normalized)
+    if lock is None:
+        lock = asyncio.Lock()
+        _license_locks[normalized] = lock
     return lock
 
 
@@ -377,13 +395,14 @@ async def send_sale_announcement(message: Message):
         return False
 
 
-async def record_start_event(message: Message, payload: str, event_type: str, *, source_ref: str = "", activation_code: str = "", legacy: bool = False):
+async def record_start_event(message: Message, payload: str, event_type: str, *, source_ref: str = "", activation_code: str = "", license_key: str = "", legacy: bool = False):
     event_payload = {
         "event_type": event_type,
         "command": "start",
         "start_payload": payload,
         "source_ref": source_ref,
         "activation_code": activation_code,
+        "license_key": license_key,
         "legacy": bool(legacy),
         "user_id": str(message.from_user.id) if message.from_user else "",
         "username": message.from_user.username or "" if message.from_user else "",
@@ -395,6 +414,184 @@ async def record_start_event(message: Message, payload: str, event_type: str, *,
         supabase_store.insert_analytics_events([event_payload])
     except Exception as exc:
         print(f"⚠️ Không ghi được start event {event_type}: {exc}")
+
+
+async def record_license_audit_event(*, event_type: str, license_key: str, telegram_user_id: str, plan_code: str = "", result: str = "", raw_data=None):
+    payload = {
+        "license_key": normalize_license_key(license_key),
+        "telegram_user_id": str(telegram_user_id).strip(),
+        "event_type": str(event_type).strip(),
+        "plan_code": str(plan_code).strip().upper(),
+        "result": str(result).strip().lower(),
+        "raw_data": raw_data or {},
+        "created_at": datetime.now(bot_timezone()).isoformat(timespec="seconds"),
+    }
+    try:
+        supabase_store.record_license_audit(payload)
+    except Exception as exc:
+        print(f"⚠️ Không ghi được license audit {event_type}: {exc}")
+
+
+async def record_license_session_event(*, license_key: str, telegram_user_id: str, plan_code: str = "", status: str = "", action: str = "", raw_data=None):
+    payload = {
+        "license_key": normalize_license_key(license_key),
+        "telegram_user_id": str(telegram_user_id).strip(),
+        "plan_code": str(plan_code).strip().upper(),
+        "status": str(status).strip().lower(),
+        "action": str(action).strip(),
+        "raw_data": raw_data or {},
+        "updated_at": datetime.now(bot_timezone()).isoformat(timespec="seconds"),
+    }
+    try:
+        supabase_store.record_license_session_event(payload)
+    except Exception as exc:
+        print(f"⚠️ Không ghi được license session {action}: {exc}")
+
+
+def resolve_license_plan(plan_code: str):
+    mapping = load_license_plan_mapping(db)
+    return mapping.get(str(plan_code or "").strip().upper())
+
+
+async def deliver_license_activation(message: Message, license_key: str):
+    import requests
+    from modules.mod_coupon import build_invite_links
+
+    normalized = normalize_license_key(license_key)
+    if not normalized:
+        await message.answer("❌ License không hợp lệ.")
+        return
+    if not license_flow_enabled():
+        await message.answer("❌ Chức năng license hiện đang tắt.")
+        return
+
+    async with _get_license_lock(normalized):
+        now = datetime.now(bot_timezone())
+        payload = license_request_payload(normalized, str(message.from_user.id), nonce=f"{message.from_user.id}-{int(now.timestamp())}", timestamp=int(now.timestamp()))
+        payload["signature"] = sign_license_request(payload)
+        backend_url = str(db.get_config("WEB_BACKEND_URL", "") or "").rstrip("/")
+        if not backend_url:
+            await message.answer("❌ Bot chưa được cấu hình WEB_BACKEND_URL.")
+            return
+        try:
+            response = requests.post(f"{backend_url}/license/verify", json=payload, timeout=30)
+            if response.status_code >= 400:
+                raise RuntimeError(f"{response.status_code} {response.text}")
+            result = response.json() or {}
+        except Exception as exc:
+            print(f"❌ license verify failed user={message.from_user.id} license={normalized}: {exc}")
+            await message.answer("❌ Không xác thực được license lúc này. Vui lòng thử lại sau.")
+            return
+
+        data = result.get("data") if isinstance(result, dict) else {}
+        status = str(data.get("status", "")).strip().lower()
+        plan_code = str(data.get("license_plan_code", "")).strip().upper()
+        plan = resolve_license_plan(plan_code)
+        if status == "expired":
+            await record_license_audit_event(
+                event_type="license_expired",
+                license_key=normalized,
+                telegram_user_id=message.from_user.id,
+                plan_code=plan_code,
+                result="expired",
+                raw_data={"license_verify": result},
+            )
+            await message.answer("⏳ License đã hết hạn. Vui lòng gia hạn trên web.")
+            return
+        if status == "revoked":
+            await record_license_audit_event(
+                event_type="license_revoked",
+                license_key=normalized,
+                telegram_user_id=message.from_user.id,
+                plan_code=plan_code,
+                result="revoked",
+                raw_data={"license_verify": result},
+            )
+            await message.answer("⛔ License đã bị thu hồi.")
+            return
+        if status == "redeemed" and str(data.get("telegram_user_id", "")).strip() not in {"", str(message.from_user.id)}:
+            await record_license_audit_event(
+                event_type="license_redeemed_mismatch",
+                license_key=normalized,
+                telegram_user_id=message.from_user.id,
+                plan_code=plan_code,
+                result="redeemed",
+                raw_data={"license_verify": result},
+            )
+            await message.answer("⛔ License này đã được liên kết với tài khoản khác.")
+            return
+        if not plan:
+            await record_license_audit_event(
+                event_type="license_plan_missing",
+                license_key=normalized,
+                telegram_user_id=message.from_user.id,
+                plan_code=plan_code,
+                result="invalid",
+                raw_data={"license_verify": result},
+            )
+            await message.answer("❌ License chưa được gán đúng plan.")
+            return
+        plan_name = plan_code
+        try:
+            supabase_store.create_license_record(
+                license_key=normalized,
+                order_id=str(data.get("order_id", "") or normalized),
+                telegram_user_id=str(message.from_user.id),
+                full_name=getattr(message.from_user, "full_name", "") or "",
+                plan_code=plan_name,
+                plan_slug=str(data.get("license_plan_slug", "") or "").strip(),
+                status="active",
+                expires_at=data.get("ends_at") or None,
+                is_lifetime=bool(data.get("is_lifetime")),
+                source="web",
+                activated_at=data.get("starts_at") or None,
+                last_verified_at=now.isoformat(),
+                group_ids=data.get("group_ids") or [],
+                binding_state="bound",
+                raw_data={"license_verify": result},
+            )
+        except Exception as exc:
+            print(f"⚠️ Không lưu được license {normalized}: {exc}")
+        await record_license_session_event(
+            license_key=normalized,
+            telegram_user_id=message.from_user.id,
+            plan_code=plan_code,
+            status=status or "active",
+            action="activated",
+            raw_data={"license_verify": result},
+        )
+        await record_license_audit_event(
+            event_type="license_activated",
+            license_key=normalized,
+            telegram_user_id=message.from_user.id,
+            plan_code=plan_code,
+            result=status or "active",
+            raw_data={"license_verify": result},
+        )
+        try:
+            await build_invite_links(message.from_user.id, plan_name)
+        except Exception as exc:
+            print(f"⚠️ Không tạo được invite links cho license {normalized}: {exc}")
+            await record_license_audit_event(
+                event_type="license_activation_failed",
+                license_key=normalized,
+                telegram_user_id=message.from_user.id,
+                plan_code=plan_code,
+                result="failed",
+                raw_data={"error": str(exc), "license_verify": result},
+            )
+        await record_start_event(
+            message,
+            f"lic_{normalized}",
+            "start_license",
+            license_key=normalized,
+            source_ref=plan_name,
+        )
+        await message.answer(
+            "✅ License đã được xác thực thành công.\n"
+            f"Plan: {plan_name}\n"
+            f"Trạng thái: {status or 'active'}"
+        )
 
 
 async def deliver_activation_order(message: Message, code: str):
@@ -715,6 +912,19 @@ async def cmd_start(message: Message):
                         return
                     await _send_start_fallback("render_page returned False for language payload")
                     return
+            license_payload = normalize_license_start_payload(normalized)
+            if license_payload:
+                license_key = license_payload[4:].strip()
+                print(f"🚀 cmd_start license payload user={message.from_user.id} license_key={license_key}")
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_license",
+                    license_key=license_key,
+                    source_ref=license_key,
+                )
+                await deliver_license_activation(message, license_key)
+                return
             classified = classify_private_message(message)
             if classified["kind"] == "other" and classified["reason"] == "start_source":
                 print(f"🚀 cmd_start source payload user={message.from_user.id} source_ref={normalized[4:].strip()}")
