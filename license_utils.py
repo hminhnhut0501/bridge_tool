@@ -19,12 +19,12 @@ class LicensePlan:
     groups: tuple[str, ...]
     duration_days: int | None
     allow_renew: bool
+    aliases: tuple[str, ...] = ()
 
 
 DEFAULT_LICENSE_PLANS: dict[str, LicensePlan] = {
-    "VIP_BASIC": LicensePlan("VIP_BASIC", ("group_a",), 30, True),
-    "VIP_PRO": LicensePlan("VIP_PRO", ("group_a", "group_b"), 30, True),
-    "VIP_LIFE": LicensePlan("VIP_LIFE", ("group_a", "group_b", "group_c"), None, False),
+    "HCV_30D": LicensePlan("HCV_30D", ("group_a", "group_b"), 30, True, aliases=("VIP_PRO", "VIP_BASIC", "VIP_30D")),
+    "HCV_LIFETIME": LicensePlan("HCV_LIFETIME", ("group_a", "group_b", "group_c"), None, False, aliases=("VIP_LIFE", "VIP_LIFETIME")),
 }
 
 
@@ -91,6 +91,23 @@ def license_signature_secret() -> str:
     return str(os.getenv("LICENSE_WEBHOOK_SECRET", "") or os.getenv("BOT_API_SECRET", "") or "").strip()
 
 
+def license_backend_url() -> str:
+    """
+    Preferred backend for license verification.
+
+    Priority:
+    1. LICENSE_WEB_BACKEND_URL
+    2. LICENSE_WEB_URL
+    3. WEB_BACKEND_URL
+    4. empty string
+    """
+    for key in ("LICENSE_WEB_BACKEND_URL", "LICENSE_WEB_URL", "WEB_BACKEND_URL"):
+        value = str(os.getenv(key, "") or "").strip().rstrip("/")
+        if value:
+            return value
+    return ""
+
+
 def sign_license_request(payload: dict[str, object], secret: str | None = None) -> str:
     key = str(secret or license_signature_secret() or "").strip()
     if not key:
@@ -155,15 +172,17 @@ def _normalize_plan_mapping_entry(plan_code: str, raw_value) -> LicensePlan | No
         groups = tuple(str(item).strip() for item in (raw_value.get("groups") or []) if str(item).strip())
         duration_days = raw_value.get("duration_days", base.duration_days)
         allow_renew = raw_value.get("allow_renew", base.allow_renew)
+        aliases = tuple(str(item).strip().upper() for item in (raw_value.get("aliases") or []) if str(item).strip())
     else:
         groups = base.groups
         duration_days = base.duration_days
         allow_renew = base.allow_renew
+        aliases = base.aliases
     try:
         duration_days = None if duration_days in {None, "", "null"} else int(float(str(duration_days)))
     except Exception:
         duration_days = base.duration_days
-    return LicensePlan(code, groups or base.groups, duration_days, _coerce_bool(allow_renew, default=base.allow_renew))
+    return LicensePlan(code, groups or base.groups, duration_days, _coerce_bool(allow_renew, default=base.allow_renew), aliases=aliases or base.aliases)
 
 
 def load_license_plan_mapping(db_client=None) -> dict[str, LicensePlan]:
@@ -189,4 +208,8 @@ def load_license_plan_mapping(db_client=None) -> dict[str, LicensePlan]:
         normalized = _normalize_plan_mapping_entry(plan_code, raw_value)
         if normalized:
             mapping[normalized.plan_code] = normalized
+            for alias in normalized.aliases:
+                alias_code = str(alias or "").strip().upper()
+                if alias_code:
+                    mapping[alias_code] = normalized
     return mapping

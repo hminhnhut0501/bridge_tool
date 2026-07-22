@@ -25,6 +25,7 @@ from renewal_utils import is_early_renew_enabled
 from processor import escape_html
 from license_utils import (
     license_flow_enabled,
+    license_backend_url,
     normalize_license_key,
     license_request_payload,
     sign_license_request,
@@ -453,6 +454,60 @@ def resolve_license_plan(plan_code: str):
     return mapping.get(str(plan_code or "").strip().upper())
 
 
+def render_license_status_message(status: str, plan_code: str, plan_name: str, data: dict[str, object]):
+    normalized = str(status or "").strip().lower()
+    is_lifetime = bool(data.get("is_lifetime"))
+    ends_at = str(data.get("ends_at") or "").strip()
+    entitlements = data.get("entitlements") or []
+    entitlements_text = ", ".join(str(item) for item in entitlements if str(item).strip())
+    group_ids = data.get("group_ids") or []
+    group_text = ", ".join(str(item) for item in group_ids if str(item).strip())
+
+    if normalized in {"active", "redeemed", "issued"}:
+        header = "✅ License đã sẵn sàng để dùng." if normalized == "issued" else "✅ License đã được kích hoạt."
+        lines = [header, f"Plan: {plan_name or plan_code}", f"Trạng thái: {normalized}"]
+        if ends_at:
+            lines.append(f"Hết hạn: {ends_at}")
+        if is_lifetime:
+            lines.append("Loại: trọn đời")
+        if entitlements_text:
+            lines.append(f"Quyền: {entitlements_text}")
+        if group_text:
+            lines.append(f"Nhóm VIP: {group_text}")
+        return "\n".join(lines)
+
+    if normalized == "available":
+        lines = [
+            "🟡 License đã được ghi nhận, đang chờ kích hoạt.",
+            f"Plan: {plan_name or plan_code}",
+            "Bạn hãy mở link active từ web sau khi thanh toán xong.",
+        ]
+        if entitlements_text:
+            lines.append(f"Quyền dự kiến: {entitlements_text}")
+        return "\n".join(lines)
+
+    if normalized == "expired":
+        lines = [
+            "⏳ License đã hết hạn.",
+            f"Plan: {plan_name or plan_code}",
+        ]
+        if ends_at:
+            lines.append(f"Hết hạn: {ends_at}")
+        return "\n".join(lines)
+
+    if normalized == "revoked":
+        return "\n".join([
+            "⛔ License đã bị thu hồi.",
+            f"Plan: {plan_name or plan_code}",
+        ])
+
+    return "\n".join([
+        "ℹ️ Trạng thái license hiện tại chưa rõ.",
+        f"Plan: {plan_name or plan_code}",
+        f"Trạng thái: {normalized or 'unknown'}",
+    ])
+
+
 async def deliver_license_activation(message: Message, license_key: str):
     import requests
     from modules.mod_coupon import build_invite_links
@@ -469,17 +524,29 @@ async def deliver_license_activation(message: Message, license_key: str):
         now = datetime.now(bot_timezone())
         payload = license_request_payload(normalized, str(message.from_user.id), nonce=f"{message.from_user.id}-{int(now.timestamp())}", timestamp=int(now.timestamp()))
         payload["signature"] = sign_license_request(payload)
-        backend_url = str(db.get_config("WEB_BACKEND_URL", "") or "").rstrip("/")
+        backend_url = license_backend_url() or str(db.get_config("WEB_BACKEND_URL", "") or "").rstrip("/")
         if not backend_url:
             await message.answer("❌ Bot chưa được cấu hình WEB_BACKEND_URL.")
             return
-        try:
-            response = requests.post(f"{backend_url}/license/verify", json=payload, timeout=30)
-            if response.status_code >= 400:
-                raise RuntimeError(f"{response.status_code} {response.text}")
-            result = response.json() or {}
-        except Exception as exc:
-            print(f"❌ license verify failed user={message.from_user.id} license={normalized}: {exc}")
+        candidate_urls = [backend_url]
+        legacy_url = str(db.get_config("WEB_BACKEND_URL", "") or "").rstrip("/")
+        if legacy_url and legacy_url not in candidate_urls:
+            candidate_urls.append(legacy_url)
+        result = None
+        last_error = None
+        for candidate_url in candidate_urls:
+            try:
+                response = requests.post(f"{candidate_url}/license/verify", json=payload, timeout=30)
+                if response.status_code >= 400:
+                    raise RuntimeError(f"{response.status_code} {response.text}")
+                result = response.json() or {}
+                backend_url = candidate_url
+                break
+            except Exception as exc:
+                last_error = exc
+                print(f"⚠️ license verify attempt failed user={message.from_user.id} backend={candidate_url} license={normalized}: {exc}")
+        if result is None:
+            print(f"❌ license verify failed user={message.from_user.id} license={normalized}: {last_error}")
             await message.answer("❌ Không xác thực được license lúc này. Vui lòng thử lại sau.")
             return
 
@@ -588,9 +655,7 @@ async def deliver_license_activation(message: Message, license_key: str):
             source_ref=plan_name,
         )
         await message.answer(
-            "✅ License đã được xác thực thành công.\n"
-            f"Plan: {plan_name}\n"
-            f"Trạng thái: {status or 'active'}"
+            render_license_status_message(status or "active", plan_code, plan_name, data)
         )
 
 

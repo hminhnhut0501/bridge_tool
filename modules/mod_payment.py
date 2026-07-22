@@ -1,7 +1,12 @@
 import asyncio
+import hashlib
+import hmac
+import json
+import os
 import time
 from collections import deque
 import urllib.parse
+import requests
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -33,6 +38,7 @@ from support_utils import (
     support_inbox_enabled,
 )
 from bot_links import bot_version
+from license_utils import license_backend_url
 
 router = Router()
 
@@ -415,6 +421,36 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
         return sent
 
+    if provider == "WEB":
+        checkout_url = str(pay_data.get("approval_url") or pay_data.get("checkout_url") or "").strip()
+        caption = t(
+            callback.from_user.id,
+            "MSG_WEB_PAYMENT_BILL_TEMPLATE",
+            "🌐 <b>WEB PAYMENT</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nBấm nút bên dưới để thanh toán trên web. Sau khi thanh toán xong, hệ thống sẽ tự kích hoạt như luồng cũ.",
+        ).replace("\\n", "\n")
+        caption = (
+            caption.replace("{plan}", str(pretty_plan_name))
+            .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or default_currency_for_user(callback.from_user.id))))
+            .replace("{desc}", description)
+        )
+        caption += extra_caption
+        kb = InlineKeyboardBuilder()
+        if checkout_url:
+            checkout_label = t(callback.from_user.id, "BTN_WEB_CHECKOUT", "🌐 Mở trang thanh toán")
+            kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
+        sent = await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        if supabase_store.enabled and sent:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        return sent
+
     raw_bin = str(pay_data.get('bin', ''))
     bank_display = BANK_NAMES.get(raw_bin, f"Bank ({raw_bin})")
     actual_stk = pay_data.get('accountNumber', 'N/A')
@@ -465,7 +501,23 @@ def _payment_provider_fallbacks(user_id, provider=""):
     return candidates
 
 
-def create_payment_for_user(user_id, order_id, amount, description, provider="", preferred_language=None):
+def create_payment_for_user(user_id, order_id, amount, description, provider="", preferred_language=None, plan_name="", plan_token=""):
+    if str(provider or "").strip().upper() == "WEB":
+        pay_data = create_web_payment_for_user(
+            user_id=user_id,
+            order_id=order_id,
+            amount=amount,
+            description=description,
+            plan_name=plan_name or description,
+            plan_token=plan_token,
+            preferred_language=preferred_language,
+        )
+        if pay_data:
+            return pay_data
+        language = resolve_user_language(user_id, preferred_language)
+        fallback_provider = payment_manager.preferred_provider(language)
+        provider = fallback_provider
+        print(f"ℹ️ WEB payment fallback for user {user_id}, order {order_id}: WEB -> {fallback_provider or 'PAYOS'}")
     language = resolve_user_language(user_id, preferred_language)
     if not should_allow_auto_payment(user_id, preferred_language=language):
         try:
@@ -503,14 +555,18 @@ def payment_meta(pay_data):
 def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
     providers = payment_manager.providers_for_language(language)
+    if web_payment_enabled() and web_payment_base_url():
+        providers = [*providers, "WEB"] if "WEB" not in providers else providers
     if not providers:
         return None, "__NONE__"
     if len(providers) <= 1:
         return None, providers[0] if providers else ""
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20", "WEB": web_payment_label(language)}
     added = 0
     for provider in providers:
+        if provider == "WEB" and not web_payment_enabled():
+            continue
         callback_data = f"{prefix}|{provider}|{action}"
         if len(callback_data.encode("utf-8")) <= 64:
             kb.row(InlineKeyboardButton(text=labels[provider], callback_data=callback_data))
@@ -524,6 +580,91 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
 def truthy_config(key, default="OFF"):
     value = str(db.get_config(key, default) or default).strip().upper()
     return value in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
+def web_payment_enabled():
+    return truthy_config("WEB_PAYMENT_ENABLED", "OFF")
+
+
+def web_payment_base_url():
+    return license_backend_url()
+
+
+def web_payment_label(language=None):
+    lang = str(language or "").lower()
+    key = "WEB_PAYMENT_LABEL_EN" if lang == "en" else "WEB_PAYMENT_LABEL_VI"
+    default = "🌐 Web checkout" if lang == "en" else "🌐 Thanh toán web"
+    return str(db.get_config(key, default) or default).strip() or default
+
+
+def _sign_web_checkout_request(payload: dict[str, object], secret: str) -> str:
+    message = "|".join(
+        [
+            str(payload.get("orderId", "") or ""),
+            str(payload.get("telegramUserId", "") or ""),
+            str(payload.get("timestamp", "") or ""),
+            str(payload.get("nonce", "") or ""),
+        ]
+    )
+    return hmac.new(str(secret or "").encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def create_web_payment_for_user(user_id, order_id, amount, description, plan_name, plan_token="", preferred_language=None):
+    base_url = web_payment_base_url()
+    if not base_url or not web_payment_enabled():
+        return None
+
+    language = resolve_user_language(user_id, preferred_language)
+    currency = default_currency_for_user(user_id)
+    if currency not in {"VND", "USD"}:
+        currency = "VND"
+
+    now_ts = int(time.time())
+    nonce = f"{order_id}{user_id}{now_ts}"[-24:]
+    payload = {
+        "orderId": str(order_id),
+        "telegramUserId": str(user_id),
+        "customerRef": f"tg:{user_id}",
+        "planCode": str(plan_token or plan_name or "").strip().upper(),
+        "locale": "en" if language == "en" else "vi",
+        "currency": currency,
+        "activationCode": f"lic_{str(order_id)}",
+        "returnUrl": "",
+        "cancelUrl": "",
+        "source": "prive_bot_web_payment",
+        "timestamp": now_ts,
+        "nonce": nonce,
+    }
+    secret = str(db.get_config("WEB_PAYMENT_SECRET", "") or os.getenv("WEB_PAYMENT_SECRET", "") or "").strip()
+    if not secret:
+        secret = str(os.getenv("LICENSE_WEBHOOK_SECRET", "") or os.getenv("BOT_API_SECRET", "") or "").strip()
+    if not secret:
+        return None
+    payload["signature"] = _sign_web_checkout_request(payload, secret)
+    try:
+        response = requests.post(f"{base_url}/license/checkout", json=payload, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            return None
+        checkout_url = str(data.get("checkoutUrl") or data.get("checkout_url") or "").strip()
+        if not checkout_url:
+            return None
+        return {
+            "provider": "WEB",
+            "provider_order_id": str(data.get("orderId") or order_id),
+            "approval_url": checkout_url,
+            "currency_code": str(data.get("currency") or currency).upper(),
+            "checkout_url": checkout_url,
+            "activation_code": str(data.get("activationCode") or payload["activationCode"]),
+            "customer_ref": str(data.get("customerRef") or payload["customerRef"]),
+            "plan_code": str(data.get("planCode") or payload["planCode"]),
+            "locale": str(data.get("locale") or payload["locale"]),
+            "entitlements": data.get("entitlements", []),
+        }
+    except Exception as exc:
+        print(f"⚠️ WEB payment checkout failed for user {user_id}, order {order_id}: {exc}")
+        return None
 
 
 def support_payload_token(value, max_len=24):
@@ -895,6 +1036,8 @@ async def process_early_renew(callback: CallbackQuery):
             description,
             provider,
             preferred_language=resolve_user_language(callback.from_user.id),
+            plan_name=plan_name,
+            plan_token=offer.get("plan_token", ""),
         )
         if not pay_data:
             await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
@@ -1039,6 +1182,8 @@ async def process_buy_request(callback: CallbackQuery):
             description,
             provider,
             preferred_language=resolve_user_language(callback.from_user.id),
+            plan_name=plan_name,
+            plan_token=offer.get("plan_token", ""),
         )
         
         if pay_data:
@@ -1126,6 +1271,8 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             description,
             provider,
             preferred_language=resolve_user_language(callback.from_user.id),
+            plan_name=offer["plan_name"],
+            plan_token=offer.get("plan_token", ""),
         )
         if not pay_data:
             await msg_wait.edit_text(t(callback.from_user.id, "MSG_QR_ERROR", "❌ Lỗi cổng thanh toán!"))
@@ -1241,6 +1388,8 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             description,
             provider,
             preferred_language=resolve_user_language(callback.from_user.id),
+            plan_name=offer["plan_name"],
+            plan_token=offer.get("plan_token", ""),
         )
 
         if not pay_data:

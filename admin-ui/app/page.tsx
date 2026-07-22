@@ -850,6 +850,32 @@ const MENU_LANGUAGE_FIELDS: ConfigField[] = [
 
 const PAYMENT_FIELDS: ConfigField[] = [
   {
+    key: "WEB_PAYMENT_ENABLED",
+    label: "Bật thanh toán web",
+    placeholder: "OFF",
+    help: "Bật ON để bot hiển thị thêm nhánh thanh toán web và gọi sang Hangcu_web để lấy checkout link.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
+    key: "WEB_PAYMENT_SECRET",
+    label: "Secret gọi web checkout",
+    placeholder: "shared-secret",
+    help: "Secret dùng để ký request checkout gửi sang web. Nên khớp với WEB_PAYMENT_SECRET bên web.",
+  },
+  {
+    key: "WEB_PAYMENT_LABEL_VI",
+    label: "Nhãn nút web (VI)",
+    placeholder: "🌐 Thanh toán web",
+    help: "Nhãn hiển thị cho người dùng tiếng Việt trên nút web checkout.",
+  },
+  {
+    key: "WEB_PAYMENT_LABEL_EN",
+    label: "Nhãn nút web (EN)",
+    placeholder: "🌐 Web checkout",
+    help: "Nhãn hiển thị cho người dùng tiếng Anh trên nút web checkout.",
+  },
+  {
     key: "PAYOS_PAYMENT_ENABLED",
     label: "Bật thanh toán PayOS",
     placeholder: "ON",
