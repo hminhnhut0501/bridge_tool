@@ -629,8 +629,6 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         "locale": "en" if language == "en" else "vi",
         "currency": currency,
         "activationCode": f"lic_{str(order_id)}",
-        "returnUrl": "",
-        "cancelUrl": "",
         "source": "prive_bot_web_payment",
         "timestamp": now_ts,
         "nonce": nonce,
