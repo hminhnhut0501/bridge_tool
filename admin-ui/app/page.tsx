@@ -715,7 +715,7 @@ type ConfigField = {
   label: string;
   placeholder: string;
   help: string;
-  kind?: "input" | "textarea" | "select";
+  kind?: "input" | "textarea" | "select" | "multiselect";
   options?: { label: string; value: string }[];
 };
 
@@ -902,14 +902,28 @@ const PAYMENT_FIELDS: ConfigField[] = [
   {
     key: "PAYMENT_PROVIDERS_VI",
     label: "Các cổng cho tiếng Việt",
-    placeholder: "PAYOS,PAYPAL,TRON_USDT",
-    help: "Available providers: PAYOS,PAYPAL,TRON_USDT. PayPal and USDT use separate USD pricing.",
+    placeholder: "PAYOS,PAYPAL,TRON_USDT,WEB",
+    help: "Chọn các cổng sẽ hiện cho tiếng Việt. Bạn có thể bật thêm WEB để đẩy sang Hangcu_web.",
+    kind: "multiselect",
+    options: [
+      { label: "PAYOS", value: "PAYOS" },
+      { label: "PAYPAL", value: "PAYPAL" },
+      { label: "TRON_USDT", value: "TRON_USDT" },
+      { label: "WEB", value: "WEB" },
+    ],
   },
   {
     key: "PAYMENT_PROVIDERS_EN",
     label: "Các cổng cho tiếng Anh",
-    placeholder: "PAYPAL,TRON_USDT",
-    help: "Recommended providers: PAYPAL,TRON_USDT. PayOS only supports VND pricing.",
+    placeholder: "PAYPAL,TRON_USDT,WEB",
+    help: "Chọn các cổng sẽ hiện cho tiếng Anh. WEB sẽ đưa khách sang Hangcu_web.",
+    kind: "multiselect",
+    options: [
+      { label: "PAYOS", value: "PAYOS" },
+      { label: "PAYPAL", value: "PAYPAL" },
+      { label: "TRON_USDT", value: "TRON_USDT" },
+      { label: "WEB", value: "WEB" },
+    ],
   },
   {
     key: "PAYPAL_BRAND_NAME",
@@ -10493,6 +10507,10 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   function displayFieldValue(field: ConfigField) {
     const currentValue = String(values[field.key] || "").trim();
     if (!currentValue) return "Chưa thiết lập";
+    if (field.kind === "multiselect") {
+      const selected = new Set(currentValue.split(",").map((item) => item.trim()).filter(Boolean));
+      return (field.options || []).filter((item) => selected.has(item.value)).map((item) => item.label).join(", ") || currentValue;
+    }
     if (field.kind === "select") {
       return field.options?.find((item) => item.value === currentValue)?.label || currentValue;
     }
@@ -10588,6 +10606,36 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
                   fullWidth
                   sx={popupFieldSx}
                 />
+              ) : editingField.kind === "multiselect" ? (
+                <Stack spacing={1}>
+                  {(editingField.options || []).map((item) => {
+                    const selected = new Set(draftValue.split(",").map((part) => part.trim()).filter(Boolean));
+                    const checked = selected.has(item.value);
+                    return (
+                      <FormControlLabel
+                        key={item.value}
+                        control={
+                          <Checkbox
+                            checked={checked}
+                            onChange={(event) => {
+                              const next = new Set(draftValue.split(",").map((part) => part.trim()).filter(Boolean));
+                              if (event.target.checked) {
+                                next.add(item.value);
+                              } else {
+                                next.delete(item.value);
+                              }
+                              setDraftValue(Array.from(next).join(","));
+                            }}
+                          />
+                        }
+                        label={item.label}
+                      />
+                    );
+                  })}
+                  <Typography variant="caption" color="text.secondary">
+                    Các giá trị được lưu dưới dạng CSV: {editingField.options?.map((item) => item.value).join(", ")}
+                  </Typography>
+                </Stack>
               ) : editingField.kind === "select" ? (
                 <TextField
                   select
