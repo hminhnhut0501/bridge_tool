@@ -3,7 +3,7 @@ export type ConfigField = {
   label: string;
   placeholder: string;
   help: string;
-  kind?: "input" | "textarea" | "select";
+  kind?: "input" | "textarea" | "select" | "multi_select" | "multiselect";
   options?: { label: string; value: string }[];
 };
 

@@ -11,7 +11,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Checkbox,
   FormControl,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Select,
@@ -627,12 +629,23 @@ export function Info({ label, value, icon }: { label: string; value: string; ico
 export function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { title: string; subtitle: string; fields: ConfigField[]; values: Record<string, string>; setValues: (values: Record<string, string>) => void; onSave: (fields: ConfigField[], values: Record<string, string>) => Promise<boolean> }) {
   const [editingField, setEditingField] = useState<ConfigField | null>(null);
   const [draftValue, setDraftValue] = useState("");
+  const [draftMultiValue, setDraftMultiValue] = useState<string[]>([]);
   const [savingField, setSavingField] = useState(false);
+  const fieldKind = (field: ConfigField | null | undefined) => field?.kind === "multiselect" ? "multi_select" : field?.kind;
+
+  const splitMultiValue = (raw: string) =>
+    String(raw || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const joinMultiValue = (items: string[]) => items.join(",");
 
   async function saveField() {
     if (!editingField) return;
     setSavingField(true);
-    const nextValues = { ...values, [editingField.key]: draftValue };
+    const nextValue = fieldKind(editingField) === "multi_select" ? joinMultiValue(draftMultiValue) : draftValue;
+    const nextValues = { ...values, [editingField.key]: nextValue };
     setValues(nextValues);
     try {
       const saved = await onSave([editingField], nextValues);
@@ -656,7 +669,11 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
               transition: "border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
               "&:hover": { borderColor: "primary.main", boxShadow: (theme) => `0 10px 24px ${theme.palette.primary.main}14`, transform: "translateY(-1px)" },
             }}
-            onClick={() => { setEditingField(field); setDraftValue(values[field.key] || ""); }}
+            onClick={() => {
+              setEditingField(field);
+              setDraftValue(values[field.key] || "");
+              setDraftMultiValue(splitMultiValue(values[field.key] || ""));
+            }}
           >
             <CardContent sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, py: 2, "&:last-child": { pb: 2 } }}>
               <Box>
@@ -664,41 +681,78 @@ export function ConfigEditor({ title, subtitle, fields, values, setValues, onSav
                 <Typography variant="body2" color="text.secondary">{field.help}</Typography>
               </Box>
               <Typography variant="body2" sx={{ fontWeight: 700, color: values[field.key] ? "text.primary" : "text.secondary" }}>
-                {field.kind === "select" ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder : values[field.key] || "Chưa thiết lập"}
+                {fieldKind(field) === "select"
+                  ? field.options?.find((item) => item.value === (values[field.key] || field.placeholder))?.label || values[field.key] || field.placeholder
+                  : fieldKind(field) === "multi_select"
+                    ? (splitMultiValue(values[field.key] || "").length
+                        ? splitMultiValue(values[field.key] || "")
+                            .map((item) => field.options?.find((opt) => opt.value === item)?.label || item)
+                            .join(", ")
+                        : field.placeholder)
+                    : values[field.key] || "Chưa thiết lập"}
               </Typography>
             </CardContent>
           </Card>
         ))}
       </Box>
       <Dialog open={Boolean(editingField)} onClose={() => setEditingField(null)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{editingField?.label}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{editingField?.help}</Typography>
-          <IconButton onClick={() => setEditingField(null)} size="small" sx={{ position: "absolute", right: 12, top: 12, border: 1, borderColor: "divider", bgcolor: "background.paper", "&:hover": { bgcolor: "action.hover" } }}>
-            <XCircle size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers sx={{ py: 2.5, bgcolor: "background.default" }}>
-          <Box sx={{ display: "grid", gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">{editingField?.help}</Typography>
-            {editingField?.kind === "textarea" ? (
-              <TextField multiline minRows={5} autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
-            ) : editingField?.kind === "select" ? (
-              <FormControl fullWidth>
-                <Select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(String(event.target.value))}>
-                  {(editingField.options || []).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
-                </Select>
-              </FormControl>
-            ) : (
-              <TextField autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField?.placeholder} fullWidth />
-            )}
-            <Typography variant="caption" color="text.secondary">Key kỹ thuật: {editingField?.key}</Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button variant="outlined" onClick={() => setEditingField(null)} sx={statusButtonSx("muted")}>Huỷ</Button>
-          <Button variant="contained" onClick={saveField} disabled={savingField} startIcon={savingField ? <Loader2 size={16} /> : <Save size={16} />}>Lưu thay đổi</Button>
-        </DialogActions>
+        {editingField ? (
+          <>
+            <DialogTitle sx={{ position: "relative", pr: 6, pb: 1.25 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>{editingField.label}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{editingField.help}</Typography>
+              <IconButton onClick={() => setEditingField(null)} size="small" sx={{ position: "absolute", right: 12, top: 12, border: 1, borderColor: "divider", bgcolor: "background.paper", "&:hover": { bgcolor: "action.hover" } }}>
+                <XCircle size={18} />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers sx={{ py: 2.5, bgcolor: "background.default" }}>
+              <Box sx={{ display: "grid", gap: 2 }}>
+                <Typography variant="body2" color="text.secondary">{editingField.help}</Typography>
+                {fieldKind(editingField) === "textarea" ? (
+                  <TextField multiline minRows={5} autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
+                ) : fieldKind(editingField) === "multi_select" ? (
+                  <Box sx={{ display: "grid", gap: 0.75 }}>
+                    {(editingField.options || []).map((item) => {
+                      const checked = draftMultiValue.includes(item.value);
+                      return (
+                        <FormControlLabel
+                          key={item.value}
+                          control={
+                            <Checkbox
+                              checked={checked}
+                              onChange={(_: React.ChangeEvent<HTMLInputElement>, nextChecked: boolean) => {
+                                setDraftMultiValue((current) => {
+                                  if (nextChecked) {
+                                    return current.includes(item.value) ? current : [...current, item.value];
+                                  }
+                                  return current.filter((value) => value !== item.value);
+                                });
+                              }}
+                            />
+                          }
+                          label={`${item.label} (${item.value})`}
+                        />
+                      );
+                    })}
+                  </Box>
+                ) : fieldKind(editingField) === "select" ? (
+                  <FormControl fullWidth>
+                    <Select autoFocus value={draftValue || editingField.placeholder} onChange={(event) => setDraftValue(String(event.target.value))}>
+                      {(editingField.options || []).map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                ) : (
+                  <TextField autoFocus value={draftValue} onChange={(event) => setDraftValue(event.target.value)} placeholder={editingField.placeholder} fullWidth />
+                )}
+                <Typography variant="caption" color="text.secondary">Key kỹ thuật: {editingField.key}</Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2 }}>
+              <Button variant="outlined" onClick={() => setEditingField(null)} sx={statusButtonSx("muted")}>Huỷ</Button>
+              <Button variant="contained" onClick={saveField} disabled={savingField} startIcon={savingField ? <Loader2 size={16} /> : <Save size={16} />}>Lưu thay đổi</Button>
+            </DialogActions>
+          </>
+        ) : null}
       </Dialog>
     </Card>
   );
