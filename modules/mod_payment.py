@@ -38,7 +38,7 @@ from support_utils import (
     support_inbox_enabled,
 )
 from bot_links import bot_version
-from license_utils import license_backend_url
+from license_utils import license_backend_url, build_license_deeplink
 
 router = Router()
 
@@ -423,6 +423,14 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
 
     if provider == "WEB":
         checkout_url = str(pay_data.get("approval_url") or pay_data.get("checkout_url") or "").strip()
+        license_code = str(
+            pay_data.get("license_code")
+            or pay_data.get("licenseCode")
+            or pay_data.get("activation_code")
+            or pay_data.get("activationCode")
+            or ""
+        ).strip().upper()
+        activate_url = build_license_deeplink(license_code) if license_code else ""
         caption = t(
             callback.from_user.id,
             "MSG_WEB_PAYMENT_BILL_TEMPLATE",
@@ -433,11 +441,17 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or default_currency_for_user(callback.from_user.id))))
             .replace("{desc}", description)
         )
+        if license_code:
+            caption += f"\n\n🔑 <b>License code:</b> <code>{license_code}</code>"
+            caption += f"\n🔗 <b>Kích hoạt:</b> <code>{activate_url}</code>"
         caption += extra_caption
         kb = InlineKeyboardBuilder()
         if checkout_url:
             checkout_label = t(callback.from_user.id, "BTN_WEB_CHECKOUT", "🌐 Mở trang thanh toán")
             kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
+        if activate_url:
+            activate_label = t(callback.from_user.id, "BTN_ACTIVATE_ON_BOT", "🤖 Kích hoạt trên bot")
+            kb.row(InlineKeyboardButton(text=activate_label, url=activate_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
@@ -549,6 +563,10 @@ def payment_meta(pay_data):
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
         "payment_approval_url": pay_data.get("approval_url", ""),
         "payment_currency": pay_data.get("currency_code", default_currency),
+        "activation_code": pay_data.get("activation_code", ""),
+        "customer_ref": pay_data.get("customer_ref", ""),
+        "plan_code": pay_data.get("plan_code", ""),
+        "payment_locale": pay_data.get("locale", ""),
     }
 
 
@@ -648,15 +666,23 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         checkout_url = str(data.get("checkoutUrl") or data.get("checkout_url") or "").strip()
         if not checkout_url:
             return None
+        license_code = str(
+            data.get("licenseCode")
+            or data.get("license_code")
+            or data.get("activationCode")
+            or data.get("activation_code")
+            or payload["activationCode"]
+        ).strip().upper()
         return {
             "provider": "WEB",
             "provider_order_id": str(data.get("orderId") or order_id),
             "approval_url": checkout_url,
             "currency_code": str(data.get("currency") or currency).upper(),
             "checkout_url": checkout_url,
-            "activation_code": str(data.get("activationCode") or payload["activationCode"]),
-            "customer_ref": str(data.get("customerRef") or payload["customerRef"]),
-            "plan_code": str(data.get("planCode") or payload["planCode"]),
+            "activation_code": license_code,
+            "license_code": license_code,
+            "customer_ref": str(data.get("customerRef") or data.get("customer_ref") or payload["customerRef"]),
+            "plan_code": str(data.get("planCode") or data.get("plan_code") or payload["planCode"]),
             "locale": str(data.get("locale") or payload["locale"]),
             "entitlements": data.get("entitlements", []),
         }
