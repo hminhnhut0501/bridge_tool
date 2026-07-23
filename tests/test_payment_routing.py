@@ -519,7 +519,7 @@ def test_web_checkout_url_is_enriched_with_plan_amount_and_currency():
         def json(self):
             return {
                 "data": {
-                    "checkoutUrl": "https://hangcu.vercel.app/checkout?order=ORD-ABC123",
+                    "checkoutUrl": "https://pay.payos.vn/web/abc123",
                     "orderId": "order_123",
                     "currency": "VND",
                     "planCode": "FULL_1M",
@@ -549,13 +549,14 @@ def test_web_checkout_url_is_enriched_with_plan_amount_and_currency():
 
     assert result is not None
     checkout_url = result["checkout_url"]
-    assert "order=ORD-ABC123" in checkout_url
+    assert checkout_url.startswith("https://hangcu.vercel.app/checkout?")
+    assert "order=1784716328" in checkout_url
     assert "planCode=FULL_1M" in checkout_url
     assert "plan=VIP+30+Ng%C3%A0y+-+Prime" in checkout_url
     assert "amount=78000" in checkout_url
     assert "amountMinor=78000" in checkout_url
     assert "currency=VND" in checkout_url
-    assert "checkout=order_123" in checkout_url
+    assert "checkout=1784716328" in checkout_url
     assert result["approval_url"] == checkout_url
     assert result["currency_code"] == "VND"
     post.assert_called_once()
