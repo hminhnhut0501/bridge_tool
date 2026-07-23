@@ -251,6 +251,7 @@ import {
   type VipMemberAuditRow,
   type CustomerIdentityHistoryRow,
   type SupportGroupCheck,
+  type PaymentSchemaGroup,
   type PaymentSchemaResponse,
 } from "@/lib/api";
 
@@ -3361,6 +3362,7 @@ export default function Home() {
   const [blacklistStatusFilter, setBlacklistStatusFilter] = useState<"all" | "active" | "inactive" | "reason">("all");
   const [demoDataInjected, setDemoDataInjected] = useState(false);
   const [paymentSchema, setPaymentSchema] = useState<PaymentSchemaResponse | null>(null);
+  const [paymentActionsDrawerOpen, setPaymentActionsDrawerOpen] = useState(false);
   const supportStaffRows = useMemo(() => {
     const raw = getConfigValue(config, "ADMIN_IDS", "");
     const ids = uniqueValues(raw.split(",").map((item) => item.trim()).filter(Boolean));
@@ -8501,28 +8503,112 @@ export default function Home() {
             ) : null}
             {contentTab === "payment" ? (
               <Stack spacing={2.5}>
-                <ConfigEditor
-                  title="Payment rails"
-                  subtitle="Các cổng thanh toán thật sẽ đi theo cơ chế rail riêng. Bật/tắt ở đây không ảnh hưởng action web."
-                  fields={paymentRailFields}
-                  values={fieldValues}
-                  setValues={setFieldValues}
-                  onSave={saveFields}
-                />
-                <ConfigEditor
-                  title="Payment actions"
-                  subtitle="Các nút hành động riêng như WEB checkout. Không phải rail thanh toán thật."
-                  fields={paymentActionFields}
-                  values={fieldValues}
-                  setValues={setFieldValues}
-                  onSave={saveFields}
-                />
+                <section className="panel">
+                  <PanelHead
+                    title="Payment rails"
+                    subtitle="Các cổng thanh toán thật. Mỗi rail có toggle riêng và trạng thái độc lập. Dùng cho PayOS, PayPal, NOWPayments, TRON USDT, Binance Pay."
+                    actions={
+                      <Tooltip title="Rail là cổng thanh toán thật xử lý tiền và đối soát. Action là nút hành động phụ như mở web checkout." arrow>
+                        <Chip size="small" label="Rail vs action" variant="outlined" />
+                      </Tooltip>
+                    }
+                  />
+                  <div className="grid" style={{ padding: "0 16px 16px" }}>
+                    {(paymentSchema?.rails?.length ? paymentSchema.rails : [{ provider: "PAYOS", kind: "rail", enabledKey: "PAYOS_PAYMENT_ENABLED", enabledDefault: "ON", currency: "VND", priority: 10, fields: PAYMENT_RAIL_FIELDS.slice(0, 1) } as PaymentSchemaGroup]).map((rail) => {
+                      const field = rail.fields?.[0];
+                      const currentValue = String(field ? fieldValues[field.key] || "" : "").trim().toUpperCase();
+                      const enabled = currentValue === "ON" || currentValue === "TRUE" || currentValue === "YES" || currentValue === "1";
+                      const providerIcon = rail.provider === "PAYOS" ? <CreditCard size={18} /> : rail.provider === "PAYPAL" ? <BadgeDollarSign size={18} /> : rail.provider === "NOWPAYMENTS" ? <Coins size={18} /> : rail.provider === "TRON_USDT" ? <Coins size={18} /> : <ShoppingCart size={18} />;
+                      const providerLabel = rail.provider === "PAYOS" ? "PayOS / VietQR" : rail.provider === "PAYPAL" ? "PayPal" : rail.provider === "NOWPAYMENTS" ? "NOWPayments" : rail.provider === "TRON_USDT" ? "USDT TRC20" : "Binance Pay";
+                      return (
+                        <Card
+                          key={rail.provider}
+                          variant="outlined"
+                          sx={{
+                            borderRadius: 4,
+                            borderColor: enabled ? "rgba(34,197,94,0.45)" : "rgba(148,163,184,0.35)",
+                            boxShadow: enabled ? "0 12px 24px rgba(34,197,94,0.08)" : "0 12px 24px rgba(15,23,42,0.04)",
+                            bgcolor: enabled ? "rgba(240,253,244,0.7)" : "background.paper",
+                          }}
+                        >
+                          <CardContent sx={{ display: "grid", gap: 1.25, py: 2, "&:last-child": { pb: 2 } }}>
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+                                <Box sx={{ width: 38, height: 38, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.10)", color: enabled ? "success.main" : "primary.main" }}>
+                                  {providerIcon}
+                                </Box>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{providerLabel}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {rail.kind === "rail" ? "Rail thanh toán thật" : "Action"}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                              <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                              {rail.currency ? `Currency: ${rail.currency}` : "Không gắn currency cố định"} · {field ? field.help : "Chưa có field schema"}
+                            </Typography>
+                            {field ? (
+                              <Tooltip title={field.help} arrow placement="top-start">
+                                <Chip size="small" variant="outlined" label={field.label} sx={{ width: "fit-content" }} />
+                              </Tooltip>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section className="panel">
+                  <PanelHead
+                    title="Payment actions"
+                    subtitle="Các nút hành động riêng như WEB checkout. Mở drawer để chỉnh từng action, không làm lẫn với rails."
+                    actions={
+                      <Button variant="outlined" startIcon={<Pencil size={16} />} onClick={() => setPaymentActionsDrawerOpen(true)}>
+                        Mở actions
+                      </Button>
+                    }
+                  />
+                  <div className="hint compact" style={{ margin: "0 16px 16px" }}>
+                    <strong>WEB</strong> là action mở trang thanh toán. Nó không phải rail đối soát tiền.
+                  </div>
+                </section>
               </Stack>
             ) : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
+
+        <Drawer anchor="right" open={paymentActionsDrawerOpen} onClose={() => setPaymentActionsDrawerOpen(false)}>
+          <Box sx={{ width: { xs: "100vw", sm: 620 }, maxWidth: "100vw", height: "100%", display: "flex", flexDirection: "column" }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>Payment actions</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Nút hành động phụ như WEB checkout. Tách khỏi rails để không làm rối phần cổng thanh toán thật.
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setPaymentActionsDrawerOpen(false)} aria-label="Close payment actions drawer">
+                <XCircle size={20} />
+              </IconButton>
+            </Box>
+            <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+              <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+                <strong>Rail</strong> là cổng thanh toán thật xử lý tiền. <strong>Action</strong> là nút phụ mở luồng như web checkout, không đối soát tiền trực tiếp.
+              </Alert>
+              <ConfigEditor
+                title="Payment actions"
+                subtitle="Chỉnh các nút hành động riêng như WEB checkout."
+                fields={paymentActionFields.length ? paymentActionFields : PAYMENT_ACTION_FIELDS}
+                values={fieldValues}
+                setValues={setFieldValues}
+                onSave={saveFields}
+              />
+            </Box>
+          </Box>
+        </Drawer>
 
         {tab === "autoPayment" ? (
           <div className="stack">
