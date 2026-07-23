@@ -13,7 +13,7 @@ from bot_instance import bot
 from bot_links import normalize_bot_link_template, bot_new_url, is_legacy_bot
 from hidden_group_utils import display_plan_name, validate_hidden_code_for_user
 from supabase_store import supabase_store
-from helpers import bot_unavailable_reason, check_protection, cleanup_welcome, is_admin_user, smart_display
+from helpers import bot_unavailable_reason, bot_timezone, check_protection, cleanup_welcome, is_admin_user, smart_display
 from helpers import bot_runtime_state
 from message_classifier_utils import classify_private_message
 from support_utils import create_support_invite_link
