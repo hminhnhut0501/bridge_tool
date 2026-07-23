@@ -41,6 +41,15 @@ def _parse_number(value, default=0):
         return default
 
 
+def _amount_to_integer_units(value, currency: str = "", *, scale_fx: bool = False) -> int:
+    number = _parse_number(value)
+    currency_value = _clean_text(currency).upper()
+    if scale_fx or currency_value in {"USD", "USDT"}:
+        if not float(number).is_integer():
+            number = round(float(number) * 100)
+    return int(round(float(number)))
+
+
 def _parse_datetime(value):
     raw = _clean_text(value)
     if not raw:
@@ -742,11 +751,9 @@ class SupabaseStore:
         payment_currency_value = str(payment_currency or "").strip().upper()
 
         def _build_payload(*, scale_fx: bool = False):
-            amount_value = _parse_number(amount)
             original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
+            amount_value = _amount_to_integer_units(amount, payment_currency_value, scale_fx=scale_fx)
             if scale_fx or payment_currency_value in {"USD", "USDT"}:
-                if not float(amount_value).is_integer():
-                    amount_value = int(round(float(amount_value) * 100))
                 if not float(original_amount_value).is_integer():
                     original_amount_value = int(round(float(original_amount_value) * 100))
             payload = {
@@ -795,28 +802,6 @@ class SupabaseStore:
         payload = _build_payload()
         if payment_currency_value in {"USD", "USDT"}:
             payload["payment_currency"] = payment_currency_value
-        if payment_currency_value in {"USD", "USDT"} and isinstance(payload.get("amount"), float) and not float(payload["amount"]).is_integer():
-            # If Supabase schema still expects integer cents for FX orders,
-            # retry once with scaled integers.
-            try:
-                return self._request(
-                    "POST",
-                    "orders",
-                    params={"on_conflict": "order_id"},
-                    json=payload,
-                    prefer="resolution=merge-duplicates,return=representation",
-                )
-            except RuntimeError as exc:
-                if 'invalid input syntax for type integer' not in str(exc):
-                    raise
-                payload = _build_payload(scale_fx=True)
-                return self._request(
-                    "POST",
-                    "orders",
-                    params={"on_conflict": "order_id"},
-                    json=payload,
-                    prefer="resolution=merge-duplicates,return=representation",
-                )
         try:
             return self._request(
                 "POST",

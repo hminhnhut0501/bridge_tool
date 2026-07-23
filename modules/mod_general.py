@@ -27,6 +27,7 @@ from license_utils import (
     license_flow_enabled,
     license_backend_url,
     normalize_license_key,
+    normalize_license_start_payload,
     license_request_payload,
     sign_license_request,
     load_license_plan_mapping,
