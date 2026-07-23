@@ -341,6 +341,38 @@ def test_english_all_access_upsell_keeps_lifetime_label_when_config_missing():
     assert offer["amount"] >= 0
 
 
+def test_vietnamese_web_offer_keeps_vnd_currency_and_integer_amount():
+    config = {
+        "PRICE_G1_1M": "78.000",
+    }
+
+    with patch("modules.mod_payment.get_user_language", return_value="vi"), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ):
+        offer = resolve_purchase_offer("buy_g1_1m", user_id="42", provider="WEB")
+
+    assert offer["currency"] == "VND"
+    assert offer["amount"] == 78000
+    assert isinstance(offer["amount"], int)
+
+
+def test_english_web_offer_keeps_usd_currency_and_decimal_amount():
+    config = {
+        "PRICE_G1_1M_USD": "5.9",
+    }
+
+    with patch("modules.mod_payment.get_user_language", return_value="en"), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ):
+        offer = resolve_purchase_offer("buy_g1_1m", user_id="42", provider="WEB")
+
+    assert offer["currency"] == "USD"
+    assert offer["amount"] == 5.9
+    assert isinstance(offer["amount"], float)
+
+
 def test_english_customer_uses_separate_auto_payment_flow():
     class Store:
         enabled = True
