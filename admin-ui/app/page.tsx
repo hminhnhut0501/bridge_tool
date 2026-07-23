@@ -26,7 +26,6 @@ import {
   Plus,
   RefreshCw,
   Download,
-  ExternalLink,
   Save,
   Send,
   Settings,
@@ -8509,22 +8508,11 @@ export default function Home() {
                     title="Payment rails"
                     subtitle="Các cổng thanh toán thật. Mỗi rail có toggle riêng và trạng thái độc lập. Dùng cho PayOS, PayPal, NOWPayments, TRON USDT, Binance Pay."
                     action={
-                      <Tooltip title="Rail là cổng thanh toán thật xử lý tiền và đối soát. Action là nút hành động phụ như mở web checkout." arrow>
-                        <Chip size="small" label="Rail vs action" variant="outlined" />
+                      <Tooltip title="Rail là cổng xử lý tiền và đối soát. Action chỉ mở luồng phụ như web checkout." arrow>
+                        <Chip size="small" label="Rail / Action" variant="outlined" />
                       </Tooltip>
                     }
                   />
-                  <Box sx={{ px: 2, pb: 1.5, display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    <Tooltip title="Rail là cổng thật xử lý tiền, đối soát, callback và trạng thái thanh toán." arrow>
-                      <Chip size="small" icon={<CreditCard size={14} />} label="Rail = payment gateway" variant="outlined" />
-                    </Tooltip>
-                    <Tooltip title="Action là nút hành động phụ như mở trang thanh toán web hoặc chuyển luồng hỗ trợ." arrow>
-                      <Chip size="small" icon={<Pencil size={14} />} label="Action = workflow button" variant="outlined" />
-                    </Tooltip>
-                    <Tooltip title="Màu xanh nghĩa là rail đang bật. Màu xám là đang tắt." arrow>
-                      <Chip size="small" icon={<CheckCircle2 size={14} />} label="Green = active" variant="outlined" />
-                    </Tooltip>
-                  </Box>
                   <div className="grid" style={{ padding: "0 16px 16px" }}>
                     {(paymentSchema?.rails?.length ? paymentSchema.rails : [{ provider: "PAYOS", kind: "rail", enabledKey: "PAYOS_PAYMENT_ENABLED", enabledDefault: "ON", currency: "VND", priority: 10, fields: PAYMENT_RAIL_FIELDS.slice(0, 1) } as PaymentSchemaGroup]).map((rail) => {
                       const field = rail.fields?.[0];
@@ -8537,10 +8525,10 @@ export default function Home() {
                           key={rail.provider}
                           variant="outlined"
                           sx={{
-                            borderRadius: 4.5,
+                            borderRadius: 4,
                             borderColor: enabled ? "rgba(34,197,94,0.45)" : "rgba(148,163,184,0.28)",
-                            boxShadow: enabled ? "0 16px 28px rgba(34,197,94,0.09)" : "0 14px 24px rgba(15,23,42,0.045)",
-                            bgcolor: enabled ? "rgba(240,253,244,0.82)" : "rgba(255,255,255,0.95)",
+                            boxShadow: enabled ? "0 10px 20px rgba(34,197,94,0.06)" : "0 10px 18px rgba(15,23,42,0.035)",
+                            bgcolor: enabled ? "rgba(240,253,244,0.72)" : "rgba(255,255,255,0.98)",
                             position: "relative",
                             overflow: "hidden",
                             "&::before": {
@@ -8553,26 +8541,22 @@ export default function Home() {
                               pointerEvents: "none",
                             },
                           }}
-                        >
-                          <CardContent sx={{ position: "relative", display: "grid", gap: 1.25, py: 2, "&:last-child": { pb: 2 } }}>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5, flexWrap: "wrap" }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
-                                <Box sx={{ width: 38, height: 38, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.10)", color: enabled ? "success.main" : "primary.main" }}>
+                          >
+                          <CardContent sx={{ position: "relative", display: "grid", gap: 0.9, py: 1.75, "&:last-child": { pb: 1.75 } }}>
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.25, flexWrap: "wrap" }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                                <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.10)", color: enabled ? "success.main" : "primary.main" }}>
                                   {providerIcon}
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                   <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{providerLabel}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {rail.kind === "rail" ? "Rail thanh toán thật" : "Action"}
-                                  </Typography>
                                 </Box>
                               </Box>
                               <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                <Chip size="small" label={rail.currency || "N/A"} variant="outlined" />
                                 <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
                               </Stack>
                             </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
                               {field ? field.help : "Chưa có field schema"}.
                             </Typography>
                             {field ? (
@@ -8580,8 +8564,8 @@ export default function Home() {
                                 <Tooltip title={field.help} arrow placement="top-start">
                                   <Chip size="small" variant="outlined" label={field.label} sx={{ width: "fit-content" }} />
                                 </Tooltip>
-                                <Tooltip title={`Provider key: ${rail.enabledKey || "-"}`} arrow placement="top-start">
-                                  <Chip size="small" variant="outlined" label={rail.enabledKey || "-"} sx={{ width: "fit-content" }} />
+                                <Tooltip title={`Currency: ${rail.currency || "-"}`} arrow placement="top-start">
+                                  <Chip size="small" variant="outlined" label={rail.currency || "-"} sx={{ width: "fit-content" }} />
                                 </Tooltip>
                               </Stack>
                             ) : null}
@@ -8601,13 +8585,8 @@ export default function Home() {
                       </Button>
                     }
                   />
-                  <Box sx={{ px: 2, pb: 1 }}>
-                    <Tooltip title="Action không phải cổng thanh toán. Nó chỉ mở luồng phụ như web checkout hoặc điều hướng." arrow>
-                      <Chip size="small" icon={<ExternalLink size={14} />} label="Action = open flow" variant="outlined" />
-                    </Tooltip>
-                  </Box>
                   <div className="hint compact" style={{ margin: "0 16px 16px" }}>
-                    <strong>WEB</strong> là action mở trang thanh toán. Nó không phải rail đối soát tiền.
+                    <strong>WEB</strong> chỉ mở luồng thanh toán phụ. Nó không phải rail đối soát tiền.
                   </div>
                 </section>
               </Stack>
