@@ -265,6 +265,10 @@ def _backend_timezone():
         return ZoneInfo("Asia/Ho_Chi_Minh")
 
 
+def _now_iso():
+    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
 def _marketing_range_window(period: str, now: datetime | None = None):
     current_now = now or datetime.now(_backend_timezone())
     if period == "today":
@@ -1656,7 +1660,7 @@ async def startup():
         return
 
     db.connect()
-    if supabase_store.enabled:
+    if getattr(supabase_store, "enabled", False):
         supabase_store.connect()
     webhook_url = os.getenv("WEBHOOK_URL")
     skip_telegram_startup = str(os.getenv("SKIP_TELEGRAM_STARTUP", "")).strip().lower() in {"1", "true", "yes", "on"}
@@ -2532,6 +2536,24 @@ async def license_delivery(request: Request):
     if not _verify_bot_delivery_signature(body):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
+    if getattr(supabase_store, "enabled", False):
+        try:
+            existing_order = supabase_store.get_order(order_id)
+            existing_meta = dict(existing_order.get("metadata") or {}) if existing_order else {}
+            if existing_meta.get("bot_delivery_notified_at") or (existing_order or {}).get("bot_delivery_notified_at"):
+                return {
+                    "success": True,
+                    "duplicate": True,
+                    "data": {
+                        "order_id": order_id,
+                        "telegram_user_id": telegram_user_id,
+                        "plan_code": plan_code,
+                        "license_code": license_code,
+                    },
+                }
+        except Exception as exc:
+            print(f"⚠️ Cannot inspect delivery idempotency for order {order_id}: {exc}")
+
     from modules.mod_coupon import build_invite_links
 
     group_text = ""
@@ -2569,6 +2591,19 @@ async def license_delivery(request: Request):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to notify telegram user: {exc}")
 
+    if getattr(supabase_store, "enabled", False):
+        try:
+            existing_order = supabase_store.get_order(order_id)
+            existing_meta = dict(existing_order.get("metadata") or {}) if existing_order else {}
+            notified_at = _now_iso()
+            existing_meta["bot_delivery_notified_at"] = notified_at
+            supabase_store.patch_order(order_id, {
+                "metadata": existing_meta,
+                "bot_delivery_notified_at": notified_at,
+            })
+        except Exception as exc:
+            print(f"⚠️ Cannot persist bot delivery notification for order {order_id}: {exc}")
+
     try:
         supabase_store.record_support_event(
             "license_delivery_notified",
@@ -2595,6 +2630,7 @@ async def license_delivery(request: Request):
             "license_code": license_code,
             "group_names": group_names,
             "failed_groups": failed_groups,
+            "duplicate": False,
         },
     }
 

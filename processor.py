@@ -167,8 +167,9 @@ async def process_successful_payment(order_code: str):
             if not order:
                 print(f"❌ Không tìm thấy đơn {target_code} trên Supabase để giao hàng.")
                 return
-            if str(order.get("status", "")).strip().upper() == "PAID":
-                print(f"⚠️ Đơn {target_code} đã được xử lý trước đó.")
+            current_status = str(order.get("status", "")).strip().upper()
+            if current_status in {"FULFILLED", "DELIVERED", "CANCELLED", "EXPIRED"}:
+                print(f"⚠️ Đơn {target_code} đã kết thúc với trạng thái {current_status}.")
                 return
             user_id = str(order.get("telegram_user_id", "")).strip()
             plan_name = str(order.get("plan_name", "")).strip()
@@ -207,7 +208,15 @@ async def process_successful_payment(order_code: str):
         expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
-        groups_to_invite = [(normalize_chat_id(gid), gname) for gid, gname in resolve_plan_groups(plan_name, plan_token) if normalize_chat_id(gid)]
+        groups_to_invite = []
+        try:
+            groups_to_invite = [
+                (normalize_chat_id(gid), gname)
+                for gid, gname in resolve_plan_groups(plan_name, plan_token)
+                if normalize_chat_id(gid)
+            ]
+        except Exception as group_err:
+            print(f"⚠️ Không thể resolve group cho đơn {target_code}: {group_err}")
 
         # Tạo link mời (Giới hạn 1 người vào)
         links_msg = ""
@@ -257,40 +266,69 @@ async def process_successful_payment(order_code: str):
         else:
             db.users_sheet.update(f"F{row_index}:H{row_index}", [["PAID", paid_at, expire_date]])
 
-        event_type = "delivery_failed" if failed_groups else "delivery_success"
-        record_support_event(
-            event_type,
-            user_id,
-            order_id=target_code,
-            plan_name=display_plan_name(plan_name, user_id),
-            raw_data={
-                "delivered_groups": delivered_groups,
-                "failed_groups": failed_groups,
-                "expected_group_count": len(groups_to_invite),
-                "plan_name_raw": plan_name,
-            },
-        )
-
-        # Gửi tin nhắn thành công
-        msg_template = t(
-            user_id,
-            "MSG_DELIVERY",
-            "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
-        ).replace("\\n", "\n")
-        final_msg = msg_template.replace("{plan}", escape_html(display_plan_name(plan_name, user_id))).replace("{date}", expire_date).replace("{links}", links_msg).replace("{support}", escape_html(support_group_name()))
-        
-        # Tạo nút điều hướng về UI chính bằng cơ chế mới
-        kb = InlineKeyboardBuilder()
-        support_error = await add_support_join_button(kb, user_id)
-        if support_error:
-            final_msg += support_error
-        kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
-
         try:
-            await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
-        except Exception as html_err:
-            print(f"⚠️ LỖI HTML TỪ SHEET: {html_err}")
-            await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode=None, disable_web_page_preview=True)
+            event_type = "delivery_failed" if failed_groups else "delivery_success"
+            record_support_event(
+                event_type,
+                user_id,
+                order_id=target_code,
+                plan_name=display_plan_name(plan_name, user_id),
+                raw_data={
+                    "delivered_groups": delivered_groups,
+                    "failed_groups": failed_groups,
+                    "expected_group_count": len(groups_to_invite),
+                    "plan_name_raw": plan_name,
+                },
+            )
+
+            # Gửi tin nhắn thành công
+            try:
+                shown_plan_name = escape_html(display_plan_name(plan_name, user_id))
+            except Exception as plan_err:
+                print(f"⚠️ Không thể render tên gói cho đơn {target_code}: {plan_err}")
+                shown_plan_name = escape_html(plan_name)
+
+            try:
+                support_name = escape_html(support_group_name())
+            except Exception as support_err:
+                print(f"⚠️ Không thể render tên group hỗ trợ cho đơn {target_code}: {support_err}")
+                support_name = ""
+
+            msg_template = t(
+                user_id,
+                "MSG_DELIVERY",
+                "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
+            ).replace("\\n", "\n")
+            final_msg = msg_template.replace("{plan}", shown_plan_name).replace("{date}", expire_date).replace("{links}", links_msg).replace("{support}", support_name)
+            
+            # Tạo nút điều hướng về UI chính bằng cơ chế mới
+            kb = InlineKeyboardBuilder()
+            try:
+                support_error = await add_support_join_button(kb, user_id)
+            except Exception as support_btn_err:
+                print(f"⚠️ Không thể thêm nút support cho đơn {target_code}: {support_btn_err}")
+                support_error = ""
+            if support_error:
+                final_msg += support_error
+            kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
+
+            try:
+                await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode="HTML", disable_web_page_preview=True)
+            except Exception as html_err:
+                print(f"⚠️ LỖI HTML TỪ SHEET: {html_err}")
+                await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode=None, disable_web_page_preview=True)
+        except Exception as delivery_err:
+            print(f"⚠️ Delivery pipeline fallback cho đơn {target_code}: {delivery_err}")
+            fallback_text = (
+                "✅ <b>PAYMENT CONFIRMED!</b>\n\n"
+                f"🎁 Plan: <b>{escape_html(plan_name)}</b>\n"
+                f"📅 Access until: <code>{expire_date}</code>\n\n"
+                f"🔗 Your access links:\n{links_msg or 'Đang hoàn thiện links...'}\n"
+            )
+            try:
+                await bot.send_message(chat_id=user_id, text=fallback_text, parse_mode="HTML", disable_web_page_preview=True)
+            except Exception:
+                await bot.send_message(chat_id=user_id, text=fallback_text, parse_mode=None, disable_web_page_preview=True)
 
     except Exception as e:
         print(f"❌ Lỗi giao hàng tổng quát: {e}")
@@ -321,12 +359,13 @@ async def auto_check_loop(order_code, user_id):
 
         if supabase_store.enabled:
             order = supabase_store.get_order(str_code)
-            if order and str(order.get("status", "")).upper() != "PENDING":
-                print(f"ℹ️ Dừng auto-check đơn {str_code} vì trạng thái hiện tại là {order.get('status')}.")
-                return
-            if order and str(order.get("status", "")).upper() == "PAID":
+            current_status = str(order.get("status", "")).upper() if order else ""
+            if current_status == "PAID":
                 print(f"💰 Đơn {str_code} đã được đánh dấu PAID trong Supabase. Đang giao hàng...")
                 await process_successful_payment(str_code)
+                return
+            if order and current_status in {"FULFILLED", "CANCELLED", "EXPIRED"}:
+                print(f"ℹ️ Dừng auto-check đơn {str_code} vì trạng thái hiện tại là {current_status}.")
                 return
         
         # Đẩy việc kiểm tra cổng thanh toán sang một luồng riêng để không kẹt Bot

@@ -701,6 +701,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         "source": "prive_bot_web_payment",
         "timestamp": now_ts,
         "nonce": nonce,
+        "paymentSessionId": f"ps_{str(order_id).replace('-', '')}_{now_ts}",
     }
     secret = str(db.get_config("WEB_PAYMENT_SECRET", "") or os.getenv("WEB_PAYMENT_SECRET", "") or "").strip()
     if not secret:
@@ -732,6 +733,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "amountMinor": str(payload_data.get("amountMinor") or payload_data.get("amount_minor") or amount),
             "currency": str(payload_data.get("currency") or currency).upper(),
             "checkout": str(payload_data.get("checkoutId") or payload_data.get("checkout_id") or payload_data.get("providerCheckoutId") or payload_data.get("provider_checkout_id") or payload["orderId"]),
+            "session": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
         }
         web_checkout_base = urllib.parse.urljoin(base_url.rstrip("/") + "/", "checkout")
         web_checkout_url = f"{web_checkout_base}?{urllib.parse.urlencode(checkout_context)}"
@@ -746,6 +748,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "customer_ref": str(payload_data.get("customerRef") or payload_data.get("customer_ref") or payload["customerRef"]),
             "plan_code": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
             "locale": str(payload_data.get("locale") or payload["locale"]),
+            "payment_session_id": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
             "entitlements": payload_data.get("entitlements", []),
         }
     except requests.HTTPError as exc:

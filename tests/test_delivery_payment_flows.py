@@ -52,6 +52,10 @@ class FakeDeliveryStore:
         self.mark_paid_calls.append((str(order_id), paid_at, expire_at))
         self.order.update({"status": "PAID", "paid_at": paid_at, "expire_at": expire_at})
 
+    def patch_order(self, order_id, payload):
+        self.order.update(payload)
+        return dict(self.order)
+
     def consume_coupon_for_order(self, order):
         self.coupon_calls += 1
 
@@ -103,6 +107,7 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
             "processor_support": processor.add_support_join_button,
             "processor_unmute": processor.unmute_member,
             "processor_record": processor.record_support_event,
+            "processor_resolve_plan_groups": processor.resolve_plan_groups,
             "config_db": config_utils.db,
             "coupon_db": mod_coupon.db,
             "coupon_bot": mod_coupon.bot,
@@ -117,8 +122,15 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         processor.now_local = lambda: datetime(2026, 6, 4, 12, 0, 0)
         processor.t = lambda user_id, key, default="": default
         processor.processing_orders.clear()
+        processor.resolve_plan_groups = lambda plan_name, plan_token="": [("-1001", "Prime")]
         self.events = []
         processor.record_support_event = lambda event_type, user_id, **kwargs: self.events.append((event_type, kwargs))
+
+        async def fake_build_invite_links(user_id, plan_name):
+            return "JOIN", "Prime", [], [{"group_name": "Prime", "invite_link": "https://t.me/+prime"}]
+
+        self.originals["coupon_build_invite_links"] = mod_coupon.build_invite_links
+        mod_coupon.build_invite_links = fake_build_invite_links
 
         async def no_support(keyboard, user_id):
             return ""
@@ -140,11 +152,13 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         processor.add_support_join_button = self.originals["processor_support"]
         processor.unmute_member = self.originals["processor_unmute"]
         processor.record_support_event = self.originals["processor_record"]
+        processor.resolve_plan_groups = self.originals["processor_resolve_plan_groups"]
         config_utils.db = self.originals["config_db"]
         mod_coupon.db = self.originals["coupon_db"]
         mod_coupon.bot = self.originals["coupon_bot"]
         mod_coupon.t = self.originals["coupon_t"]
         mod_coupon.unmute_member = self.originals["coupon_unmute"]
+        mod_coupon.build_invite_links = self.originals["coupon_build_invite_links"]
         support_utils.db = self.originals["support_db"]
         processor.processing_orders.clear()
 
@@ -243,6 +257,22 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.events[0][0], "delivery_failed")
         self.assertEqual(self.events[0][1]["raw_data"]["failed_groups"], ["UNMAPPED_PLAN"])
         self.assertIn("chưa map được", processor.bot.messages[0]["text"])
+
+    async def test_supabase_paid_order_is_still_delivered(self):
+        processor.bot = FakeDeliveryBot()
+        processor.supabase_store = FakeDeliveryStore({
+            "order_id": "103",
+            "telegram_user_id": "42",
+            "plan_name": "VIP 30 Ngày - Prime",
+            "status": "PAID",
+        })
+
+        await processor.process_successful_payment("103")
+
+        self.assertEqual(len(processor.supabase_store.mark_paid_calls), 1)
+        self.assertEqual(self.events[0][0], "delivery_success")
+        self.assertTrue(processor.bot.messages)
+        self.assertIn("PAYMENT CONFIRMED", processor.bot.messages[0]["text"])
 
     def test_paypal_order_falls_back_without_provider_columns(self):
         store = SupabaseStore()
@@ -449,6 +479,95 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("https://t.me/hangcuvipbot?start=lic_LIC-ABCD-EFGH-IJKL", text)
             self.assertIn("Prime", text)
             self.assertEqual(sent["chat_id"], 42)
+        finally:
+            web_backend.license_flow_enabled = previous_flow_enabled
+            web_backend.bot = previous_bot
+            web_backend.supabase_store = previous_store
+            mod_coupon.build_invite_links = previous_invite_links
+            if previous_secret_env is None:
+                os.environ.pop("WEB_PAYMENT_SECRET", None)
+            else:
+                os.environ["WEB_PAYMENT_SECRET"] = previous_secret_env
+            if previous_bot_secret_env is None:
+                os.environ.pop("BOT_WEB_HMAC_SECRET", None)
+            else:
+                os.environ["BOT_WEB_HMAC_SECRET"] = previous_bot_secret_env
+
+    async def test_license_delivery_endpoint_is_idempotent_for_duplicate_callbacks(self):
+        previous_flow_enabled = web_backend.license_flow_enabled
+        previous_bot = web_backend.bot
+        previous_store = web_backend.supabase_store
+        previous_invite_links = mod_coupon.build_invite_links
+        previous_secret_env = os.environ.get("WEB_PAYMENT_SECRET")
+        previous_bot_secret_env = os.environ.get("BOT_WEB_HMAC_SECRET")
+
+        fake_bot = FakePaymentBot()
+
+        async def fake_build_invite_links(user_id, plan_code):
+            return ("", "", [], [])
+
+        class FakeStore:
+            enabled = True
+
+            def __init__(self):
+                self.order = {
+                    "metadata": {},
+                }
+
+            def get_order(self, order_id):
+                return self.order
+
+            def patch_order(self, order_id, payload):
+                self.order.update(payload)
+                return self.order
+
+            def record_support_event(self, *args, **kwargs):
+                return None
+
+        body = {
+            "orderId": "order_123",
+            "orderNumber": "ORD-123",
+            "telegramUserId": "42",
+            "customerRef": "customer-1",
+            "planCode": "HCV_30D",
+            "planName": "VIP 30 Ngày - Prime",
+            "currency": "VND",
+            "amountMinor": 59000,
+            "licenseCode": "LIC-ABCD-EFGH-IJKL",
+            "activationUrl": "https://t.me/hangcuvipbot?start=lic_LIC-ABCD-EFGH-IJKL",
+            "groupIds": ["-1001"],
+            "entitlements": ["app_access", "vip_group_access"],
+            "locale": "vi",
+            "timestamp": 1784600000,
+            "nonce": "random-nonce-123",
+        }
+        secret = "test-secret"
+        message = "|".join(
+            [
+                body["orderId"],
+                body["telegramUserId"],
+                str(body["timestamp"]),
+                body["nonce"],
+            ]
+        )
+        body["signature"] = hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        try:
+            os.environ["WEB_PAYMENT_SECRET"] = secret
+            os.environ["BOT_WEB_HMAC_SECRET"] = secret
+            web_backend.license_flow_enabled = lambda: True
+            web_backend.bot = fake_bot
+            web_backend.supabase_store = FakeStore()
+            mod_coupon.build_invite_links = fake_build_invite_links
+
+            first = await web_backend.license_delivery(FakeLicenseDeliveryRequest(body))
+            second = await web_backend.license_delivery(FakeLicenseDeliveryRequest(body))
+
+            self.assertEqual(first["success"], True)
+            self.assertEqual(second["success"], True)
+            self.assertFalse(first.get("duplicate", False))
+            self.assertTrue(second.get("duplicate", False))
+            self.assertEqual(len(fake_bot.messages), 1)
         finally:
             web_backend.license_flow_enabled = previous_flow_enabled
             web_backend.bot = previous_bot

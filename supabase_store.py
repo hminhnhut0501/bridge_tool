@@ -749,6 +749,7 @@ class SupabaseStore:
         note="",
     ):
         payment_currency_value = str(payment_currency or "").strip().upper()
+        note_text = _clean_text(note)
 
         def _build_payload(*, scale_fx: bool = False):
             original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
@@ -766,7 +767,6 @@ class SupabaseStore:
                 "sale_id": _clean_text(sale_id),
                 "original_amount": original_amount_value,
             }
-            note_text = _clean_text(note)
             if note_text:
                 payload["note"] = note_text
                 payload["metadata"] = {"note": note_text}
