@@ -528,10 +528,8 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="",
         )
         if pay_data:
             return pay_data
-        language = resolve_user_language(user_id, preferred_language)
-        fallback_provider = payment_manager.preferred_provider(language)
-        provider = fallback_provider
-        print(f"ℹ️ WEB payment fallback for user {user_id}, order {order_id}: WEB -> {fallback_provider or 'PAYOS'}")
+        print(f"❌ WEB payment failed for user {user_id}, order {order_id}: giữ nguyên WEB, không fallback sang provider khác")
+        return None
     language = resolve_user_language(user_id, preferred_language)
     if not should_allow_auto_payment(user_id, preferred_language=language):
         try:
@@ -686,6 +684,19 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "locale": str(data.get("locale") or payload["locale"]),
             "entitlements": data.get("entitlements", []),
         }
+    except requests.HTTPError as exc:
+        response = getattr(exc, "response", None)
+        body = ""
+        if response is not None:
+            try:
+                body = response.text[:1000]
+            except Exception:
+                body = ""
+        print(
+            f"⚠️ WEB payment checkout failed for user {user_id}, order {order_id}: "
+            f"status={getattr(response, 'status_code', 'unknown')} body={body or 'empty'}"
+        )
+        return None
     except Exception as exc:
         print(f"⚠️ WEB payment checkout failed for user {user_id}, order {order_id}: {exc}")
         return None
