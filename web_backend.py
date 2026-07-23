@@ -1,5 +1,7 @@
 import asyncio
 import importlib
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -233,6 +235,26 @@ def webhook_retry_wait_seconds() -> int:
     if _webhook_reset_block_until:
         base = max(base, webhook_reset_wait_seconds())
     return max(5, base or webhook_reset_cooldown_seconds())
+
+
+def _bot_delivery_secret():
+    return str(os.getenv("WEB_PAYMENT_SECRET", "") or os.getenv("BOT_WEB_HMAC_SECRET", "") or "").strip()
+
+
+def _verify_bot_delivery_signature(body: dict) -> bool:
+    secret = _bot_delivery_secret()
+    if not secret:
+        return False
+    message = "|".join(
+        [
+            str(body.get("orderId") or ""),
+            str(body.get("telegramUserId") or ""),
+            str(body.get("timestamp") or ""),
+            str(body.get("nonce") or ""),
+        ]
+    )
+    expected = hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+    return expected == str(body.get("signature") or "").strip()
 
 
 def _backend_timezone():
@@ -2486,6 +2508,95 @@ async def verify_license(request: Request):
     except Exception:
         pass
     return {"success": True, "data": data}
+
+
+@app.post("/license-delivery")
+async def license_delivery(request: Request):
+    if not license_flow_enabled():
+        raise HTTPException(status_code=404, detail="license flow disabled")
+    body = await request.json()
+    telegram_user_id = str(body.get("telegramUserId") or "").strip()
+    order_id = str(body.get("orderId") or "").strip()
+    plan_code = str(body.get("planCode") or "").strip().upper()
+    plan_name = str(body.get("planName") or "").strip() or plan_code
+    license_code = str(body.get("licenseCode") or "").strip().upper()
+    activation_url = str(body.get("activationUrl") or "").strip()
+    timestamp = body.get("timestamp")
+    nonce = str(body.get("nonce") or "").strip()
+    signature = str(body.get("signature") or "").strip()
+
+    if not telegram_user_id or not order_id or not plan_code or not license_code:
+        raise HTTPException(status_code=400, detail="Missing delivery fields")
+    if not timestamp or not nonce or not signature:
+        raise HTTPException(status_code=400, detail="Missing signature fields")
+    if not _verify_bot_delivery_signature(body):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    from modules.mod_coupon import build_invite_links
+
+    group_text = ""
+    group_names = ""
+    failed_groups: list[str] = []
+    invite_results = []
+    try:
+        group_text, group_names, failed_groups, invite_results = await build_invite_links(telegram_user_id, plan_code)
+    except Exception as exc:
+        print(f"⚠️ Cannot build invite links for order {order_id}: {exc}")
+
+    status_lines = [
+        "✅ Thanh toán thành công.",
+        f"Đơn: <code>{order_id}</code>",
+        f"Gói: <b>{display_plan_name(plan_name, telegram_user_id)}</b>",
+        f"Mã license: <code>{license_code}</code>",
+    ]
+    if activation_url:
+        status_lines.append(f"🔗 Kích hoạt: {activation_url}")
+    if group_names:
+        status_lines.append(f"👥 Nhóm: {group_names}")
+    if group_text:
+        status_lines.append("")
+        status_lines.append(group_text.strip())
+    if failed_groups and not group_text:
+        status_lines.append("⚠️ Chưa tạo được link nhóm, vui lòng thử lại sau.")
+
+    try:
+        await bot.send_message(
+            chat_id=int(telegram_user_id),
+            text="\n".join(status_lines).strip(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to notify telegram user: {exc}")
+
+    try:
+        supabase_store.record_support_event(
+            "license_delivery_notified",
+            telegram_user_id,
+            order_id=order_id,
+            plan_name=plan_name,
+            raw_data={
+                "license_code": license_code,
+                "activation_url": activation_url,
+                "group_names": group_names,
+                "failed_groups": failed_groups,
+                "invite_results": invite_results,
+            },
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "data": {
+            "order_id": order_id,
+            "telegram_user_id": telegram_user_id,
+            "plan_code": plan_code,
+            "license_code": license_code,
+            "group_names": group_names,
+            "failed_groups": failed_groups,
+        },
+    }
 
 
 @app.get("/admin-api/users", dependencies=[Depends(require_admin)])
