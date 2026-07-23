@@ -8555,6 +8555,14 @@ export default function Home() {
                     })}
                   </div>
                 </section>
+                <ConfigEditor
+                  title="Cài đặt payment rails"
+                  subtitle="Bật/tắt và chỉnh field cổng thanh toán thật."
+                  fields={paymentRailFields.length ? paymentRailFields : PAYMENT_RAIL_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
                 <section className="panel">
                   <PanelHead
                     title="Payment actions"
@@ -8604,6 +8612,14 @@ export default function Home() {
                     })}
                   </div>
                 </section>
+                <ConfigEditor
+                  title="Cài đặt payment actions"
+                  subtitle="Bật/tắt và chỉnh field cho action mở web thanh toán."
+                  fields={paymentActionFields.length ? paymentActionFields : PAYMENT_ACTION_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
               </Stack>
             ) : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
