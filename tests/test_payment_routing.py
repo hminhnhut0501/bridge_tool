@@ -91,6 +91,13 @@ def test_payment_choice_keyboard_adds_web_button_for_english_users():
         assert provider == ""
 
 
+def test_available_payment_actions_includes_web_as_separate_action():
+    with patch("payment.payment_manager.providers_for_language", return_value=["PAYOS"]), patch.object(
+        payment_manager, "web_enabled", return_value=True
+    ):
+        assert payment_manager.available_actions("vi", include_web=True) == ["PAYOS", "WEB"]
+
+
 def test_binance_pay_enabled_uses_config_token():
     config = {
         "BINANCE_PAY_SIEUTHICODE_ENABLED": "ON",

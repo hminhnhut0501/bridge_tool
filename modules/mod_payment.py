@@ -590,28 +590,28 @@ def payment_meta(pay_data):
 
 def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
-    providers = payment_manager.providers_for_language(language)
-    web_available = bool(web_payment_enabled() and web_payment_base_url())
-    if not providers and not web_available:
+    actions = get_available_payment_actions(user_id, language, include_web=True)
+    rails = [item for item in actions if item != "WEB"]
+    web_available = "WEB" in actions
+    if not rails and not web_available:
         return None, "__NONE__"
-    if len(providers) <= 1 and not web_available:
-        return None, providers[0] if providers else ""
+    if len(rails) <= 1 and not web_available:
+        return None, rails[0] if rails else ""
 
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
-    for provider in providers:
+    for provider in rails:
         callback_data = f"{prefix}|{provider}|{action}"
         if len(callback_data.encode("utf-8")) <= 64:
-            kb.row(InlineKeyboardButton(text=labels[provider], callback_data=callback_data))
+            kb.row(InlineKeyboardButton(text=payment_button_label(provider, language), callback_data=callback_data))
             added += 1
     if web_available:
         web_callback_data = f"{prefix}|WEB|{action}"
         if len(web_callback_data.encode("utf-8")) <= 64:
-            kb.row(InlineKeyboardButton(text=web_payment_label(language), callback_data=web_callback_data))
+            kb.row(InlineKeyboardButton(text=payment_button_label("WEB", language), callback_data=web_callback_data))
             added += 1
     if not added:
-        return None, providers[0] if providers else ("WEB" if web_available else "")
+        return None, rails[0] if rails else ("WEB" if web_available else "")
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
 
@@ -634,6 +634,23 @@ def web_payment_label(language=None):
     key = "WEB_PAYMENT_LABEL_EN" if lang == "en" else "WEB_PAYMENT_LABEL_VI"
     default = "🌐 Web checkout" if lang == "en" else "🌐 Thanh toán web"
     return str(db.get_config(key, default) or default).strip() or default
+
+
+def get_available_payment_actions(user_id, preferred_language=None, include_web=True):
+    language = resolve_user_language(user_id, preferred_language)
+    return payment_manager.available_actions(language, include_web=include_web)
+
+
+def payment_button_label(provider, language):
+    labels = {
+        "PAYOS": "🏦 VietQR / PayOS",
+        "PAYPAL": "💳 PayPal (USD)",
+        "NOWPAYMENTS": "🪙 NOWPayments",
+        "TRON_USDT": "₮ USDT TRC20",
+        "BINANCE_PAY": "🟡 Binance Pay",
+        "WEB": web_payment_label(language),
+    }
+    return labels.get(provider, provider)
 
 
 def _sign_web_checkout_request(payload: dict[str, object], secret: str) -> str:

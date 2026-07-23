@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from database import db
 from supabase_store import supabase_store
 from bot_links import bot_base_url
+from license_utils import license_backend_url
 
 load_dotenv()
 
@@ -32,6 +33,51 @@ TRONGRID_BASE_URL = os.getenv("TRONGRID_BASE_URL", "https://api.trongrid.io").rs
 TRON_USDT_CONTRACT = os.getenv("TRON_USDT_CONTRACT", "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj")
 SIEUTHICODE_BINANCE_PAY_TOKEN = os.getenv("SIEUTHICODE_BINANCE_PAY_TOKEN")
 SIEUTHICODE_BINANCE_PAY_BASE_URL = os.getenv("SIEUTHICODE_BINANCE_PAY_BASE_URL", "https://api.sieuthicode.net").rstrip("/")
+
+PAYMENT_PROVIDER_SCHEMA = {
+    "PAYOS": {
+        "kind": "rail",
+        "currency": "VND",
+        "enabled_key": "PAYOS_PAYMENT_ENABLED",
+        "enabled_default": "ON",
+        "priority": 10,
+    },
+    "PAYPAL": {
+        "kind": "rail",
+        "currency": "USD",
+        "enabled_key": "PAYPAL_PAYMENT_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 20,
+    },
+    "NOWPAYMENTS": {
+        "kind": "rail",
+        "currency": "USD",
+        "enabled_key": "NOWPAYMENTS_PAYMENT_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 30,
+    },
+    "TRON_USDT": {
+        "kind": "rail",
+        "currency": "USDT",
+        "enabled_key": "TRON_USDT_PAYMENT_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 40,
+    },
+    "BINANCE_PAY": {
+        "kind": "rail",
+        "currency": "VND",
+        "enabled_key": "BINANCE_PAY_SIEUTHICODE_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 50,
+    },
+    "WEB": {
+        "kind": "action",
+        "currency": None,
+        "enabled_key": "WEB_PAYMENT_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 100,
+    },
+}
 
 
 def _enabled(key, default):
@@ -637,7 +683,24 @@ class PaymentManager:
 
     @staticmethod
     def supported_providers():
-        return ("PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY")
+        return tuple(
+            provider
+            for provider, meta in sorted(
+                PAYMENT_PROVIDER_SCHEMA.items(),
+                key=lambda item: item[1].get("priority", 999),
+            )
+            if meta.get("kind") == "rail"
+        )
+
+    @staticmethod
+    def provider_schema(provider):
+        selected = str(provider or "").upper()
+        return dict(
+            PAYMENT_PROVIDER_SCHEMA.get(
+                selected,
+                {"kind": "rail", "currency": None, "enabled_key": "", "enabled_default": "OFF", "priority": 999},
+            )
+        )
 
     def manager_for(self, provider):
         selected = str(provider or "PAYOS").upper()
@@ -664,7 +727,7 @@ class PaymentManager:
 
     def providers_for_language(self, language="vi"):
         key = "PAYMENT_PROVIDERS_EN" if str(language).lower() == "en" else "PAYMENT_PROVIDERS_VI"
-        default = "PAYPAL,TRON_USDT" if key.endswith("_EN") else "PAYOS"
+        default = self.default_rail_string(language)
         configured = str(db.get_config(key, default) or default).upper().replace(";", ",")
         providers = []
         for item in configured.split(","):
@@ -676,6 +739,25 @@ class PaymentManager:
         if providers:
             return providers
         return []
+
+    @staticmethod
+    def default_rail_string(language="vi"):
+        return "PAYPAL,TRON_USDT" if str(language).lower() == "en" else "PAYOS"
+
+    def available_actions(self, language="vi", include_web=True):
+        rails = self.providers_for_language(language)
+        actions = [provider for provider in rails if self.provider_enabled(provider)]
+        if include_web and self.web_enabled():
+            actions.append("WEB")
+        return actions
+
+    def web_enabled(self):
+        web_meta = PAYMENT_PROVIDER_SCHEMA["WEB"]
+        return _enabled(web_meta["enabled_key"], web_meta["enabled_default"]) and bool(self.web_payment_base_url())
+
+    @staticmethod
+    def web_payment_base_url():
+        return license_backend_url()
 
     def create_payment_link(self, order_code, amount, description, provider=""):
         selected = str(provider or self.preferred_provider()).upper()
