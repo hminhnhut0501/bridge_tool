@@ -303,7 +303,11 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     sale_info = None
     original_amount = None
     price_key = ""
-    currency = currency_for_provider(provider) if provider else default_currency_for_user(user_id)
+    normalized_provider = str(provider or "").strip().upper()
+    if normalized_provider == "WEB":
+        currency = default_currency_for_user(user_id)
+    else:
+        currency = currency_for_provider(normalized_provider) if normalized_provider else default_currency_for_user(user_id)
     default_group = "0" if currency == "USD" else "50000"
     default_svip = "0" if currency == "USD" else "999"
     data = data.replace("confirm_", "buy_")
