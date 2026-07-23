@@ -671,9 +671,10 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         return None
 
     language = resolve_user_language(user_id, preferred_language)
-    currency = default_currency_for_user(user_id)
+    currency = "USD" if language == "en" else "VND"
     if currency not in {"VND", "USD"}:
         currency = "VND"
+    print(f"🌐 WEB checkout currency resolved: user={user_id} language={language} currency={currency} plan={plan_token or plan_name}")
 
     now_ts = int(time.time())
     nonce = f"{order_id}{user_id}{now_ts}"[-24:]
