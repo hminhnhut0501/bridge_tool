@@ -324,7 +324,47 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         caption = fake_bot.messages[0]["text"]
         self.assertIn("WEB PAYMENT", caption)
         self.assertIn("78.000 VNĐ", caption)
-        self.assertIn("LIC_42", caption)
+        self.assertNotIn("LIC_42", caption)
+
+    async def test_web_bill_does_not_expose_license_before_payment(self):
+        fake_bot = FakePaymentBot()
+        callback = SimpleNamespace(
+            from_user=SimpleNamespace(id=42, full_name="User"),
+            message=SimpleNamespace(chat=SimpleNamespace(id=99)),
+        )
+        pay_data = {
+            "provider": "WEB",
+            "approval_url": "https://example.com/checkout",
+            "checkout_url": "https://example.com/checkout",
+            "currency_code": "VND",
+            "license_code": "LIC_42",
+        }
+
+        with patch("modules.mod_payment.bot", fake_bot), patch(
+            "sale_utils.db.get_config",
+            side_effect=lambda key, default="": {"DISPLAY_CURRENCY_STYLE": "VND_TEXT"}.get(key, default),
+        ), patch(
+            "modules.mod_payment.t",
+            side_effect=lambda user_id, key, default="": default,
+        ):
+            await mod_payment.send_payment_bill(
+                callback,
+                order_id=123,
+                plan_name="Gói VIP Prime",
+                amount=78000,
+                description="PRIVE123",
+                pay_data=pay_data,
+            )
+
+        self.assertTrue(fake_bot.messages)
+        caption = fake_bot.messages[0]["text"]
+        markup = fake_bot.messages[0]["reply_markup"]
+        button_texts = [button.text for row in markup.inline_keyboard for button in row]
+        self.assertIn("WEB PAYMENT", caption)
+        self.assertIn("78.000 VNĐ", caption)
+        self.assertNotIn("LIC_42", caption)
+        self.assertNotIn("Kích hoạt trên bot", " ".join(button_texts))
+        self.assertNotIn("?start=lic_", caption)
 
 
 if __name__ == "__main__":

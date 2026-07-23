@@ -465,17 +465,12 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             .replace("{amount}", format_money(amount, str(pay_data.get("currency_code") or default_currency_for_user(callback.from_user.id))))
             .replace("{desc}", description)
         )
-        if license_code:
-            caption += f"\n\n🔑 <b>License code:</b> <code>{license_code}</code>"
-            caption += f"\n🔗 <b>Kích hoạt:</b> <code>{activate_url}</code>"
+        caption += "\n\n🔒 <i>Link kích hoạt sẽ được gửi sau khi thanh toán thành công.</i>"
         caption += extra_caption
         kb = InlineKeyboardBuilder()
         if checkout_url:
             checkout_label = t(callback.from_user.id, "BTN_WEB_CHECKOUT", "🌐 Mở trang thanh toán")
             kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
-        if activate_url:
-            activate_label = t(callback.from_user.id, "BTN_ACTIVATE_ON_BOT", "🤖 Kích hoạt trên bot")
-            kb.row(InlineKeyboardButton(text=activate_label, url=activate_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
