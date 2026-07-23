@@ -739,54 +739,84 @@ class SupabaseStore:
         metadata=None,
         note="",
     ):
-        amount_value = _parse_number(amount)
-        original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
-        if str(payment_currency or "").strip().upper() in {"USD", "USDT"}:
-            if not float(amount_value).is_integer():
-                amount_value = int(round(float(amount_value) * 100))
-            if not float(original_amount_value).is_integer():
-                original_amount_value = int(round(float(original_amount_value) * 100))
-        payload = {
-            "order_id": str(order_id),
-            "telegram_user_id": str(telegram_user_id),
-            "full_name": _clean_text(full_name),
-            "plan_name": _clean_text(plan_name),
-            "amount": amount_value,
-            "status": "PENDING",
-            "sale_id": _clean_text(sale_id),
-            "original_amount": original_amount_value,
-        }
-        note_text = _clean_text(note)
-        if note_text:
-            payload["note"] = note_text
-            payload["metadata"] = {"note": note_text}
-        if coupon_code:
-            payload["coupon_code"] = _clean_text(coupon_code).upper()
-            payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
-            payload["coupon_discount_amount"] = _parse_number(coupon_discount_amount)
-        if payment_provider:
-            payload["payment_provider"] = _clean_text(payment_provider).upper()
-        if payment_provider_order_id:
-            payload["payment_provider_order_id"] = _clean_text(payment_provider_order_id)
-        if payment_approval_url:
-            payload["payment_approval_url"] = _clean_text(payment_approval_url)
-        if payment_currency:
-            payload["payment_currency"] = _clean_text(payment_currency).upper()
-        if plan_token:
-            payload["plan_token"] = _clean_text(plan_token)
-        if plan_category:
-            payload["plan_category"] = _clean_text(plan_category).upper()
-        if source_type:
-            payload["source_type"] = _clean_text(source_type).upper()
-        if source_ref:
-            payload["source_ref"] = _clean_text(source_ref)
-        if metadata is not None:
-            payload["metadata"] = metadata
+        payment_currency_value = str(payment_currency or "").strip().upper()
+
+        def _build_payload(*, scale_fx: bool = False):
+            amount_value = _parse_number(amount)
+            original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
+            if scale_fx or payment_currency_value in {"USD", "USDT"}:
+                if not float(amount_value).is_integer():
+                    amount_value = int(round(float(amount_value) * 100))
+                if not float(original_amount_value).is_integer():
+                    original_amount_value = int(round(float(original_amount_value) * 100))
+            payload = {
+                "order_id": str(order_id),
+                "telegram_user_id": str(telegram_user_id),
+                "full_name": _clean_text(full_name),
+                "plan_name": _clean_text(plan_name),
+                "amount": amount_value,
+                "status": "PENDING",
+                "sale_id": _clean_text(sale_id),
+                "original_amount": original_amount_value,
+            }
+            note_text = _clean_text(note)
             if note_text:
-                if isinstance(payload["metadata"], dict):
-                    payload["metadata"]["note"] = note_text
-                else:
-                    payload["metadata"] = {"note": note_text}
+                payload["note"] = note_text
+                payload["metadata"] = {"note": note_text}
+            if coupon_code:
+                payload["coupon_code"] = _clean_text(coupon_code).upper()
+                payload["coupon_discount_percent"] = _parse_int(coupon_discount_percent)
+                payload["coupon_discount_amount"] = _parse_number(coupon_discount_amount)
+            if payment_provider:
+                payload["payment_provider"] = _clean_text(payment_provider).upper()
+            if payment_provider_order_id:
+                payload["payment_provider_order_id"] = _clean_text(payment_provider_order_id)
+            if payment_approval_url:
+                payload["payment_approval_url"] = _clean_text(payment_approval_url)
+            if payment_currency_value:
+                payload["payment_currency"] = payment_currency_value
+            if plan_token:
+                payload["plan_token"] = _clean_text(plan_token)
+            if plan_category:
+                payload["plan_category"] = _clean_text(plan_category).upper()
+            if source_type:
+                payload["source_type"] = _clean_text(source_type).upper()
+            if source_ref:
+                payload["source_ref"] = _clean_text(source_ref)
+            if metadata is not None:
+                payload["metadata"] = metadata
+                if note_text:
+                    if isinstance(payload["metadata"], dict):
+                        payload["metadata"]["note"] = note_text
+                    else:
+                        payload["metadata"] = {"note": note_text}
+            return payload
+
+        payload = _build_payload()
+        if payment_currency_value in {"USD", "USDT"}:
+            payload["payment_currency"] = payment_currency_value
+        if payment_currency_value in {"USD", "USDT"} and isinstance(payload.get("amount"), float) and not float(payload["amount"]).is_integer():
+            # If Supabase schema still expects integer cents for FX orders,
+            # retry once with scaled integers.
+            try:
+                return self._request(
+                    "POST",
+                    "orders",
+                    params={"on_conflict": "order_id"},
+                    json=payload,
+                    prefer="resolution=merge-duplicates,return=representation",
+                )
+            except RuntimeError as exc:
+                if 'invalid input syntax for type integer' not in str(exc):
+                    raise
+                payload = _build_payload(scale_fx=True)
+                return self._request(
+                    "POST",
+                    "orders",
+                    params={"on_conflict": "order_id"},
+                    json=payload,
+                    prefer="resolution=merge-duplicates,return=representation",
+                )
         try:
             return self._request(
                 "POST",
