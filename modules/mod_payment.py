@@ -200,6 +200,9 @@ def create_pending_order(
     payment_approval_url="",
     payment_currency="VND",
     activation_code="",
+    customer_ref="",
+    plan_code="",
+    payment_locale="",
     plan_token="",
     plan_category="",
     source_type="",
@@ -215,8 +218,20 @@ def create_pending_order(
         metadata_payload.setdefault("bot_version", version)
         if activation_code and not metadata_payload.get("activation_code"):
             metadata_payload["activation_code"] = str(activation_code).strip().upper()
+        if customer_ref and not metadata_payload.get("customer_ref"):
+            metadata_payload["customer_ref"] = str(customer_ref).strip()
+        if plan_code and not metadata_payload.get("plan_code"):
+            metadata_payload["plan_code"] = str(plan_code).strip().upper()
+        if payment_locale and not metadata_payload.get("payment_locale"):
+            metadata_payload["payment_locale"] = str(payment_locale).strip()
     elif activation_code:
         metadata_payload = {"activation_code": str(activation_code).strip().upper(), "bot_version": version}
+        if customer_ref:
+            metadata_payload["customer_ref"] = str(customer_ref).strip()
+        if plan_code:
+            metadata_payload["plan_code"] = str(plan_code).strip().upper()
+        if payment_locale:
+            metadata_payload["payment_locale"] = str(payment_locale).strip()
     if supabase_store.enabled:
         return supabase_store.create_order(
             order_id=order_id,
