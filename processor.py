@@ -324,6 +324,10 @@ async def auto_check_loop(order_code, user_id):
             if order and str(order.get("status", "")).upper() != "PENDING":
                 print(f"ℹ️ Dừng auto-check đơn {str_code} vì trạng thái hiện tại là {order.get('status')}.")
                 return
+            if order and str(order.get("status", "")).upper() == "PAID":
+                print(f"💰 Đơn {str_code} đã được đánh dấu PAID trong Supabase. Đang giao hàng...")
+                await process_successful_payment(str_code)
+                return
         
         # Đẩy việc kiểm tra cổng thanh toán sang một luồng riêng để không kẹt Bot
         try:

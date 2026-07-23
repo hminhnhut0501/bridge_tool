@@ -587,6 +587,19 @@ def payment_meta(pay_data):
     }
 
 
+def order_status_from_store(order_id):
+    if not supabase_store.enabled:
+        return None
+    try:
+        order = supabase_store.get_order(order_id)
+    except Exception as exc:
+        print(f"⚠️ Không đọc được trạng thái đơn {order_id} từ Supabase: {exc}")
+        return None
+    if not order:
+        return None
+    return str(order.get("status", "")).strip().upper()
+
+
 def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
     actions = get_available_payment_actions(user_id, language, include_web=True)
@@ -1560,7 +1573,7 @@ async def manual_check_payment(callback: CallbackQuery):
     except ValueError:
         pass
     
-    if payment_manager.get_payment_status(order_id) == "PAID":
+    if order_status_from_store(order_id) == "PAID" or payment_manager.get_payment_status(order_id) == "PAID":
         await callback.answer(t(callback.from_user.id, "ALERT_PAID_SUCCESS", "✅ Giao dịch thành công!"), show_alert=True)
         await process_successful_payment(order_id)
         await safe_delete_private_message(callback.message)
