@@ -8459,7 +8459,7 @@ export default function Home() {
         {tab === "content" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Cấu hình vận hành Bot" subtitle="Chỉ chứa thiết lập hệ thống. Nội dung khách nhìn thấy, lệnh, cảnh báo và Menu Builder đã được tách thành menu riêng." />
+              <PanelHead title="Cấu hình vận hành Bot" subtitle="Thiết lập hệ thống bot." />
               <Tabs value={contentTab} onChange={(_, next) => setContentTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="bot" label="Cài đặt bot" />
                 <Tab value="payment" label="Thanh toán" />
@@ -8505,14 +8505,14 @@ export default function Home() {
                 <section className="panel">
                   <PanelHead
                     title="Payment rails"
-                    subtitle="Các cổng thanh toán thật. Mỗi rail có toggle riêng và trạng thái độc lập. Dùng cho PayOS, PayPal, NOWPayments, TRON USDT, Binance Pay."
+                    subtitle="Danh sách cổng thanh toán thật."
                     action={
                       <Tooltip title="Rail là cổng xử lý tiền và đối soát. Action chỉ mở luồng phụ như web checkout." arrow>
                         <Chip size="small" label="Rail / Action" variant="outlined" />
                       </Tooltip>
                     }
                   />
-                  <div className="grid" style={{ padding: "0 16px 16px" }}>
+                  <div style={{ display: "grid", gap: 10, padding: "0 16px 16px" }}>
                     {(paymentSchema?.rails?.length ? paymentSchema.rails : [{ provider: "PAYOS", kind: "rail", enabledKey: "PAYOS_PAYMENT_ENABLED", enabledDefault: "ON", currency: "VND", priority: 10, fields: PAYMENT_RAIL_FIELDS.slice(0, 1) } as PaymentSchemaGroup]).map((rail) => {
                       const field = rail.fields?.[0];
                       const currentValue = String(field ? fieldValues[field.key] || "" : "").trim().toUpperCase();
@@ -8520,56 +8520,37 @@ export default function Home() {
                       const providerIcon = rail.provider === "PAYOS" ? <CreditCard size={18} /> : rail.provider === "PAYPAL" ? <BadgeDollarSign size={18} /> : rail.provider === "NOWPAYMENTS" ? <Coins size={18} /> : rail.provider === "TRON_USDT" ? <Coins size={18} /> : <ShoppingCart size={18} />;
                       const providerLabel = rail.provider === "PAYOS" ? "PayOS / VietQR" : rail.provider === "PAYPAL" ? "PayPal" : rail.provider === "NOWPAYMENTS" ? "NOWPayments" : rail.provider === "TRON_USDT" ? "USDT TRC20" : "Binance Pay";
                       return (
-                        <Card
+                        <Box
                           key={rail.provider}
-                          variant="outlined"
                           sx={{
-                            borderRadius: 4,
-                            borderColor: enabled ? "rgba(34,197,94,0.45)" : "rgba(148,163,184,0.28)",
-                            boxShadow: enabled ? "0 10px 20px rgba(34,197,94,0.06)" : "0 10px 18px rgba(15,23,42,0.035)",
-                            bgcolor: enabled ? "rgba(240,253,244,0.72)" : "rgba(255,255,255,0.98)",
-                            position: "relative",
-                            overflow: "hidden",
-                            "&::before": {
-                              content: '""',
-                              position: "absolute",
-                              inset: 0,
-                              background: enabled
-                                ? "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(255,255,255,0) 52%)"
-                                : "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0) 56%)",
-                              pointerEvents: "none",
-                            },
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1.5,
+                            flexWrap: "wrap",
+                            px: 1.75,
+                            py: 1.5,
+                            borderRadius: 3,
+                            border: "1px solid",
+                            borderColor: enabled ? "rgba(34,197,94,0.28)" : "rgba(148,163,184,0.22)",
+                            bgcolor: enabled ? "rgba(240,253,244,0.55)" : "rgba(255,255,255,0.88)",
                           }}
-                          >
-                          <CardContent sx={{ position: "relative", display: "grid", gap: 0.9, py: 1.75, "&:last-child": { pb: 1.75 } }}>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.25, flexWrap: "wrap" }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                                <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.10)", color: enabled ? "success.main" : "primary.main" }}>
-                                  {providerIcon}
-                                </Box>
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{providerLabel}</Typography>
-                                </Box>
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5, flexWrap: "wrap", width: "100%" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+                              <Box sx={{ width: 34, height: 34, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(16,185,129,0.12)" : "rgba(59,130,246,0.10)", color: enabled ? "success.main" : "primary.main" }}>
+                                {providerIcon}
                               </Box>
-                              <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
-                              </Stack>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>{providerLabel}</Typography>
+                              </Box>
                             </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
-                              {field ? field.help : "Chưa có field schema"}.
-                            </Typography>
-                            {field ? (
-                              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                                <Tooltip title={field.help} arrow placement="top-start">
-                                  <Chip size="small" variant="outlined" label={field.label} sx={{ width: "fit-content" }} />
-                                </Tooltip>
-                                <Tooltip title={`Currency: ${rail.currency || "-"}`} arrow placement="top-start">
-                                  <Chip size="small" variant="outlined" label={rail.currency || "-"} sx={{ width: "fit-content" }} />
-                                </Tooltip>
-                              </Stack>
-                            ) : null}
-                          </CardContent>
-                        </Card>
+                            <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4, flex: "1 1 100%", mt: 0.25 }}>
+                            {field ? field.help : "Chưa có field schema"}.
+                          </Typography>
+                        </Box>
                       );
                     })}
                   </div>
@@ -8577,52 +8558,48 @@ export default function Home() {
                 <section className="panel">
                   <PanelHead
                     title="Payment actions"
-                    subtitle="Các nút hành động riêng như WEB checkout. Chỉnh trực tiếp trong list, không cần drawer."
+                    subtitle="Danh sách action phụ."
                   />
                   <div className="hint compact" style={{ margin: "0 16px 16px" }}>
-                    <strong>WEB</strong> chỉ mở luồng thanh toán phụ. Nó không phải rail đối soát tiền.
+                    <strong>WEB</strong> chỉ mở luồng phụ, không đối soát tiền.
                   </div>
-                  <div className="grid" style={{ padding: "0 16px 16px" }}>
+                  <div style={{ display: "grid", gap: 10, padding: "0 16px 16px" }}>
                     {(paymentSchema?.actions?.length ? paymentSchema.actions : [{ provider: "WEB", kind: "action", enabledKey: "WEB_PAYMENT_ENABLED", enabledDefault: "ON", currency: "VND", priority: 99, fields: PAYMENT_ACTION_FIELDS } as PaymentSchemaGroup]).map((action) => {
                       const field = action.fields?.[0];
                       const currentValue = String(field ? fieldValues[field.key] || "" : "").trim().toUpperCase();
                       const enabled = currentValue === "ON" || currentValue === "TRUE" || currentValue === "YES" || currentValue === "1";
                       return (
-                        <Card
+                        <Box
                           key={action.provider}
-                          variant="outlined"
                           sx={{
-                            borderRadius: 4,
-                            borderColor: enabled ? "rgba(59,130,246,0.35)" : "rgba(148,163,184,0.28)",
-                            boxShadow: enabled ? "0 8px 18px rgba(59,130,246,0.06)" : "0 8px 16px rgba(15,23,42,0.03)",
-                            bgcolor: enabled ? "rgba(239,246,255,0.72)" : "rgba(255,255,255,0.98)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1.5,
+                            flexWrap: "wrap",
+                            px: 1.75,
+                            py: 1.5,
+                            borderRadius: 3,
+                            border: "1px solid",
+                            borderColor: enabled ? "rgba(59,130,246,0.25)" : "rgba(148,163,184,0.22)",
+                            bgcolor: enabled ? "rgba(239,246,255,0.56)" : "rgba(255,255,255,0.88)",
                           }}
                         >
-                          <CardContent sx={{ display: "grid", gap: 0.9, py: 1.75, "&:last-child": { pb: 1.75 } }}>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.25, flexWrap: "wrap" }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                                <Box sx={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(59,130,246,0.12)" : "rgba(148,163,184,0.10)", color: enabled ? "primary.main" : "text.secondary" }}>
-                                  <Pencil size={18} />
-                                </Box>
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>WEB checkout</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    Action mở luồng thanh toán
-                                  </Typography>
-                                </Box>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5, flexWrap: "wrap", width: "100%" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+                              <Box sx={{ width: 34, height: 34, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: enabled ? "rgba(59,130,246,0.12)" : "rgba(148,163,184,0.10)", color: enabled ? "primary.main" : "text.secondary" }}>
+                                <Pencil size={18} />
                               </Box>
-                              <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "primary" : "default"} variant={enabled ? "filled" : "outlined"} />
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>WEB checkout</Typography>
+                              </Box>
                             </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
-                              {field ? field.help : "Chưa có field schema"}.
-                            </Typography>
-                            {field ? (
-                              <Tooltip title={field.help} arrow placement="top-start">
-                                <Chip size="small" variant="outlined" label={field.label} sx={{ width: "fit-content" }} />
-                              </Tooltip>
-                            ) : null}
-                          </CardContent>
-                        </Card>
+                            <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "primary" : "default"} variant={enabled ? "filled" : "outlined"} />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4, flex: "1 1 100%", mt: 0.25 }}>
+                            {field ? field.help : "Chưa có field schema"}.
+                          </Typography>
+                        </Box>
                       );
                     })}
                   </div>
