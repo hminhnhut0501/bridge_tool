@@ -508,6 +508,59 @@ def test_create_payment_for_user_allows_returning_customer():
         create_link.assert_called_once_with(100, 99000, "PRIVE100", provider="PAYOS")
 
 
+def test_web_checkout_url_is_enriched_with_plan_amount_and_currency():
+    class Response:
+        def __init__(self):
+            self.ok = True
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "data": {
+                    "checkoutUrl": "https://hangcu.vercel.app/checkout?order=ORD-ABC123",
+                    "orderId": "order_123",
+                    "currency": "VND",
+                    "planCode": "FULL_1M",
+                    "licenseCode": "LIC-TEST-1",
+                }
+            }
+
+    config = {"WEB_PAYMENT_ENABLED": "ON", "WEB_PAYMENT_SECRET": "secret"}
+
+    with patch("modules.mod_payment.web_payment_enabled", return_value=True), patch(
+        "modules.mod_payment.web_payment_base_url", return_value="https://hangcu.vercel.app"
+    ), patch("modules.mod_payment.resolve_user_language", return_value="vi"), patch(
+        "modules.mod_payment.db.get_config",
+        side_effect=lambda key, default="": config.get(key, default),
+    ), patch("modules.mod_payment.requests.post", return_value=Response()) as post:
+        from modules.mod_payment import create_web_payment_for_user
+
+        result = create_web_payment_for_user(
+            user_id="42",
+            order_id="1784716328",
+            amount=78000,
+            description="PRIVE1784716328",
+            plan_name="VIP 30 Ngày - Prime",
+            plan_token="FULL_1M",
+            preferred_language="vi",
+        )
+
+    assert result is not None
+    checkout_url = result["checkout_url"]
+    assert "order=ORD-ABC123" in checkout_url
+    assert "planCode=FULL_1M" in checkout_url
+    assert "plan=VIP+30+Ng%C3%A0y+-+Prime" in checkout_url
+    assert "amount=78000" in checkout_url
+    assert "amountMinor=78000" in checkout_url
+    assert "currency=VND" in checkout_url
+    assert "checkout=order_123" in checkout_url
+    assert result["approval_url"] == checkout_url
+    assert result["currency_code"] == "VND"
+    post.assert_called_once()
+
+
 def test_enforce_auto_payment_gate_sends_redirect_message():
     class Message:
         def __init__(self):

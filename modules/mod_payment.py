@@ -718,12 +718,34 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             or payload_data.get("activation_code")
             or payload["activationCode"]
         ).strip().upper()
+        checkout_parts = urllib.parse.urlsplit(checkout_url)
+        checkout_query = dict(urllib.parse.parse_qsl(checkout_parts.query, keep_blank_values=True))
+        checkout_query.update(
+            {
+                "order": str(payload_data.get("orderNumber") or payload_data.get("order_number") or payload["orderId"]),
+                "planCode": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
+                "plan": str(plan_name or payload_data.get("planName") or payload_data.get("plan_name") or payload["planCode"]),
+                "amount": str(payload_data.get("amount") or amount),
+                "amountMinor": str(payload_data.get("amountMinor") or payload_data.get("amount_minor") or amount),
+                "currency": str(payload_data.get("currency") or currency).upper(),
+                "checkout": str(payload_data.get("checkoutId") or payload_data.get("checkout_id") or payload_data.get("providerCheckoutId") or payload_data.get("provider_checkout_id") or payload["orderId"]),
+            }
+        )
+        enriched_checkout_url = urllib.parse.urlunsplit(
+            (
+                checkout_parts.scheme,
+                checkout_parts.netloc,
+                checkout_parts.path,
+                urllib.parse.urlencode(checkout_query),
+                checkout_parts.fragment,
+            )
+        )
         return {
             "provider": "WEB",
             "provider_order_id": str(payload_data.get("orderId") or payload_data.get("order_id") or order_id),
-            "approval_url": checkout_url,
+            "approval_url": enriched_checkout_url,
             "currency_code": str(payload_data.get("currency") or currency).upper(),
-            "checkout_url": checkout_url,
+            "checkout_url": enriched_checkout_url,
             "activation_code": license_code,
             "license_code": license_code,
             "customer_ref": str(payload_data.get("customerRef") or payload_data.get("customer_ref") or payload["customerRef"]),
