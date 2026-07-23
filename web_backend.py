@@ -130,6 +130,7 @@ from payment import payment_manager
 from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 from manual_order_helpers import should_skip_manual_active_code
 from admin_notification_utils import admin_notification_from_support_event
+from payment import PAYMENT_PROVIDER_SCHEMA, payment_manager
 from license_utils import (
     build_license_deeplink,
     license_flow_enabled,
@@ -2520,6 +2521,99 @@ async def admin_config():
             db.cache_config.pop("IMG_ME", None)
             img_me_row["value"] = ""
     return {"data": rows}
+
+
+@app.get("/admin-api/payment-schema", dependencies=[Depends(require_admin)])
+async def admin_payment_schema():
+    def _field(key: str, label: str, placeholder: str, help_text: str, kind: str = "input", options=None):
+        item = {
+            "key": key,
+            "label": label,
+            "placeholder": placeholder,
+            "help": help_text,
+        }
+        if kind:
+            item["kind"] = kind
+        if options is not None:
+            item["options"] = options
+        return item
+
+    rails = []
+    for provider in payment_manager.supported_providers():
+        schema = payment_manager.provider_schema(provider)
+        label = {
+            "PAYOS": "PayOS / VietQR",
+            "PAYPAL": "PayPal",
+            "NOWPAYMENTS": "NOWPayments",
+            "TRON_USDT": "USDT TRC20",
+            "BINANCE_PAY": "Binance Pay",
+        }.get(provider, provider)
+        rails.append(
+            {
+                "provider": provider,
+                "kind": "rail",
+                "enabledKey": schema.get("enabled_key", ""),
+                "enabledDefault": schema.get("enabled_default", "OFF"),
+                "currency": schema.get("currency") or "",
+                "priority": schema.get("priority", 999),
+                "fields": [
+                    _field(
+                        schema.get("enabled_key", ""),
+                        f"Bật {label}",
+                        schema.get("enabled_default", "OFF"),
+                        f"Bật/tắt cổng {label}.",
+                        "select",
+                        [{"label": "Bật", "value": "ON"}, {"label": "Tắt", "value": "OFF"}],
+                    )
+                ],
+            }
+        )
+
+    actions = [
+        {
+            "provider": "WEB",
+            "kind": "action",
+            "enabledKey": PAYMENT_PROVIDER_SCHEMA["WEB"]["enabled_key"],
+            "enabledDefault": PAYMENT_PROVIDER_SCHEMA["WEB"]["enabled_default"],
+            "currency": "",
+            "priority": PAYMENT_PROVIDER_SCHEMA["WEB"]["priority"],
+            "fields": [
+                _field(
+                    "WEB_PAYMENT_ENABLED",
+                    "Bật thanh toán web",
+                    "OFF",
+                    "Bật ON để bot hiển thị nút thanh toán web riêng và gọi sang Hangcu_web để lấy checkout link.",
+                    "select",
+                    [{"label": "Bật", "value": "ON"}, {"label": "Tắt", "value": "OFF"}],
+                ),
+                _field(
+                    "WEB_PAYMENT_SECRET",
+                    "Secret gọi web checkout",
+                    "shared-secret",
+                    "Secret dùng để ký request checkout gửi sang web. Nên khớp với WEB_PAYMENT_SECRET bên web.",
+                ),
+                _field(
+                    "WEB_PAYMENT_LABEL_VI",
+                    "Nhãn nút web (VI)",
+                    "🌐 Thanh toán web",
+                    "Nhãn hiển thị cho người dùng tiếng Việt trên nút web checkout.",
+                ),
+                _field(
+                    "WEB_PAYMENT_LABEL_EN",
+                    "Nhãn nút web (EN)",
+                    "🌐 Web checkout",
+                    "Nhãn hiển thị cho người dùng tiếng Anh trên nút web checkout.",
+                ),
+            ],
+        }
+    ]
+
+    return {
+        "data": {
+            "rails": rails,
+            "actions": actions,
+        }
+    }
 
 
 @app.patch("/admin-api/config/{key}", dependencies=[Depends(require_admin)])

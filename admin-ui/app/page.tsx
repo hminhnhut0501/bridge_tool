@@ -198,6 +198,7 @@ import {
   getDashboardOverview,
   getMarketingStats,
   getAdminNotifications,
+  getPaymentSchema,
   getActivationCodes,
   getCoupons,
   getLicenses,
@@ -250,6 +251,7 @@ import {
   type VipMemberAuditRow,
   type CustomerIdentityHistoryRow,
   type SupportGroupCheck,
+  type PaymentSchemaResponse,
 } from "@/lib/api";
 
 const DEMO_NOW = new Date("2026-06-19T12:00:00+07:00").getTime();
@@ -988,6 +990,26 @@ const PAYMENT_FIELDS: ConfigField[] = [
     help: "Số giây bot sẽ khóa tạm khi vượt ngưỡng spam.",
   },
 ];
+
+const PAYMENT_RAIL_KEYS = new Set([
+  "PAYOS_PAYMENT_ENABLED",
+  "PAYPAL_PAYMENT_ENABLED",
+  "NOWPAYMENTS_PAYMENT_ENABLED",
+  "TRON_USDT_PAYMENT_ENABLED",
+  "BINANCE_PAY_SIEUTHICODE_ENABLED",
+  "PAYMENT_PROVIDERS_VI",
+  "PAYMENT_PROVIDERS_EN",
+]);
+
+const PAYMENT_ACTION_KEYS = new Set([
+  "WEB_PAYMENT_ENABLED",
+  "WEB_PAYMENT_SECRET",
+  "WEB_PAYMENT_LABEL_VI",
+  "WEB_PAYMENT_LABEL_EN",
+]);
+
+const PAYMENT_RAIL_FIELDS = PAYMENT_FIELDS.filter((field) => PAYMENT_RAIL_KEYS.has(field.key));
+const PAYMENT_ACTION_FIELDS = PAYMENT_FIELDS.filter((field) => PAYMENT_ACTION_KEYS.has(field.key));
 
 const AUTO_PAYMENT_VI_FIELDS: ConfigField[] = [
   {
@@ -3338,6 +3360,7 @@ export default function Home() {
   const [blacklistQuery, setBlacklistQuery] = useState("");
   const [blacklistStatusFilter, setBlacklistStatusFilter] = useState<"all" | "active" | "inactive" | "reason">("all");
   const [demoDataInjected, setDemoDataInjected] = useState(false);
+  const [paymentSchema, setPaymentSchema] = useState<PaymentSchemaResponse | null>(null);
   const supportStaffRows = useMemo(() => {
     const raw = getConfigValue(config, "ADMIN_IDS", "");
     const ids = uniqueValues(raw.split(",").map((item) => item.trim()).filter(Boolean));
@@ -3361,6 +3384,14 @@ export default function Home() {
       avatar: `S${index + 1}`,
     }));
   }, [config, supportCheck]);
+  const paymentRailFields = useMemo(() => {
+    if (!paymentSchema?.rails?.length) return PAYMENT_RAIL_FIELDS;
+    return paymentSchema.rails.flatMap((group) => group.fields || []);
+  }, [paymentSchema]);
+  const paymentActionFields = useMemo(() => {
+    if (!paymentSchema?.actions?.length) return PAYMENT_ACTION_FIELDS;
+    return paymentSchema.actions.flatMap((group) => group.fields || []);
+  }, [paymentSchema]);
   const notificationEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ENABLED", "ON");
   const notificationOrdersEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ORDERS_ENABLED", "ON");
   const notificationPrivateMessagesEnabled = configIsOn(config, "ADMIN_NOTIFICATION_PRIVATE_MESSAGES_ENABLED", "ON");
@@ -3831,6 +3862,7 @@ export default function Home() {
       const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
       const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
       const needsConfig = !light;
+      const needsPaymentSchema = !light && shouldLoad("payment");
       const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
       const needsSales = !light && shouldLoad("sales");
       const needsCoupons = !light && shouldLoad("overview", "coupons");
@@ -3851,6 +3883,7 @@ export default function Home() {
       addTask(needsOrders, () => getOrders(activeSecret, overviewLite ? 50 : 5000), setOrders);
       addTask(needsUsers, () => getUsers(activeSecret), setUsers);
       addTask(needsConfig, () => getConfig(activeSecret), setConfig);
+      addTask(needsPaymentSchema, () => getPaymentSchema(activeSecret), setPaymentSchema);
       addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
       addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
       addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
@@ -8466,7 +8499,26 @@ export default function Home() {
                 <ConfigEditor title="Inbox hỗ trợ" subtitle="Luồng tin nhắn riêng từ khách vào bot, group inbox, tên admin và quyền xoá inbox." fields={SUPPORT_INBOX_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
               </>
             ) : null}
-            {contentTab === "payment" ? <ConfigEditor title="Phương thức thanh toán" subtitle="PayOS dùng giá VNĐ; PayPal và USDT TRC20 dùng giá riêng. Credentials vẫn đặt an toàn trong Render Environment." fields={PAYMENT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {contentTab === "payment" ? (
+              <Stack spacing={2.5}>
+                <ConfigEditor
+                  title="Payment rails"
+                  subtitle="Các cổng thanh toán thật sẽ đi theo cơ chế rail riêng. Bật/tắt ở đây không ảnh hưởng action web."
+                  fields={paymentRailFields}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+                <ConfigEditor
+                  title="Payment actions"
+                  subtitle="Các nút hành động riêng như WEB checkout. Không phải rail thanh toán thật."
+                  fields={paymentActionFields}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+              </Stack>
+            ) : null}
             {contentTab === "currency" ? <ConfigEditor title="Tiền tệ hiển thị" subtitle="Chỉ đổi cách hiển thị trong bot/UI. Số tiền QR PayOS vẫn giữ nguyên VND." fields={CURRENCY_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {contentTab === "admin" ? <ConfigEditor title="Setup Admin ID" subtitle="Quản lý Telegram ID có quyền admin. Nhiều ID thì cách nhau bằng dấu phẩy." fields={ADMIN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>

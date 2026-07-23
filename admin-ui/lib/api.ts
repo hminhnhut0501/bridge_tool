@@ -42,6 +42,30 @@ export type ConfigRow = {
   updated_at: string;
 };
 
+export type ConfigFieldSchema = {
+  key: string;
+  label: string;
+  placeholder: string;
+  help: string;
+  kind?: "input" | "textarea" | "select" | "multiselect";
+  options?: { label: string; value: string }[];
+};
+
+export type PaymentSchemaGroup = {
+  provider: string;
+  kind: "rail" | "action";
+  enabledKey: string;
+  enabledDefault: string;
+  currency: string;
+  priority: number;
+  fields: ConfigFieldSchema[];
+};
+
+export type PaymentSchemaResponse = {
+  rails: PaymentSchemaGroup[];
+  actions: PaymentSchemaGroup[];
+};
+
 export type LicenseRecord = {
   id: string;
   license_key: string;
@@ -824,6 +848,10 @@ export async function searchCustomers(secret: string, query: string, limit = 20)
 
 export async function getConfig(secret: string) {
   return request<{ data: ConfigRow[] }>("/admin-api/config", secret);
+}
+
+export async function getPaymentSchema(secret: string) {
+  return request<{ data: PaymentSchemaResponse }>("/admin-api/payment-schema", secret);
 }
 
 export async function getLicenses(secret: string, limit = 200) {
