@@ -1,8 +1,11 @@
 import asyncio
+import hashlib
+import hmac
 import os
 import unittest
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
@@ -11,6 +14,7 @@ import modules.mod_coupon as mod_coupon
 import modules.mod_payment as mod_payment
 import processor
 import support_utils
+import web_backend
 from supabase_store import SupabaseStore
 
 
@@ -77,6 +81,14 @@ class FakePaymentBot:
     async def send_message(self, **kwargs):
         self.messages.append(kwargs)
         return SimpleNamespace(chat=SimpleNamespace(id=kwargs["chat_id"]), message_id=123)
+
+
+class FakeLicenseDeliveryRequest:
+    def __init__(self, body):
+        self._body = body
+
+    async def json(self):
+        return self._body
 
 
 class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
@@ -365,6 +377,91 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("LIC_42", caption)
         self.assertNotIn("Kích hoạt trên bot", " ".join(button_texts))
         self.assertNotIn("?start=lic_", caption)
+
+    async def test_license_delivery_endpoint_renders_full_message(self):
+        previous_flow_enabled = web_backend.license_flow_enabled
+        previous_bot = web_backend.bot
+        previous_store = web_backend.supabase_store
+        previous_invite_links = mod_coupon.build_invite_links
+        previous_secret_env = os.environ.get("WEB_PAYMENT_SECRET")
+        previous_bot_secret_env = os.environ.get("BOT_WEB_HMAC_SECRET")
+
+        fake_bot = FakePaymentBot()
+
+        async def fake_build_invite_links(user_id, plan_code):
+            return (
+                "🔗 Prime: https://t.me/+prime-link",
+                "Prime",
+                [],
+                [{"group_id": "-1001", "success": True, "invite_link": "https://t.me/+prime-link"}],
+            )
+
+        class FakeStore:
+            def record_support_event(self, *args, **kwargs):
+                return None
+
+        body = {
+            "orderId": "order_123",
+            "orderNumber": "ORD-123",
+            "telegramUserId": "42",
+            "customerRef": "customer-1",
+            "planCode": "HCV_30D",
+            "planName": "VIP 30 Ngày - Prime",
+            "currency": "VND",
+            "amountMinor": 59000,
+            "licenseCode": "LIC-ABCD-EFGH-IJKL",
+            "activationUrl": "https://t.me/hangcuvipbot?start=lic_LIC-ABCD-EFGH-IJKL",
+            "groupIds": ["-1001"],
+            "entitlements": ["app_access", "vip_group_access"],
+            "locale": "vi",
+            "timestamp": 1784600000,
+            "nonce": "random-nonce-123",
+        }
+        secret = "test-secret"
+        message = "|".join(
+            [
+                body["orderId"],
+                body["telegramUserId"],
+                str(body["timestamp"]),
+                body["nonce"],
+            ]
+        )
+        body["signature"] = hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        try:
+            os.environ["WEB_PAYMENT_SECRET"] = secret
+            os.environ["BOT_WEB_HMAC_SECRET"] = secret
+            web_backend.license_flow_enabled = lambda: True
+            web_backend.bot = fake_bot
+            web_backend.supabase_store = FakeStore()
+            mod_coupon.build_invite_links = fake_build_invite_links
+
+            response = await web_backend.license_delivery(FakeLicenseDeliveryRequest(body))
+
+            self.assertEqual(response["success"], True)
+            self.assertEqual(len(fake_bot.messages), 1)
+            sent = fake_bot.messages[0]
+            text = sent["text"]
+            self.assertIn("Thanh toán thành công", text)
+            self.assertIn("order_123", text)
+            self.assertIn("VIP 30 Ngày - Prime", text)
+            self.assertIn("LIC-ABCD-EFGH-IJKL", text)
+            self.assertIn("https://t.me/hangcuvipbot?start=lic_LIC-ABCD-EFGH-IJKL", text)
+            self.assertIn("Prime", text)
+            self.assertEqual(sent["chat_id"], 42)
+        finally:
+            web_backend.license_flow_enabled = previous_flow_enabled
+            web_backend.bot = previous_bot
+            web_backend.supabase_store = previous_store
+            mod_coupon.build_invite_links = previous_invite_links
+            if previous_secret_env is None:
+                os.environ.pop("WEB_PAYMENT_SECRET", None)
+            else:
+                os.environ["WEB_PAYMENT_SECRET"] = previous_secret_env
+            if previous_bot_secret_env is None:
+                os.environ.pop("BOT_WEB_HMAC_SECRET", None)
+            else:
+                os.environ["BOT_WEB_HMAC_SECRET"] = previous_bot_secret_env
 
 
 if __name__ == "__main__":
