@@ -4,7 +4,14 @@ from datetime import datetime
 from unittest.mock import patch
 
 from payment import payment_manager
-from modules.mod_payment import has_prior_paid_vip_order, should_allow_auto_payment, auto_payment_gate_message, auto_payment_gate_snapshot, resolve_purchase_offer
+from modules.mod_payment import (
+    auto_payment_gate_message,
+    auto_payment_gate_snapshot,
+    has_prior_paid_vip_order,
+    payment_choice_keyboard,
+    resolve_purchase_offer,
+    should_allow_auto_payment,
+)
 from modules.mod_auto_payment_schedule import auto_payment_schedule_active, apply_auto_payment_schedule
 
 
@@ -56,6 +63,32 @@ def test_vietnamese_can_offer_binance_pay_provider():
         payment_manager, "provider_enabled", return_value=True
     ):
         assert payment_manager.providers_for_language("vi") == ["PAYOS", "BINANCE_PAY"]
+
+
+def test_payment_choice_keyboard_adds_web_button_for_vietnamese_users():
+    with patch("modules.mod_payment.resolve_user_language", return_value="vi"), patch(
+        "modules.mod_payment.payment_manager.providers_for_language", return_value=["PAYOS"]
+    ), patch("modules.mod_payment.web_payment_enabled", return_value=True), patch(
+        "modules.mod_payment.web_payment_base_url", return_value="https://example.com"
+    ), patch("modules.mod_payment.web_payment_label", return_value="🌐 Thanh toán web"):
+        keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
+        texts = [button.text for row in keyboard.inline_keyboard for button in row]
+        assert "🏦 VietQR / PayOS" in texts
+        assert "🌐 Thanh toán web" in texts
+        assert provider == ""
+
+
+def test_payment_choice_keyboard_adds_web_button_for_english_users():
+    with patch("modules.mod_payment.resolve_user_language", return_value="en"), patch(
+        "modules.mod_payment.payment_manager.providers_for_language", return_value=["PAYPAL"]
+    ), patch("modules.mod_payment.web_payment_enabled", return_value=True), patch(
+        "modules.mod_payment.web_payment_base_url", return_value="https://example.com"
+    ), patch("modules.mod_payment.web_payment_label", return_value="🌐 Web checkout"):
+        keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
+        texts = [button.text for row in keyboard.inline_keyboard for button in row]
+        assert "💳 PayPal (USD)" in texts
+        assert "🌐 Web checkout" in texts
+        assert provider == ""
 
 
 def test_binance_pay_enabled_uses_config_token():

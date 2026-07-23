@@ -633,14 +633,22 @@ class PaymentManager:
         self.binance_pay = BinancePaySieuthicodeManager()
 
     def enabled_providers(self):
-        return [provider for provider in ("PAYOS", "PAYPAL", "TRON_USDT") if self.provider_enabled(provider)]
+        return [provider for provider in self.supported_providers() if self.provider_enabled(provider)]
+
+    @staticmethod
+    def supported_providers():
+        return ("PAYOS", "PAYPAL", "NOWPAYMENTS", "TRON_USDT", "BINANCE_PAY")
 
     def manager_for(self, provider):
         selected = str(provider or "PAYOS").upper()
         if selected == "PAYPAL":
             return self.paypal
+        if selected == "NOWPAYMENTS":
+            return self.nowpayments
         if selected == "TRON_USDT":
             return self.tron_usdt
+        if selected == "BINANCE_PAY":
+            return self.binance_pay
         return self.payos
 
     def provider_enabled(self, provider):
@@ -661,7 +669,7 @@ class PaymentManager:
         providers = []
         for item in configured.split(","):
             provider = item.strip()
-            if provider in {"PAYOS", "PAYPAL", "TRON_USDT"} and provider not in providers and self.provider_enabled(provider):
+            if provider in self.supported_providers() and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
         if key.endswith("_EN") and "TRON_USDT" not in providers and self.provider_enabled("TRON_USDT"):
             providers.append("TRON_USDT")

@@ -591,24 +591,27 @@ def payment_meta(pay_data):
 def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
     providers = payment_manager.providers_for_language(language)
-    if web_payment_enabled() and web_payment_base_url():
-        providers = [*providers, "WEB"] if "WEB" not in providers else providers
-    if not providers:
+    web_available = bool(web_payment_enabled() and web_payment_base_url())
+    if not providers and not web_available:
         return None, "__NONE__"
-    if len(providers) <= 1:
+    if len(providers) <= 1 and not web_available:
         return None, providers[0] if providers else ""
+
     kb = InlineKeyboardBuilder()
-    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20", "WEB": web_payment_label(language)}
+    labels = {"PAYOS": "🏦 VietQR / PayOS", "PAYPAL": "💳 PayPal (USD)", "TRON_USDT": "₮ USDT TRC20"}
     added = 0
     for provider in providers:
-        if provider == "WEB" and not web_payment_enabled():
-            continue
         callback_data = f"{prefix}|{provider}|{action}"
         if len(callback_data.encode("utf-8")) <= 64:
             kb.row(InlineKeyboardButton(text=labels[provider], callback_data=callback_data))
             added += 1
+    if web_available:
+        web_callback_data = f"{prefix}|WEB|{action}"
+        if len(web_callback_data.encode("utf-8")) <= 64:
+            kb.row(InlineKeyboardButton(text=web_payment_label(language), callback_data=web_callback_data))
+            added += 1
     if not added:
-        return None, providers[0]
+        return None, providers[0] if providers else ("WEB" if web_available else "")
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
 
