@@ -8,6 +8,7 @@ os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
 import config_utils
 import modules.mod_coupon as mod_coupon
+import modules.mod_payment as mod_payment
 import processor
 import support_utils
 from supabase_store import SupabaseStore
@@ -67,6 +68,15 @@ class FakeDeliveryBot:
 
     async def send_message(self, **kwargs):
         self.messages.append(kwargs)
+
+
+class FakePaymentBot:
+    def __init__(self):
+        self.messages = []
+
+    async def send_message(self, **kwargs):
+        self.messages.append(kwargs)
+        return SimpleNamespace(chat=SimpleNamespace(id=kwargs["chat_id"]), message_id=123)
 
 
 class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
@@ -279,6 +289,42 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(calls[0]["amount"], 4.99)
         self.assertEqual(calls[0]["payment_currency"], "USD")
+
+    async def test_web_caption_for_vietnamese_flow_uses_vnd_text_style(self):
+        fake_bot = FakePaymentBot()
+        callback = SimpleNamespace(
+            from_user=SimpleNamespace(id=42, full_name="User"),
+            message=SimpleNamespace(chat=SimpleNamespace(id=99)),
+        )
+        pay_data = {
+            "provider": "WEB",
+            "approval_url": "https://example.com/checkout",
+            "checkout_url": "https://example.com/checkout",
+            "currency_code": "VND",
+            "license_code": "LIC_42",
+        }
+
+        with patch("modules.mod_payment.bot", fake_bot), patch(
+            "sale_utils.db.get_config",
+            side_effect=lambda key, default="": {"DISPLAY_CURRENCY_STYLE": "VND_TEXT"}.get(key, default),
+        ), patch(
+            "modules.mod_payment.t",
+            side_effect=lambda user_id, key, default="": default,
+        ):
+            await mod_payment.send_payment_bill(
+                callback,
+                order_id=123,
+                plan_name="Gói VIP Prime",
+                amount=78000,
+                description="PRIVE123",
+                pay_data=pay_data,
+            )
+
+        self.assertTrue(fake_bot.messages)
+        caption = fake_bot.messages[0]["text"]
+        self.assertIn("WEB PAYMENT", caption)
+        self.assertIn("78.000 VNĐ", caption)
+        self.assertIn("LIC_42", caption)
 
 
 if __name__ == "__main__":
