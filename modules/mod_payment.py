@@ -661,28 +661,35 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         data = response.json()
         if not isinstance(data, dict):
             return None
-        checkout_url = str(data.get("checkoutUrl") or data.get("checkout_url") or "").strip()
+        payload_data = data.get("data") if isinstance(data.get("data"), dict) else data
+        checkout_url = str(
+            payload_data.get("checkoutUrl")
+            or payload_data.get("checkout_url")
+            or payload_data.get("approvalUrl")
+            or payload_data.get("approval_url")
+            or ""
+        ).strip()
         if not checkout_url:
             return None
         license_code = str(
-            data.get("licenseCode")
-            or data.get("license_code")
-            or data.get("activationCode")
-            or data.get("activation_code")
+            payload_data.get("licenseCode")
+            or payload_data.get("license_code")
+            or payload_data.get("activationCode")
+            or payload_data.get("activation_code")
             or payload["activationCode"]
         ).strip().upper()
         return {
             "provider": "WEB",
-            "provider_order_id": str(data.get("orderId") or order_id),
+            "provider_order_id": str(payload_data.get("orderId") or payload_data.get("order_id") or order_id),
             "approval_url": checkout_url,
-            "currency_code": str(data.get("currency") or currency).upper(),
+            "currency_code": str(payload_data.get("currency") or currency).upper(),
             "checkout_url": checkout_url,
             "activation_code": license_code,
             "license_code": license_code,
-            "customer_ref": str(data.get("customerRef") or data.get("customer_ref") or payload["customerRef"]),
-            "plan_code": str(data.get("planCode") or data.get("plan_code") or payload["planCode"]),
-            "locale": str(data.get("locale") or payload["locale"]),
-            "entitlements": data.get("entitlements", []),
+            "customer_ref": str(payload_data.get("customerRef") or payload_data.get("customer_ref") or payload["customerRef"]),
+            "plan_code": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
+            "locale": str(payload_data.get("locale") or payload["locale"]),
+            "entitlements": payload_data.get("entitlements", []),
         }
     except requests.HTTPError as exc:
         response = getattr(exc, "response", None)
@@ -1059,7 +1066,15 @@ async def process_early_renew(callback: CallbackQuery):
         if not await enforce_payment_cooldown(callback, action, provider):
             return
 
-        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        msg_wait = await callback.message.answer(
+            t(
+                callback.from_user.id,
+                "MSG_WAIT_WEB_CHECKOUT",
+                "🌐 Đang mở trang thanh toán web...",
+            )
+            if str(provider).upper() == "WEB"
+            else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
+        )
         order_id = int(time.time())
         description = f"PRIVE{order_id}"[-20:]
         amount = offer["renew_price"]
@@ -1206,7 +1221,15 @@ async def process_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PRICE_NOT_CONFIGURED", "Gói này chưa được cấu hình giá cho phương thức thanh toán đã chọn."), show_alert=True)
             return
 
-        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        msg_wait = await callback.message.answer(
+            t(
+                callback.from_user.id,
+                "MSG_WAIT_WEB_CHECKOUT",
+                "🌐 Đang mở trang thanh toán web...",
+            )
+            if str(provider).upper() == "WEB"
+            else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
+        )
         order_id = int(time.time())
         description = f"PRIVE{order_id}"[-20:]
         
@@ -1295,7 +1318,15 @@ async def process_hidden_buy_request(callback: CallbackQuery):
 
         plan_name = offer["plan_name"]
         amount = offer["amount"]
-        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        msg_wait = await callback.message.answer(
+            t(
+                callback.from_user.id,
+                "MSG_WAIT_WEB_CHECKOUT",
+                "🌐 Đang mở trang thanh toán web...",
+            )
+            if str(provider).upper() == "WEB"
+            else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
+        )
         order_id = int(time.time())
         description = f"PRIVE{order_id}"[-20:]
 
@@ -1413,7 +1444,15 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_DISCOUNT_ZERO_AMOUNT", "Mã giảm giá làm đơn về 0đ. Hãy dùng coupon kích hoạt thay vì coupon giảm giá."), show_alert=True)
             return
 
-        msg_wait = await callback.message.answer(t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR..."))
+        msg_wait = await callback.message.answer(
+            t(
+                callback.from_user.id,
+                "MSG_WAIT_WEB_CHECKOUT",
+                "🌐 Đang mở trang thanh toán web...",
+            )
+            if str(provider).upper() == "WEB"
+            else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
+        )
         order_id = int(time.time())
         description = f"PRIVE{order_id}"[-20:]
         pay_data = create_payment_for_user(
