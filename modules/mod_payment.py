@@ -734,6 +734,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "currency": str(payload_data.get("currency") or currency).upper(),
             "checkout": str(payload_data.get("checkoutId") or payload_data.get("checkout_id") or payload_data.get("providerCheckoutId") or payload_data.get("provider_checkout_id") or payload["orderId"]),
             "session": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
+            "botOrderId": str(payload["orderId"]),
         }
         web_checkout_base = urllib.parse.urljoin(base_url.rstrip("/") + "/", "checkout")
         web_checkout_url = f"{web_checkout_base}?{urllib.parse.urlencode(checkout_context)}"
@@ -749,6 +750,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "plan_code": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
             "locale": str(payload_data.get("locale") or payload["locale"]),
             "payment_session_id": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
+            "bot_order_id": str(payload["orderId"]),
             "entitlements": payload_data.get("entitlements", []),
         }
     except requests.HTTPError as exc:

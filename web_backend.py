@@ -2528,6 +2528,12 @@ async def license_delivery(request: Request):
     body = await request.json()
     telegram_user_id = str(body.get("telegramUserId") or "").strip()
     order_id = str(body.get("orderId") or "").strip()
+    bot_order_id = str(
+        body.get("botOrderId")
+        or body.get("sourceOrderId")
+        or body.get("paymentSessionId")
+        or ""
+    ).strip()
     plan_code = str(body.get("planCode") or "").strip().upper()
     vip_plan_code = str(body.get("vipPlanCode") or body.get("requestedPlanCode") or "").strip().upper()
     plan_name = str(body.get("planName") or "").strip() or plan_code
@@ -2543,6 +2549,13 @@ async def license_delivery(request: Request):
         raise HTTPException(status_code=400, detail="Missing signature fields")
     if not _verify_bot_delivery_signature(body):
         raise HTTPException(status_code=401, detail="Invalid signature")
+
+    if bot_order_id and getattr(supabase_store, "enabled", False):
+        try:
+            supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
+            print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id}")
+        except Exception as exc:
+            print(f"[license-delivery] bot_order_paid_failed botOrderId={bot_order_id} webOrderId={order_id} error={exc}")
 
     snapshot_fields = {
         "planCode": plan_code or "n/a",
