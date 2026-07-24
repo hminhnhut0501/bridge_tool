@@ -725,8 +725,8 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         ).strip().upper()
         checkout_context = {
             "order": str(payload_data.get("orderNumber") or payload_data.get("order_number") or payload["orderId"]),
-            "planCode": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
-            "plan": str(plan_name or payload_data.get("planName") or payload_data.get("plan_name") or payload["planCode"]),
+            "planCode": "BOT_PAYMENT",
+            "plan": str(plan_name or "Telegram payment"),
             "amount": str(payload_data.get("amount") or amount),
             "amountMinor": str(payload_data.get("amountMinor") or payload_data.get("amount_minor") or amount),
             "currency": str(payload_data.get("currency") or currency).upper(),
@@ -742,10 +742,10 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "approval_url": web_checkout_url,
             "currency_code": str(payload_data.get("currency") or currency).upper(),
             "checkout_url": web_checkout_url,
-            "activation_code": license_code,
+            "activation_code": "",
             "license_code": license_code,
             "customer_ref": str(payload_data.get("customerRef") or payload_data.get("customer_ref") or payload["customerRef"]),
-            "plan_code": str(payload_data.get("planCode") or payload_data.get("plan_code") or payload["planCode"]),
+            "plan_code": "BOT_PAYMENT",
             "locale": str(payload_data.get("locale") or payload["locale"]),
             "payment_session_id": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
             "bot_order_id": str(payload["orderId"]),
