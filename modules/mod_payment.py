@@ -692,12 +692,8 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
     nonce = f"{order_id}{user_id}{now_ts}"[-24:]
     payload = {
         "orderId": str(order_id),
-        "telegramUserId": str(user_id),
-        "customerRef": f"tg:{user_id}",
         "amountMinor": int(amount),
-        "locale": "en" if language == "en" else "vi",
         "currency": currency,
-        "source": "prive_bot_web_payment",
         "timestamp": now_ts,
         "nonce": nonce,
         "paymentSessionId": f"ps_{str(order_id).replace('-', '')}_{now_ts}",
