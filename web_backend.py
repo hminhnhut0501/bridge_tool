@@ -2536,6 +2536,19 @@ async def license_delivery(request: Request):
     if not _verify_bot_delivery_signature(body):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
+    print(
+        "📦 license_delivery snapshot "
+        f"orderId={order_id} "
+        f"telegramUserId={telegram_user_id or 'n/a'} "
+        f"planCode={plan_code or 'n/a'} "
+        f"licenseCode={license_code or 'n/a'} "
+        f"paymentSessionId={str(body.get('paymentSessionId') or '').strip() or 'n/a'} "
+        f"checkoutKind={str(body.get('checkoutKind') or '').strip() or 'n/a'} "
+        f"paymentProvider={str(body.get('paymentProvider') or '').strip() or 'n/a'} "
+        f"locale={str(body.get('locale') or '').strip() or 'n/a'} "
+        f"currency={str(body.get('currency') or '').strip().upper() or 'n/a'}"
+    )
+
     if getattr(supabase_store, "enabled", False):
         try:
             existing_order = supabase_store.get_order(order_id)
