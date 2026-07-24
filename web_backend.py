@@ -2545,6 +2545,36 @@ async def license_delivery(request: Request):
     nonce = str(body.get("nonce") or "").strip()
     signature = str(body.get("signature") or "").strip()
 
+    # Bot-authoritative payment callback: the web only confirms payment. The
+    # original bot order remains the sole source of plan, expiry and groups.
+    is_payment_status_callback = str(body.get("status") or "").strip().upper() == "PAID" and not plan_code and not license_code
+    if is_payment_status_callback:
+        if not bot_order_id or not order_id or not timestamp or not nonce or not signature:
+            raise HTTPException(status_code=400, detail="Missing payment callback fields")
+        if not _verify_bot_delivery_signature(body):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+        if not getattr(supabase_store, "enabled", False):
+            raise HTTPException(status_code=503, detail="Bot order store unavailable")
+        bot_order = supabase_store.get_order(bot_order_id) or {}
+        if not bot_order:
+            raise HTTPException(status_code=404, detail="Bot order not found")
+        metadata = dict(bot_order.get("metadata") or {})
+        if metadata.get("bot_delivery_notified_at"):
+            return {"success": True, "duplicate": True, "botOrderId": bot_order_id}
+        metadata.update({
+            "web_delivery_claimed_at": _now_iso(),
+            "web_order_id": order_id,
+            "web_order_number": str(body.get("orderNumber") or ""),
+            "payment_provider": str(body.get("paymentProvider") or ""),
+            "payment_status": "PAID",
+        })
+        supabase_store.patch_order(bot_order_id, {"metadata": metadata})
+        supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
+        print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id} mode=status_only")
+        from processor import process_successful_payment
+        await process_successful_payment(bot_order_id)
+        return {"success": True, "botOrderId": bot_order_id, "status": "PAID", "mode": "status_only"}
+
     if not telegram_user_id or not order_id or not plan_code or not license_code:
         raise HTTPException(status_code=400, detail="Missing delivery fields")
     if not timestamp or not nonce or not signature:
