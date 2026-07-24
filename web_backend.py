@@ -238,7 +238,13 @@ def webhook_retry_wait_seconds() -> int:
 
 
 def _bot_delivery_secret():
-    return str(os.getenv("WEB_PAYMENT_SECRET", "") or os.getenv("BOT_WEB_HMAC_SECRET", "") or "").strip()
+    return str(
+        os.getenv("BOT_LICENSE_CALLBACK_SECRET", "")
+        or os.getenv("LICENSE_BOT_CALLBACK_SECRET", "")
+        or os.getenv("WEB_PAYMENT_SECRET", "")
+        or os.getenv("BOT_WEB_HMAC_SECRET", "")
+        or ""
+    ).strip()
 
 
 def _verify_bot_delivery_signature(body: dict) -> bool:
