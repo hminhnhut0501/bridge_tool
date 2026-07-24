@@ -2547,8 +2547,15 @@ async def license_delivery(request: Request):
 
     # Bot-authoritative payment callback: the web only confirms payment. The
     # original bot order remains the sole source of plan, expiry and groups.
+    integration_source = str(body.get("integrationSource") or "").strip().lower()
+    is_bot_authoritative_callback = bool(bot_order_id) and (
+        integration_source == "bot_checkout"
+        or integration_source == "prive_bot"
+        or integration_source.startswith("bot_")
+        or integration_source.startswith("prive_bot_")
+    )
     is_payment_status_callback = str(body.get("status") or "").strip().upper() == "PAID" and not plan_code and not license_code
-    if is_payment_status_callback:
+    if is_payment_status_callback or is_bot_authoritative_callback:
         if not bot_order_id or not order_id or not timestamp or not nonce or not signature:
             raise HTTPException(status_code=400, detail="Missing payment callback fields")
         if not _verify_bot_delivery_signature(body):
@@ -2570,7 +2577,7 @@ async def license_delivery(request: Request):
         })
         supabase_store.patch_order(bot_order_id, {"metadata": metadata})
         supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
-        print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id} mode=status_only")
+        print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id} mode=status_only source={integration_source or 'legacy_callback'}")
         from processor import process_successful_payment
         await process_successful_payment(bot_order_id)
         return {"success": True, "botOrderId": bot_order_id, "status": "PAID", "mode": "status_only"}
