@@ -1589,5 +1589,10 @@ async def cancel_order_handler(callback: CallbackQuery):
         except Exception as e:
             print(f"⚠️ Không thể cập nhật CANCELLED cho đơn {order_id}: {e}")
     await safe_delete_private_message(callback.message)
-    await callback.answer(t(callback.from_user.id, "ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
+    try:
+        await callback.answer(t(callback.from_user.id, "ALERT_CANCELLED", "🚫 Đã hủy đơn."), show_alert=True)
+    except Exception as exc:
+        # Telegram callback queries expire quickly; cancellation must still
+        # complete even when answering the old button is no longer possible.
+        print(f"⚠️ Bỏ qua callback cancel đã hết hạn order={order_id}: {exc}")
     await render_page(callback, "main_menu")
