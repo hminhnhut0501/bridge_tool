@@ -2529,6 +2529,7 @@ async def license_delivery(request: Request):
     telegram_user_id = str(body.get("telegramUserId") or "").strip()
     order_id = str(body.get("orderId") or "").strip()
     plan_code = str(body.get("planCode") or "").strip().upper()
+    vip_plan_code = str(body.get("vipPlanCode") or body.get("requestedPlanCode") or "").strip().upper()
     plan_name = str(body.get("planName") or "").strip() or plan_code
     license_code = str(body.get("licenseCode") or "").strip().upper()
     activation_url = str(body.get("activationUrl") or "").strip()
@@ -2591,7 +2592,7 @@ async def license_delivery(request: Request):
     failed_groups: list[str] = []
     invite_results = []
     try:
-        group_text, group_names, failed_groups, invite_results = await build_invite_links(telegram_user_id, plan_code)
+        group_text, group_names, failed_groups, invite_results = await build_invite_links(telegram_user_id, vip_plan_code or plan_code)
     except Exception as exc:
         print(f"⚠️ Cannot build invite links for order {order_id}: {exc}")
 

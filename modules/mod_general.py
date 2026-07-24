@@ -599,7 +599,7 @@ async def deliver_license_activation(message: Message, license_key: str):
             )
             await message.answer("❌ License chưa được gán đúng plan.")
             return
-        plan_name = plan_code
+        plan_name = str(data.get("vip_plan_code") or plan_code).strip().upper()
         try:
             supabase_store.create_license_record(
                 license_key=normalized,
