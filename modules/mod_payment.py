@@ -697,7 +697,6 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         "amountMinor": int(amount),
         "locale": "en" if language == "en" else "vi",
         "currency": currency,
-        "activationCode": f"lic_{str(order_id)}",
         "source": "prive_bot_web_payment",
         "timestamp": now_ts,
         "nonce": nonce,
@@ -722,8 +721,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             payload_data.get("licenseCode")
             or payload_data.get("license_code")
             or payload_data.get("activationCode")
-            or payload_data.get("activation_code")
-            or payload["activationCode"]
+            or ""
         ).strip().upper()
         checkout_context = {
             "order": str(payload_data.get("orderNumber") or payload_data.get("order_number") or payload["orderId"]),
