@@ -2555,6 +2555,16 @@ async def license_delivery(request: Request):
     if bot_order_id and getattr(supabase_store, "enabled", False):
         try:
             bot_order = supabase_store.get_order(bot_order_id) or {}
+            source_metadata = dict(bot_order.get("metadata") or {})
+            vip_plan_code = str(
+                vip_plan_code
+                or source_metadata.get("vipPlanCode")
+                or source_metadata.get("requestedPlanCode")
+                or source_metadata.get("plan_code")
+                or bot_order.get("plan_code")
+                or bot_order.get("plan_name")
+                or ""
+            ).strip().upper()
             bot_metadata = dict(bot_order.get("metadata") or {})
             bot_metadata["web_delivery_claimed_at"] = _now_iso()
             bot_metadata["web_order_id"] = order_id
@@ -2576,6 +2586,7 @@ async def license_delivery(request: Request):
         "integrationSource": str(body.get("integrationSource") or "").strip() or "n/a",
         "botOrderId": bot_order_id or "n/a",
         "correlationId": str(body.get("correlationId") or (f"bot:{bot_order_id}" if bot_order_id else "n/a")),
+        "vipPlanCode": vip_plan_code or "n/a",
     }
 
     def build_delivery_snapshot_log(fields: dict[str, str]) -> str:
@@ -2585,6 +2596,7 @@ async def license_delivery(request: Request):
             f"orderId={order_id} "
             f"botOrderId={fields.get('botOrderId', 'n/a')} "
             f"correlationId={fields.get('correlationId', 'n/a')} "
+            f"vipPlanCode={fields.get('vipPlanCode', 'n/a')} "
             f"telegramUserId={telegram_user_id or 'n/a'} "
             f"licenseCode={license_code or 'n/a'} "
             + " ".join(f"{key}={fields.get(key, 'n/a')}" for key in ordered_keys)
@@ -2675,7 +2687,6 @@ async def license_delivery(request: Request):
             existing_meta["bot_delivery_notified_at"] = notified_at
             supabase_store.patch_order(bot_order_id or order_id, {
                 "metadata": existing_meta,
-                "bot_delivery_notified_at": notified_at,
             })
         except Exception as exc:
             print(f"⚠️ Cannot persist bot delivery notification for order {order_id}: {exc}")
