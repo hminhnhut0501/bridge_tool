@@ -360,6 +360,10 @@ async def auto_check_loop(order_code, user_id):
         if supabase_store.enabled:
             order = supabase_store.get_order(str_code)
             current_status = str(order.get("status", "")).upper() if order else ""
+            metadata = dict((order or {}).get("metadata") or {})
+            if metadata.get("web_delivery_claimed_at") or metadata.get("bot_delivery_notified_at"):
+                print(f"ℹ️ Bỏ qua auto-delivery đơn {str_code}: đã xử lý bởi web license callback.")
+                return
             if current_status == "PAID":
                 print(f"💰 Đơn {str_code} đã được đánh dấu PAID trong Supabase. Đang giao hàng...")
                 await process_successful_payment(str_code)

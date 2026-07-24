@@ -2552,6 +2552,12 @@ async def license_delivery(request: Request):
 
     if bot_order_id and getattr(supabase_store, "enabled", False):
         try:
+            bot_order = supabase_store.get_order(bot_order_id) or {}
+            bot_metadata = dict(bot_order.get("metadata") or {})
+            bot_metadata["web_delivery_claimed_at"] = _now_iso()
+            bot_metadata["web_order_id"] = order_id
+            bot_metadata["web_order_number"] = str(body.get("orderNumber") or "")
+            supabase_store.patch_order(bot_order_id, {"metadata": bot_metadata})
             supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
             print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id}")
         except Exception as exc:
@@ -2641,11 +2647,11 @@ async def license_delivery(request: Request):
 
     if getattr(supabase_store, "enabled", False):
         try:
-            existing_order = supabase_store.get_order(order_id)
+            existing_order = supabase_store.get_order(bot_order_id or order_id)
             existing_meta = dict(existing_order.get("metadata") or {}) if existing_order else {}
             notified_at = _now_iso()
             existing_meta["bot_delivery_notified_at"] = notified_at
-            supabase_store.patch_order(order_id, {
+            supabase_store.patch_order(bot_order_id or order_id, {
                 "metadata": existing_meta,
                 "bot_delivery_notified_at": notified_at,
             })
