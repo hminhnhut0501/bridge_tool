@@ -2537,17 +2537,22 @@ async def license_delivery(request: Request):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     def build_delivery_snapshot_log() -> str:
+        common_fields = [
+            ("planCode", plan_code or "n/a"),
+            ("checkoutKind", str(body.get("checkoutKind") or "").strip() or "n/a"),
+            ("paymentSessionId", str(body.get("paymentSessionId") or "").strip() or "n/a"),
+            ("paymentProvider", str(body.get("paymentProvider") or "").strip() or "n/a"),
+            ("locale", str(body.get("locale") or "").strip() or "n/a"),
+            ("currency", str(body.get("currency") or "").strip().upper() or "n/a"),
+            ("source", str(body.get("source") or "").strip() or "n/a"),
+            ("integrationSource", str(body.get("integrationSource") or "").strip() or "n/a"),
+        ]
         return (
             "📦 license_delivery snapshot "
             f"orderId={order_id} "
             f"telegramUserId={telegram_user_id or 'n/a'} "
-            f"planCode={plan_code or 'n/a'} "
             f"licenseCode={license_code or 'n/a'} "
-            f"paymentSessionId={str(body.get('paymentSessionId') or '').strip() or 'n/a'} "
-            f"checkoutKind={str(body.get('checkoutKind') or '').strip() or 'n/a'} "
-            f"paymentProvider={str(body.get('paymentProvider') or '').strip() or 'n/a'} "
-            f"locale={str(body.get('locale') or '').strip() or 'n/a'} "
-            f"currency={str(body.get('currency') or '').strip().upper() or 'n/a'}"
+            + " ".join(f"{key}={value}" for key, value in common_fields)
         )
 
     print(build_delivery_snapshot_log())
