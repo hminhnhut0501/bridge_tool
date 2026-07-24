@@ -95,6 +95,7 @@ try:
         support_group_enabled,
         support_group_id,
         support_group_name,
+        add_support_join_button,
         support_inbox_group_id,
         support_inbox_group_name,
     )
@@ -2538,6 +2539,7 @@ async def license_delivery(request: Request):
     vip_plan_code = str(body.get("vipPlanCode") or body.get("requestedPlanCode") or "").strip().upper()
     plan_name = str(body.get("planName") or "").strip() or plan_code
     license_code = str(body.get("licenseCode") or "").strip().upper()
+    expires_at = str(body.get("expiresAt") or "").strip()
     activation_url = str(body.get("activationUrl") or "").strip()
     timestamp = body.get("timestamp")
     nonce = str(body.get("nonce") or "").strip()
@@ -2619,14 +2621,18 @@ async def license_delivery(request: Request):
     except Exception as exc:
         print(f"⚠️ Cannot build invite links for order {order_id}: {exc}")
 
+    shown_expiry = expires_at.replace("T", " ").replace("+00:00", "") if expires_at else "Đang hoạt động"
     status_lines = [
-        "✅ Thanh toán thành công.",
-        f"Đơn: <code>{order_id}</code>",
-        f"Gói: <b>{display_plan_name(plan_name, telegram_user_id)}</b>",
-        f"Mã license: <code>{license_code}</code>",
+        "✅ <b>THANH TOÁN THÀNH CÔNG!</b>",
+        "",
+        f"🎁 Gói truy cập: <b>{display_plan_name(plan_name, telegram_user_id)}</b>",
+        f"📅 Hạn sử dụng: <code>{shown_expiry}</code>",
+        "",
+        "🔒 <b>LICENSE ĐÃ TỰ ĐỘNG KÍCH HOẠT</b>",
+        f"<code>{license_code}</code>",
+        "",
+        "🔒 <b>LINK THAM GIA CỦA BẠN:</b>",
     ]
-    if activation_url:
-        status_lines.append(f"🔗 Kích hoạt: {activation_url}")
     if group_names:
         status_lines.append(f"👥 Nhóm: {group_names}")
     if group_text:
@@ -2634,12 +2640,28 @@ async def license_delivery(request: Request):
         status_lines.append(group_text.strip())
     if failed_groups and not group_text:
         status_lines.append("⚠️ Chưa tạo được link nhóm, vui lòng thử lại sau.")
+    status_lines.extend([
+        "",
+        "💌 Vui lòng nhấn nút bên dưới để tham gia nhóm bảo hành và nhận hỗ trợ sau này!",
+        "",
+        "⚠️ <i>Link chỉ sử dụng cho 1 tài khoản và 1 lần tham gia. Vui lòng không chia sẻ.</i>",
+    ])
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    keyboard = InlineKeyboardBuilder()
+    try:
+        await add_support_join_button(keyboard, int(telegram_user_id))
+    except Exception as exc:
+        print(f"⚠️ Cannot add support button for order {order_id}: {exc}")
+    keyboard.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="back_main"))
 
     try:
         await bot.send_message(
             chat_id=int(telegram_user_id),
             text="\n".join(status_lines).strip(),
             parse_mode="HTML",
+            reply_markup=keyboard.as_markup(),
             disable_web_page_preview=True,
         )
     except Exception as exc:
