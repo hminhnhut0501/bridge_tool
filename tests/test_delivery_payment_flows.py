@@ -582,6 +582,101 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
             else:
                 os.environ["BOT_WEB_HMAC_SECRET"] = previous_bot_secret_env
 
+    async def test_license_delivery_endpoint_logs_snapshot_fields(self):
+        previous_flow_enabled = web_backend.license_flow_enabled
+        previous_bot = web_backend.bot
+        previous_store = web_backend.supabase_store
+        previous_invite_links = mod_coupon.build_invite_links
+        previous_secret_env = os.environ.get("WEB_PAYMENT_SECRET")
+        previous_bot_secret_env = os.environ.get("BOT_WEB_HMAC_SECRET")
+
+        fake_bot = FakePaymentBot()
+
+        async def fake_build_invite_links(user_id, plan_code):
+            return ("", "", [], [])
+
+        class FakeStore:
+            def record_support_event(self, *args, **kwargs):
+                return None
+
+        body = {
+            "orderId": "order_456",
+            "orderNumber": "ORD-456",
+            "telegramUserId": "99",
+            "customerRef": "customer-9",
+            "planCode": "HCV_30D",
+            "planName": "VIP 30 Ngày - Prime",
+            "currency": "VND",
+            "amountMinor": 59000,
+            "licenseCode": "LIC-TEST-1234",
+            "activationUrl": "https://t.me/hangcuvipbot?start=lic_LIC-TEST-1234",
+            "groupIds": ["-1001"],
+            "entitlements": ["app_access", "vip_group_access"],
+            "locale": "vi",
+            "checkoutKind": "bot",
+            "paymentProvider": "payos",
+            "paymentSessionId": "ps_ORDER456_123456",
+            "timestamp": 1784600000,
+            "nonce": "random-nonce-456",
+        }
+        secret = "test-secret"
+        message = "|".join(
+            [
+                body["orderId"],
+                body["telegramUserId"],
+                str(body["timestamp"]),
+                body["nonce"],
+            ]
+        )
+        body["signature"] = hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        printed: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        def capture_print(*args, **kwargs):
+            printed.append((args, kwargs))
+
+        try:
+            os.environ["WEB_PAYMENT_SECRET"] = secret
+            os.environ["BOT_WEB_HMAC_SECRET"] = secret
+            web_backend.license_flow_enabled = lambda: True
+            web_backend.bot = fake_bot
+            web_backend.supabase_store = FakeStore()
+            mod_coupon.build_invite_links = fake_build_invite_links
+
+            with patch("builtins.print", side_effect=capture_print):
+                response = await web_backend.license_delivery(FakeLicenseDeliveryRequest(body))
+
+            self.assertEqual(response["success"], True)
+            snapshot_lines = [
+                str(args[0])
+                for args, _ in printed
+                if args and str(args[0]).startswith("📦 license_delivery snapshot ")
+            ]
+            self.assertEqual(len(snapshot_lines), 1)
+            snapshot = snapshot_lines[0]
+            self.assertIn("orderId=order_456", snapshot)
+            self.assertIn("telegramUserId=99", snapshot)
+            self.assertIn("planCode=HCV_30D", snapshot)
+            self.assertIn("licenseCode=LIC-TEST-1234", snapshot)
+            self.assertIn("paymentSessionId=ps_ORDER456_123456", snapshot)
+            self.assertIn("checkoutKind=bot", snapshot)
+            self.assertIn("paymentProvider=payos", snapshot)
+            self.assertIn("locale=vi", snapshot)
+            self.assertIn("currency=VND", snapshot)
+        finally:
+            web_backend.license_flow_enabled = previous_flow_enabled
+            web_backend.bot = previous_bot
+            web_backend.supabase_store = previous_store
+            mod_coupon.build_invite_links = previous_invite_links
+            if previous_secret_env is None:
+                os.environ.pop("WEB_PAYMENT_SECRET", None)
+            else:
+                os.environ["WEB_PAYMENT_SECRET"] = previous_secret_env
+            if previous_bot_secret_env is None:
+                os.environ.pop("BOT_WEB_HMAC_SECRET", None)
+            else:
+                os.environ["BOT_WEB_HMAC_SECRET"] = previous_bot_secret_env
+
 
 if __name__ == "__main__":
     unittest.main()
