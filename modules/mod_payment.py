@@ -695,6 +695,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         "telegramUserId": str(user_id),
         "customerRef": f"tg:{user_id}",
         "planCode": str(plan_token or plan_name or "").strip().upper(),
+        "vipPlanCode": str(plan_token or plan_name or "").strip().upper(),
         "locale": "en" if language == "en" else "vi",
         "currency": currency,
         "activationCode": f"lic_{str(order_id)}",
