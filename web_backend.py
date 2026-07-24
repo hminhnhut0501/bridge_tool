@@ -2515,9 +2515,10 @@ async def verify_license(request: Request):
 
 
 @app.post("/license-delivery")
+@app.post("/api/license-delivery")
 async def license_delivery(request: Request):
     if not license_flow_enabled():
-        raise HTTPException(status_code=404, detail="license flow disabled")
+        raise HTTPException(status_code=503, detail="license flow disabled")
     body = await request.json()
     telegram_user_id = str(body.get("telegramUserId") or "").strip()
     order_id = str(body.get("orderId") or "").strip()
