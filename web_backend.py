@@ -2567,6 +2567,7 @@ async def license_delivery(request: Request):
         "source": str(body.get("source") or "").strip() or "n/a",
         "integrationSource": str(body.get("integrationSource") or "").strip() or "n/a",
         "botOrderId": bot_order_id or "n/a",
+        "correlationId": str(body.get("correlationId") or (f"bot:{bot_order_id}" if bot_order_id else "n/a")),
     }
 
     def build_delivery_snapshot_log(fields: dict[str, str]) -> str:
@@ -2575,6 +2576,7 @@ async def license_delivery(request: Request):
             "📦 license_delivery snapshot "
             f"orderId={order_id} "
             f"botOrderId={fields.get('botOrderId', 'n/a')} "
+            f"correlationId={fields.get('correlationId', 'n/a')} "
             f"telegramUserId={telegram_user_id or 'n/a'} "
             f"licenseCode={license_code or 'n/a'} "
             + " ".join(f"{key}={fields.get(key, 'n/a')}" for key in ordered_keys)
