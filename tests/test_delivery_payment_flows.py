@@ -656,13 +656,22 @@ class DeliveryPaymentFlowTests(unittest.IsolatedAsyncioTestCase):
             snapshot = snapshot_lines[0]
             self.assertIn("orderId=order_456", snapshot)
             self.assertIn("telegramUserId=99", snapshot)
-            self.assertIn("planCode=HCV_30D", snapshot)
             self.assertIn("licenseCode=LIC-TEST-1234", snapshot)
-            self.assertIn("paymentSessionId=ps_ORDER456_123456", snapshot)
-            self.assertIn("checkoutKind=bot", snapshot)
-            self.assertIn("paymentProvider=payos", snapshot)
-            self.assertIn("locale=vi", snapshot)
-            self.assertIn("currency=VND", snapshot)
+            expected_order = [
+                "planCode=HCV_30D",
+                "checkoutKind=bot",
+                "paymentSessionId=ps_ORDER456_123456",
+                "paymentProvider=payos",
+                "locale=vi",
+                "currency=VND",
+                "source=n/a",
+                "integrationSource=n/a",
+            ]
+            last_index = -1
+            for field in expected_order:
+                current_index = snapshot.find(field)
+                self.assertGreater(current_index, last_index)
+                last_index = current_index
         finally:
             web_backend.license_flow_enabled = previous_flow_enabled
             web_backend.bot = previous_bot

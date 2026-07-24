@@ -2536,26 +2536,28 @@ async def license_delivery(request: Request):
     if not _verify_bot_delivery_signature(body):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
-    def build_delivery_snapshot_log() -> str:
-        common_fields = [
-            ("planCode", plan_code or "n/a"),
-            ("checkoutKind", str(body.get("checkoutKind") or "").strip() or "n/a"),
-            ("paymentSessionId", str(body.get("paymentSessionId") or "").strip() or "n/a"),
-            ("paymentProvider", str(body.get("paymentProvider") or "").strip() or "n/a"),
-            ("locale", str(body.get("locale") or "").strip() or "n/a"),
-            ("currency", str(body.get("currency") or "").strip().upper() or "n/a"),
-            ("source", str(body.get("source") or "").strip() or "n/a"),
-            ("integrationSource", str(body.get("integrationSource") or "").strip() or "n/a"),
-        ]
+    snapshot_fields = {
+        "planCode": plan_code or "n/a",
+        "checkoutKind": str(body.get("checkoutKind") or "").strip() or "n/a",
+        "paymentSessionId": str(body.get("paymentSessionId") or "").strip() or "n/a",
+        "paymentProvider": str(body.get("paymentProvider") or "").strip() or "n/a",
+        "locale": str(body.get("locale") or "").strip() or "n/a",
+        "currency": str(body.get("currency") or "").strip().upper() or "n/a",
+        "source": str(body.get("source") or "").strip() or "n/a",
+        "integrationSource": str(body.get("integrationSource") or "").strip() or "n/a",
+    }
+
+    def build_delivery_snapshot_log(fields: dict[str, str]) -> str:
+        ordered_keys = ["planCode", "checkoutKind", "paymentSessionId", "paymentProvider", "locale", "currency", "source", "integrationSource"]
         return (
             "📦 license_delivery snapshot "
             f"orderId={order_id} "
             f"telegramUserId={telegram_user_id or 'n/a'} "
             f"licenseCode={license_code or 'n/a'} "
-            + " ".join(f"{key}={value}" for key, value in common_fields)
+            + " ".join(f"{key}={fields.get(key, 'n/a')}" for key in ordered_keys)
         )
 
-    print(build_delivery_snapshot_log())
+    print(build_delivery_snapshot_log(snapshot_fields))
 
     if getattr(supabase_store, "enabled", False):
         try:
