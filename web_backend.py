@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import importlib
 import hashlib
 import hmac
@@ -158,6 +159,12 @@ _webhook_reset_backoff_seconds = 0
 _webhook_startup_retry_task = None
 _marketing_stats_cache = {}
 _marketing_stats_cache_ttl_seconds = max(30, int(os.getenv("MARKETING_STATS_CACHE_TTL_SECONDS", "60") or "60"))
+
+
+async def _maybe_await(value):
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 def webhook_auto_heal_reasons():
@@ -1137,7 +1144,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     support_text = ""
 
     if not skip_join_link and not fast_mode:
-        support_link, support_error = await create_support_invite_link(user_id)
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
         try:
             links_text, group_names, failed_groups, invite_results = await build_invite_links(user_id, plan_name)
         except Exception as exc:
@@ -2274,7 +2281,7 @@ async def admin_generate_manual_join_link(request: Request):
     from modules.mod_coupon import build_invite_links
 
     try:
-        support_link, support_error = await create_support_invite_link(user_id)
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
     except Exception as exc:
         if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
             raise
