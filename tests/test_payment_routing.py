@@ -16,12 +16,12 @@ from modules.mod_auto_payment_schedule import auto_payment_schedule_active, appl
 
 
 def test_vietnamese_prefers_payos_when_both_are_enabled():
-    with patch.object(payment_manager, "provider_enabled", return_value=True):
+    with patch("payment.db.get_config", return_value="PAYOS"), patch.object(payment_manager, "provider_enabled", return_value=True):
         assert payment_manager.preferred_provider("vi") == "PAYOS"
 
 
 def test_english_prefers_paypal_when_both_are_enabled():
-    with patch.object(payment_manager, "provider_enabled", return_value=True):
+    with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(payment_manager, "provider_enabled", return_value=True):
         assert payment_manager.preferred_provider("en") == "PAYPAL"
 
 
@@ -67,11 +67,14 @@ def test_vietnamese_can_offer_binance_pay_provider():
 
 def test_payment_choice_keyboard_adds_web_button_for_vietnamese_users():
     with patch("modules.mod_payment.resolve_user_language", return_value="vi"), patch(
-        "modules.mod_payment.payment_manager.providers_for_language", return_value=["PAYOS"]
+        "modules.mod_payment.get_available_payment_actions", return_value=["PAYOS", "WEB"]
     ), patch("modules.mod_payment.web_payment_enabled", return_value=True), patch(
         "modules.mod_payment.web_payment_base_url", return_value="https://example.com"
     ), patch("modules.mod_payment.web_payment_label", return_value="🌐 Thanh toán web"):
-        keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
+        with patch("modules.mod_payment.localized_default", return_value="🔙 Quay lại"), patch(
+            "modules.mod_payment.t", return_value="🔙 Quay lại"
+        ):
+            keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
         texts = [button.text for row in keyboard.inline_keyboard for button in row]
         assert "🏦 VietQR / PayOS" in texts
         assert "🌐 Thanh toán web" in texts
@@ -80,11 +83,14 @@ def test_payment_choice_keyboard_adds_web_button_for_vietnamese_users():
 
 def test_payment_choice_keyboard_adds_web_button_for_english_users():
     with patch("modules.mod_payment.resolve_user_language", return_value="en"), patch(
-        "modules.mod_payment.payment_manager.providers_for_language", return_value=["PAYPAL"]
+        "modules.mod_payment.get_available_payment_actions", return_value=["PAYPAL", "WEB"]
     ), patch("modules.mod_payment.web_payment_enabled", return_value=True), patch(
         "modules.mod_payment.web_payment_base_url", return_value="https://example.com"
     ), patch("modules.mod_payment.web_payment_label", return_value="🌐 Web checkout"):
-        keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
+        with patch("modules.mod_payment.localized_default", return_value="🔙 Back to menu"), patch(
+            "modules.mod_payment.t", return_value="🔙 Back to menu"
+        ):
+            keyboard, provider = payment_choice_keyboard(123, "buy_full_1m", "paybuy")
         texts = [button.text for row in keyboard.inline_keyboard for button in row]
         assert "💳 PayPal (USD)" in texts
         assert "🌐 Web checkout" in texts
