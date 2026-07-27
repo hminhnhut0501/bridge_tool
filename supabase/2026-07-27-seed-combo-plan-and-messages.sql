@@ -6,8 +6,18 @@ values
     now()
   ),
   (
+    'PLAN_COMBO_30D_ALIASES',
+    'All Access 30 Ngày, SVIP 30 Ngày, FULL 30D',
+    now()
+  ),
+  (
     'PLAN_COMBO_LIFE',
     'Combo Trọn Đời',
+    now()
+  ),
+  (
+    'PLAN_COMBO_LIFE_ALIASES',
+    'All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE',
     now()
   ),
   (
@@ -46,7 +56,9 @@ set
   updated_at = now()
 where public.bot_config.key in (
   'PLAN_COMBO_30D',
+  'PLAN_COMBO_30D_ALIASES',
   'PLAN_COMBO_LIFE',
+  'PLAN_COMBO_LIFE_ALIASES',
   'BTN_RENEW_FULL',
   'BTN_VIEW_ALL_ACCESS_PAGE',
   'TXT_ALL_ACCESS_DESCRIPTION',

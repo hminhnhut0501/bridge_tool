@@ -2579,6 +2579,8 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
 const PLAN_FIELDS: ConfigField[] = [
   { key: "PLAN_COMBO_30D", label: "Tên gói Combo 30 ngày", placeholder: "Combo 30 Ngày", help: "Tên gói hiển thị khi khách mua Combo 30 ngày. Fallback từ PLAN_ALL_ACCESS_30D." },
   { key: "PLAN_COMBO_LIFE", label: "Tên gói Combo trọn đời", placeholder: "Combo Trọn Đời", help: "Tên gói hiển thị khi khách mua Combo trọn đời. Fallback từ PLAN_ALL_ACCESS_LIFE." },
+  { key: "PLAN_COMBO_30D_ALIASES", label: "Alias gói Combo 30 ngày", placeholder: "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D", help: "Các tên cũ vẫn được hiểu là cùng gói 30 ngày. Phân tách bằng dấu phẩy hoặc xuống dòng.", kind: "textarea" },
+  { key: "PLAN_COMBO_LIFE_ALIASES", label: "Alias gói Combo trọn đời", placeholder: "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE", help: "Các tên cũ vẫn được hiểu là cùng gói trọn đời. Phân tách bằng dấu phẩy hoặc xuống dòng.", kind: "textarea" },
   { key: "PLAN_COLLECTION_30D", label: "Tiền tố gói collection 30 ngày", placeholder: "Collection 30 Ngày", help: "Ghép với tên collection, ví dụ: Collection 30 Ngày - Hang Cú Prime." },
   { key: "PLAN_COLLECTION_LIFE", label: "Tiền tố gói collection trọn đời", placeholder: "Collection Trọn Đời", help: "Ghép với tên collection, ví dụ: Collection Trọn Đời - Hang Cú Prime." },
   { key: "PRICE_ALL_ACCESS_30D", label: "Giá Combo 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
@@ -3320,6 +3322,7 @@ export default function Home() {
   const orderEditorPlanInputRef = useRef<HTMLInputElement | null>(null);
   const notificationSoundRef = useRef<{ playedAt: number }>({ playedAt: 0 });
   const [svipPriceSettingsOpen, setSvipPriceSettingsOpen] = useState(false);
+  const [comboNameSettingsOpen, setComboNameSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
@@ -8082,55 +8085,51 @@ export default function Home() {
               <PanelHead
                 title="Bảng giá Combo"
                 subtitle="Giá Combo được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
-                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá Combo</Button>}
+                action={<Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Button variant="outlined" size="small" onClick={() => setComboNameSettingsOpen(true)} startIcon={<Pencil size={16} />}>Đổi tên & alias</Button>
+                  <Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá Combo</Button>
+                </Box>}
               />
               <div className="pricing-grid">
-                {/* Bảng giá VNĐ */}
-                <div className="pricing-table">
+                <div className="pricing-table" style={{ gridColumn: "1 / -1" }}>
                   <div className="pricing-header vnpay">
                     <div className="pricing-icon"><ShieldCheck size={28} /></div>
                     <div className="pricing-title-group">
-                      <h3>Bản quyền Combo VNĐ</h3>
-                      <p>Khách hàng thanh toán qua ngân hàng nội địa</p>
+                      <h3>{getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày")} / {getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời")}</h3>
+                      <p>1 hub duy nhất: tên hiển thị, alias, giá VNĐ/USD và cổng thanh toán đều chỉnh từ đây.</p>
                     </div>
-                    <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
+                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <Button variant="contained" size="small" onClick={() => setComboNameSettingsOpen(true)} startIcon={<Pencil size={14} />}>Đổi tên</Button>
+                      <Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Đổi giá</Button>
+                    </Box>
                   </div>
-                  <div className="pricing-body">
-                    <div className="pricing-tier">
-                      <div className="tier-label">Gói 30 Ngày</div>
-                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0), "VND")}</div>
-                      <div className="tier-desc">Cấp quyền VIP 1 tháng</div>
+                  <div className="pricing-body" style={{ display: "grid", gap: 12 }}>
+                    <div className="pricing-tier highlight" style={{ display: "grid", gap: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                        <div>
+                          <div className="tier-label">{getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày")}</div>
+                          <div className="tier-desc">Alias cũ: {String(getConfigValue(config, "PLAN_COMBO_30D_ALIASES", "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D")).split(/[\n,;|]+/).map((item) => item.trim()).filter(Boolean).join(" • ") || "—"}</div>
+                        </div>
+                        <div style={{ fontSize: 28, fontWeight: 800 }}>{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0), "VND")}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Chip size="small" label={`VNĐ: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0") || 0), "VND")}`} variant="outlined" />
+                        <Chip size="small" label={`USD: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "0") || 0), "USD")}`} variant="outlined" />
+                      </div>
                     </div>
                     <div className="pricing-divider" />
-                    <div className="pricing-tier highlight">
-                      <div className="tier-label">Gói Trọn Đời</div>
-                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0), "VND")}</div>
-                      <div className="tier-desc">Cấp quyền VIP vĩnh viễn</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bảng giá USD */}
-                <div className="pricing-table">
-                  <div className="pricing-header usd">
-                    <div className="pricing-icon"><Coins size={28} /></div>
-                    <div className="pricing-title-group">
-                      <h3>Bản quyền Combo USD</h3>
-                      <p>Khách hàng thanh toán quốc tế (PayPal, USDT)</p>
-                    </div>
-                    <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
-                  </div>
-                  <div className="pricing-body">
-                    <div className="pricing-tier">
-                      <div className="tier-label">Gói 30 Ngày</div>
-                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_30D_USD", "0") || 0), "USD")}</div>
-                      <div className="tier-desc">Thanh toán quốc tế 1 tháng</div>
-                    </div>
-                    <div className="pricing-divider" />
-                    <div className="pricing-tier highlight">
-                      <div className="tier-label">Gói Trọn Đời</div>
-                      <div className="tier-price">{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "0") || 0), "USD")}</div>
-                      <div className="tier-desc">Thanh toán quốc tế vĩnh viễn</div>
+                    <div className="pricing-tier" style={{ display: "grid", gap: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                        <div>
+                          <div className="tier-label">{getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời")}</div>
+                          <div className="tier-desc">Alias cũ: {String(getConfigValue(config, "PLAN_COMBO_LIFE_ALIASES", "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE")).split(/[\n,;|]+/).map((item) => item.trim()).filter(Boolean).join(" • ") || "—"}</div>
+                        </div>
+                        <div style={{ fontSize: 28, fontWeight: 800 }}>{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0), "VND")}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Chip size="small" label={`VNĐ: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0") || 0), "VND")}`} variant="outlined" />
+                        <Chip size="small" label={`USD: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_ALL_ACCESS_LIFE_USD", "0") || 0), "USD")}`} variant="outlined" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -9359,6 +9358,18 @@ export default function Home() {
 
         {svipPriceSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt giá Combo chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá Combo." fields={ALL_ACCESS_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
+        ) : null}
+
+        {comboNameSettingsOpen ? (
+          <SettingsConfigModal
+            title="Đổi tên Combo"
+            subtitle="Sửa tên hiển thị và alias tương thích cho Combo 30 ngày / trọn đời. Dữ liệu cũ vẫn chạy bằng alias legacy."
+            fields={PLAN_VI_FIELDS.filter((field) => ["PLAN_COMBO_30D", "PLAN_COMBO_LIFE", "PLAN_COMBO_30D_ALIASES", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key))}
+            values={fieldValues}
+            setValues={setFieldValues}
+            onSave={saveFields}
+            onClose={() => setComboNameSettingsOpen(false)}
+          />
         ) : null}
 
         {specialGroupSettingsOpen ? (
