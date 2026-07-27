@@ -8091,48 +8091,85 @@ export default function Home() {
                 </Box>}
               />
               <div className="pricing-grid">
-                <div className="pricing-table" style={{ gridColumn: "1 / -1" }}>
-                  <div className="pricing-header vnpay">
-                    <div className="pricing-icon"><ShieldCheck size={28} /></div>
-                    <div className="pricing-title-group">
-                      <h3>{getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày")} / {getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời")}</h3>
-                      <p>1 hub duy nhất: tên hiển thị, alias, giá VNĐ/USD và cổng thanh toán đều chỉnh từ đây.</p>
-                    </div>
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <Button variant="contained" size="small" onClick={() => { setComboSettingsTab("name"); setComboSettingsOpen(true); }} startIcon={<Pencil size={14} />}>Đổi tên</Button>
-                      <Button variant="outlined" size="small" onClick={() => { setComboSettingsTab("price"); setComboSettingsOpen(true); }} startIcon={<Settings size={14} />}>Đổi giá</Button>
-                    </Box>
-                  </div>
-                  <div className="pricing-body" style={{ display: "grid", gap: 12 }}>
-                    <div className="pricing-tier highlight" style={{ display: "grid", gap: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                        <div>
-                          <div className="tier-label">{getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày")}</div>
-                          <div className="tier-desc">Alias cũ: {String(getConfigValue(config, "PLAN_COMBO_30D_ALIASES", "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D")).split(/[\n,;|]+/).map((item) => item.trim()).filter(Boolean).join(" • ") || "—"}</div>
-                        </div>
-                        <div style={{ fontSize: 28, fontWeight: 800 }}>{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_30D", "0") || 0), "VND")}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Chip size="small" label={`VNĐ: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_30D", "0") || 0), "VND")}`} variant="outlined" />
-                        <Chip size="small" label={`USD: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_30D_USD", "0") || 0), "USD")}`} variant="outlined" />
-                      </div>
-                    </div>
-                    <div className="pricing-divider" />
-                    <div className="pricing-tier" style={{ display: "grid", gap: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                        <div>
-                          <div className="tier-label">{getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời")}</div>
-                          <div className="tier-desc">Alias cũ: {String(getConfigValue(config, "PLAN_COMBO_LIFE_ALIASES", "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE")).split(/[\n,;|]+/).map((item) => item.trim()).filter(Boolean).join(" • ") || "—"}</div>
-                        </div>
-                        <div style={{ fontSize: 28, fontWeight: 800 }}>{formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE", "0") || 0), "VND")}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Chip size="small" label={`VNĐ: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE", "0") || 0), "VND")}`} variant="outlined" />
-                        <Chip size="small" label={`USD: ${formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE_USD", "0") || 0), "USD")}`} variant="outlined" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <Box
+                  sx={{
+                    gridColumn: "1 / -1",
+                    display: "grid",
+                    gap: 1.5,
+                    gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+                  }}
+                >
+                  {[
+                    {
+                      title: getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày"),
+                      aliases: String(getConfigValue(config, "PLAN_COMBO_30D_ALIASES", "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D"))
+                        .split(/[\n,;|]+/)
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                      priceVnd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_30D", "0") || 0), "VND"),
+                      priceUsd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_30D_USD", "0") || 0), "USD"),
+                      accent: "#10b981",
+                      softBg: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(255,255,255,0.92))",
+                    },
+                    {
+                      title: getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời"),
+                      aliases: String(getConfigValue(config, "PLAN_COMBO_LIFE_ALIASES", "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE"))
+                        .split(/[\n,;|]+/)
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                      priceVnd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE", "0") || 0), "VND"),
+                      priceUsd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE_USD", "0") || 0), "USD"),
+                      accent: "#2563eb",
+                      softBg: "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(255,255,255,0.92))",
+                    },
+                  ].map((item) => (
+                    <Card
+                      key={item.title}
+                      variant="outlined"
+                      sx={{
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        borderColor: "rgba(37,99,235,0.12)",
+                        background: item.softBg,
+                        boxShadow: "0 14px 40px rgba(15, 23, 42, 0.05)",
+                      }}
+                    >
+                      <CardContent sx={{ p: 2.25, "&:last-child": { pb: 2.25 } }}>
+                        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+                          <Box sx={{ display: "flex", gap: 1.5, minWidth: 0 }}>
+                            <Box sx={{ width: 44, height: 44, borderRadius: "50%", display: "grid", placeItems: "center", flex: "0 0 auto", bgcolor: `${item.accent}18`, color: item.accent }}>
+                              <ShieldCheck size={22} />
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontSize: 18, fontWeight: 900, lineHeight: 1.15 }}>
+                                {item.title}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.45 }}>
+                                1 hub duy nhất: tên hiển thị, alias, giá VNĐ/USD và cổng thanh toán đều chỉnh từ đây.
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Typography sx={{ fontSize: 28, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap" }}>
+                            {item.priceVnd}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1.5 }}>
+                          <Chip size="small" label={`VNĐ: ${item.priceVnd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
+                          <Chip size="small" label={`USD: ${item.priceUsd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
+                          {item.aliases.slice(0, 3).map((alias) => (
+                            <Chip key={`${item.title}-${alias}`} size="small" label={alias} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
+                          ))}
+                          {item.aliases.length > 3 ? <Chip size="small" label={`+${item.aliases.length - 3}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} /> : null}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+                <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", pt: 0.5 }}>
+                  <Button variant="contained" size="small" onClick={() => { setComboSettingsTab("name"); setComboSettingsOpen(true); }} startIcon={<Pencil size={14} />}>Đổi tên</Button>
+                  <Button variant="outlined" size="small" onClick={() => { setComboSettingsTab("price"); setComboSettingsOpen(true); }} startIcon={<Settings size={14} />}>Đổi giá</Button>
+                </Box>
               </div>
             </section>
             <section className="panel">
