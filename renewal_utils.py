@@ -77,7 +77,7 @@ def resolve_price_key(plan_name):
         return None
 
     if "FULL" in plan or "SVIP" in plan:
-        return "PRICE_ALL_ACCESS_30D"
+        return "PRICE_COMBO_30D"
 
     for group in group_numbers():
         btn_name = normalize_key(db.get_config(f"BTN_G{group}", f"Nhóm {group}")).upper()

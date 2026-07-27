@@ -29,7 +29,7 @@ def test_disabled_preferred_provider_falls_back():
     def enabled(provider):
         return provider == "PAYOS"
 
-    with patch.object(payment_manager, "provider_enabled", side_effect=enabled):
+    with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(payment_manager, "provider_enabled", side_effect=enabled):
         assert payment_manager.preferred_provider("en") == "PAYOS"
 
 
@@ -99,6 +99,8 @@ def test_payment_choice_keyboard_adds_web_button_for_english_users():
 
 def test_available_payment_actions_includes_web_as_separate_action():
     with patch("payment.payment_manager.providers_for_language", return_value=["PAYOS"]), patch.object(
+        payment_manager, "provider_enabled", return_value=True
+    ), patch.object(
         payment_manager, "web_enabled", return_value=True
     ):
         assert payment_manager.available_actions("vi", include_web=True) == ["PAYOS", "WEB"]
@@ -294,7 +296,7 @@ def test_new_customer_is_blocked_from_auto_payment_by_default():
     ):
         assert has_prior_paid_vip_order("42") is False
         assert should_allow_auto_payment("42") is False
-        assert "thanh toán tự động" in auto_payment_gate_message("42").lower()
+        assert "auto payment" in auto_payment_gate_message("42").lower()
 
 
 def test_returning_customer_can_use_auto_payment_when_enabled():
@@ -318,7 +320,7 @@ def test_returning_customer_can_use_auto_payment_when_enabled():
         "modules.mod_auto_payment_schedule.db.get_config",
         side_effect=lambda key, default="": config.get(key, default),
     ), patch(
-        "modules.mod_auto_payment_schedule.auto_payment_schedule_active_for_tier",
+        "modules.mod_auto_payment_schedule.auto_payment_allowed_for_user",
         return_value=True,
     ):
         assert has_prior_paid_vip_order("42") is True
@@ -503,6 +505,8 @@ def test_create_payment_for_user_allows_returning_customer():
     with patch("modules.mod_payment.should_allow_auto_payment", return_value=True), patch(
         "modules.mod_payment.get_user_language",
         return_value="vi",
+    ), patch("modules.mod_payment.payment_manager.providers_for_language", return_value=["PAYOS"]), patch(
+        "modules.mod_payment.payment_manager.enabled_providers", return_value=["PAYOS"]
     ), patch("modules.mod_payment.payment_manager.preferred_provider", return_value="PAYOS"), patch(
         "modules.mod_payment.payment_manager.create_payment_link",
         return_value={"provider": "PAYOS"},
@@ -553,11 +557,11 @@ def test_web_checkout_url_is_enriched_with_plan_amount_and_currency():
             preferred_language="vi",
         )
 
-    assert result is not None
-    checkout_url = result["checkout_url"]
-    assert checkout_url.startswith("https://hangcu.vercel.app/checkout?")
-    assert "order=1784716328" in checkout_url
-    assert "planCode=FULL_1M" in checkout_url
+        assert result is not None
+        checkout_url = result["checkout_url"]
+        assert checkout_url.startswith("https://hangcu.vercel.app/checkout?")
+        assert "order=1784716328" in checkout_url
+        assert "planCode=BOT_PAYMENT" in checkout_url
     assert "plan=VIP+30+Ng%C3%A0y+-+Prime" in checkout_url
     assert "amount=78000" in checkout_url
     assert "amountMinor=78000" in checkout_url

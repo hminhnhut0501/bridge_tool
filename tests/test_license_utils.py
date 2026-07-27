@@ -26,5 +26,7 @@ def test_load_license_plan_mapping_uses_config_json():
 def test_load_license_plan_mapping_keeps_defaults():
     mapping = load_license_plan_mapping(_FakeDb({}))
 
-    assert "VIP_BASIC" in mapping
-    assert mapping["VIP_BASIC"].groups == ("group_a",)
+    assert "COMBO_30D" in mapping
+    assert mapping["COMBO_30D"].groups == ("group_a", "group_b")
+    assert "COMBO_LIFE" in mapping
+    assert mapping["COMBO_LIFE"].groups == ("group_a", "group_b", "group_c")

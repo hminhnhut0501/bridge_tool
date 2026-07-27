@@ -23,8 +23,8 @@ class LicensePlan:
 
 
 DEFAULT_LICENSE_PLANS: dict[str, LicensePlan] = {
-    "HCV_30D": LicensePlan("HCV_30D", ("group_a", "group_b"), 30, True, aliases=("VIP_PRO", "VIP_BASIC", "VIP_30D")),
-    "HCV_LIFETIME": LicensePlan("HCV_LIFETIME", ("group_a", "group_b", "group_c"), None, False, aliases=("VIP_LIFE", "VIP_LIFETIME")),
+    "COMBO_30D": LicensePlan("COMBO_30D", ("group_a", "group_b"), 30, True, aliases=("HCV_30D", "VIP_PRO", "VIP_BASIC", "VIP_30D")),
+    "COMBO_LIFE": LicensePlan("COMBO_LIFE", ("group_a", "group_b", "group_c"), None, False, aliases=("HCV_LIFETIME", "VIP_LIFE", "VIP_LIFETIME")),
 }
 
 
