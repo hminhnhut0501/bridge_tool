@@ -285,7 +285,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200045678",
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
-    plan_name: "All Access Trọn Đời (Full 4 Collection)",
+    plan_name: "Combo Trọn Đời (Full 4 Collection)",
     amount: 299000,
     status: "PAID",
     paid_at: demoDate(-45, 15, 0),
@@ -321,7 +321,7 @@ const DEMO_ORDERS: Order[] = [
     order_id: "178200092222",
     telegram_user_id: "6845057360",
     full_name: "Jeon Jk",
-    plan_name: "All Access 30 Ngày (Full 4 Collection)",
+    plan_name: "Combo 30 Ngày (Full 4 Collection)",
     amount: 97000,
     status: "PAID",
     paid_at: demoDate(-6, 8, 45),
@@ -380,7 +380,7 @@ const DEMO_USERS: UserRow[] = [
     telegram_user_id: "1713655938",
     full_name: "Hoàng",
     status: "ACTIVE",
-    plan_name: "All Access Trọn Đời (Full 4 Collection)",
+    plan_name: "Combo Trọn Đời (Full 4 Collection)",
     expire_at: demoDate(3650, 15, 0),
     created_at: demoDate(-45, 14, 25),
   },
@@ -388,7 +388,7 @@ const DEMO_USERS: UserRow[] = [
     telegram_user_id: "6845057360",
     full_name: "Jeon Jk",
     status: "ACTIVE",
-    plan_name: "All Access 30 Ngày (Full 4 Collection)",
+    plan_name: "Combo 30 Ngày (Full 4 Collection)",
     expire_at: demoDate(24, 8, 45),
     created_at: demoDate(-6, 8, 12),
   },
@@ -8793,7 +8793,7 @@ export default function Home() {
               {hiddenSetupView === "codes" ? (
                 <>
                   <div className="hint compact">
-                    Special Code chỉ dùng để reveal catalog, không phải mã. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>ALL_ACCESS_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
+                    Special Code chỉ dùng để reveal catalog, không phải mã. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>COMBO_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
                   </div>
                   <div className="toolbar hidden-toolbar">
                     <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
@@ -9633,7 +9633,7 @@ export default function Home() {
                 <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
                 <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_ALL_ACCESS_30D}, {SALE_LABEL_PRICE_ALL_ACCESS_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
-                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua All Access => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_ALL_ACCESS_30D}"}</span>} />
+                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua Combo => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_ALL_ACCESS_30D}"}</span>} />
               </div>
             </Box>
           </MuiDialogShell>
@@ -9648,7 +9648,7 @@ export default function Home() {
                   <Select labelId="sale-price-key-label" label="Gói áp dụng" value={saleForm.price_key} onChange={(event) => setSaleForm({ ...saleForm, price_key: event.target.value })} sx={popupSelectSx}>
                     {priceKeyOptions.map((item) => <MenuItem key={item} value={item}>{priceOptionLabel(item)}</MenuItem>)}
                   </Select>
-                  <Typography variant="caption" color="text.secondary">Chỉ hiện collection đã setup, cộng với All Access.</Typography>
+                  <Typography variant="caption" color="text.secondary">Chỉ hiện collection đã setup, cộng với Combo.</Typography>
                 </FormControl>
                 <TextField className="field" label="Giảm theo phần trăm" value={saleForm.discount_percent} onChange={(event) => setSaleForm({ ...saleForm, discount_percent: event.target.value })} placeholder="VD: 20" fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Hoặc giá sale cố định" value={saleForm.sale_price} onChange={(event) => setSaleForm({ ...saleForm, sale_price: event.target.value })} placeholder="VD: 79000" fullWidth size="small" sx={popupFieldSx} />
