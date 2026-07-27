@@ -716,23 +716,23 @@ def resolve_manual_order_plan(body: dict[str, object]) -> tuple[str, dict[str, s
     if mode != "CUSTOM_DURATION":
         plan_name = str(body.get("plan_name") or "").strip()
         return plan_name, {}
-    if str(db.get_config("MANUAL_CUSTOM_DURATION_ENABLED", "ON") or "ON").strip().upper() not in {"ON", "1", "TRUE", "YES"}:
+    if str(safe_db_config("MANUAL_CUSTOM_DURATION_ENABLED", "ON") or "ON").strip().upper() not in {"ON", "1", "TRUE", "YES"}:
         raise HTTPException(status_code=409, detail="Gói tùy chỉnh đang tạm tắt để bảo trì.")
 
     entitlement_type = str(body.get("entitlement_type") or "").strip().upper()
     entitlement_key = str(body.get("entitlement_key") or "").strip()
     if entitlement_type == "ALL_ACCESS":
-        base_name = str(db.get_config("PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") or "All Access 30 Ngày").strip()
-        base_name = re.sub(r"\s+30\s*(?:ngày|days|d)\b", "", base_name, flags=re.IGNORECASE).strip() or "All Access"
+        base_name = str(safe_db_config("PLAN_COMBO_30D", safe_db_config("PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) or "Combo 30 Ngày").strip()
+        base_name = re.sub(r"\s+30\s*(?:ngày|days|d)\b", "", base_name, flags=re.IGNORECASE).strip() or "Combo"
         return f"{base_name} - Tùy chỉnh", {
             "manual_plan_mode": mode,
             "entitlement_type": entitlement_type,
             "entitlement_key": "FULL",
         }
     if entitlement_type == "GROUP_COLLECTION" and entitlement_key:
-        group_name = str(db.get_config(f"BTN_G{entitlement_key}", "") or "").strip()
+        group_name = str(safe_db_config(f"BTN_G{entitlement_key}", "") or "").strip()
         if not group_name and entitlement_key.upper().startswith("G"):
-            group_name = str(db.get_config(f"BTN_G{entitlement_key[1:]}", "") or "").strip()
+            group_name = str(safe_db_config(f"BTN_G{entitlement_key[1:]}", "") or "").strip()
         if group_name:
             return f"{group_name} - Tùy chỉnh", {
                 "manual_plan_mode": mode,

@@ -143,7 +143,7 @@ def ensure_hidden_supabase_enabled():
 def main_group_matches_plan(group_no, plan_name):
     btn_name = _config_text_with_alias(f"BTN_G{group_no}", f"Nhóm {group_no}")
     plan_upper = normalize_key_text(plan_name)
-    if "FULL" in plan_upper or "SVIP" in plan_upper or "ALL ACCESS" in plan_upper or "ALLACCESS" in plan_upper:
+    if "COMBO" in plan_upper or "FULL" in plan_upper or "SVIP" in plan_upper or "ALL ACCESS" in plan_upper or "ALLACCESS" in plan_upper:
         return True
     if f"G{group_no}" in plan_upper:
         return True
