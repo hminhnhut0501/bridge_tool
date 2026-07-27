@@ -955,7 +955,7 @@ async def check_expirations_professional():
                 )
                 kb = InlineKeyboardBuilder()
                 if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Combo"), callback_data="nav:svip_page"))
                 else:
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
                 try:
@@ -1010,7 +1010,7 @@ async def check_expirations_professional():
                     callback_data = f"renew_order_{order_id}" if use_supabase else f"renew_{row_number}"
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"), callback_data=callback_data))
                 elif "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Trọn Đời"), callback_data="nav:svip_page"))
+                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Combo"), callback_data="nav:svip_page"))
                 else:
                     kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
                 try:

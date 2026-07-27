@@ -382,7 +382,7 @@ async def send_sale_announcement(message: Message):
     img = str(db.get_config("IMG_SALE_BANNER", "")).strip()
     layout = db.get_config(
         "SALE_ANNOUNCE_BUTTONS",
-        "🔥 Mua All Access Trọn Đời => buy_full_life\n💎 Mua All Access 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
+        "🔥 Mua Combo Trọn Đời => buy_full_life\n💎 Mua Combo 30 Ngày => buy_full_1m\n📋 Xem toàn bộ gói => nav:main_menu",
     ).replace("\\n", "\n")
     reply_markup = build_dynamic_keyboard(layout) if layout.strip() else None
 
@@ -1310,12 +1310,12 @@ async def cmd_me(event):
         elif any(token in latest_plan_name.lower() for token in ("svip", "full", "all access", "allaccess")):
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên All Access Trọn đời"), callback_data="buy_full_life"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE", "🌟 Nâng cấp lên Combo Trọn đời"), callback_data="buy_full_life"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
         else:
             if latest_order_id:
                 kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_RENEW", "🔄 Gia hạn nhanh"), callback_data=f"renew_order_{latest_order_id}"))
-            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_ALL_ACCESS", "🌟 Xem gói All Access"), callback_data="view_all_access_page"))
+            kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_UPGRADE_ALL_ACCESS", "🌟 Xem gói Combo"), callback_data="view_all_access_page"))
             kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))
     else:
         kb.row(InlineKeyboardButton(text=t(event.from_user.id, "BTN_BACK", localized_default(event.from_user.id, "🔙 Quay lại Menu", "🔙 Back to menu")), callback_data="back_main"))

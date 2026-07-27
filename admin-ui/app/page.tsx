@@ -1274,9 +1274,9 @@ const RENEWAL_FIELDS: ConfigField[] = [
   },
   {
     key: "BTN_RENEW_FULL",
-    label: "Nút gia hạn All Access",
-    placeholder: "🌟 Gia hạn / Lên All Access",
-    help: "Text nút gia hạn cho gói All Access/full.",
+    label: "Nút gia hạn Combo",
+    placeholder: "🌟 Gia hạn / Lên Combo",
+    help: "Text nút gia hạn cho gói Combo/full.",
   },
   {
     key: "BTN_RENEW_GROUP",
@@ -2321,15 +2321,15 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE",
-    label: "Hidden cần All Access active",
-    placeholder: "Bạn cần có gói All Access còn hạn để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu All Access active.",
+    label: "Hidden cần Combo active",
+    placeholder: "Bạn cần có gói Combo còn hạn để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu Combo active.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME",
-    label: "Hidden cần All Access trọn đời",
-    placeholder: "Bạn cần có gói All Access trọn đời để mở mã này.",
-    help: "Tin hiển thị khi rule yêu cầu All Access trọn đời.",
+    label: "Hidden cần Combo trọn đời",
+    placeholder: "Bạn cần có gói Combo trọn đời để mở mã này.",
+    help: "Tin hiển thị khi rule yêu cầu Combo trọn đời.",
   },
   {
     key: "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE",
@@ -2357,16 +2357,16 @@ const MESSAGE_FIELDS: ConfigField[] = [
   },
   {
     key: "TXT_ALL_ACCESS_DESCRIPTION",
-    label: "Mô tả trang All Access",
-    placeholder: "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
-    help: "Nội dung trang gói All Access fallback nếu chưa dùng Menu Builder.",
+    label: "Mô tả trang Combo",
+    placeholder: "🔥 <b>ĐẶC QUYỀN COMBO</b> 🔥\\n\\n👇 <i>Chọn gói đăng ký bên dưới:</i>",
+    help: "Nội dung trang gói Combo fallback nếu chưa dùng Menu Builder.",
     kind: "textarea",
   },
   {
     key: "IMG_ALL_ACCESS_PAGE",
-    label: "Ảnh trang All Access",
+    label: "Ảnh trang Combo",
     placeholder: "File ID Telegram hoặc URL ảnh",
-    help: "Ảnh cover trang All Access fallback.",
+    help: "Ảnh cover trang Combo fallback.",
   },
   {
     key: "IMG_POLICY",
@@ -2412,10 +2412,10 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
   { key: "BTN_BUY_COLLECTION_30D", label: "Nút mua collection 30 ngày", placeholder: "💎 COLLECTION 30 NGÀY", help: "Nút trên trang chi tiết collection." },
   { key: "BTN_BUY_COLLECTION_LIFE", label: "Nút mua collection trọn đời", placeholder: "👑 COLLECTION TRỌN ĐỜI", help: "Nút trên trang chi tiết collection." },
-  { key: "BTN_VIEW_ALL_ACCESS_PAGE", label: "Nút xem All Access", placeholder: "🌟 XEM ALL ACCESS", help: "Nút từ collection riêng sang trang All Access." },
+  { key: "BTN_VIEW_ALL_ACCESS_PAGE", label: "Nút xem Combo", placeholder: "🌟 XEM COMBO", help: "Nút từ collection riêng sang trang Combo." },
   { key: "BTN_RENEW", label: "Nút gia hạn", placeholder: "🔄 Gia hạn ngay", help: "Nút khi gói hết hạn." },
   { key: "BTN_EARLY_RENEW", label: "Nút gia hạn sớm", placeholder: "🔥 Gia hạn sớm -{discount_percent}%", help: "Nút ưu đãi gia hạn sớm." },
-  { key: "BTN_RENEW_FULL", label: "Nút gia hạn/lên All Access", placeholder: "🌟 Gia hạn / Lên All Access", help: "Nút trong tin nhắc gia hạn." },
+  { key: "BTN_RENEW_FULL", label: "Nút gia hạn/lên Combo", placeholder: "🌟 Gia hạn / Lên Combo", help: "Nút trong tin nhắc gia hạn." },
   { key: "BTN_RENEW_GROUP", label: "Nút mở rộng collection", placeholder: "🔄 Gia hạn / Mở rộng collection", help: "Nút trong tin nhắc gia hạn." },
 ];
 
@@ -2570,23 +2570,23 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
   {
     key: "SALE_ANNOUNCE_BUTTONS",
     label: "Nút dưới thông báo flash sale",
-    placeholder: "🔥 Mua All Access Trọn Đời => buy_full_life\\n💎 Mua All Access 30 Ngày => buy_full_1m",
+    placeholder: "🔥 Mua Combo Trọn Đời => buy_full_life\\n💎 Mua Combo 30 Ngày => buy_full_1m",
     help: "Mỗi dòng là một nút. Dùng cú pháp Text => callback.",
     kind: "textarea",
   },
 ];
 
 const PLAN_FIELDS: ConfigField[] = [
-  { key: "PLAN_ALL_ACCESS_30D", label: "Tên gói All Access 30 ngày", placeholder: "All Access 30 Ngày", help: "Tên gói hiển thị khi khách mua All Access 30 ngày." },
-  { key: "PLAN_ALL_ACCESS_LIFE", label: "Tên gói All Access trọn đời", placeholder: "All Access Trọn Đời", help: "Tên gói hiển thị khi khách mua All Access trọn đời." },
+  { key: "PLAN_COMBO_30D", label: "Tên gói Combo 30 ngày", placeholder: "Combo 30 Ngày", help: "Tên gói hiển thị khi khách mua Combo 30 ngày. Fallback từ PLAN_ALL_ACCESS_30D." },
+  { key: "PLAN_COMBO_LIFE", label: "Tên gói Combo trọn đời", placeholder: "Combo Trọn Đời", help: "Tên gói hiển thị khi khách mua Combo trọn đời. Fallback từ PLAN_ALL_ACCESS_LIFE." },
   { key: "PLAN_COLLECTION_30D", label: "Tiền tố gói collection 30 ngày", placeholder: "Collection 30 Ngày", help: "Ghép với tên collection, ví dụ: Collection 30 Ngày - Hang Cú Prime." },
   { key: "PLAN_COLLECTION_LIFE", label: "Tiền tố gói collection trọn đời", placeholder: "Collection Trọn Đời", help: "Ghép với tên collection, ví dụ: Collection Trọn Đời - Hang Cú Prime." },
-  { key: "PRICE_ALL_ACCESS_30D", label: "Giá All Access 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
-  { key: "PRICE_ALL_ACCESS_LIFE", label: "Giá All Access trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
-  { key: "PRICE_ALL_ACCESS_30D_USD", label: "Giá USD All Access 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
-  { key: "PRICE_ALL_ACCESS_LIFE_USD", label: "Giá USD All Access trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
-  { key: "BTN_BUY_ALL_ACCESS_30D", label: "Nút mua All Access 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
-  { key: "BTN_BUY_ALL_ACCESS_LIFE", label: "Nút mua All Access trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
+  { key: "PRICE_ALL_ACCESS_30D", label: "Giá Combo 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_ALL_ACCESS_LIFE", label: "Giá Combo trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_ALL_ACCESS_30D_USD", label: "Giá USD Combo 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "PRICE_ALL_ACCESS_LIFE_USD", label: "Giá USD Combo trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "BTN_BUY_ALL_ACCESS_30D", label: "Nút mua Combo 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
+  { key: "BTN_BUY_ALL_ACCESS_LIFE", label: "Nút mua Combo trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
 ];
 
 function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
@@ -2783,12 +2783,12 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
     help: "Shown when the code is valid but no active hidden group remains.",
   },
   MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE: {
-    placeholder: "You need an active All Access plan to unlock this code.",
-    help: "Shown when the rule requires an active All Access plan.",
+    placeholder: "You need an active Combo plan to unlock this code.",
+    help: "Shown when the rule requires an active Combo plan.",
   },
   MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME: {
-    placeholder: "You need a lifetime All Access plan to unlock this code.",
-    help: "Shown when the rule requires lifetime All Access.",
+    placeholder: "You need a lifetime Combo plan to unlock this code.",
+    help: "Shown when the rule requires lifetime Combo.",
   },
   MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE: {
     placeholder: "You need an active {plan_token} plan to unlock this code.",
@@ -2894,8 +2894,8 @@ const EMPTY_CHANNEL_POST_FORM = {
 
 const HIDDEN_REQUIREMENT_OPTIONS = [
   { value: "NONE", label: "Không yêu cầu thêm" },
-  { value: "SVIP_ACTIVE", label: "Phải có All Access active" },
-  { value: "SVIP_LIFETIME", label: "Phải có All Access trọn đời" },
+  { value: "SVIP_ACTIVE", label: "Phải có Combo active" },
+  { value: "SVIP_LIFETIME", label: "Phải có Combo trọn đời" },
   { value: "PLAN_TOKEN_ACTIVE", label: "Phải có plan token active" },
   { value: "PLAN_TOKEN_LIFETIME", label: "Phải có plan token trọn đời" },
 ];
@@ -6105,7 +6105,7 @@ export default function Home() {
     const chips: ReactNode[] = [];
     if (flags.isImportant) chips.push(<Chip key="important" size="small" label="Ưu tiên" color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     if (flags.isNew) chips.push(<Chip key="new" size="small" label="Mới" color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
-    if (flags.isSvip) chips.push(<Chip key="svip" size="small" label="All Access" color="secondary" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
+    if (flags.isSvip) chips.push(<Chip key="svip" size="small" label="Combo" color="secondary" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     if (options?.unreminded) chips.push(<Chip key="unreminded" size="small" label="Chưa nhắc" color="error" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     return chips;
   }
@@ -6361,7 +6361,7 @@ export default function Home() {
           <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           dateText(item.paid_at || item.created_at),
           [item.payment_provider || item.source_type || "PAID", inferOrderCurrency(item)].filter(Boolean).join(" / "),
-          groupNamesForOrder(item).join(", ") || "All Access / trọn đời",
+          groupNamesForOrder(item).join(", ") || "Combo / trọn đời",
         ] as ReactNode[],
       })),
     } satisfies Record<RenewalSubTab, { key: string; telegramId: string; searchText: string; flags: { isImportant: boolean; isNew: boolean; isSvip: boolean; isUnreminded: boolean }; cells: ReactNode[] }[]>;
@@ -6990,8 +6990,8 @@ export default function Home() {
   }, [customerSummaries, selectedCustomerId]);
 
   function planOptionLabel(value: string) {
-    if (value === "FULL_1M") return "All Access - 30 ngày";
-    if (value === "FULL_LIFE") return "All Access - trọn đời";
+    if (value === "FULL_1M") return "Combo - 30 ngày";
+    if (value === "FULL_LIFE") return "Combo - trọn đời";
     if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
@@ -7001,10 +7001,10 @@ export default function Home() {
   }
 
   function priceOptionLabel(value: string) {
-    if (value === "PRICE_ALL_ACCESS_30D") return "Giá All Access - 30 ngày";
-    if (value === "PRICE_ALL_ACCESS_LIFE") return "Giá All Access - trọn đời";
-    if (value === "PRICE_ALL_ACCESS_30D_USD") return "Giá USD All Access - 30 ngày";
-    if (value === "PRICE_ALL_ACCESS_LIFE_USD") return "Giá USD All Access - trọn đời";
+    if (value === "PRICE_ALL_ACCESS_30D") return "Giá Combo - 30 ngày";
+    if (value === "PRICE_ALL_ACCESS_LIFE") return "Giá Combo - trọn đời";
+    if (value === "PRICE_ALL_ACCESS_30D_USD") return "Giá USD Combo - 30 ngày";
+    if (value === "PRICE_ALL_ACCESS_LIFE_USD") return "Giá USD Combo - trọn đời";
     const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)(_USD)?$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
@@ -7012,8 +7012,8 @@ export default function Home() {
   }
 
   function manualPlanNameFromKey(value: string) {
-    if (value === "FULL_1M") return getConfigValue(config, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày") || "All Access 30 Ngày";
-    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời") || "All Access Trọn Đời";
+    if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
+    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_COMBO_LIFE", getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "Combo Trọn Đời")) || "Combo Trọn Đời";
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
@@ -8080,9 +8080,9 @@ export default function Home() {
           <div className="stack">
             <section className="panel">
               <PanelHead
-                title="Bảng giá All Access"
-                subtitle="Giá All Access được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
-                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá All Access</Button>}
+                title="Bảng giá Combo"
+                subtitle="Giá Combo được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
+                action={<Button variant="outlined" size="small" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt giá Combo</Button>}
               />
               <div className="pricing-grid">
                 {/* Bảng giá VNĐ */}
@@ -8090,7 +8090,7 @@ export default function Home() {
                   <div className="pricing-header vnpay">
                     <div className="pricing-icon"><ShieldCheck size={28} /></div>
                     <div className="pricing-title-group">
-                      <h3>Bản quyền All Access VNĐ</h3>
+                      <h3>Bản quyền Combo VNĐ</h3>
                       <p>Khách hàng thanh toán qua ngân hàng nội địa</p>
                     </div>
                     <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
@@ -8115,7 +8115,7 @@ export default function Home() {
                   <div className="pricing-header usd">
                     <div className="pricing-icon"><Coins size={28} /></div>
                     <div className="pricing-title-group">
-                      <h3>Bản quyền All Access USD</h3>
+                      <h3>Bản quyền Combo USD</h3>
                       <p>Khách hàng thanh toán quốc tế (PayPal, USDT)</p>
                     </div>
                     <Button variant="contained" size="small" className="pricing-edit-btn" onClick={() => setSvipPriceSettingsOpen(true)} startIcon={<Settings size={14} />}>Sửa giá</Button>
@@ -9358,7 +9358,7 @@ export default function Home() {
         ) : null}
 
         {svipPriceSettingsOpen ? (
-          <SettingsConfigModal title="Cài đặt giá All Access chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá All Access." fields={ALL_ACCESS_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
+          <SettingsConfigModal title="Cài đặt giá Combo chung" subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá Combo." fields={ALL_ACCESS_PRICE_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSvipPriceSettingsOpen(false)} />
         ) : null}
 
         {specialGroupSettingsOpen ? (

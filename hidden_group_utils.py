@@ -14,6 +14,7 @@ REQUIREMENT_SVIP_ACTIVE = "SVIP_ACTIVE"
 REQUIREMENT_SVIP_LIFETIME = "SVIP_LIFETIME"
 REQUIREMENT_PLAN_TOKEN_ACTIVE = "PLAN_TOKEN_ACTIVE"
 REQUIREMENT_PLAN_TOKEN_LIFETIME = "PLAN_TOKEN_LIFETIME"
+COMBO_PLAN_KEYS = ("COMBO", "ALL ACCESS", "ALLACCESS", "SVIP", "FULL")
 
 PLAN_TOKEN_PREFIX = "HG:"
 PLAN_TOKEN_TAG_PREFIX = "[PT:"
@@ -227,6 +228,19 @@ def _localized_plan_text(user_id, key, default="", language=None):
     return base or default
 
 
+def _localized_combo_plan_text(user_id, suffix, default, language=None):
+    candidates = [f"PLAN_COMBO_{suffix}"]
+    if suffix == "30D":
+        candidates.append("PLAN_ALL_ACCESS_30D")
+    elif suffix == "LIFE":
+        candidates.append("PLAN_ALL_ACCESS_LIFE")
+    for key in candidates:
+        value = _config_text_with_alias(key, "")
+        if value:
+            return value
+    return default
+
+
 def _group_count():
     return max(1, parse_int(_db().get_config("GROUP_COUNT", "4"), 4))
 
@@ -283,13 +297,13 @@ def display_plan_name(plan_name, user_id=None, language=None):
 
     upper_name = normalize_key_text(clean_name)
     is_lifetime = _plan_name_is_lifetime(clean_name)
-    is_svip = "SVIP" in upper_name or "FULL" in upper_name or "ALL ACCESS" in upper_name or "ALLACCESS" in upper_name
+    is_svip = any(marker in upper_name for marker in COMBO_PLAN_KEYS)
 
     if is_svip:
         return _localized_plan_text(
             user_id,
-            "PLAN_ALL_ACCESS_LIFE" if is_lifetime else "PLAN_ALL_ACCESS_30D",
-            "All Access Lifetime" if is_lifetime else "All Access 30 Days",
+            "PLAN_COMBO_LIFE" if is_lifetime else "PLAN_COMBO_30D",
+            _localized_combo_plan_text(user_id, "LIFE" if is_lifetime else "30D", "Combo Lifetime" if is_lifetime else "Combo 30 Days", language="en"),
             language="en",
         )
 
@@ -529,7 +543,7 @@ def is_svip_order(plan_name="", plan_token=""):
     if token.startswith("FULL_"):
         return True
     upper = normalize_key_text(strip_plan_token(plan_name))
-    return "FULL" in upper or "SVIP" in upper or "ALL ACCESS" in upper or "ALLACCESS" in upper
+    return any(marker in upper for marker in COMBO_PLAN_KEYS)
 
 
 def order_is_active(status, expire_at, plan_name="", plan_token="", now=None):
@@ -615,9 +629,9 @@ def validate_hidden_code_for_user(code, user_id):
     requirement_type, requirement_value = hidden_code_requirement(hidden_code)
     if not user_has_requirement(user_id, requirement_type, requirement_value):
         if requirement_type == REQUIREMENT_SVIP_LIFETIME:
-            return None, hidden_user_text(user_id, "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME", "Bạn cần có gói All Access trọn đời để mở mã này.", "You need a lifetime All Access plan to unlock this code.")
+            return None, hidden_user_text(user_id, "MSG_HIDDEN_REQUIREMENT_SVIP_LIFETIME", "Bạn cần có gói Combo trọn đời để mở mã này.", "You need a lifetime Combo plan to unlock this code.")
         if requirement_type == REQUIREMENT_SVIP_ACTIVE:
-            return None, hidden_user_text(user_id, "MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE", "Bạn cần có gói All Access còn hạn để mở mã này.", "You need an active All Access plan to unlock this code.")
+            return None, hidden_user_text(user_id, "MSG_HIDDEN_REQUIREMENT_SVIP_ACTIVE", "Bạn cần có gói Combo còn hạn để mở mã này.", "You need an active Combo plan to unlock this code.")
         if requirement_type == REQUIREMENT_PLAN_TOKEN_ACTIVE:
             template = hidden_user_text(user_id, "MSG_HIDDEN_REQUIREMENT_PLAN_TOKEN_ACTIVE", "Bạn cần có gói {plan_token} còn hạn để mở mã này.", "You need an active {plan_token} plan to unlock this code.")
             return None, template.replace("{plan_token}", requirement_value)
