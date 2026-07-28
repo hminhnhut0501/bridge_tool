@@ -8127,40 +8127,40 @@ export default function Home() {
                       key={item.title}
                       variant="outlined"
                       sx={{
-                        borderRadius: 4,
+                        borderRadius: 3.5,
                         overflow: "hidden",
                         borderColor: "rgba(37,99,235,0.12)",
                         background: item.softBg,
-                        boxShadow: "0 14px 40px rgba(15, 23, 42, 0.05)",
+                        boxShadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
                       }}
                     >
-                      <CardContent sx={{ p: 2.25, "&:last-child": { pb: 2.25 } }}>
-                        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
-                          <Box sx={{ display: "flex", gap: 1.5, minWidth: 0 }}>
-                            <Box sx={{ width: 44, height: 44, borderRadius: "50%", display: "grid", placeItems: "center", flex: "0 0 auto", bgcolor: `${item.accent}18`, color: item.accent }}>
-                              <ShieldCheck size={22} />
+                      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.5 }}>
+                          <Box sx={{ display: "flex", gap: 1.25, minWidth: 0, flex: 1 }}>
+                            <Box sx={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", flex: "0 0 auto", bgcolor: `${item.accent}18`, color: item.accent }}>
+                              <ShieldCheck size={20} />
                             </Box>
                             <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontSize: 18, fontWeight: 900, lineHeight: 1.15 }}>
+                              <Typography sx={{ fontSize: 16.5, fontWeight: 900, lineHeight: 1.15 }}>
                                 {item.title}
                               </Typography>
-                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.45 }}>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.45, lineHeight: 1.4, maxWidth: 440 }}>
                                 1 hub duy nhất: tên hiển thị, alias, giá VNĐ/USD và cổng thanh toán đều chỉnh từ đây.
                               </Typography>
                             </Box>
                           </Box>
-                          <Typography sx={{ fontSize: 28, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap" }}>
+                          <Typography sx={{ fontSize: 24, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap", color: "text.primary", pt: 0.1 }}>
                             {item.priceVnd}
                           </Typography>
                         </Box>
 
-                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1.5 }}>
-                          <Chip size="small" label={`VNĐ: ${item.priceVnd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
-                          <Chip size="small" label={`USD: ${item.priceUsd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
-                          {item.aliases.slice(0, 3).map((alias) => (
-                            <Chip key={`${item.title}-${alias}`} size="small" label={alias} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} />
+                        <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 1.25 }}>
+                          <Chip size="small" label={`VNĐ ${item.priceVnd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
+                          <Chip size="small" label={`USD ${item.priceUsd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
+                          {item.aliases.slice(0, 2).map((alias) => (
+                            <Chip key={`${item.title}-${alias}`} size="small" label={alias} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", maxWidth: "100%", "& .MuiChip-label": { maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" } }} />
                           ))}
-                          {item.aliases.length > 3 ? <Chip size="small" label={`+${item.aliases.length - 3}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.78)" }} /> : null}
+                          {item.aliases.length > 2 ? <Chip size="small" label={`+${item.aliases.length - 2}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} /> : null}
                         </Box>
                       </CardContent>
                     </Card>
