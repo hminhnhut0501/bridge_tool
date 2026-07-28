@@ -692,6 +692,8 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
     nonce = f"{order_id}{user_id}{now_ts}"[-24:]
     payload = {
         "orderId": str(order_id),
+        "planCode": str(plan_token or "").strip().upper() or None,
+        "source": "bot_checkout",
         "amountMinor": int(amount),
         "currency": currency,
         "timestamp": now_ts,
