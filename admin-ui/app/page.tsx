@@ -3323,6 +3323,7 @@ export default function Home() {
   const notificationSoundRef = useRef<{ playedAt: number }>({ playedAt: 0 });
   const [comboSettingsOpen, setComboSettingsOpen] = useState(false);
   const [comboSettingsTab, setComboSettingsTab] = useState<"price" | "name">("price");
+  const [comboSettingsVariant, setComboSettingsVariant] = useState<"30d" | "life">("30d");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
@@ -8084,11 +8085,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Bảng giá Combo"
-                subtitle="Giá Combo được quản lý tập trung tại đây. Bấm Cài đặt để chỉnh trong popup."
-                action={<Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                  <Button variant="outlined" size="small" onClick={() => { setComboSettingsTab("name"); setComboSettingsOpen(true); }} startIcon={<Pencil size={16} />}>Đổi tên & alias</Button>
-                  <Button variant="outlined" size="small" onClick={() => { setComboSettingsTab("price"); setComboSettingsOpen(true); }} startIcon={<Settings size={16} />}>Cài đặt giá Combo</Button>
-                </Box>}
+                subtitle="Bấm trực tiếp vào từng card để sửa đúng gói đó trong popup."
               />
               <div className="pricing-grid">
                 <Box
@@ -8101,6 +8098,7 @@ export default function Home() {
                 >
                   {[
                     {
+                      variant: "30d" as const,
                       title: getConfigValue(config, "PLAN_COMBO_30D", "Combo 30 Ngày"),
                       aliases: String(getConfigValue(config, "PLAN_COMBO_30D_ALIASES", "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D"))
                         .split(/[\n,;|]+/)
@@ -8112,6 +8110,7 @@ export default function Home() {
                       softBg: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(255,255,255,0.92))",
                     },
                     {
+                      variant: "life" as const,
                       title: getConfigValue(config, "PLAN_COMBO_LIFE", "Combo Trọn Đời"),
                       aliases: String(getConfigValue(config, "PLAN_COMBO_LIFE_ALIASES", "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE"))
                         .split(/[\n,;|]+/)
@@ -8126,12 +8125,30 @@ export default function Home() {
                     <Card
                       key={item.title}
                       variant="outlined"
+                      onClick={() => { setComboSettingsVariant(item.variant); setComboSettingsTab("name"); setComboSettingsOpen(true); }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setComboSettingsVariant(item.variant);
+                          setComboSettingsTab("name");
+                          setComboSettingsOpen(true);
+                        }
+                      }}
                       sx={{
-                        borderRadius: 3.5,
+                        borderRadius: 3,
                         overflow: "hidden",
                         borderColor: "rgba(37,99,235,0.12)",
                         background: item.softBg,
                         boxShadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
+                        cursor: "pointer",
+                        transition: "transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+                        "&:hover": {
+                          transform: "translateY(-1px)",
+                          boxShadow: "0 14px 34px rgba(15, 23, 42, 0.08)",
+                          borderColor: "rgba(37,99,235,0.20)",
+                        },
                       }}
                     >
                       <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
@@ -8166,9 +8183,10 @@ export default function Home() {
                     </Card>
                   ))}
                 </Box>
-                <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", pt: 0.5 }}>
-                  <Button variant="contained" size="small" onClick={() => { setComboSettingsTab("name"); setComboSettingsOpen(true); }} startIcon={<Pencil size={14} />}>Đổi tên</Button>
-                  <Button variant="outlined" size="small" onClick={() => { setComboSettingsTab("price"); setComboSettingsOpen(true); }} startIcon={<Settings size={14} />}>Đổi giá</Button>
+                <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", pt: 0.25 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center" }}>
+                    Bấm card để sửa
+                  </Typography>
                 </Box>
               </div>
             </section>
@@ -9396,8 +9414,8 @@ export default function Home() {
         {comboSettingsOpen ? (
           <MuiDialogShell
             open
-            title="Combo settings"
-            subtitle="Một popup gọn để đổi tên/alias hoặc chỉnh giá Combo. Dữ liệu legacy vẫn tương thích qua alias."
+            title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : "Combo Trọn Đời"}
+            subtitle="Bấm đổi tên hoặc đổi giá đúng card này. Dữ liệu legacy vẫn tương thích qua alias."
             onClose={() => setComboSettingsOpen(false)}
             maxWidth="lg"
           >
@@ -9416,18 +9434,18 @@ export default function Home() {
             </Box>
             {comboSettingsTab === "price" ? (
               <ConfigEditor
-                title="Cài đặt giá Combo chung"
-                subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal. Đây là nơi duy nhất chỉnh giá Combo."
-                fields={COMBO_PRICE_FIELDS}
+                title={comboSettingsVariant === "30d" ? "Cài đặt giá Combo 30 ngày" : "Cài đặt giá Combo trọn đời"}
+                subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal."
+                fields={comboSettingsVariant === "30d" ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_30D", "PRICE_COMBO_30D_USD"].includes(field.key)) : COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_LIFE", "PRICE_COMBO_LIFE_USD"].includes(field.key))}
                 values={fieldValues}
                 setValues={setFieldValues}
                 onSave={saveFields}
               />
             ) : (
               <ConfigEditor
-                title="Đổi tên Combo"
-                subtitle="Sửa tên hiển thị và alias tương thích cho Combo 30 ngày / trọn đời. Dữ liệu cũ vẫn chạy bằng alias legacy."
-                fields={PLAN_VI_FIELDS.filter((field) => ["PLAN_COMBO_30D", "PLAN_COMBO_LIFE", "PLAN_COMBO_30D_ALIASES", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key))}
+                title={comboSettingsVariant === "30d" ? "Đổi tên Combo 30 ngày" : "Đổi tên Combo trọn đời"}
+                subtitle="Sửa tên hiển thị và alias tương thích. Dữ liệu cũ vẫn chạy bằng alias legacy."
+                fields={PLAN_VI_FIELDS.filter((field) => comboSettingsVariant === "30d" ? ["PLAN_COMBO_30D", "PLAN_COMBO_30D_ALIASES"].includes(field.key) : ["PLAN_COMBO_LIFE", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key))}
                 values={fieldValues}
                 setValues={setFieldValues}
                 onSave={saveFields}
