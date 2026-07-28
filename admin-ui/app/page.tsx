@@ -658,7 +658,7 @@ type CustomerTraceEvent = {
 };
 type LogDirectionFilter = "all" | "user" | "bot";
 type RenewalSubTab = "soon" | "reminded" | "expired" | "lifetime";
-type RenewalFocusFilter = "all" | "important" | "new" | "svip" | "unreminded";
+type RenewalFocusFilter = "all" | "important" | "new" | "svip" | "unreminded" | "chokick" | "review" | "kicked" | "retained" | "error";
 type SupportSubTab = "all" | "joined" | "left" | "muted" | "kicked";
 type CouponTab = "unsent" | "sent" | "used" | "expired";
 type ActivationCodeTab = "ALL" | "PENDING" | "USED" | "DISABLED" | "EXPIRED";
@@ -3302,6 +3302,7 @@ export default function Home() {
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
   const [renewalQuery, setRenewalQuery] = useState("");
   const [renewalFocusFilter, setRenewalFocusFilter] = useState<RenewalFocusFilter>("all");
+  const [renewalLiveCheck, setRenewalLiveCheck] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
@@ -6113,6 +6114,20 @@ export default function Home() {
     if (options?.unreminded) chips.push(<Chip key="unreminded" size="small" label="Chưa nhắc" color="error" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }} />);
     return chips;
   }
+  function renewalStatusTone(status: string) {
+    if (status === "Đã kick") return "success";
+    if (status === "Bị giữ lại") return "info";
+    if (status === "Lỗi") return "error";
+    return "warning";
+  }
+  function renewalStatusLabel(status: string) {
+    if (status === "Đã kick") return "Đã kick";
+    if (status === "Bị giữ lại") return "Bị giữ lại";
+    if (status === "Lỗi") return "Lỗi";
+    if (status === "Chờ kick") return "Chờ kick";
+    if (status === "Chờ audit") return "Chờ audit";
+    return status || "-";
+  }
   function supportCustomerName(item: SupportEvent) {
     const telegramId = String(item.telegram_user_id || "").trim();
     const raw = item.raw_data || {};
@@ -6280,6 +6295,20 @@ export default function Home() {
       status: overallStatus 
     };
   }
+  type RenewalOpsRow = {
+    key: string;
+    telegramId: string;
+    searchText: string;
+    flags: { isImportant: boolean; isNew: boolean; isSvip: boolean; isUnreminded: boolean };
+    cells: ReactNode[];
+    orderId?: string;
+    planName?: string;
+    customerName?: string;
+    groupsToKick?: string[];
+    groupsToReview?: string[];
+    renewalStatus?: string;
+    renewalNote?: string;
+  };
   const renewalOpsRows = useMemo(() => {
     return {
       soon: expiringSoon.map((item) => {
@@ -6314,7 +6343,7 @@ export default function Home() {
       })),
       expired: expiredRenewalOrders.map((item) => {
         const summary = expiredKickSummary(item);
-        const tone = summary.status === "Đã kick" ? "success" : summary.status === "Lỗi" ? "error" : summary.status === "Bị giữ lại" ? "info" : "warning";
+        const tone = renewalStatusTone(summary.status);
         return {
           key: `expired-${item.order_id}`,
           telegramId: String(item.telegram_user_id || "").trim(),
@@ -6322,13 +6351,21 @@ export default function Home() {
           planName: item.plan_name,
           customerName: renewalCustomerName(item),
           groupsToKick: summary.groupDetails.filter(g => g.status === "Lỗi" || g.status === "Chờ kick").map(g => g.groupId),
+          groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick").map(g => g.groupId),
+          renewalStatus: summary.status,
+          renewalNote: summary.note,
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: summary.status !== "Đã kick" }),
           cells: [
             <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
             <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
-            <Fragment key="status"><Chip size="small" label={summary.status} color={tone} variant="outlined" />{summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}</Fragment>,
+            <Fragment key="status">
+              <Stack spacing={0.75}>
+                <Chip size="small" label={renewalStatusLabel(summary.status)} color={tone} variant="outlined" />
+                {summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}
+              </Stack>
+            </Fragment>,
             <Box key="groups" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
               {summary.groupDetails.length ? summary.groupDetails.map((g, i) => (
                 <Tooltip key={i} title={g.note || "Không có ghi chú"} arrow placement="left">
@@ -6368,16 +6405,24 @@ export default function Home() {
           groupNamesForOrder(item).join(", ") || "Combo / trọn đời",
         ] as ReactNode[],
       })),
-    } satisfies Record<RenewalSubTab, { key: string; telegramId: string; searchText: string; flags: { isImportant: boolean; isNew: boolean; isSvip: boolean; isUnreminded: boolean }; cells: ReactNode[] }[]>;
+    } satisfies Record<RenewalSubTab, RenewalOpsRow[]>;
   }, [expiringSoon, latestReminderByOrder, renewalNoticeEvents, expiredRenewalOrders, lifetimeRenewalOrders, kickAudit, uniqueKickedEvents, renewalCustomerName]);
   const currentRenewalOpsRows = useMemo(() => {
-    const source = renewalOpsRows[renewalTab] || [];
+    const source = (renewalOpsRows[renewalTab] || []) as RenewalOpsRow[];
     const q = renewalQuery.trim().toLowerCase();
     return source.filter((item) => {
       if (q && !item.searchText.includes(q)) return false;
+      if (renewalTab === "expired" && renewalFocusFilter !== "all") {
+        const status = String(item.renewalStatus || "");
+        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit"].includes(status)) return false;
+        if (renewalFocusFilter === "kicked" && status !== "Đã kick") return false;
+        if (renewalFocusFilter === "retained" && status !== "Bị giữ lại") return false;
+        if (renewalFocusFilter === "error" && status !== "Lỗi") return false;
+        if (renewalFocusFilter === "review" && status === "Đã kick") return false;
+      }
       return true;
     });
-  }, [renewalOpsRows, renewalQuery, renewalTab]);
+  }, [renewalFocusFilter, renewalOpsRows, renewalQuery, renewalTab]);
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalOpsRows.length / RENEWAL_PAGE_SIZE));
   const pagedRenewalRows = useMemo(() => {
     const safePage = Math.min(renewalPage, totalRenewalPages);
@@ -8409,14 +8454,14 @@ export default function Home() {
             <section className="panel">
 	              <PanelHead
 	                title="Quản lý gia hạn"
-	                subtitle="4 danh sách gọn: sắp hết hạn 5 ngày, đã thông báo, đã hết hạn và trọn đời."
+	                subtitle="Gọn lại theo 4 khối. Dòng nào cần xử lý thì bấm đúng nút ngay trên dòng đó."
 	                action={
 	                  <div className="panel-actions">
-                    <Button variant="outlined" size="small" onClick={() => refreshVipGroupAudit(true)} disabled={saving === "vip-audit-live"} startIcon={saving === "vip-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-                      Kiểm tra VIP live
+                    <Button variant="outlined" size="small" onClick={() => refreshKickAudit(renewalLiveCheck)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
+	                      {renewalLiveCheck ? "Kiểm tra live" : "Kiểm tra log"}
                     </Button>
-	                    <Button variant="outlined" size="small" onClick={() => refreshKickAudit(true)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
-	                      Kiểm tra live
+                    <Button variant="outlined" size="small" onClick={() => setRenewalLiveCheck((current) => !current)} startIcon={<ShieldCheck size={16} />}>
+                      Live check: {renewalLiveCheck ? "Bật" : "Tắt"}
                     </Button>
                     <Button variant="contained" size="small" onClick={() => setRenewalSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
                   </div>
@@ -8424,6 +8469,31 @@ export default function Home() {
               />
 	              <Box sx={{ display: "grid", gap: 1.25, p: 2, pb: 1 }}>
 	                <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
+                  {renewalTab === "expired" ? (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                      {[
+                        { key: "all", label: "Tất cả" },
+                        { key: "chokick", label: "Chờ kick / audit" },
+                        { key: "review", label: "Cần soi" },
+                        { key: "kicked", label: "Đã kick" },
+                        { key: "retained", label: "Bị giữ lại" },
+                        { key: "error", label: "Có lỗi" },
+                      ].map((item) => (
+                        <Chip
+                          key={item.key}
+                          label={item.label}
+                          clickable
+                          color={renewalFocusFilter === item.key ? "primary" : "default"}
+                          variant={renewalFocusFilter === item.key ? "filled" : "outlined"}
+                          onClick={() => {
+                            setRenewalFocusFilter(item.key as RenewalFocusFilter);
+                            setRenewalPage(1);
+                          }}
+                          sx={{ fontWeight: 800 }}
+                        />
+                      ))}
+                    </Box>
+                  ) : null}
 	              </Box>
 	              <Tabs value={renewalTab} onChange={(_, next) => { setRenewalTab(next); setRenewalPage(1); }} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
 	                <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
@@ -8439,14 +8509,27 @@ export default function Home() {
 	                  return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.08)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.05)" } : {};
 	                }}
 	                actions={(idx) => {
-	                  const row = currentRenewalOpsRows[(Math.min(renewalPage, totalRenewalPages) - 1) * RENEWAL_PAGE_SIZE + idx] as (typeof currentRenewalOpsRows)[number] & { orderId?: string, planName?: string, customerName?: string, groupsToKick?: string[] };
+	                  const row = currentRenewalOpsRows[(Math.min(renewalPage, totalRenewalPages) - 1) * RENEWAL_PAGE_SIZE + idx] as (typeof currentRenewalOpsRows)[number] & { orderId?: string, planName?: string, customerName?: string, groupsToKick?: string[], groupsToReview?: string[], renewalStatus?: string, renewalNote?: string };
 	                  if (!row?.telegramId) return null;
+                      const groupsToKick = row.groupsToKick || [];
+                      const groupsToReview = row.groupsToReview || [];
+                      const status = String(row.renewalStatus || "");
 	                  return (
 	                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
 	                      <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<Search size={14} />}>Mở</Button>
 	                      {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
-                          {renewalTab === "expired" && row.orderId && (row.groupsToKick || []).length > 0 ? (
-                            <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", row.groupsToKick || []); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Thử kick lại ({(row.groupsToKick || []).length})</Button>
+                          {renewalTab === "expired" && row.orderId ? (
+                            <>
+                              {(status === "Chờ kick" || status === "Chờ audit" || status === "Lỗi" || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Kick lại ({groupsToKick.length})</Button>
+                              ) : null}
+                              {(status === "Bị giữ lại" || renewalFocusFilter === "retained") && groupsToReview.length > 0 ? (
+                                <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<ShieldCheck size={14} />}>Soi giữ lại ({groupsToReview.length})</Button>
+                              ) : null}
+                              {status === "Đã kick" ? (
+                                <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<CheckCircle2 size={14} />}>Đã xong</Button>
+                              ) : null}
+                            </>
                           ) : null}
 	                    </Box>
 	                  );
