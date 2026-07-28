@@ -6093,6 +6093,39 @@ export default function Home() {
     const fromOrder = "full_name" in item ? displayText(item.full_name) : "";
     return fromOrder || customerNameById.get(telegramId) || telegramId || "-";
   }
+  function telegramChatHref(telegramUserId: string, username?: string | null) {
+    const handle = String(username || "").trim().replace(/^@/, "");
+    if (handle) return `https://t.me/${handle}`;
+    const id = String(telegramUserId || "").trim();
+    if (!id) return "";
+    return `tg://user?id=${encodeURIComponent(id)}`;
+  }
+  function telegramChatLink(label: ReactNode, telegramUserId: string, username?: string | null, color: string = "inherit") {
+    const href = telegramChatHref(telegramUserId, username);
+    const target = href.startsWith("https://") ? "_blank" : "_self";
+    return href ? (
+      <Box
+        component="a"
+        href={href}
+        target={target}
+        rel="noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        sx={{
+          color,
+          textDecoration: "none",
+          fontWeight: 800,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 0.5,
+          "&:hover": { textDecoration: "underline" },
+        }}
+      >
+        {label}
+      </Box>
+    ) : (
+      <Box component="span" sx={{ color, fontWeight: 800 }}>{label}</Box>
+    );
+  }
   function renewalRowFlags(telegramUserId: string, options?: { unreminded?: boolean }) {
     const customer = customerSummaryById.get(String(telegramUserId || "").trim());
     const paidCount = customer?.paidOrders.length || 0;
@@ -6320,7 +6353,10 @@ export default function Home() {
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""}`.toLowerCase(),
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded }),
           cells: [
-            <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+            <Fragment key="customer">
+              {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
+              <div className="muted">{item.telegram_user_id || "-"}</div>
+            </Fragment>,
             <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Còn {daysUntil(item.expire_at)} ngày</div></Fragment>,
             reminderEvent ? <Fragment key="reminder"><strong>{dateText(reminderEvent.created_at)}</strong><div className="muted">{renewalNoticeBatch(reminderEvent)}</div></Fragment> : item.last_reminder_date || "Chưa nhắc",
@@ -6334,7 +6370,10 @@ export default function Home() {
         searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""}`.toLowerCase(),
         flags: renewalRowFlags(String(item.telegram_user_id || "")),
         cells: [
-          <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+          <Fragment key="customer">
+            {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), item.username, "var(--ink)")}
+            <div className="muted">{item.telegram_user_id || "-"}</div>
+          </Fragment>,
           <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           <Fragment key="type"><strong>{renewalNoticeLabel(item)}</strong><div className="muted">{renewalNoticeBatch(item)}</div></Fragment>,
           <Fragment key="at"><strong>{dateText(item.created_at)}</strong><div className="muted">{isTodayDate(item.created_at) ? "Hôm nay" : "Đã gửi"}</div></Fragment>,
@@ -6357,7 +6396,10 @@ export default function Home() {
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
           flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: summary.status !== "Đã kick" }),
           cells: [
-            <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+            <Fragment key="customer">
+              {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
+              <div className="muted">{item.telegram_user_id || "-"}</div>
+            </Fragment>,
             <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status">
@@ -6398,7 +6440,10 @@ export default function Home() {
         searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""}`.toLowerCase(),
         flags: renewalRowFlags(String(item.telegram_user_id || "")),
         cells: [
-          <Fragment key="customer"><strong>{renewalCustomerName(item)}</strong><div className="muted">{item.telegram_user_id || "-"}</div></Fragment>,
+          <Fragment key="customer">
+            {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
+            <div className="muted">{item.telegram_user_id || "-"}</div>
+          </Fragment>,
           <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
           dateText(item.paid_at || item.created_at),
           [item.payment_provider || item.source_type || "PAID", inferOrderCurrency(item)].filter(Boolean).join(" / "),
