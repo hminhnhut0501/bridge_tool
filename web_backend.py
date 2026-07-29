@@ -990,6 +990,25 @@ def build_manual_order_join_message_text(context: dict[str, object]):
     return strip_html_text(text)
 
 
+def build_manual_order_delivery_text(context: dict[str, object]):
+    success_text = render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {})
+    order_text = render_manual_order_info_text(context)
+    partial_text = str(context.get("partial_text", "") or "").strip()
+    support_text = str(context.get("support_text", "") or "").strip()
+    links_text = str(context.get("links_text", "") or "").strip()
+    default_text = "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}"
+    template = str(safe_db_config("MANUAL_ORDER_DELIVERY_TEMPLATE", default_text) or default_text).strip()
+    text = render_manual_order_message_text(template, {
+        **context,
+        "success_text": success_text,
+        "order_text": order_text,
+        "links_text": links_text,
+        "partial_text": partial_text,
+        "support_text": support_text,
+    })
+    return strip_html_text(text)
+
+
 def license_plan_map():
     mapping = load_license_plan_mapping(db)
     return {
@@ -2339,25 +2358,19 @@ async def admin_generate_manual_join_link(request: Request):
         "expire_at": expire_at_str,
     })
     
-    join_template = str(safe_db_config(
-        "MANUAL_ORDER_JOIN_TEMPLATE",
-        "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
-    ) or "").strip()
-    
     activation_url = build_manual_activation_url(activation_code)
-    
-    manual_order_join_text = render_manual_order_message_text(join_template, {
+    manual_order_join_text = build_manual_order_delivery_text({
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
         "full_name": full_name or telegram_user_id,
         "plan_name": plan_name,
         "expire_at": expire_at_str,
-        "order_text": order_text,
-        "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
-        "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
-        "activation_url": activation_url,
-        "message_url": "",
         "links_text": links_text,
+        "partial_text": "" if not failed_groups else render_activation_text(
+            "MANUAL_ORDER_LINK_PARTIAL_TEXT",
+            "⚠️ Một số nhóm chưa tạo được link: {failed_groups}",
+            {"failed_groups": ", ".join(failed_groups)},
+        ),
         "support_text": support_text,
         "support_group_name": safe_support_group_name(),
         "support_link": support_link,
