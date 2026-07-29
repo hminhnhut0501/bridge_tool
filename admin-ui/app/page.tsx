@@ -7283,7 +7283,9 @@ export default function Home() {
       });
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
-      await loadAll();
+      void loadAll().catch((err) => {
+        console.warn("⚠️ Không refresh ngay sau khi tạo đơn thủ công:", err);
+      });
     });
   }
 
