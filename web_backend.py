@@ -286,7 +286,9 @@ async def _handle_bot_payment_status(body: dict):
     if not bot_order:
         raise HTTPException(status_code=404, detail="Bot order not found")
     metadata = dict(bot_order.get("metadata") or {})
-    if metadata.get("bot_delivery_notified_at") or metadata.get("payment_status") == "PAID":
+    # payment_status is only the provider result. Keep retrying until the
+    # delivery processor records its durable completion marker.
+    if metadata.get("bot_delivery_notified_at"):
         return {"success": True, "duplicate": True, "botOrderId": bot_order_id}
     metadata.update({
         "web_delivery_claimed_at": _now_iso(),

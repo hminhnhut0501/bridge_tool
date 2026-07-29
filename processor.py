@@ -317,6 +317,16 @@ async def process_successful_payment(order_code: str):
             except Exception as html_err:
                 print(f"⚠️ LỖI HTML TỪ SHEET: {html_err}")
                 await bot.send_message(chat_id=user_id, text=final_msg, reply_markup=kb.as_markup(), parse_mode=None, disable_web_page_preview=True)
+
+            if supabase_store.enabled:
+                try:
+                    latest = supabase_store.get_order(target_code) or {}
+                    metadata = dict(latest.get("metadata") or {})
+                    metadata["bot_delivery_notified_at"] = now_local().isoformat()
+                    metadata["delivery_status"] = "delivered"
+                    supabase_store.patch_order(target_code, {"metadata": metadata})
+                except Exception as marker_err:
+                    print(f"⚠️ Không ghi được delivery idempotency marker cho đơn {target_code}: {marker_err}")
         except Exception as delivery_err:
             print(f"⚠️ Delivery pipeline fallback cho đơn {target_code}: {delivery_err}")
             fallback_text = (
