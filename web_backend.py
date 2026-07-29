@@ -271,6 +271,47 @@ def _verify_bot_delivery_signature(body: dict) -> bool:
     return expected == str(body.get("signature") or "").strip()
 
 
+async def _handle_bot_payment_status(body: dict):
+    bot_order_id = str(body.get("botOrderId") or "").strip()
+    web_order_id = str(body.get("orderId") or "").strip()
+    timestamp = body.get("timestamp")
+    nonce = str(body.get("nonce") or "").strip()
+    if not bot_order_id or not web_order_id or not timestamp or not nonce or not body.get("signature"):
+        raise HTTPException(status_code=400, detail="Missing payment callback fields")
+    if not _verify_bot_delivery_signature(body):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    if not getattr(supabase_store, "enabled", False):
+        raise HTTPException(status_code=503, detail="Bot order store unavailable")
+    bot_order = supabase_store.get_order(bot_order_id) or {}
+    if not bot_order:
+        raise HTTPException(status_code=404, detail="Bot order not found")
+    metadata = dict(bot_order.get("metadata") or {})
+    if metadata.get("bot_delivery_notified_at") or metadata.get("payment_status") == "PAID":
+        return {"success": True, "duplicate": True, "botOrderId": bot_order_id}
+    metadata.update({
+        "web_delivery_claimed_at": _now_iso(),
+        "web_order_id": web_order_id,
+        "web_order_number": str(body.get("orderNumber") or ""),
+        "payment_provider": str(body.get("paymentProvider") or ""),
+        "payment_status": "PAID",
+        "payment_session_id": str(body.get("paymentSessionId") or bot_order_id),
+    })
+    supabase_store.patch_order(bot_order_id, {"metadata": metadata})
+    supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
+    print(f"[payment-status] bot_order_paid botOrderId={bot_order_id} webOrderId={web_order_id} provider={body.get('paymentProvider') or 'n/a'}")
+    from processor import process_successful_payment
+    await process_successful_payment(bot_order_id)
+    return {"success": True, "botOrderId": bot_order_id, "status": "PAID"}
+
+
+@app.post("/payment-status")
+@app.post("/api/payment-status")
+async def payment_status(request: Request):
+    if not license_flow_enabled():
+        raise HTTPException(status_code=503, detail="license flow disabled")
+    return await _handle_bot_payment_status(await request.json())
+
+
 def _backend_timezone():
     timezone_name = os.getenv("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh"
     try:
@@ -2587,31 +2628,7 @@ async def license_delivery(request: Request):
     )
     is_payment_status_callback = str(body.get("status") or "").strip().upper() == "PAID" and not plan_code and not license_code
     if is_payment_status_callback or is_bot_authoritative_callback:
-        if not bot_order_id or not order_id or not timestamp or not nonce or not signature:
-            raise HTTPException(status_code=400, detail="Missing payment callback fields")
-        if not _verify_bot_delivery_signature(body):
-            raise HTTPException(status_code=401, detail="Invalid signature")
-        if not getattr(supabase_store, "enabled", False):
-            raise HTTPException(status_code=503, detail="Bot order store unavailable")
-        bot_order = supabase_store.get_order(bot_order_id) or {}
-        if not bot_order:
-            raise HTTPException(status_code=404, detail="Bot order not found")
-        metadata = dict(bot_order.get("metadata") or {})
-        if metadata.get("bot_delivery_notified_at"):
-            return {"success": True, "duplicate": True, "botOrderId": bot_order_id}
-        metadata.update({
-            "web_delivery_claimed_at": _now_iso(),
-            "web_order_id": order_id,
-            "web_order_number": str(body.get("orderNumber") or ""),
-            "payment_provider": str(body.get("paymentProvider") or ""),
-            "payment_status": "PAID",
-        })
-        supabase_store.patch_order(bot_order_id, {"metadata": metadata})
-        supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
-        print(f"[license-delivery] bot_order_paid botOrderId={bot_order_id} webOrderId={order_id} mode=status_only source={integration_source or 'legacy_callback'}")
-        from processor import process_successful_payment
-        await process_successful_payment(bot_order_id)
-        return {"success": True, "botOrderId": bot_order_id, "status": "PAID", "mode": "status_only"}
+        return await _handle_bot_payment_status(body)
 
     if not telegram_user_id or not order_id or not plan_code or not license_code:
         raise HTTPException(status_code=400, detail="Missing delivery fields")
