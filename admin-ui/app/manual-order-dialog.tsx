@@ -7,6 +7,17 @@ import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
 import { MuiDialogShell } from "./dashboard-components";
 import { dateTimePreviewText, isLifetimeText, resolveOrderLabel } from "./dashboard-helpers";
 
+function stripHtml(value: string) {
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
 export type ManualOrderFormState = {
   telegram_user_id: string;
   full_name: string;
@@ -118,7 +129,7 @@ export function ManualOrderResultPanel({
             </CardContent>
           </Card>
         ) : (
-          <TextField value={result.manual_order_join_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={joinMinRows} />
+          <TextField value={stripHtml(result.manual_order_join_text || "")} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={joinMinRows} />
         )}
       </Box>
 

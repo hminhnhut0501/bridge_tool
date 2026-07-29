@@ -922,6 +922,11 @@ def render_activation_text(template_key: str, default_text: str, context: dict[s
     return template.strip()
 
 
+def strip_html_text(value: str):
+    text = str(value or "")
+    return re.sub(r"<br\s*/?>", "\n", re.sub(r"</p>", "\n", re.sub(r"<[^>]+>", "", text, flags=re.IGNORECASE), flags=re.IGNORECASE), flags=re.IGNORECASE).strip()
+
+
 def normalize_manual_order_link_template(value: str):
     return normalize_bot_link_template(value, default_payload="act_{code}")
 
@@ -967,7 +972,7 @@ def build_manual_order_message_url(code: str):
 
 
 def build_manual_order_join_message_text(context: dict[str, object]):
-    return render_manual_order_message_text(
+    text = render_manual_order_message_text(
         normalize_manual_order_join_template(safe_db_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
         {
             **context,
@@ -977,6 +982,12 @@ def build_manual_order_join_message_text(context: dict[str, object]):
             "support_text": context.get("support_text", ""),
         },
     )
+    support_link = str(context.get("support_link", "") or "").strip()
+    support_group_name = str(context.get("support_group_name", "") or "").strip()
+    if support_link and support_link not in text:
+        support_block = f"💬 {support_group_name or safe_support_group_name()}:\n{support_link}"
+        text = f"{text}\n\n{support_block}".strip()
+    return strip_html_text(text)
 
 
 def license_plan_map():
@@ -1279,23 +1290,23 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             "support_error": support_error,
             "activation_code": activation_code,
         }),
-            "manual_order_join_text": "" if skip_join_link or fast_mode else render_manual_order_message_text(join_template, {
+            "manual_order_join_text": "" if skip_join_link or fast_mode else build_manual_order_join_message_text({
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
                 "plan_name": plan_name,
                 "expire_at": expire_at.isoformat(timespec="seconds"),
                 "order_text": order_text,
-            "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
-            "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
-            "activation_url": activation_url,
-            "message_url": "",
-            "links_text": links_text,
-            "support_text": support_text,
-            "support_group_name": safe_support_group_name(),
-            "support_link": support_link,
-            "support_error": support_error,
-        }),
+                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
+                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
+                "activation_url": activation_url,
+                "message_url": "",
+                "links_text": links_text,
+                "support_text": support_text,
+                "support_group_name": safe_support_group_name(),
+                "support_link": support_link,
+                "support_error": support_error,
+            }),
     }
 
 
@@ -2360,7 +2371,7 @@ async def admin_generate_manual_join_link(request: Request):
             "support_text": support_text,
             "support_link": support_link,
             "support_error": support_error,
-            "manual_order_join_text": manual_order_join_text
+            "manual_order_join_text": strip_html_text(manual_order_join_text),
         }
     }
 
