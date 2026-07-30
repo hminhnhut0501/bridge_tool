@@ -305,7 +305,9 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
     price_key = ""
     normalized_provider = str(provider or "").strip().upper()
     if normalized_provider == "WEB":
-        currency = default_currency_for_user(user_id)
+        # Bot-to-web checkout is a dedicated USD/PayPal flow. The storefront
+        # keeps its own currency and gateway selection separately.
+        currency = "USD"
     else:
         currency = currency_for_provider(normalized_provider) if normalized_provider else default_currency_for_user(user_id)
     default_group = "0" if currency == "USD" else "50000"
@@ -682,10 +684,8 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
     if not base_url or not web_payment_enabled():
         return None
 
-    language = resolve_user_language(user_id, preferred_language)
-    currency = "USD" if language == "en" else "VND"
-    if currency not in {"VND", "USD"}:
-        currency = "VND"
+    language = "en"
+    currency = "USD"
     print(f"🌐 WEB checkout currency resolved: user={user_id} language={language} currency={currency} plan={plan_token or plan_name}")
 
     # The web contract stores amountMinor as the smallest currency unit:
@@ -699,6 +699,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         "orderId": str(order_id),
         "planCode": str(plan_token or "").strip().upper() or None,
         "source": "bot_checkout",
+        "locale": "en",
         "amountMinor": amount_minor,
         "currency": currency,
         "timestamp": now_ts,
@@ -733,6 +734,7 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
             "amount": str(payload_data.get("amount") or (amount_minor / 100 if currency == "USD" else amount_minor)),
             "amountMinor": str(payload_data.get("amountMinor") or payload_data.get("amount_minor") or amount_minor),
             "currency": str(payload_data.get("currency") or currency).upper(),
+            "locale": "en",
             "checkout": str(payload_data.get("checkoutId") or payload_data.get("checkout_id") or payload_data.get("providerCheckoutId") or payload_data.get("provider_checkout_id") or payload["orderId"]),
             "session": str(payload_data.get("paymentSessionId") or payload_data.get("payment_session_id") or payload["paymentSessionId"]),
             "botOrderId": str(payload["orderId"]),
