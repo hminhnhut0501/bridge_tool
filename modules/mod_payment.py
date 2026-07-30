@@ -688,13 +688,18 @@ def create_web_payment_for_user(user_id, order_id, amount, description, plan_nam
         currency = "VND"
     print(f"🌐 WEB checkout currency resolved: user={user_id} language={language} currency={currency} plan={plan_token or plan_name}")
 
+    # The web contract stores amountMinor as the smallest currency unit:
+    # cents for USD and whole dong for VND.
+    raw_amount = float(amount)
+    amount_minor = int(round(raw_amount * 100)) if currency == "USD" else int(round(raw_amount))
+
     now_ts = int(time.time())
     nonce = f"{order_id}{user_id}{now_ts}"[-24:]
     payload = {
         "orderId": str(order_id),
         "planCode": str(plan_token or "").strip().upper() or None,
         "source": "bot_checkout",
-        "amountMinor": int(amount),
+        "amountMinor": amount_minor,
         "currency": currency,
         "timestamp": now_ts,
         "nonce": nonce,
