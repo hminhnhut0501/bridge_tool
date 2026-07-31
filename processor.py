@@ -13,6 +13,7 @@ from payment import payment_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, support_group_name, unmute_member
 from i18n import localized_default, t
+from web_reconciliation import report_paypal_reconciliation
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -327,6 +328,22 @@ async def process_successful_payment(order_code: str):
                     supabase_store.patch_order(target_code, {"metadata": metadata})
                 except Exception as marker_err:
                     print(f"⚠️ Không ghi được delivery idempotency marker cho đơn {target_code}: {marker_err}")
+
+            # Payment and access remain bot-authoritative. This is only an
+            # asynchronous evidence snapshot for merchant reconciliation.
+            if supabase_store.enabled and order and str(order.get("payment_provider") or "").upper() == "PAYPAL":
+                asyncio.create_task(asyncio.to_thread(
+                    report_paypal_reconciliation,
+                    order,
+                    license_code=str((order.get("metadata") or {}).get("activation_code") or ""),
+                    license_status="issued",
+                    delivery_evidence={
+                        "deliveredGroups": delivered_groups,
+                        "failedGroups": failed_groups,
+                        "expiresAt": expire_date,
+                        "telegramUserId": user_id,
+                    },
+                ))
         except Exception as delivery_err:
             print(f"⚠️ Delivery pipeline fallback cho đơn {target_code}: {delivery_err}")
             fallback_text = (
