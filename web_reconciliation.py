@@ -10,6 +10,7 @@ import json
 import os
 import secrets
 import time
+from datetime import datetime, timezone
 
 import requests
 from supabase_store import supabase_store
@@ -29,6 +30,11 @@ def _url():
     if not base:
         return ""
     return base if base.endswith("/api/v1/reconciliation/orders") else f"{base}/api/v1/reconciliation/orders"
+
+
+def _utc_iso_z():
+    """Return the strict UTC representation accepted by the web contract."""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def report_paypal_reconciliation(order: dict, *, license_code: str = "", license_status: str = "", delivery_evidence=None):
@@ -63,7 +69,7 @@ def report_paypal_reconciliation(order: dict, *, license_code: str = "", license
         "internalPlanCode": str(order.get("plan_token") or metadata.get("plan_code") or ""),
         "licenseCode": str(license_code or metadata.get("activation_code") or ""),
         "licenseStatus": license_status,
-        "fulfilledAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "fulfilledAt": _utc_iso_z(),
         "fulfillmentType": "telegram_delivery",
         "deliveryEvidence": delivery_evidence or {},
     }
@@ -74,7 +80,7 @@ def report_paypal_reconciliation(order: dict, *, license_code: str = "", license
         if not response.ok:
             print(f"[reconciliation] failed order={order.get('order_id')} status={response.status_code} body={response.text[:300]}")
             return False
-        metadata["reconciliation_sent_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        metadata["reconciliation_sent_at"] = _utc_iso_z()
         try:
             supabase_store.patch_order(str(order.get("order_id") or ""), {"metadata": metadata})
         except Exception as marker_error:
