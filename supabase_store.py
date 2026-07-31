@@ -752,11 +752,15 @@ class SupabaseStore:
         note_text = _clean_text(note)
 
         def _build_payload(*, scale_fx: bool = False):
-            original_amount_value = _parse_number(original_amount if original_amount is not None else amount)
+            # Both amount fields map to integer columns. Apply the same currency
+            # conversion to the original price so discounted USD values cannot
+            # leak a decimal such as 5.9 into Supabase.
+            original_amount_value = _amount_to_integer_units(
+                original_amount if original_amount is not None else amount,
+                payment_currency_value,
+                scale_fx=scale_fx,
+            )
             amount_value = _amount_to_integer_units(amount, payment_currency_value, scale_fx=scale_fx)
-            if scale_fx or payment_currency_value in {"USD", "USDT"}:
-                if not float(original_amount_value).is_integer():
-                    original_amount_value = int(round(float(original_amount_value) * 100))
             payload = {
                 "order_id": str(order_id),
                 "telegram_user_id": str(telegram_user_id),
