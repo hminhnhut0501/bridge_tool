@@ -332,10 +332,16 @@ async def process_successful_payment(order_code: str):
             # Payment and access remain bot-authoritative. This is only an
             # asynchronous evidence snapshot for merchant reconciliation.
             if supabase_store.enabled and order and str(order.get("payment_provider") or "").upper() == "PAYPAL":
+                # The handler may have received a stale PENDING snapshot. By
+                # the time delivery succeeds, reload the order so the web gets
+                # the paid state and the generated license metadata.
+                reconciliation_order = supabase_store.get_order(target_code) or dict(order)
+                reconciliation_order["status"] = "PAID"
+                reconciliation_metadata = dict(reconciliation_order.get("metadata") or {})
                 asyncio.create_task(asyncio.to_thread(
                     report_paypal_reconciliation,
-                    order,
-                    license_code=str((order.get("metadata") or {}).get("activation_code") or ""),
+                    reconciliation_order,
+                    license_code=str(reconciliation_metadata.get("activation_code") or ""),
                     license_status="issued",
                     delivery_evidence={
                         "deliveredGroups": delivered_groups,
