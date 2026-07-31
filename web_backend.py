@@ -301,6 +301,44 @@ async def _handle_bot_payment_status(body: dict):
     supabase_store.patch_order(bot_order_id, {"metadata": metadata})
     supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
     print(f"[payment-status] bot_order_paid botOrderId={bot_order_id} webOrderId={web_order_id} provider={body.get('paymentProvider') or 'n/a'}")
+
+    # Acknowledge payment before the slower license/group-link worker starts.
+    # The marker prevents duplicate webhook deliveries from sending this twice.
+    telegram_user_id = str(
+        body.get("telegramUserId")
+        or bot_order.get("telegram_user_id")
+        or metadata.get("telegramUserId")
+        or ""
+    ).strip()
+    if telegram_user_id and not metadata.get("payment_status_notified_at"):
+        try:
+            language = get_user_language(telegram_user_id)
+            if language == "en":
+                payment_message = (
+                    "✅ <b>Payment confirmed!</b>\n\n"
+                    "Your license is being prepared. Please wait a moment; "
+                    "the bot will send your license and VIP access link next."
+                )
+            else:
+                payment_message = (
+                    "✅ <b>Thanh toán thành công!</b>\n\n"
+                    "Hệ thống đang cấp license. Vui lòng chờ một chút, "
+                    "bot sẽ gửi mã license và link vào nhóm VIP ngay sau đó."
+                )
+            await bot.send_message(
+                chat_id=int(telegram_user_id),
+                text=payment_message,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            metadata["payment_status_notified_at"] = _now_iso()
+            supabase_store.patch_order(bot_order_id, {"metadata": metadata})
+            print(f"[payment-status] acknowledgement_sent botOrderId={bot_order_id} telegramUserId={telegram_user_id}")
+        except Exception as exc:
+            # Do not turn a confirmed payment into a failed webhook because a
+            # Telegram acknowledgement temporarily failed. Delivery remains queued.
+            print(f"[payment-status] acknowledgement_failed botOrderId={bot_order_id} telegramUserId={telegram_user_id or 'none'} error={exc}")
+
     from processor import process_successful_payment
     create_background_task(
         process_successful_payment(bot_order_id),
