@@ -12,6 +12,7 @@ import secrets
 import time
 
 import requests
+from supabase_store import supabase_store
 
 
 def _secret():
@@ -74,6 +75,10 @@ def report_paypal_reconciliation(order: dict, *, license_code: str = "", license
             print(f"[reconciliation] failed order={order.get('order_id')} status={response.status_code} body={response.text[:300]}")
             return False
         metadata["reconciliation_sent_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        try:
+            supabase_store.patch_order(str(order.get("order_id") or ""), {"metadata": metadata})
+        except Exception as marker_error:
+            print(f"[reconciliation] marker_failed order={order.get('order_id')} error={marker_error}")
         print(f"[reconciliation] delivered botOrderId={order.get('order_id')} paypalOrderId={payload['paypalOrderId']}")
         return True
     except Exception as exc:
