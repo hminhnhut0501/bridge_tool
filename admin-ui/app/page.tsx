@@ -2076,8 +2076,8 @@ const MESSAGE_FIELDS: ConfigField[] = [
   {
     key: "MSG_DELIVERY",
     label: "Tin gửi link sau thanh toán",
-    placeholder: "✅ Thanh toán thành công!\\n\\n🎁 Gói: {plan}\\n📅 Hạn dùng: {date}\\n\\n🔗 Link của bạn:\\n{links}\\n\\n💬 Nhóm hỗ trợ: {support}",
-    help: "Dùng biến {plan}, {date}, {links}, {support}. Tin QR sẽ được xóa trước khi gửi link.",
+    placeholder: "✅ Thanh toán thành công!\\n\\n🎁 Gói: {plan}\\n📅 Hạn dùng: {date}\\n\\n🔐 License: {license}\\n\\n🔗 Link của bạn:\\n{links}\\n\\n💬 Nhóm hỗ trợ: {support}",
+    help: "Dùng biến {plan}, {date}, {license}, {links}, {support}. Áp dụng cho mọi cổng thanh toán.",
     kind: "textarea",
   },
   {
@@ -2637,8 +2637,8 @@ const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>
     help: "Use {minutes}. Sent after the auto-check timer expires.",
   },
   MSG_DELIVERY: {
-    placeholder: "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
-    help: "Use {plan}, {date}, {links}, {support}. QR message is removed before delivery.",
+    placeholder: "✅ <b>PAYMENT SUCCESSFUL!</b>\n\n🎁 Subscription: <b>{plan}</b>\n📅 Valid until: <code>{date}</code>\n\n🔐 License: <code>{license}</code>\n\n🔗 Your invitation links:\n{links}\n\n💬 Support group: {support}",
+    help: "Use {plan}, {date}, {license}, {links}, {support}. Applies to every payment provider.",
   },
   MSG_COUPON_SUCCESS: {
     placeholder: "Code: {code}\nPlan: {plan}\nValid until: {expire}\n{links}",
