@@ -302,8 +302,13 @@ async def _handle_bot_payment_status(body: dict):
     supabase_store.mark_order_paid(bot_order_id, _now_iso(), None)
     print(f"[payment-status] bot_order_paid botOrderId={bot_order_id} webOrderId={web_order_id} provider={body.get('paymentProvider') or 'n/a'}")
     from processor import process_successful_payment
-    await process_successful_payment(bot_order_id)
-    return {"success": True, "botOrderId": bot_order_id, "status": "PAID"}
+    create_background_task(
+        process_successful_payment(bot_order_id),
+        name=f"payment_delivery_{bot_order_id}",
+        context="web_payment_callback",
+    )
+    print(f"[payment-status] delivery_queued botOrderId={bot_order_id} webOrderId={web_order_id}")
+    return {"success": True, "botOrderId": bot_order_id, "status": "PAID", "delivery": "queued"}
 
 
 @app.post("/payment-status")
