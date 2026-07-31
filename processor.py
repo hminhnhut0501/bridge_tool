@@ -14,6 +14,7 @@ from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, support_group_name, unmute_member
 from i18n import localized_default, t
 from web_reconciliation import report_paypal_reconciliation
+from delivery_message import build_delivery_message
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
@@ -284,10 +285,10 @@ async def process_successful_payment(order_code: str):
 
             # Gửi tin nhắn thành công
             try:
-                shown_plan_name = escape_html(display_plan_name(plan_name, user_id))
+                shown_plan_name = display_plan_name(plan_name, user_id)
             except Exception as plan_err:
                 print(f"⚠️ Không thể render tên gói cho đơn {target_code}: {plan_err}")
-                shown_plan_name = escape_html(plan_name)
+                shown_plan_name = plan_name
 
             try:
                 support_name = escape_html(support_group_name())
@@ -295,12 +296,14 @@ async def process_successful_payment(order_code: str):
                 print(f"⚠️ Không thể render tên group hỗ trợ cho đơn {target_code}: {support_err}")
                 support_name = ""
 
-            msg_template = t(
-                user_id,
-                "MSG_DELIVERY",
-                "✅ <b>PAYMENT CONFIRMED!</b>\n\n🎁 Plan: <b>{plan}</b>\n📅 Access until: <code>{date}</code>\n\n🔗 Your access links:\n{links}\n\n💬 Support group: {support}",
-            ).replace("\\n", "\n")
-            final_msg = msg_template.replace("{plan}", shown_plan_name).replace("{date}", expire_date).replace("{links}", links_msg).replace("{support}", support_name)
+            final_msg = build_delivery_message(
+                locale=resolve_user_language(user_id),
+                plan_name=shown_plan_name,
+                expires_at=expire_date,
+                license_code=str((order.get("metadata") or {}).get("activation_code") or ""),
+                links=links_msg,
+                support_name=support_name,
+            )
             
             # Tạo nút điều hướng về UI chính bằng cơ chế mới
             kb = InlineKeyboardBuilder()

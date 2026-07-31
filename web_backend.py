@@ -2764,30 +2764,25 @@ async def license_delivery(request: Request):
         print(f"⚠️ Cannot build invite links for order {order_id}: {exc}")
 
     shown_expiry = expires_at.replace("T", " ").replace("+00:00", "") if expires_at else "Đang hoạt động"
-    status_lines = [
-        "✅ <b>THANH TOÁN THÀNH CÔNG!</b>",
-        "",
-        f"🎁 Gói truy cập: <b>{display_plan_name(plan_name, telegram_user_id)}</b>",
-        f"📅 Hạn sử dụng: <code>{shown_expiry}</code>",
-        "",
-        "🔒 <b>LICENSE ĐÃ TỰ ĐỘNG KÍCH HOẠT</b>",
-        f"<code>{license_code}</code>",
-        "",
-        "🔒 <b>LINK THAM GIA CỦA BẠN:</b>",
-    ]
+    from delivery_message import build_delivery_message
+
+    locale = str(body.get("locale") or "vi").strip().lower()
+    status_links = ""
     if group_names:
-        status_lines.append(f"👥 Nhóm: {group_names}")
+        status_links += f"👥 {group_names}\n\n"
     if group_text:
-        status_lines.append("")
-        status_lines.append(group_text.strip())
+        status_links += group_text.strip()
     if failed_groups and not group_text:
-        status_lines.append("⚠️ Chưa tạo được link nhóm, vui lòng thử lại sau.")
-    status_lines.extend([
-        "",
-        "💌 Vui lòng nhấn nút bên dưới để tham gia nhóm bảo hành và nhận hỗ trợ sau này!",
-        "",
-        "⚠️ <i>Link chỉ sử dụng cho 1 tài khoản và 1 lần tham gia. Vui lòng không chia sẻ.</i>",
-    ])
+        status_links = "⚠️ No invitation link is available yet." if locale.startswith("en") else "⚠️ Chưa có link tham gia, vui lòng thử lại sau."
+
+    final_delivery_text = build_delivery_message(
+        locale=locale,
+        plan_name=display_plan_name(plan_name, telegram_user_id),
+        expires_at=shown_expiry,
+        license_code=license_code,
+        links=status_links,
+        support_name="support group" if locale.startswith("en") else "nhóm hỗ trợ",
+    )
 
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
@@ -2801,7 +2796,7 @@ async def license_delivery(request: Request):
     try:
         await bot.send_message(
             chat_id=int(telegram_user_id),
-            text="\n".join(status_lines).strip(),
+            text=final_delivery_text,
             parse_mode="HTML",
             reply_markup=keyboard.as_markup(),
             disable_web_page_preview=True,
