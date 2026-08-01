@@ -123,13 +123,13 @@ def test_english_provider_list_does_not_fallback_to_vnd_gateway():
         assert payment_manager.providers_for_language("en") == []
 
 
-def test_english_provider_list_auto_adds_enabled_tron_usdt_for_old_config():
+def test_english_provider_list_respects_explicit_gateway_selection():
     with patch("payment.db.get_config", return_value="PAYPAL"), patch.object(
         payment_manager,
         "provider_enabled",
         side_effect=lambda provider: provider in {"PAYPAL", "TRON_USDT"},
     ):
-        assert payment_manager.providers_for_language("en") == ["PAYPAL", "TRON_USDT"]
+        assert payment_manager.providers_for_language("en") == ["PAYPAL"]
 
 
 def test_english_default_provider_list_includes_tron_usdt():

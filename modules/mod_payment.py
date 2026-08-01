@@ -524,9 +524,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
 def _payment_provider_fallbacks(user_id, provider=""):
     language = get_user_language(user_id)
     primary = str(provider or "").strip().upper()
-    candidates = []
+    # An explicit provider is an operator decision. Never silently charge via
+    # another gateway when that provider is unavailable.
     if primary:
-        candidates.append(primary)
+        return [primary]
+    candidates = []
     for item in payment_manager.providers_for_language(language):
         if item and item not in candidates:
             candidates.append(item)

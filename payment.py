@@ -745,8 +745,6 @@ class PaymentManager:
             provider = item.strip()
             if provider in self.supported_providers() and provider not in providers and self.provider_enabled(provider):
                 providers.append(provider)
-        if key.endswith("_EN") and "TRON_USDT" not in providers and self.provider_enabled("TRON_USDT"):
-            providers.append("TRON_USDT")
         if providers:
             return providers
         return []
