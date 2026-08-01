@@ -12,13 +12,14 @@ from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_pla
 from payment import payment_manager
 from supabase_store import supabase_store
 from support_utils import add_support_join_button, is_lifetime_plan, is_support_group, record_support_event, support_group_name, unmute_member
-from i18n import localized_default, t
+from i18n import get_user_language, localized_default, t
 from web_reconciliation import report_paypal_reconciliation
 from delivery_message import build_delivery_message
 
 # Tập hợp chứa các ID đơn hàng bị khách bấm Hủy
 cancelled_orders = set()
 processing_orders = set()
+delivery_locks = {}
 
 
 def bot_timezone():
@@ -151,10 +152,21 @@ async def expire_pending_payment(order_code, user_id):
 # ======================================================
 async def process_successful_payment(order_code: str):
     target_code = str(order_code).strip()
-    if target_code in processing_orders:
+    lock = delivery_locks.setdefault(target_code, asyncio.Lock())
+    if lock.locked():
         print(f"⏭ Đơn {target_code} đang được xử lý giao hàng ở luồng khác.")
         return
-    processing_orders.add(target_code)
+    async with lock:
+        if target_code in processing_orders:
+            print(f"⏭ Đơn {target_code} đang được xử lý giao hàng ở luồng khác.")
+            return
+        processing_orders.add(target_code)
+        return await _process_successful_payment_locked(target_code)
+
+
+async def _process_successful_payment_locked(target_code: str):
+    """Deliver one order while its per-order lock is held."""
+    delivery_claimed = False
     try:
         print(f"🔄 Đang bắt đầu xử lý giao hàng cho đơn: {target_code}")
 
@@ -173,6 +185,17 @@ async def process_successful_payment(order_code: str):
             if current_status in {"FULFILLED", "DELIVERED", "CANCELLED", "EXPIRED"}:
                 print(f"⚠️ Đơn {target_code} đã kết thúc với trạng thái {current_status}.")
                 return
+            metadata = dict(order.get("metadata") or {})
+            if metadata.get("bot_delivery_notified_at"):
+                print(f"⏭ Đơn {target_code} đã giao license trước đó.")
+                return
+            if metadata.get("delivery_processing_at"):
+                print(f"⏭ Đơn {target_code} đã được claim giao hàng.")
+                return
+            metadata["delivery_processing_at"] = now_local().isoformat()
+            metadata["delivery_processing_source"] = "bot_authoritative"
+            supabase_store.patch_order(target_code, {"metadata": metadata})
+            delivery_claimed = True
             user_id = str(order.get("telegram_user_id", "")).strip()
             plan_name = str(order.get("plan_name", "")).strip()
             paid_orders = supabase_store.list_paid_orders_for_user(user_id, limit=200)
@@ -297,7 +320,7 @@ async def process_successful_payment(order_code: str):
                 support_name = ""
 
             final_msg = build_delivery_message(
-                locale=resolve_user_language(user_id),
+                locale=get_user_language(user_id),
                 plan_name=shown_plan_name,
                 expires_at=expire_date,
                 license_code=str((order.get("metadata") or {}).get("activation_code") or ""),
@@ -327,6 +350,8 @@ async def process_successful_payment(order_code: str):
                     latest = supabase_store.get_order(target_code) or {}
                     metadata = dict(latest.get("metadata") or {})
                     metadata["bot_delivery_notified_at"] = now_local().isoformat()
+                    metadata.pop("delivery_processing_at", None)
+                    metadata.pop("delivery_processing_source", None)
                     metadata["delivery_status"] = "delivered"
                     supabase_store.patch_order(target_code, {"metadata": metadata})
                 except Exception as marker_err:
@@ -369,7 +394,18 @@ async def process_successful_payment(order_code: str):
     except Exception as e:
         print(f"❌ Lỗi giao hàng tổng quát: {e}")
     finally:
+        if delivery_claimed and supabase_store.enabled:
+            try:
+                latest = supabase_store.get_order(target_code) or {}
+                latest_meta = dict(latest.get("metadata") or {})
+                if not latest_meta.get("bot_delivery_notified_at"):
+                    latest_meta.pop("delivery_processing_at", None)
+                    latest_meta.pop("delivery_processing_source", None)
+                    supabase_store.patch_order(target_code, {"metadata": latest_meta})
+            except Exception as marker_err:
+                print(f"⚠️ Không thể giải phóng delivery claim đơn {target_code}: {marker_err}")
         processing_orders.discard(target_code)
+        delivery_locks.pop(target_code, None)
 
 # =====================================================
 # 2. HÀM TỰ ĐỘNG CHECK TRẠNG THÁI (AUTO LOOP TỐI ƯU HÓA)
