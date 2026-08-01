@@ -208,18 +208,26 @@ def create_pending_order(
     plan_category="",
     source_type="",
     source_ref="",
+    payment_session_id="",
+    bot_order_id="",
+    web_order_number="",
     metadata=None,
 ):
     version = bot_version()
     if not source_type:
         source_type = "BOT_LEGACY" if version == "legacy" else "BOT_NEW"
     metadata_payload = metadata if isinstance(metadata, dict) else metadata
-    if payment_provider_payment_id:
+    metadata_fields = {
+        "payment_provider_payment_id": payment_provider_payment_id,
+        "payment_session_id": payment_session_id,
+        "bot_order_id": bot_order_id,
+        "web_order_number": web_order_number,
+    }
+    if any(metadata_fields.values()):
         metadata_payload = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
-        metadata_payload.setdefault(
-            "payment_provider_payment_id",
-            str(payment_provider_payment_id).strip(),
-        )
+        for field, value in metadata_fields.items():
+            if value and not metadata_payload.get(field):
+                metadata_payload[field] = str(value).strip()
     if isinstance(metadata_payload, dict):
         metadata_payload = dict(metadata_payload)
         metadata_payload.setdefault("bot_version", version)
