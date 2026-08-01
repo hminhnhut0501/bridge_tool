@@ -537,7 +537,21 @@ def _payment_provider_fallbacks(user_id, provider=""):
 
 
 def create_payment_for_user(user_id, order_id, amount, description, provider="", preferred_language=None, plan_name="", plan_token=""):
-    if str(provider or "").strip().upper() == "WEB":
+    selected_provider = str(provider or "").strip().upper()
+    if selected_provider == "CREEM":
+        pay_data = create_creem_payment_for_user(
+            user_id=user_id,
+            order_id=order_id,
+            amount=amount,
+            description=description,
+            plan_name=plan_name or description,
+            plan_token=plan_token,
+        )
+        if pay_data:
+            return pay_data
+        print(f"❌ CREEM payment failed for user {user_id}, order {order_id}: không fallback sang provider khác")
+        return None
+    if selected_provider == "WEB":
         pay_data = create_web_payment_for_user(
             user_id=user_id,
             order_id=order_id,
@@ -572,6 +586,67 @@ def create_payment_for_user(user_id, order_id, amount, description, provider="",
     if last_error:
         print(f"❌ Không tạo được payment link cho user {user_id}, order {order_id}. Candidates={attempts}")
     return None
+
+
+def create_creem_payment_for_user(user_id, order_id, amount, description, plan_name, plan_token=""):
+    """Create a Creem checkout through Hangcu_web's canonical bot contract.
+
+    The web owns Creem product pricing. The bot deliberately sends no amount so
+    a stale bot price cannot create a mismatched checkout.
+    """
+    base_url = web_payment_base_url()
+    if not base_url or not truthy_config("CREEM_PAYMENT_ENABLED", "OFF"):
+        return None
+
+    plan_code = str(plan_token or "").strip().upper()
+    if not plan_code:
+        print(f"⚠️ CREEM checkout missing planCode user={user_id} order={order_id}")
+        return None
+
+    email = f"{int(user_id)}@gmail.com"
+    payload = {
+        "botOrderId": str(order_id),
+        "planCode": plan_code,
+        "email": email,
+        "currency": "USD",
+        "provider": "creem",
+    }
+    print(
+        f"🌐 CREEM checkout request user={user_id} botOrderId={order_id} "
+        f"planCode={plan_code} currency=USD email={email}"
+    )
+    try:
+        response = requests.post(f"{base_url}/api/checkout/pay", json=payload, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        body = data.get("data") if isinstance(data, dict) and isinstance(data.get("data"), dict) else data
+        if not isinstance(body, dict):
+            return None
+        checkout_url = str(body.get("checkoutUrl") or body.get("checkout_url") or "").strip()
+        if not checkout_url:
+            print(f"⚠️ CREEM checkout response missing checkoutUrl user={user_id} order={order_id}")
+            return None
+        return {
+            "provider": "CREEM",
+            "provider_order_id": str(
+                body.get("providerCheckoutId")
+                or body.get("providerPaymentId")
+                or body.get("orderNumber")
+                or order_id
+            ),
+            "approval_url": checkout_url,
+            "checkout_url": checkout_url,
+            "currency_code": "USD",
+            "customer_ref": f"tg:{user_id}",
+            "plan_code": plan_code,
+            "locale": "en",
+            "payment_session_id": str(order_id),
+            "bot_order_id": str(order_id),
+            "web_order_number": str(body.get("orderNumber") or ""),
+        }
+    except Exception as exc:
+        print(f"⚠️ CREEM checkout request failed user={user_id} order={order_id}: {exc}")
+        return None
 
 
 def payment_meta(pay_data):
@@ -659,6 +734,7 @@ def payment_button_label(provider, language):
     labels = {
         "PAYOS": "🏦 VietQR / PayOS",
         "PAYPAL": "💳 PayPal (USD)",
+        "CREEM": "💳 Creem (USD)",
         "NOWPAYMENTS": "🪙 NOWPayments",
         "TRON_USDT": "₮ USDT TRC20",
         "BINANCE_PAY": "🟡 Binance Pay",

@@ -49,6 +49,13 @@ PAYMENT_PROVIDER_SCHEMA = {
         "enabled_default": "OFF",
         "priority": 20,
     },
+    "CREEM": {
+        "kind": "rail",
+        "currency": "USD",
+        "enabled_key": "CREEM_PAYMENT_ENABLED",
+        "enabled_default": "OFF",
+        "priority": 25,
+    },
     "NOWPAYMENTS": {
         "kind": "rail",
         "currency": "USD",
@@ -715,6 +722,10 @@ class PaymentManager:
         return self.payos
 
     def provider_enabled(self, provider):
+        selected = str(provider or "").upper()
+        if selected == "CREEM":
+            # Creem checkout is created by Hangcu_web, not by a local rail manager.
+            return _enabled("CREEM_PAYMENT_ENABLED", "OFF") and bool(self.web_payment_base_url())
         return self.manager_for(provider).enabled
 
     def preferred_provider(self, language="vi"):
