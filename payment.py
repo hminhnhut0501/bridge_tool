@@ -758,6 +758,8 @@ class PaymentManager:
         actions = [provider for provider in rails if self.provider_enabled(provider)]
         if include_web and self.web_enabled():
             actions.append("WEB")
+        if _enabled("MANUAL_PAYMENT_ENABLED", "OFF"):
+            actions.append("MANUAL")
         return actions
 
     def web_enabled(self):

@@ -749,6 +749,7 @@ def payment_button_label(provider, language):
         "TRON_USDT": "₮ USDT TRC20",
         "BINANCE_PAY": "🟡 Binance Pay",
         "WEB": web_payment_label(language),
+        "MANUAL": str(db.get_config("MANUAL_PAYMENT_LABEL_EN" if str(language).lower() == "en" else "MANUAL_PAYMENT_LABEL_VI", "💬 Chuyển khoản / Liên hệ admin") or "💬 Chuyển khoản / Liên hệ admin").strip(),
     }
     return labels.get(provider, provider)
 
@@ -1092,6 +1093,22 @@ def manual_support_keyboard(user_id=None, action="", provider="", preferred_lang
     return kb.as_markup()
 
 
+async def show_manual_payment_choice(callback: CallbackQuery, action=""):
+    language = resolve_user_language(callback.from_user.id)
+    key = "MANUAL_PAYMENT_MESSAGE_EN" if language == "en" else "MANUAL_PAYMENT_MESSAGE_VI"
+    default = (
+        "Please contact the admin to complete the bank transfer."
+        if language == "en"
+        else "Vui lòng nhấn nút bên dưới để nhắn tin cho admin và hoàn tất thanh toán chuyển khoản."
+    )
+    text = str(db.get_config(key, default) or default).strip() or default
+    keyboard = manual_support_keyboard(callback.from_user.id, action, "MANUAL", preferred_language=language)
+    if callback.message:
+        await callback.message.answer(text, reply_markup=keyboard)
+    await callback.answer()
+    return True
+
+
 async def enforce_auto_payment_gate(callback: CallbackQuery, action="", provider=""):
     language = resolve_user_language(callback.from_user.id)
     if should_allow_auto_payment(
@@ -1165,6 +1182,18 @@ async def process_early_renew(callback: CallbackQuery):
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
 
+    if provider == "MANUAL":
+        await show_manual_payment_choice(callback, action)
+        return
+    if provider == "MANUAL":
+        await show_manual_payment_choice(callback, action)
+        return
+    if provider == "MANUAL":
+        await show_manual_payment_choice(callback, action)
+        return
+    if provider == "MANUAL":
+        await show_manual_payment_choice(callback, action)
+        return
     if not await enforce_auto_payment_gate(callback, action, provider):
         return
 

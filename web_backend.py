@@ -2964,6 +2964,13 @@ async def admin_payment_schema():
                     "🌐 Web checkout",
                     "Nhãn hiển thị cho người dùng tiếng Anh trên nút web checkout.",
                 ),
+                _field("MANUAL_PAYMENT_ENABLED", "Bật chuyển khoản thủ công", "OFF", "Hiển thị action liên hệ admin để hướng dẫn chuyển khoản.", "select", [{"label": "Bật", "value": "ON"}, {"label": "Tắt", "value": "OFF"}]),
+                _field("MANUAL_PAYMENT_LABEL_VI", "Nhãn nút chuyển khoản (VI)", "💬 Chuyển khoản / Liên hệ admin", "Nhãn nút liên hệ admin trong giao diện tiếng Việt."),
+                _field("MANUAL_PAYMENT_LABEL_EN", "Manual transfer button (EN)", "💬 Contact admin", "Button label shown in English."),
+                _field("MANUAL_PAYMENT_MESSAGE_VI", "Nội dung hướng dẫn chuyển khoản (VI)", "", "Tin nhắn gửi trước nút liên hệ admin."),
+                _field("MANUAL_PAYMENT_MESSAGE_EN", "Manual transfer instructions (EN)", "", "Message shown before the contact button."),
+                _field("MANUAL_SUPPORT_CONTACT_URL", "Link liên hệ admin (VI)", "https://t.me/...", "Có thể dùng {payload} để đính kèm thông tin gói/đơn."),
+                _field("MANUAL_SUPPORT_CONTACT_URL_EN", "Admin contact link (EN)", "https://t.me/...", "Use {payload} to include order context."),
             ],
         }
     ]
