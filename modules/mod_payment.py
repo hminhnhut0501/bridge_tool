@@ -197,6 +197,7 @@ def create_pending_order(
     coupon_discount_amount=0,
     payment_provider="",
     payment_provider_order_id="",
+    payment_provider_payment_id="",
     payment_approval_url="",
     payment_currency="VND",
     activation_code="",
@@ -213,6 +214,12 @@ def create_pending_order(
     if not source_type:
         source_type = "BOT_LEGACY" if version == "legacy" else "BOT_NEW"
     metadata_payload = metadata if isinstance(metadata, dict) else metadata
+    if payment_provider_payment_id:
+        metadata_payload = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
+        metadata_payload.setdefault(
+            "payment_provider_payment_id",
+            str(payment_provider_payment_id).strip(),
+        )
     if isinstance(metadata_payload, dict):
         metadata_payload = dict(metadata_payload)
         metadata_payload.setdefault("bot_version", version)
