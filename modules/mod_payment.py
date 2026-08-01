@@ -643,6 +643,7 @@ def create_creem_payment_for_user(user_id, order_id, amount, description, plan_n
             "payment_session_id": str(order_id),
             "bot_order_id": str(order_id),
             "web_order_number": str(body.get("orderNumber") or ""),
+            "provider_payment_id": str(body.get("providerPaymentId") or ""),
         }
     except Exception as exc:
         print(f"⚠️ CREEM checkout request failed user={user_id} order={order_id}: {exc}")
@@ -655,12 +656,16 @@ def payment_meta(pay_data):
     return {
         "payment_provider": provider,
         "payment_provider_order_id": pay_data.get("provider_order_id", ""),
+        "payment_provider_payment_id": pay_data.get("provider_payment_id", ""),
         "payment_approval_url": pay_data.get("approval_url", ""),
         "payment_currency": pay_data.get("currency_code", default_currency),
         "activation_code": pay_data.get("activation_code", ""),
         "customer_ref": pay_data.get("customer_ref", ""),
         "plan_code": pay_data.get("plan_code", ""),
         "payment_locale": pay_data.get("locale", ""),
+        "payment_session_id": pay_data.get("payment_session_id", ""),
+        "bot_order_id": pay_data.get("bot_order_id", ""),
+        "web_order_number": pay_data.get("web_order_number", ""),
     }
 
 
