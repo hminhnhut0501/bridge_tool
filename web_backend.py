@@ -2903,6 +2903,7 @@ async def admin_payment_schema():
         label = {
             "PAYOS": "PayOS / VietQR",
             "PAYPAL": "PayPal",
+            "CREEM": "Creem",
             "NOWPAYMENTS": "NOWPayments",
             "TRON_USDT": "USDT TRC20",
             "BINANCE_PAY": "Binance Pay",
@@ -2967,10 +2968,53 @@ async def admin_payment_schema():
         }
     ]
 
+    provider_options = [
+        {"label": {
+            "PAYOS": "PayOS / VietQR",
+            "PAYPAL": "PayPal",
+            "CREEM": "Creem",
+            "NOWPAYMENTS": "NOWPayments",
+            "TRON_USDT": "USDT TRC20",
+            "BINANCE_PAY": "Binance Pay",
+        }.get(provider, provider), "value": provider}
+        for provider in payment_manager.supported_providers()
+    ]
+    routing = [
+        {
+            "key": "PAYMENT_PROVIDERS_VI",
+            "label": "Cổng cho tiếng Việt",
+            "kind": "multiselect",
+            "options": provider_options,
+            "help": "Chỉ chọn cổng thật muốn hiển thị cho người dùng tiếng Việt. Có thể gồm cổng USD như Creem/PayPal.",
+        },
+        {
+            "key": "PAYMENT_PROVIDERS_EN",
+            "label": "Providers for English",
+            "kind": "multiselect",
+            "options": provider_options,
+            "help": "Only selected payment rails are shown to English users.",
+        },
+        {
+            "key": "PAYMENT_PROVIDER_VI",
+            "label": "Cổng mặc định tiếng Việt",
+            "kind": "select",
+            "options": provider_options,
+            "help": "Cổng mặc định phải nằm trong danh sách tiếng Việt và đang bật.",
+        },
+        {
+            "key": "PAYMENT_PROVIDER_EN",
+            "label": "Default English provider",
+            "kind": "select",
+            "options": provider_options,
+            "help": "The default provider must be enabled and included in the English list.",
+        },
+    ]
+
     return {
         "data": {
             "rails": rails,
             "actions": actions,
+            "routing": routing,
         }
     }
 

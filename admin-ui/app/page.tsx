@@ -895,6 +895,14 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
   },
   {
+    key: "CREEM_PAYMENT_ENABLED",
+    label: "Bật thanh toán Creem",
+    placeholder: "OFF",
+    help: "Thanh toán USD qua Creem và Hangcu_web. Giá lấy từ product mapping trên web.",
+    kind: "select",
+    options: [{ label: "Bật", value: "ON" }, { label: "Tắt", value: "OFF" }],
+  },
+  {
     key: "NOWPAYMENTS_PAYMENT_ENABLED",
     label: "Bật NOWPayments",
     placeholder: "OFF",
@@ -927,6 +935,7 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [
       { label: "PAYOS", value: "PAYOS" },
       { label: "PAYPAL", value: "PAYPAL" },
+      { label: "CREEM", value: "CREEM" },
       { label: "NOWPAYMENTS", value: "NOWPAYMENTS" },
       { label: "TRON_USDT", value: "TRON_USDT" },
       { label: "BINANCE_PAY", value: "BINANCE_PAY" },
@@ -941,9 +950,38 @@ const PAYMENT_FIELDS: ConfigField[] = [
     options: [
       { label: "PAYOS", value: "PAYOS" },
       { label: "PAYPAL", value: "PAYPAL" },
+      { label: "CREEM", value: "CREEM" },
       { label: "NOWPAYMENTS", value: "NOWPAYMENTS" },
       { label: "TRON_USDT", value: "TRON_USDT" },
       { label: "BINANCE_PAY", value: "BINANCE_PAY" },
+    ],
+  },
+  {
+    key: "PAYMENT_PROVIDER_VI",
+    label: "Cổng mặc định tiếng Việt",
+    placeholder: "PAYOS",
+    help: "Cổng mặc định phải nằm trong danh sách tiếng Việt và đang bật.",
+    kind: "select",
+    options: [
+      { label: "PAYOS", value: "PAYOS" },
+      { label: "PAYPAL", value: "PAYPAL" },
+      { label: "CREEM", value: "CREEM" },
+      { label: "NOWPAYMENTS", value: "NOWPAYMENTS" },
+      { label: "TRON_USDT", value: "TRON_USDT" },
+      { label: "BINANCE_PAY", value: "BINANCE_PAY" },
+    ],
+  },
+  {
+    key: "PAYMENT_PROVIDER_EN",
+    label: "Cổng mặc định tiếng Anh",
+    placeholder: "PAYPAL",
+    help: "Cổng mặc định phải nằm trong danh sách tiếng Anh và đang bật.",
+    kind: "select",
+    options: [
+      { label: "PAYPAL", value: "PAYPAL" },
+      { label: "CREEM", value: "CREEM" },
+      { label: "NOWPAYMENTS", value: "NOWPAYMENTS" },
+      { label: "TRON_USDT", value: "TRON_USDT" },
     ],
   },
   {
@@ -995,11 +1033,17 @@ const PAYMENT_FIELDS: ConfigField[] = [
 const PAYMENT_RAIL_KEYS = new Set([
   "PAYOS_PAYMENT_ENABLED",
   "PAYPAL_PAYMENT_ENABLED",
+  "CREEM_PAYMENT_ENABLED",
   "NOWPAYMENTS_PAYMENT_ENABLED",
   "TRON_USDT_PAYMENT_ENABLED",
   "BINANCE_PAY_SIEUTHICODE_ENABLED",
+]);
+
+const PAYMENT_ROUTING_KEYS = new Set([
   "PAYMENT_PROVIDERS_VI",
   "PAYMENT_PROVIDERS_EN",
+  "PAYMENT_PROVIDER_VI",
+  "PAYMENT_PROVIDER_EN",
 ]);
 
 const PAYMENT_ACTION_KEYS = new Set([
@@ -1011,6 +1055,7 @@ const PAYMENT_ACTION_KEYS = new Set([
 
 const PAYMENT_RAIL_FIELDS = PAYMENT_FIELDS.filter((field) => PAYMENT_RAIL_KEYS.has(field.key));
 const PAYMENT_ACTION_FIELDS = PAYMENT_FIELDS.filter((field) => PAYMENT_ACTION_KEYS.has(field.key));
+const PAYMENT_ROUTING_FIELDS = PAYMENT_FIELDS.filter((field) => PAYMENT_ROUTING_KEYS.has(field.key));
 
 const AUTO_PAYMENT_VI_FIELDS: ConfigField[] = [
   {
@@ -3397,6 +3442,10 @@ export default function Home() {
   const paymentActionFields = useMemo(() => {
     if (!paymentSchema?.actions?.length) return PAYMENT_ACTION_FIELDS;
     return paymentSchema.actions.flatMap((group) => group.fields || []);
+  }, [paymentSchema]);
+  const paymentRoutingFields = useMemo(() => {
+    if (!paymentSchema?.routing?.length) return PAYMENT_ROUTING_FIELDS;
+    return paymentSchema.routing;
   }, [paymentSchema]);
   const notificationEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ENABLED", "ON");
   const notificationOrdersEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ORDERS_ENABLED", "ON");
@@ -8743,6 +8792,23 @@ export default function Home() {
                   title="Cài đặt payment rails"
                   subtitle="Bật/tắt và chỉnh field cổng thanh toán thật."
                   fields={paymentRailFields.length ? paymentRailFields : PAYMENT_RAIL_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+                <section className="panel">
+                  <PanelHead
+                    title="Payment routing"
+                    subtitle="Chọn danh sách và cổng mặc định theo từng ngôn ngữ."
+                  />
+                  <div className="hint compact" style={{ margin: "0 16px 16px" }}>
+                    <strong>Rail</strong> là cổng thanh toán thật; <strong>routing</strong> quyết định cổng nào được hiện và cổng nào được ưu tiên.
+                  </div>
+                </section>
+                <ConfigEditor
+                  title="Cài đặt payment routing"
+                  subtitle="VI/EN dùng danh sách cổng riêng; cổng mặc định phải nằm trong danh sách tương ứng."
+                  fields={paymentRoutingFields.length ? paymentRoutingFields : PAYMENT_ROUTING_FIELDS}
                   values={fieldValues}
                   setValues={setFieldValues}
                   onSave={saveFields}

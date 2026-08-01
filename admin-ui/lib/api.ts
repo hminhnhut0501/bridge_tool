@@ -64,6 +64,7 @@ export type PaymentSchemaGroup = {
 export type PaymentSchemaResponse = {
   rails: PaymentSchemaGroup[];
   actions: PaymentSchemaGroup[];
+  routing: ConfigFieldSchema[];
 };
 
 export type LicenseRecord = {
