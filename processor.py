@@ -226,11 +226,25 @@ async def _process_successful_payment_locked(target_code: str):
         plan_token = str((order or {}).get("plan_token", "")).strip() if supabase_store.enabled else ""
         is_lifetime = is_lifetime_order(plan_name, plan_token) or is_lifetime_plan(plan_name)
         days_to_add = 3650 if is_lifetime else 30
+        paid_now = now_local()
         if supabase_store.enabled and not is_lifetime:
-            base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or now_local()
+            base_date = find_current_expire_from_orders(paid_orders, user_id, plan_name) or paid_now
         else:
-            base_date = find_current_expire(users_data, user_id, plan_name) or now_local()
-        expire_date = (base_date + timedelta(days=days_to_add)).strftime("%Y-%m-%d %H:%M:%S")
+            base_date = find_current_expire(users_data, user_id, plan_name) or paid_now
+        # Extend from an existing active expiry, but never carry over the
+        # stale clock time from an old order (for example 11:50:49).
+        expire_base = max(base_date, paid_now)
+        expire_at = (expire_base + timedelta(days=days_to_add)).replace(
+            hour=paid_now.hour,
+            minute=paid_now.minute,
+            second=paid_now.second,
+            microsecond=0,
+        )
+        expire_date = expire_at.strftime("%Y-%m-%d %H:%M:%S")
+        print(
+            f"[delivery-expiry] order={target_code} base={base_date:%Y-%m-%d %H:%M:%S} "
+            f"paidNow={paid_now:%Y-%m-%d %H:%M:%S} expire={expire_date}"
+        )
 
         # Xác định ID nhóm từ Sheet (Hỗ trợ cấu hình động)
         groups_to_invite = []
