@@ -477,7 +477,8 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption += extra_caption
         kb = InlineKeyboardBuilder()
         if checkout_url:
-            kb.row(InlineKeyboardButton(text="💳 Pay with Creem", url=checkout_url))
+            checkout_label = t(callback.from_user.id, "BTN_CREEM_CHECKOUT", "💳 Pay with Creem")
+            kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
         sent = await bot.send_message(
@@ -785,10 +786,11 @@ def get_available_payment_actions(user_id, preferred_language=None, include_web=
 
 
 def payment_button_label(provider, language):
+    is_english = str(language).lower() == "en"
     labels = {
         "PAYOS": "🏦 VietQR / PayOS",
-        "PAYPAL": "💳 PayPal (USD)",
-        "CREEM": "💳 Creem (USD)",
+        "PAYPAL": str(db.get_config("PAYMENT_PROVIDER_LABEL_PAYPAL_EN" if is_english else "PAYMENT_PROVIDER_LABEL_PAYPAL_VI", "💳 PayPal (USD)") or "💳 PayPal (USD)").strip(),
+        "CREEM": str(db.get_config("PAYMENT_PROVIDER_LABEL_CREEM_EN" if is_english else "PAYMENT_PROVIDER_LABEL_CREEM_VI", "💳 Creem (USD)") or "💳 Creem (USD)").strip(),
         "NOWPAYMENTS": "🪙 NOWPayments",
         "TRON_USDT": "₮ USDT TRC20",
         "BINANCE_PAY": "🟡 Binance Pay",
@@ -796,6 +798,18 @@ def payment_button_label(provider, language):
         "MANUAL": str(db.get_config("MANUAL_PAYMENT_LABEL_EN" if str(language).lower() == "en" else "MANUAL_PAYMENT_LABEL_VI", "💬 Chuyển khoản / Liên hệ admin") or "💬 Chuyển khoản / Liên hệ admin").strip(),
     }
     return labels.get(provider, provider)
+
+
+def payment_provider_message(user_id):
+    return t(
+        user_id,
+        "MSG_CHOOSE_PAYMENT_PROVIDER",
+        localized_default(
+            user_id,
+            "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Creem dùng giá USD riêng.",
+            "Choose a payment method. VietQR uses VND; PayPal and Creem use separate USD pricing.",
+        ),
+    )
 
 
 def _sign_web_checkout_request(payload: dict[str, object], secret: str) -> str:
@@ -1218,7 +1232,7 @@ async def process_early_renew(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
+                payment_provider_message(callback.from_user.id),
                 reply_markup=keyboard,
             )
             return
@@ -1413,7 +1427,7 @@ async def process_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
+                payment_provider_message(callback.from_user.id),
                 reply_markup=keyboard,
             )
             return
@@ -1513,7 +1527,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
+                payment_provider_message(callback.from_user.id),
                 reply_markup=keyboard,
             )
             return
@@ -1610,7 +1624,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             if not await enforce_auto_payment_gate(callback, action, provider):
                 return
             await callback.message.answer(
-                t(callback.from_user.id, "MSG_CHOOSE_PAYMENT_PROVIDER", "Chọn phương thức thanh toán. VietQR dùng VND; PayPal và Crypto dùng giá USD riêng."),
+                payment_provider_message(callback.from_user.id),
                 reply_markup=keyboard,
             )
             return

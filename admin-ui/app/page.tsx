@@ -923,6 +923,30 @@ const PAYMENT_FIELDS: ConfigField[] = [
     help: "Telegram admin link for English customers.",
   },
   {
+    key: "PAYMENT_PROVIDER_LABEL_PAYPAL_VI",
+    label: "Nhãn cổng PayPal (VI)",
+    placeholder: "💳 PayPal (USD)",
+    help: "Nhãn PayPal trong danh sách phương thức thanh toán tiếng Việt.",
+  },
+  {
+    key: "PAYMENT_PROVIDER_LABEL_PAYPAL_EN",
+    label: "PayPal provider label (EN)",
+    placeholder: "💳 PayPal (USD)",
+    help: "PayPal label in the English payment method list.",
+  },
+  {
+    key: "PAYMENT_PROVIDER_LABEL_CREEM_VI",
+    label: "Nhãn cổng Creem (VI)",
+    placeholder: "💳 Creem (USD)",
+    help: "Nhãn Creem trong danh sách phương thức thanh toán tiếng Việt.",
+  },
+  {
+    key: "PAYMENT_PROVIDER_LABEL_CREEM_EN",
+    label: "Creem provider label (EN)",
+    placeholder: "💳 Creem (USD)",
+    help: "Creem label in the English payment method list.",
+  },
+  {
     key: "PAYOS_PAYMENT_ENABLED",
     label: "Bật thanh toán PayOS",
     placeholder: "ON",
@@ -2135,6 +2159,13 @@ const MESSAGE_FIELDS: ConfigField[] = [
     kind: "textarea",
   },
   {
+    key: "MSG_CREEM_BILL_TEMPLATE",
+    label: "Nội dung bill Creem",
+    placeholder: "💳 <b>CREEM PAYMENT</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <b>{amount}</b>\\n🧾 Đơn: <code>{desc}</code>",
+    help: "Dùng biến {plan}, {amount}, {desc}.",
+    kind: "textarea",
+  },
+  {
     key: "MSG_TRON_USDT_BILL_TEMPLATE",
     label: "Nội dung bill USDT TRC20",
     placeholder: "₮ <b>THANH TOÁN USDT TRC20</b>\\n\\n🎁 Gói: <b>{plan}</b>\\n💵 Số tiền: <code>{usdt_amount} USDT</code>\\n🌐 Mạng: <b>TRC20</b>\\n👛 Ví nhận:\\n<code>{wallet}</code>\\n🧾 Đơn: <code>{desc}</code>\\n\\nVui lòng gửi đúng số USDT trên. Bot sẽ tự quét blockchain và cấp quyền ngay khi giao dịch được xác nhận.",
@@ -2504,6 +2535,7 @@ const BUTTON_FIELDS: ConfigField[] = [
   { key: "BTN_CHECK_PAYMENT", label: "Nút đã chuyển khoản", placeholder: "🔄 Đã chuyển khoản", help: "Nút dưới QR để khách check thủ công." },
   { key: "BTN_CANCEL_ORDER", label: "Nút hủy đơn", placeholder: "❌ Hủy", help: "Nút dưới QR để hủy đơn pending." },
   { key: "BTN_PAYPAL_CHECKOUT", label: "Nút thanh toán PayPal", placeholder: "💳 Pay with PayPal", help: "Nút mở trang checkout PayPal." },
+  { key: "BTN_CREEM_CHECKOUT", label: "Nút thanh toán Creem", placeholder: "💳 Pay with Creem", help: "Nút mở trang checkout Creem." },
   { key: "BTN_TRONSCAN_ADDRESS", label: "Nút xem ví Tronscan", placeholder: "🔎 Xem ví trên Tronscan", help: "Nút dưới bill USDT TRC20." },
   { key: "BTN_VIEW_QR", label: "Nút xem QR", placeholder: "🖼 Xem QR", help: "Dùng khi Telegram không gửi được ảnh QR." },
   { key: "BTN_BUY_COLLECTION_30D", label: "Nút mua collection 30 ngày", placeholder: "💎 COLLECTION 30 NGÀY", help: "Nút trên trang chi tiết collection." },
@@ -2702,6 +2734,26 @@ const PLAN_VI_FIELDS = PLAN_DISPLAY_FIELDS;
 const PLAN_EN_FIELDS: ConfigField[] = localizedFields(PLAN_DISPLAY_FIELDS, "EN");
 const BUTTON_EN_FIELDS = localizedFields(BUTTON_FIELDS, "EN");
 const MESSAGE_EN_FIELDS = localizedFields(MESSAGE_FIELDS, "EN");
+const PAYMENT_CONTENT_KEYS = new Set([
+  "PAYMENT_PROVIDER_LABEL_PAYPAL_VI",
+  "PAYMENT_PROVIDER_LABEL_PAYPAL_EN",
+  "PAYMENT_PROVIDER_LABEL_CREEM_VI",
+  "PAYMENT_PROVIDER_LABEL_CREEM_EN",
+  "MSG_CHOOSE_PAYMENT_PROVIDER",
+  "MSG_PAYPAL_BILL_TEMPLATE",
+  "MSG_CREEM_BILL_TEMPLATE",
+  "BTN_PAYPAL_CHECKOUT",
+  "BTN_CREEM_CHECKOUT",
+]);
+const PAYMENT_CONTENT_FIELDS: ConfigField[] = [
+  ...PAYMENT_FIELDS.filter((field) => PAYMENT_CONTENT_KEYS.has(field.key)),
+  ...BUTTON_FIELDS.filter((field) => PAYMENT_CONTENT_KEYS.has(field.key)),
+  ...MESSAGE_FIELDS.filter((field) => PAYMENT_CONTENT_KEYS.has(field.key)),
+];
+const PAYMENT_CONTENT_EN_FIELDS: ConfigField[] = [
+  ...BUTTON_EN_FIELDS.filter((field) => PAYMENT_CONTENT_KEYS.has(field.key.replace(/_EN$/, ""))),
+  ...MESSAGE_EN_FIELDS.filter((field) => PAYMENT_CONTENT_KEYS.has(field.key.replace(/_EN$/, ""))),
+];
 const ALERT_EN_FIELDS = localizedFields(ALERT_FIELDS, "EN").map((field) => ({ ...field, ...ALERT_EN_OVERRIDES[field.key] }));
 const MESSAGE_EN_PAYMENT_OVERRIDES: Partial<Record<string, Partial<ConfigField>>> = {
   MSG_BILL_TEMPLATE: {
@@ -8917,6 +8969,14 @@ export default function Home() {
                   title="Cài đặt payment actions"
                   subtitle="Bật/tắt và chỉnh field cho action mở web thanh toán."
                   fields={paymentActionFields.length ? paymentActionFields : PAYMENT_ACTION_FIELDS}
+                  values={fieldValues}
+                  setValues={setFieldValues}
+                  onSave={saveFields}
+                />
+                <ConfigEditor
+                  title="Nội dung PayPal / Creem"
+                  subtitle="Tập trung nhãn cổng, nội dung bill và nút checkout. Các trường tiếng Anh được gom ngay bên dưới để tránh phải tìm trong nhiều màn."
+                  fields={[...PAYMENT_CONTENT_FIELDS, ...PAYMENT_CONTENT_EN_FIELDS]}
                   values={fieldValues}
                   setValues={setFieldValues}
                   onSave={saveFields}
