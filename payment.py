@@ -21,9 +21,15 @@ load_dotenv()
 PAYOS_CLIENT_ID = os.getenv("PAYOS_CLIENT_ID")
 PAYOS_API_KEY = os.getenv("PAYOS_API_KEY")
 PAYOS_CHECKSUM_KEY = os.getenv("PAYOS_CHECKSUM_KEY")
-PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID")
-PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET")
-PAYPAL_BASE_URL = os.getenv("PAYPAL_BASE_URL", "https://api-m.paypal.com").rstrip("/")
+PAYPAL_CLIENT_ID = str(os.getenv("PAYPAL_CLIENT_ID") or "").strip()
+PAYPAL_CLIENT_SECRET = str(os.getenv("PAYPAL_CLIENT_SECRET") or "").strip()
+PAYPAL_ENV = str(os.getenv("PAYPAL_ENV") or "live").strip().lower()
+_PAYPAL_DEFAULT_BASE_URL = (
+    "https://api-m.sandbox.paypal.com"
+    if PAYPAL_ENV in {"sandbox", "test"}
+    else "https://api-m.paypal.com"
+)
+PAYPAL_BASE_URL = str(os.getenv("PAYPAL_BASE_URL") or _PAYPAL_DEFAULT_BASE_URL).strip().rstrip("/")
 PAYPAL_RETURN_URL = os.getenv("PAYPAL_RETURN_URL", bot_base_url())
 PAYPAL_CANCEL_URL = os.getenv("PAYPAL_CANCEL_URL", PAYPAL_RETURN_URL)
 NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
@@ -185,6 +191,10 @@ class PayPalManager:
         if not self.enabled:
             raise RuntimeError("PayPal chưa được bật hoặc chưa cấu hình credentials")
         basic = base64.b64encode(f"{PAYPAL_CLIENT_ID}:{PAYPAL_CLIENT_SECRET}".encode()).decode()
+        print(
+            f"[paypal-oauth] requesting token env={'sandbox' if 'sandbox' in PAYPAL_BASE_URL else 'live'} "
+            f"baseUrl={PAYPAL_BASE_URL} clientId={'set' if PAYPAL_CLIENT_ID else 'missing'}"
+        )
         response = requests.post(
             f"{PAYPAL_BASE_URL}/v1/oauth2/token",
             headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
@@ -193,6 +203,13 @@ class PayPalManager:
         )
         data = response.json()
         if not response.ok or not data.get("access_token"):
+            self._access_token = ""
+            self._token_expires_at = 0
+            if response.status_code == 401 and data.get("error") == "invalid_client":
+                raise RuntimeError(
+                    "PayPal OAuth invalid_client: kiểm tra cặp PAYPAL_CLIENT_ID/"
+                    "PAYPAL_CLIENT_SECRET và PAYPAL_ENV (sandbox/live) phải cùng môi trường"
+                )
             raise RuntimeError(f"PayPal OAuth failed: {response.status_code} {data}")
         self._access_token = data["access_token"]
         self._token_expires_at = time.time() + int(data.get("expires_in") or 0)
