@@ -689,10 +689,13 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     actions = get_available_payment_actions(user_id, language, include_web=True)
     rails = [item for item in actions if item != "WEB"]
     web_available = "WEB" in actions
-    if not rails and not web_available:
+    available = rails + (["WEB"] if web_available else [])
+    if not available:
         return None, "__NONE__"
-    if len(rails) <= 1 and not web_available:
-        return None, rails[0] if rails else ""
+    # Skip the provider picker when exactly one payment action is available.
+    # This keeps the existing callback handlers as the single execution path.
+    if len(available) == 1:
+        return None, available[0]
 
     kb = InlineKeyboardBuilder()
     added = 0
@@ -707,7 +710,7 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
             kb.row(InlineKeyboardButton(text=payment_button_label("WEB", language), callback_data=web_callback_data))
             added += 1
     if not added:
-        return None, rails[0] if rails else ("WEB" if web_available else "")
+        return None, available[0]
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
     return kb.as_markup(), ""
 
