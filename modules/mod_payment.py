@@ -462,6 +462,35 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
             supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
         return sent
 
+    if provider == "CREEM":
+        checkout_url = str(pay_data.get("approval_url") or pay_data.get("checkout_url") or "").strip()
+        caption = t(
+            callback.from_user.id,
+            "MSG_CREEM_BILL_TEMPLATE",
+            "💳 <b>CREEM PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>\n\nOpen the Creem checkout link below to complete payment. Your access will be delivered after payment confirmation.",
+        ).replace("\\n", "\n")
+        caption = (
+            caption.replace("{plan}", str(pretty_plan_name))
+            .replace("{amount}", format_money(amount, "USD"))
+            .replace("{desc}", description)
+        )
+        caption += extra_caption
+        kb = InlineKeyboardBuilder()
+        if checkout_url:
+            kb.row(InlineKeyboardButton(text="💳 Pay with Creem", url=checkout_url))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
+        kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
+        sent = await bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=kb.as_markup(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        if supabase_store.enabled and sent:
+            supabase_store.set_payment_message(order_id, sent.chat.id, sent.message_id)
+        return sent
+
     if provider == "WEB":
         checkout_url = str(pay_data.get("approval_url") or pay_data.get("checkout_url") or "").strip()
         license_code = str(
