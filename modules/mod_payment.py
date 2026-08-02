@@ -787,6 +787,7 @@ def get_available_payment_actions(user_id, preferred_language=None, include_web=
 
 def payment_button_label(provider, language):
     is_english = str(language).lower() == "en"
+    manual_fallback = "💬 Contact admin" if is_english else "💬 Chuyển khoản / Liên hệ admin"
     labels = {
         "PAYOS": "🏦 VietQR / PayOS",
         "PAYPAL": str(db.get_config("PAYMENT_PROVIDER_LABEL_PAYPAL_EN" if is_english else "PAYMENT_PROVIDER_LABEL_PAYPAL_VI", "💳 PayPal (USD)") or "💳 PayPal (USD)").strip(),
@@ -795,7 +796,12 @@ def payment_button_label(provider, language):
         "TRON_USDT": "₮ USDT TRC20",
         "BINANCE_PAY": "🟡 Binance Pay",
         "WEB": web_payment_label(language),
-        "MANUAL": str(db.get_config("MANUAL_PAYMENT_LABEL_EN" if str(language).lower() == "en" else "MANUAL_PAYMENT_LABEL_VI", "💬 Chuyển khoản / Liên hệ admin") or "💬 Chuyển khoản / Liên hệ admin").strip(),
+        "MANUAL": str(
+            db.get_config(
+                "MANUAL_PAYMENT_LABEL_EN" if is_english else "MANUAL_PAYMENT_LABEL_VI",
+                manual_fallback,
+            ) or manual_fallback
+        ).strip(),
     }
     return labels.get(provider, provider)
 
@@ -1243,15 +1249,6 @@ async def process_early_renew(callback: CallbackQuery):
     if provider == "MANUAL":
         await show_manual_payment_choice(callback, action)
         return
-    if provider == "MANUAL":
-        await show_manual_payment_choice(callback, action)
-        return
-    if provider == "MANUAL":
-        await show_manual_payment_choice(callback, action)
-        return
-    if provider == "MANUAL":
-        await show_manual_payment_choice(callback, action)
-        return
     if not await enforce_auto_payment_gate(callback, action, provider):
         return
 
@@ -1434,6 +1431,12 @@ async def process_buy_request(callback: CallbackQuery):
         if provider == "__NONE__":
             await callback.answer(t(callback.from_user.id, "ALERT_PAYMENT_METHOD_UNAVAILABLE", "Hiện chưa có phương thức thanh toán phù hợp được bật."), show_alert=True)
             return
+
+    # Manual contact is an action, not a gateway. Keep it out of payment
+    # creation so it also works when it is the only enabled option.
+    if provider == "MANUAL":
+        await show_manual_payment_choice(callback, action)
+        return
 
     if not await enforce_auto_payment_gate(callback, action, provider):
         return
