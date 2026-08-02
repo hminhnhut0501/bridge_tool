@@ -1,6 +1,7 @@
 from aiogram import Router
 from aiogram.types import Message
 
+from helpers import is_admin_user
 from message_classifier_utils import classify_private_message
 from supabase_store import supabase_store
 from support_utils import (
@@ -43,6 +44,8 @@ def _is_private_user_message(message: Message) -> bool:
 
 def _is_support_inbox_private_message(message: Message) -> bool:
     if not _is_private_user_message(message):
+        return False
+    if message.from_user and is_admin_user(message.from_user.id):
         return False
     if not support_inbox_enabled():
         return False
