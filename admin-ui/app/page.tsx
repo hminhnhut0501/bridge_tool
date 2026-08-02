@@ -3454,6 +3454,7 @@ export default function Home() {
   const [renewalAutoRefreshEnabled, setRenewalAutoRefreshEnabled] = useState(true);
   const [renewalAutoRefreshUntil, setRenewalAutoRefreshUntil] = useState(0);
   const [renewalKickingOrderIds, setRenewalKickingOrderIds] = useState<string[]>([]);
+  const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
@@ -8939,6 +8940,7 @@ export default function Home() {
                 subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
                 action={
                   <div className="panel-actions">
+                    <Button variant="outlined" size="small" onClick={() => setSupportGroupSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
                     <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }
@@ -10536,6 +10538,18 @@ export default function Home() {
 
         {systemSettingsOpen ? (
           <SettingsConfigModal title="Cài đặt hệ thống" subtitle="Các chu kỳ worker, cleanup và retention đang chạy trên backend Render." fields={SYSTEM_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} onClose={() => setSystemSettingsOpen(false)} />
+        ) : null}
+
+        {supportGroupSettingsOpen ? (
+          <SettingsConfigModal
+            title="Cài đặt group hỗ trợ"
+            subtitle="Cấu hình group support, ID, tên hiển thị và các tuỳ chọn liên quan đến khu vực hỗ trợ."
+            fields={SUPPORT_GROUP_FIELDS}
+            values={fieldValues}
+            setValues={setFieldValues}
+            onSave={saveFields}
+            onClose={() => setSupportGroupSettingsOpen(false)}
+          />
         ) : null}
 
         {orderSettingsOpen ? (
