@@ -1336,7 +1336,7 @@ async def process_early_renew(callback: CallbackQuery):
             else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
         )
         order_id = int(time.time())
-        description = f"PRIVE{order_id}"[-20:]
+        description = f"HCV{order_id}"[-20:]
         amount = offer["renew_price"]
 
         pay_data = create_payment_for_user(
@@ -1497,7 +1497,7 @@ async def process_buy_request(callback: CallbackQuery):
             else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
         )
         order_id = int(time.time())
-        description = f"PRIVE{order_id}"[-20:]
+        description = f"HCV{order_id}"[-20:]
         
         pay_data = create_payment_for_user(
             callback.from_user.id,
@@ -1594,7 +1594,7 @@ async def process_hidden_buy_request(callback: CallbackQuery):
             else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
         )
         order_id = int(time.time())
-        description = f"PRIVE{order_id}"[-20:]
+        description = f"HCV{order_id}"[-20:]
 
         pay_data = create_payment_for_user(
             callback.from_user.id,
@@ -1720,7 +1720,7 @@ async def process_coupon_buy_request(callback: CallbackQuery):
             else t(callback.from_user.id, "MSG_WAIT_QR", "⏳ Đang tạo mã QR...")
         )
         order_id = int(time.time())
-        description = f"PRIVE{order_id}"[-20:]
+        description = f"HCV{order_id}"[-20:]
         pay_data = create_payment_for_user(
             callback.from_user.id,
             order_id,
