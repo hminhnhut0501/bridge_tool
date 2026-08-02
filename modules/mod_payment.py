@@ -436,7 +436,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption = t(
             callback.from_user.id,
             "MSG_PAYPAL_BILL_TEMPLATE",
-            "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>",
+            localized_default(
+                callback.from_user.id,
+                "💳 <b>THANH TOÁN PAYPAL</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>",
+                "💳 <b>PAYPAL PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>",
+            ),
         ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
@@ -467,7 +471,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption = t(
             callback.from_user.id,
             "MSG_CREEM_BILL_TEMPLATE",
-            "💳 <b>CREEM PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>\n\nOpen the Creem checkout link below to complete payment. Your access will be delivered after payment confirmation.",
+            localized_default(
+                callback.from_user.id,
+                "💳 <b>THANH TOÁN CREEM</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nMở link thanh toán Creem bên dưới để hoàn tất. Quyền truy cập sẽ được gửi sau khi xác nhận thanh toán.",
+                "💳 <b>CREEM PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>\n\nOpen the Creem checkout link below to complete payment. Your access will be delivered after payment confirmation.",
+            ),
         ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
@@ -505,7 +513,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption = t(
             callback.from_user.id,
             "MSG_WEB_PAYMENT_BILL_TEMPLATE",
-            "🌐 <b>WEB PAYMENT</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nBấm nút bên dưới để thanh toán trên web. Sau khi thanh toán xong, hệ thống sẽ tự kích hoạt như luồng cũ.",
+            localized_default(
+                callback.from_user.id,
+                "🌐 <b>THANH TOÁN WEB</b>\n\n🎁 Gói: <b>{plan}</b>\n💵 Số tiền: <b>{amount}</b>\n🧾 Đơn: <code>{desc}</code>\n\nBấm nút bên dưới để thanh toán trên web. Sau khi thanh toán xong, hệ thống sẽ tự kích hoạt như luồng cũ.",
+                "🌐 <b>WEB PAYMENT</b>\n\n🎁 Plan: <b>{plan}</b>\n💵 Amount: <b>{amount}</b>\n🧾 Order: <code>{desc}</code>\n\nTap the button below to pay on the web. After payment is completed, the system will activate access automatically as before.",
+            ),
         ).replace("\\n", "\n")
         caption = (
             caption.replace("{plan}", str(pretty_plan_name))
