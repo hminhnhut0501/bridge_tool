@@ -734,12 +734,13 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     actions = get_available_payment_actions(user_id, language, include_web=True)
     rails = [item for item in actions if item != "WEB"]
     web_available = "WEB" in actions
+    manual_available = "MANUAL" in actions
     available = rails + (["WEB"] if web_available else [])
     if not available:
         return None, "__NONE__"
     # Skip the provider picker when exactly one payment action is available.
     # This keeps the existing callback handlers as the single execution path.
-    if len(available) == 1:
+    if len(available) == 1 and not manual_available:
         return None, available[0]
 
     kb = InlineKeyboardBuilder()
@@ -754,10 +755,15 @@ def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
         if len(web_callback_data.encode("utf-8")) <= 64:
             kb.row(InlineKeyboardButton(text=payment_button_label("WEB", language), callback_data=web_callback_data))
             added += 1
+    if manual_available:
+        manual_url = manual_support_bot_url(user_id, action, "MANUAL", preferred_language=language)
+        if manual_url:
+            kb.row(InlineKeyboardButton(text=payment_button_label("MANUAL", language), url=manual_url))
+            added += 1
     if not added:
         return None, available[0]
     kb.row(InlineKeyboardButton(text=t(user_id, "BTN_BACK", localized_default(user_id, "🔙 Quay lại", "🔙 Back to menu")), callback_data="back_main"))
-    return kb.as_markup(), ""
+    return kb.as_markup(), "__MANUAL_ONLY__" if manual_available and not rails and not web_available else ""
 
 
 def truthy_config(key, default="OFF"):
@@ -1159,14 +1165,8 @@ def manual_support_keyboard(user_id=None, action="", provider="", preferred_lang
 
 async def show_manual_payment_choice(callback: CallbackQuery, action=""):
     language = resolve_user_language(callback.from_user.id)
-    key = "MANUAL_PAYMENT_MESSAGE_EN" if language == "en" else "MANUAL_PAYMENT_MESSAGE_VI"
-    default = (
-        "Please contact the admin to complete the bank transfer."
-        if language == "en"
-        else "Vui lòng nhấn nút bên dưới để nhắn tin cho admin và hoàn tất thanh toán chuyển khoản."
-    )
-    text = str(db.get_config(key, default) or default).strip() or default
     keyboard = manual_support_keyboard(callback.from_user.id, action, "MANUAL", preferred_language=language)
+    text = manual_support_bot_label_en() if language == "en" else manual_support_bot_label()
     if callback.message:
         try:
           await callback.message.edit_text(text, reply_markup=keyboard)
