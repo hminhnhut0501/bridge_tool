@@ -22,7 +22,6 @@ import {
   MessageSquare,
   MessagesSquare,
   Pencil,
-  GripVertical,
   Search,
   Plus,
   RefreshCw,
@@ -11277,8 +11276,6 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   const [editingField, setEditingField] = useState<ConfigField | null>(null);
   const [draftValue, setDraftValue] = useState("");
   const [savingField, setSavingField] = useState(false);
-  const [dragValue, setDragValue] = useState("");
-  const [dragOverValue, setDragOverValue] = useState("");
 
   function displayFieldValue(field: ConfigField) {
     const currentValue = String(values[field.key] || "").trim();
@@ -11296,8 +11293,6 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   function openField(field: ConfigField) {
     setEditingField(field);
     setDraftValue(values[field.key] || "");
-    setDragValue("");
-    setDragOverValue("");
   }
 
   async function saveField() {
@@ -11393,81 +11388,57 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
                       const normalized = next.filter(Boolean);
                       setDraftValue(normalized.join(","));
                     };
-                    const moveItem = (from: string, to: string) => {
-                      if (!from || !to || from === to) return;
-                      const next = ordered.filter((value) => value !== from);
-                      const targetIndex = next.indexOf(to);
-                      if (targetIndex < 0) return;
-                      next.splice(targetIndex, 0, from);
+                    const moveToIndex = (value: string, nextIndex: number) => {
+                      if (!value) return;
+                      const next = ordered.filter((item) => item !== value);
+                      const safeIndex = Math.max(0, Math.min(nextIndex, next.length));
+                      next.splice(safeIndex, 0, value);
                       nextValue(next);
                     };
                     return (
                       <>
                         <Box sx={{ display: "grid", gap: 0.75 }}>
                           {(editingField.options || []).map((item) => {
-                          const checked = selected.has(item.value);
-                          const index = ordered.indexOf(item.value);
-                          return (
-                            <Box
-                              key={item.value}
-                              draggable={checked}
-                              onDragStart={() => {
-                                if (!checked) return;
-                                setDragValue(item.value);
-                              }}
-                              onDragEnd={() => {
-                                setDragValue("");
-                                setDragOverValue("");
-                              }}
-                              onDragOver={(event) => {
-                                if (!dragValue || dragValue === item.value) return;
-                                event.preventDefault();
-                                setDragOverValue(item.value);
-                              }}
-                              onDrop={(event) => {
-                                if (!dragValue || dragValue === item.value) return;
-                                event.preventDefault();
-                                moveItem(dragValue, item.value);
-                                setDragValue("");
-                                setDragOverValue("");
-                              }}
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
-                                justifyContent: "space-between",
-                                p: 1,
-                                borderRadius: 2,
-                                border: 1,
-                                borderColor: dragOverValue === item.value ? "primary.main" : "divider",
-                                bgcolor: dragOverValue === item.value ? "rgba(59,130,246,0.08)" : checked ? "rgba(59,130,246,0.04)" : "background.paper",
-                                cursor: checked ? "grab" : "default",
-                                opacity: dragValue === item.value ? 0.65 : 1,
-                              }}
-                            >
-                              <FormControlLabel
-                                sx={{ flex: 1, m: 0, pointerEvents: "none" }}
-                                control={
-                                  <Checkbox
-                                    checked={checked}
-                                    onChange={(event) => {
-                                      const current = ordered.filter((value) => value !== item.value);
-                                      if (event.target.checked) current.push(item.value);
-                                      nextValue(current);
-                                    }}
-                                  />
-                                }
-                                label={
-                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                                    <GripVertical size={14} style={{ opacity: 0.65 }} />
-                                    <strong>{item.label}</strong>
-                                    {checked ? <Chip size="small" label={`#${index + 1}`} variant="outlined" sx={{ height: 20, fontSize: 10.5 }} /> : null}
-                                  </Box>
-                                }
-                              />
-                            </Box>
-                          );
-                        })}
+                            const checked = selected.has(item.value);
+                            const index = ordered.indexOf(item.value);
+                            return (
+                              <Box key={item.value} sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "space-between", p: 1, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: checked ? "rgba(59,130,246,0.04)" : "background.paper" }}>
+                                <FormControlLabel
+                                  sx={{ flex: 1, m: 0 }}
+                                  control={
+                                    <Checkbox
+                                      checked={checked}
+                                      onChange={(event) => {
+                                        const current = ordered.filter((value) => value !== item.value);
+                                        if (event.target.checked) current.push(item.value);
+                                        nextValue(current);
+                                      }}
+                                    />
+                                  }
+                                  label={
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                                      <strong>{item.label}</strong>
+                                      {checked ? <Chip size="small" label={`#${index + 1}`} variant="outlined" sx={{ height: 20, fontSize: 10.5 }} /> : null}
+                                    </Box>
+                                  }
+                                />
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={checked ? String(index + 1) : ""}
+                                  onChange={(event) => {
+                                    const raw = Number(event.target.value);
+                                    if (!Number.isFinite(raw) || raw <= 0) return;
+                                    moveToIndex(item.value, raw - 1);
+                                  }}
+                                  disabled={!checked}
+                                  slotProps={{ htmlInput: { min: 1, max: ordered.length, style: { width: 68, textAlign: "center" } } }}
+                                  sx={{ width: 92, "& input": { textAlign: "center" } }}
+                                  helperText="Thứ tự"
+                                />
+                              </Box>
+                            );
+                          })}
                         </Box>
                         <Typography variant="caption" color="text.secondary">
                           Thứ tự lưu theo CSV: {draftValue || "trống"}.
