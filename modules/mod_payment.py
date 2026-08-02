@@ -1118,16 +1118,16 @@ def manual_support_bot_url(user_id=None, action="", provider="", preferred_langu
 
 
 def manual_support_bot_label():
-    return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Liên hệ hỗ trợ") or "💬 Liên hệ hỗ trợ").strip()
+    return str(db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Liên hệ Admin") or "💬 Liên hệ Admin").strip()
 
 
 def manual_support_bot_label_en():
     return str(
         db.get_config(
             "MANUAL_SUPPORT_BOT_LABEL_EN",
-            db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Contact support") or "💬 Contact support",
+            db.get_config("MANUAL_SUPPORT_BOT_LABEL", "💬 Contact admin") or "💬 Contact admin",
         )
-        or "💬 Contact support"
+        or "💬 Contact admin"
     ).strip()
 
 
@@ -1168,7 +1168,10 @@ async def show_manual_payment_choice(callback: CallbackQuery, action=""):
     text = str(db.get_config(key, default) or default).strip() or default
     keyboard = manual_support_keyboard(callback.from_user.id, action, "MANUAL", preferred_language=language)
     if callback.message:
-        await callback.message.answer(text, reply_markup=keyboard)
+        try:
+          await callback.message.edit_text(text, reply_markup=keyboard)
+        except Exception:
+          await callback.message.answer(text, reply_markup=keyboard)
     await callback.answer()
     return True
 
