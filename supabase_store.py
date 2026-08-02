@@ -2269,7 +2269,7 @@ class SupabaseStore:
         campaigns = self._cached_request(
             "GET",
             "broadcast_campaigns",
-            params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "order": "created_at.desc", "limit": str(limit)},
+            params={"select": "id,title,message,status,target_segment,plan_filter,plan_match_scope,created_at", "order": "created_at.desc", "limit": str(limit)},
         )
         return campaigns
 
@@ -2277,7 +2277,7 @@ class SupabaseStore:
         rows = self._cached_request(
             "GET",
             "broadcast_campaigns",
-            params={"select": "id,title,message,status,segment,plan_filter,plan_match_scope,created_at", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
+            params={"select": "id,title,message,status,target_segment,plan_filter,plan_match_scope,created_at", "id": f"eq.{_clean_text(campaign_id)}", "limit": "1"},
         )
         return rows[0] if rows else None
 
