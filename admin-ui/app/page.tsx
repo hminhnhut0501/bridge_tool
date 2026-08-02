@@ -9025,11 +9025,11 @@ export default function Home() {
               <Stack spacing={2.5}>
                 <section className="panel">
                   <PanelHead
-                    title="Payment rails"
+                    title="Cổng thanh toán"
                     subtitle="Danh sách cổng thanh toán thật."
                     action={
                       <Tooltip title="Rail là cổng xử lý tiền và đối soát. Action chỉ mở luồng phụ như web checkout." arrow>
-                        <Chip size="small" label="Rail / Action" variant="outlined" />
+                        <Chip size="small" label="Cổng / Hành động" variant="outlined" />
                       </Tooltip>
                     }
                   />
@@ -9066,7 +9066,7 @@ export default function Home() {
                                 <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>{providerLabel}</Typography>
                               </Box>
                             </Box>
-                            <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
+                            <Chip size="small" label={enabled ? "Bật" : "Tắt"} color={enabled ? "success" : "default"} variant={enabled ? "filled" : "outlined"} />
                           </Box>
                           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4, flex: "1 1 100%", mt: 0.25 }}>
                             {field ? field.help : "Chưa có field schema"}.
@@ -9077,7 +9077,7 @@ export default function Home() {
                   </div>
                 </section>
                 <ConfigEditor
-                  title="Cài đặt payment rails"
+                  title="Cài đặt cổng thanh toán"
                   subtitle="Bật/tắt và chỉnh field cổng thanh toán thật."
                   fields={paymentRailFields.length ? paymentRailFields : PAYMENT_RAIL_FIELDS}
                   values={fieldValues}
@@ -9086,15 +9086,15 @@ export default function Home() {
                 />
                 <section className="panel">
                   <PanelHead
-                    title="Payment routing"
+                    title="Định tuyến thanh toán"
                     subtitle="Chọn danh sách và cổng mặc định theo từng ngôn ngữ."
                   />
                   <div className="hint compact" style={{ margin: "0 16px 16px" }}>
-                    <strong>Rail</strong> là cổng thanh toán thật; <strong>routing</strong> quyết định cổng nào được hiện và cổng nào được ưu tiên.
+                    <strong>Cổng</strong> là cổng thanh toán thật; <strong>định tuyến</strong> quyết định cổng nào được hiện và cổng nào được ưu tiên.
                   </div>
                 </section>
                 <ConfigEditor
-                  title="Cài đặt payment routing"
+                  title="Cài đặt định tuyến thanh toán"
                   subtitle="VI/EN dùng danh sách cổng riêng; cổng mặc định phải nằm trong danh sách tương ứng."
                   fields={paymentRoutingFields.length ? paymentRoutingFields : PAYMENT_ROUTING_FIELDS}
                   values={fieldValues}
@@ -9103,7 +9103,7 @@ export default function Home() {
                 />
                 <section className="panel">
                   <PanelHead
-                    title="Payment actions"
+                    title="Hành động thanh toán"
                     subtitle="Danh sách action phụ."
                   />
                   <div className="hint compact" style={{ margin: "0 16px 16px" }}>
@@ -9137,13 +9137,13 @@ export default function Home() {
                                 <Pencil size={18} />
                               </Box>
                               <Box sx={{ minWidth: 0 }}>
-                                <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>WEB checkout</Typography>
+                                <Typography sx={{ fontWeight: 800, lineHeight: 1.15 }}>Thanh toán web</Typography>
                               </Box>
                             </Box>
-                            <Chip size="small" label={enabled ? "Active" : "Off"} color={enabled ? "primary" : "default"} variant={enabled ? "filled" : "outlined"} />
+                            <Chip size="small" label={enabled ? "Bật" : "Tắt"} color={enabled ? "primary" : "default"} variant={enabled ? "filled" : "outlined"} />
                           </Box>
                           <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4, flex: "1 1 100%", mt: 0.25 }}>
-                            {field ? field.help : "Chưa có field schema"}.
+                            {field ? field.help : "Chưa có schema field"}.
                           </Typography>
                         </Box>
                       );
@@ -9151,7 +9151,7 @@ export default function Home() {
                   </div>
                 </section>
                 <ConfigEditor
-                  title="Cài đặt payment actions"
+                  title="Cài đặt hành động thanh toán"
                   subtitle="Bật/tắt và chỉnh field cho action mở web thanh toán."
                   fields={paymentActionFields.length ? paymentActionFields : PAYMENT_ACTION_FIELDS}
                   values={fieldValues}
@@ -9177,7 +9177,7 @@ export default function Home() {
           <div className="stack">
             <section className="panel content-hub">
               <PanelHead
-                title="Auto payment"
+                title="Tự động thanh toán"
                 subtitle="Tách riêng theo ngôn ngữ và tệp khách: khách Việt, khách nước ngoài, cùng bot hỗ trợ và audit gần nhất."
               />
               <div className="hint">
@@ -9407,13 +9407,13 @@ export default function Home() {
         {tab === "botTools" ? (
           <div className="stack">
             <section className="panel content-hub">
-              <PanelHead title="Phản hồi & cảnh báo" subtitle="Chỉ giữ phản hồi lệnh trong group và các alert ngắn. Command menu được quản lý ở Menu Bot." />
+              <PanelHead title="Phản hồi & cảnh báo" subtitle="Chỉ giữ phản hồi lệnh trong group và các cảnh báo ngắn. Menu lệnh được quản lý ở Menu Bot." />
               <Tabs value={botToolsTab} onChange={(_, next) => setBotToolsTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="groupReplies" label="Group replies" />
+                <Tab value="groupReplies" label="Phản hồi group" />
                 <Tab value="alerts" label="Cảnh báo" />
               </Tabs>
             </section>
-            {botToolsTab === "groupReplies" ? <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group. Command menu riêng được đặt ở Menu Bot." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botToolsTab === "groupReplies" ? <ConfigEditor title="Phản hồi lệnh trong group" subtitle="Bật/tắt và chỉnh câu nhắc cuối cho các lệnh group. Menu lệnh riêng được đặt ở Menu Bot." fields={GROUP_COMMAND_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botToolsTab === "alerts" ? (
               <div className="stack">
                 <ConfigEditor title="Cảnh báo tiếng Việt" subtitle="Alert ngắn khi khách Việt thao tác." fields={ALERT_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} />
@@ -9430,7 +9430,7 @@ export default function Home() {
               <Tabs value={menuBotTab} onChange={(_, next) => setMenuBotTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="pages" label="Trang menu" />
                 <Tab value="language" label="Ngôn ngữ" />
-                <Tab value="commands" label="Command menu" />
+                <Tab value="commands" label="Menu lệnh" />
               </Tabs>
             </section>
             {menuBotTab === "pages" ? (
