@@ -732,7 +732,7 @@ def order_status_from_store(order_id):
 def payment_choice_keyboard(user_id, action, prefix, preferred_language=None):
     language = resolve_user_language(user_id, preferred_language)
     actions = get_available_payment_actions(user_id, language, include_web=True)
-    rails = [item for item in actions if item != "WEB"]
+    rails = [item for item in actions if item not in {"WEB", "MANUAL"}]
     web_available = "WEB" in actions
     manual_available = "MANUAL" in actions
     available = rails + (["WEB"] if web_available else [])
