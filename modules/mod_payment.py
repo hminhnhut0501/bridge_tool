@@ -1164,14 +1164,8 @@ def manual_support_keyboard(user_id=None, action="", provider="", preferred_lang
 
 
 async def show_manual_payment_choice(callback: CallbackQuery, action=""):
-    language = resolve_user_language(callback.from_user.id)
-    keyboard = manual_support_keyboard(callback.from_user.id, action, "MANUAL", preferred_language=language)
-    text = manual_support_bot_label_en() if language == "en" else manual_support_bot_label()
-    if callback.message:
-        try:
-          await callback.message.edit_text(text, reply_markup=keyboard)
-        except Exception:
-          await callback.message.answer(text, reply_markup=keyboard)
+    # Manual support is now rendered directly in the payment picker as a URL
+    # button, so this helper only acknowledges the callback if an old path hits it.
     await callback.answer()
     return True
 
