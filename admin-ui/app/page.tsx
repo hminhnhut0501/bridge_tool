@@ -8137,7 +8137,7 @@ export default function Home() {
                               }}
                               sx={{ borderRadius: 999, textTransform: "none", whiteSpace: "nowrap", py: 0.35, px: 1.15, minHeight: 30 }}
                             >
-                              {item.kind === "order" ? "Copy order ID" : "Copy Telegram ID"}
+                              {item.kind === "order" ? "Sao chép mã đơn" : "Sao chép Telegram ID"}
                             </Button>
                             {item.kind === "message" ? (
                               <Button
@@ -8587,7 +8587,7 @@ export default function Home() {
 
                         <div className="bento-status">
                           {isOk ? <CheckCircle2 size={14} className="icon-success" /> : <XCircle size={14} className="icon-error" />}
-                          <span className={isOk ? "text-success" : "text-error"}>{isOk ? "Active" : "Cần thiết lập"}</span>
+                          <span className={isOk ? "text-success" : "text-error"}>{isOk ? "Đang hoạt động" : "Cần thiết lập"}</span>
                         </div>
                         <h4 className="bento-title">{name || "Chưa đặt tên nhóm"}</h4>
                         <div className="bento-id"><Users size={14} /> ID: {id || "---"}</div>
@@ -9028,7 +9028,7 @@ export default function Home() {
                     title="Cổng thanh toán"
                     subtitle="Danh sách cổng thanh toán thật."
                     action={
-                      <Tooltip title="Rail là cổng xử lý tiền và đối soát. Action chỉ mở luồng phụ như web checkout." arrow>
+                      <Tooltip title="Cổng là nơi xử lý tiền và đối soát. Hành động chỉ mở luồng phụ như thanh toán web." arrow>
                         <Chip size="small" label="Cổng / Hành động" variant="outlined" />
                       </Tooltip>
                     }
@@ -9399,7 +9399,7 @@ export default function Home() {
             {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "groups" ? <ConfigEditor title="Mô tả collection tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
-            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh, không gồm các tin auto payment đã gom về tab Auto payment." fields={VISIBLE_MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh, không gồm các tin tự động thanh toán đã gom về tab Tự động thanh toán." fields={VISIBLE_MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "saleContent" ? <ConfigEditor title="Flash sale tiếng Anh" subtitle="Nội dung sale tiếng Anh, dùng giá USD." fields={SALE_CONTENT_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
           </div>
         ) : null}
@@ -10189,8 +10189,8 @@ export default function Home() {
                   <TextField className="field wide" label="Nội dung tin nhắn" value={campaignForm.message} onChange={(event) => setCampaignForm({ ...campaignForm, message: event.target.value })} placeholder={"Xin chào {name},\\nShop đang có ưu đãi mới...\\nCoupon của bạn: HANGCU_..."} fullWidth multiline minRows={6} sx={popupFieldSx} helperText={<span>Dùng biến {"{name}"}, {"{telegram_user_id}"}, {"{segment}"}, {"{latest_plan_name}"}.</span>} />
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 2, py: 1.5, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
-                  <strong>Preview: {campaignPreview?.total || 0} người</strong>
-                  <span>Active: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
+                  <strong>Xem trước: {campaignPreview?.total || 0} người</strong>
+                  <span>Đang hoạt động: {campaignPreview?.counts?.VIP_ACTIVE || 0}</span>
                   <span>Hết hạn: {campaignPreview?.counts?.VIP_EXPIRED || 0}</span>
                   <span>Chưa mua: {campaignPreview?.counts?.NO_PURCHASE || 0}</span>
               </Box>
@@ -10384,7 +10384,7 @@ export default function Home() {
                   <TextField className="field wide" label="Ghi chú" value={channelPostForm.notes} onChange={(event) => setChannelPostForm({ ...channelPostForm, notes: event.target.value })} placeholder="Ghi chú nội bộ nếu cần" fullWidth size="small" sx={popupFieldSx} />
               </Box>
               <Box sx={{ display: "grid", gap: 1.25, px: 2, pb: 2, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
-                  <div><Eye size={16} /> <strong>Preview nhanh</strong></div>
+                  <div><Eye size={16} /> <strong>Xem trước nhanh</strong></div>
                   <pre>{channelPostForm.image_ref ? `[Ảnh] ${channelPostForm.image_ref}\n\n` : ""}{channelPostForm.content || "Nội dung bài đăng sẽ hiển thị ở đây."}</pre>
                   <small>Nút: {channelPostForm.buttons_text ? channelPostForm.buttons_text.split(/\n+/).filter(Boolean).length : 0} hàng • Ảnh: {channelPostForm.image_ref ? "Có" : "Không"} • Đăng: {dateTimePreviewText(channelPostForm.scheduled_at, "gửi ngay")} • Xóa: {dateTimePreviewText(channelPostForm.delete_at, "không tự xóa")} • {channelPostForm.repeat_daily ? "Lặp ngày" : "Không lặp"}</small>
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1.25 }}>
@@ -10419,7 +10419,7 @@ export default function Home() {
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Chỉnh nhanh từ bảng đơn, không cần mở modal khách.</Typography>
               </Box>
               <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-                <IconButton onClick={() => copyOrderId(orderEditorOrderId)} title="Copy order ID">
+                <IconButton onClick={() => copyOrderId(orderEditorOrderId)} title="Sao chép mã đơn">
                   <Copy size={18} />
                 </IconButton>
                 <IconButton onClick={() => setOrderEditorOpen(false)}><XCircle size={20} /></IconButton>
@@ -10568,7 +10568,7 @@ export default function Home() {
           <MuiDialogShell open title="Trả lời khách từ Nhật ký" subtitle={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`} onClose={() => setAdminReplyOpen(false)} maxWidth="md">
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <SupportThreadPanel
-                title="Chat thread"
+                title="Luồng chat"
                 threadLabel={`${adminReplyTarget.fullName || adminReplyTarget.username || "Khách"} · ${adminReplyTarget.userId}`}
                 messages={adminReplyThreadMessages}
                 loading={adminReplyThreadLoading}
@@ -10600,7 +10600,7 @@ export default function Home() {
         ) : null}
 
         {customerQuickLookupOpen ? (
-          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Search lazy theo Telegram ID hoặc tên, không tải toàn bộ đơn hàng khi mở popup." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
+          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Tìm chậm theo Telegram ID hoặc tên, không tải toàn bộ đơn hàng khi mở popup." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
             <Box sx={{ display: "grid", gap: 1.25 }}>
               <TextField
                 autoFocus
@@ -10960,7 +10960,7 @@ export default function Home() {
                       <Tab value="role" label="Quyền" />
                       <Tab value="restricted" label="Hạn chế" />
                       <Tab value="kickMute" label="Kick/Mute" />
-                      <Tab value="orders" label="Order timeline" />
+                      <Tab value="orders" label="Dòng thời gian đơn" />
                     </Tabs>
                     <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
                       <Metric label="Tổng sự kiện" value={String(selectedCustomerTimelineCounts.total)} accent="blue" icon={<Activity size={16} />} />
@@ -10969,7 +10969,7 @@ export default function Home() {
                       <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} accent="rose" icon={<XCircle size={16} />} />
                     </Box>
                     <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
-                      <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+                      <PanelHead title="Lịch sử group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
                       <SimpleTable
                         headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
                         rows={selectedCustomerTimelineRows.slice(0, 12)}
@@ -10980,7 +10980,7 @@ export default function Home() {
 	                {customerDetailTab === "groups" ? (
 	                  <>
 	                    <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
-	                      <PanelHead title="Nhóm còn active" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
+                      <PanelHead title="Nhóm còn hoạt động" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
 	                      {selectedCustomerActiveGroups.length ? (
 	                        <div
 	                          className="tag-list"
@@ -11009,14 +11009,14 @@ export default function Home() {
 	                            </span>
 	                          ))}
 	                        </div>
-	                      ) : <div className="empty-card">Chưa có nhóm active nào.</div>}
+                      ) : <div className="empty-card">Chưa có nhóm hoạt động nào.</div>}
 	                    </section>
 	                  </>
 	                ) : null}
 	                {customerDetailTab === "timeline" ? (
 	                  <>
 	                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
-	                      <PanelHead title="Timeline group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+                      <PanelHead title="Lịch sử group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
 	                      <SimpleTable
 	                        headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
 	                        rows={selectedCustomerTimelineRows.slice(0, 12)}
