@@ -451,7 +451,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         )
         caption += extra_caption
         kb = InlineKeyboardBuilder()
-        checkout_label = t(callback.from_user.id, "BTN_PAYPAL_CHECKOUT", "💳 Pay with PayPal")
+        checkout_label = t(
+            callback.from_user.id,
+            "BTN_PAYPAL_CHECKOUT",
+            localized_default(callback.from_user.id, "💳 Thanh toán PayPal", "💳 Pay with PayPal"),
+        )
         kb.row(InlineKeyboardButton(text=checkout_label, url=approval_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
@@ -485,7 +489,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption += extra_caption
         kb = InlineKeyboardBuilder()
         if checkout_url:
-            checkout_label = t(callback.from_user.id, "BTN_CREEM_CHECKOUT", "💳 Pay with Creem")
+            checkout_label = t(
+                callback.from_user.id,
+                "BTN_CREEM_CHECKOUT",
+                localized_default(callback.from_user.id, "💳 Thanh toán Creem", "💳 Pay with Creem"),
+            )
             kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
@@ -528,7 +536,11 @@ async def send_payment_bill(callback, order_id, plan_name, amount, description, 
         caption += extra_caption
         kb = InlineKeyboardBuilder()
         if checkout_url:
-            checkout_label = t(callback.from_user.id, "BTN_WEB_CHECKOUT", "🌐 Mở trang thanh toán")
+            checkout_label = t(
+                callback.from_user.id,
+                "BTN_WEB_CHECKOUT",
+                localized_default(callback.from_user.id, "🌐 Mở trang thanh toán", "🌐 Open checkout"),
+            )
             kb.row(InlineKeyboardButton(text=checkout_label, url=checkout_url))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CHECK_PAYMENT", localized_default(callback.from_user.id, "🔄 Tôi đã thanh toán", "🔄 I've paid")), callback_data=f"check_{order_id}"))
         kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_CANCEL_ORDER", localized_default(callback.from_user.id, "❌ Hủy", "❌ Cancel")), callback_data=f"cancel_order_{order_id}"))
@@ -1089,7 +1101,11 @@ def auto_payment_gate_message(user_id, preferred_language=None):
             "MSG_MANUAL_SUPPORT_REDIRECT_EN",
             db.get_config(
                 "MSG_NEW_CUSTOMER_MANUAL_ONLY_EN",
-                "👋 Auto payment is off for this account.\nTap the button below and we’ll handle it manually.",
+                localized_default(
+                    user_id,
+                    "👋 Auto payment đang tắt cho tài khoản này.\nNhấn nút bên dưới để bot hỗ trợ xử lý thủ công.",
+                    "👋 Auto payment is off for this account.\nTap the button below and we’ll handle it manually.",
+                ),
             ),
         )
     return t(
