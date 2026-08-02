@@ -6399,7 +6399,7 @@ export default function Home() {
   }
   function renewalProgressText(summary: { status: string; groupDetails: { status: string }[] }) {
     const total = summary.groupDetails.length;
-    const kicked = summary.groupDetails.filter((item) => item.status === "Đã kick").length;
+    const kicked = summary.groupDetails.filter((item) => item.status === "Đã kick xong").length;
     const retained = summary.groupDetails.filter((item) => item.status === "Bị giữ lại").length;
     const pending = summary.groupDetails.filter((item) => item.status === "Chờ kick").length;
     const error = summary.groupDetails.filter((item) => item.status === "Lỗi").length;
@@ -6529,12 +6529,16 @@ export default function Home() {
       const isKickedAudit = ["MEMBER_KICKED", "KICKED", "EXPIRED_KICKED"].includes(String(audit.status || "").toUpperCase());
       const isRetained = audit.status === "ACTIVE_RETAINED";
       const hasError = Boolean(audit.latest_error);
-      const isPending = audit.needs_action || (!isKickedEvent && !isKickedAudit && !isRetained && !hasError);
-      
-      let groupStatus: "Đã kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" = "Chờ kick";
-      if (isKickedEvent || isKickedAudit) groupStatus = "Đã kick";
+      const liveLeft = audit.live_checked && audit.live_present === false;
+      const livePresent = audit.live_checked && audit.live_present === true;
+      const isDone = isKickedEvent || isKickedAudit || (liveLeft && !isRetained);
+      const isPending = audit.needs_action || (!isDone && !isRetained && !hasError);
+
+      let groupStatus: "Đã kick xong" | "Bị giữ lại" | "Lỗi" | "Chờ kick" = "Chờ kick";
+      if (isDone) groupStatus = "Đã kick xong";
       else if (isRetained) groupStatus = "Bị giữ lại";
       else if (hasError) groupStatus = "Lỗi";
+      else if (livePresent && !isRetained) groupStatus = "Chờ kick";
 
       const note = audit.latest_error || audit.retained_reason || (audit.retained_orders?.length ? `Còn đơn active: ${audit.retained_orders.join(", ")}` : "") || kickAuditReason(audit);
       
@@ -6548,7 +6552,7 @@ export default function Home() {
     });
 
     const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
-    const kickedCount = groupDetails.filter((g) => g.status === "Đã kick").length;
+    const kickedCount = groupDetails.filter((g) => g.status === "Đã kick xong").length;
     const pendingCount = groupDetails.filter((g) => g.status === "Chờ kick").length;
     const errorCount = groupDetails.filter((g) => g.status === "Lỗi").length;
     const retainedCount = groupDetails.filter((g) => g.status === "Bị giữ lại").length;
@@ -6647,7 +6651,7 @@ export default function Home() {
           planName: item.plan_name,
           customerName: renewalCustomerName(item),
           groupsToKick: summary.groupDetails.filter(g => g.status === "Lỗi" || g.status === "Chờ kick").map(g => g.groupId),
-          groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick").map(g => g.groupId),
+          groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick xong").map(g => g.groupId),
           renewalStatus: summary.status,
           renewalNote: summary.note,
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
@@ -6682,7 +6686,7 @@ export default function Home() {
                   <Chip 
                     size="small" 
                     label={g.groupName} 
-                    color={g.status === "Đã kick" ? "success" : g.status === "Lỗi" ? "error" : g.status === "Bị giữ lại" ? "info" : "warning"} 
+                    color={g.status === "Đã kick xong" ? "success" : g.status === "Lỗi" ? "error" : g.status === "Bị giữ lại" ? "info" : "warning"} 
                     variant="outlined" 
                     sx={{ height: 20, fontSize: 11 }} 
                   />
@@ -6691,7 +6695,7 @@ export default function Home() {
             </Box>,
             <Box key="notes" sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxWidth: 200 }}>
               {summary.groupDetails.length ? summary.groupDetails.map((g, i) => {
-                if (g.status === "Đã kick") return null;
+                if (g.status === "Đã kick xong") return null;
                 return (
                   <Typography key={i} variant="caption" sx={{ color: g.status === "Lỗi" ? "error.main" : "text.secondary", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.2 }}>
                     <strong style={{ opacity: 0.7 }}>{g.groupName}</strong>: {g.note || g.status}
@@ -6728,10 +6732,10 @@ export default function Home() {
       if (renewalTab === "expired" && renewalFocusFilter !== "all") {
         const status = String(item.renewalStatus || "");
         if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit"].includes(status)) return false;
-        if (renewalFocusFilter === "kicked" && !["Đã kick", "Đã kick một phần", "Đã kick xong", "Đang kick"].includes(status)) return false;
+        if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick"].includes(status)) return false;
         if (renewalFocusFilter === "retained" && status !== "Bị giữ lại") return false;
         if (renewalFocusFilter === "error" && status !== "Lỗi") return false;
-        if (renewalFocusFilter === "review" && ["Đã kick", "Đã kick xong"].includes(status)) return false;
+        if (renewalFocusFilter === "review" && ["Đã kick xong"].includes(status)) return false;
       }
       return true;
     });
@@ -6743,7 +6747,7 @@ export default function Home() {
         if (status === "Đã kick xong") acc.done += 1;
         else if (status === "Đã kick một phần") acc.partial += 1;
         else if (status === "Đang kick") acc.kicking += 1;
-        else if (status === "Đã kick") acc.kicked += 1;
+        else if (status === "Đã kick xong") acc.kicked += 1;
         else if (status === "Bị giữ lại") acc.retained += 1;
         else if (status === "Lỗi") acc.error += 1;
         else acc.pending += 1;
@@ -8809,7 +8813,7 @@ export default function Home() {
                         { key: "all", label: "Tất cả" },
                         { key: "chokick", label: "Chờ kick / audit" },
                         { key: "review", label: "Cần soi" },
-                        { key: "kicked", label: "Đã kick" },
+                        { key: "kicked", label: "Đã kick xong" },
                         { key: "retained", label: "Bị giữ lại" },
                         { key: "error", label: "Có lỗi" },
                       ].map((item) => (
@@ -8909,7 +8913,7 @@ export default function Home() {
                               {(status === "Bị giữ lại" || renewalFocusFilter === "retained") && groupsToReview.length > 0 ? (
                                 <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<ShieldCheck size={14} />}>Soi giữ lại ({groupsToReview.length})</Button>
                               ) : null}
-                              {["Đã kick", "Đã kick xong"].includes(status) ? (
+                              {["Đã kick xong"].includes(status) ? (
                                 <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<CheckCircle2 size={14} />}>Đã xong</Button>
                               ) : null}
                             </>
