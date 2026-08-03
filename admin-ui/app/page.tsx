@@ -3382,6 +3382,7 @@ export default function Home() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerDetailTab, setCustomerDetailTab] = useState<CustomerDetailTab>("orders");
+  const [customerTimelineLoaded, setCustomerTimelineLoaded] = useState(false);
   const [customerTimelineSubTab, setCustomerTimelineSubTab] = useState<CustomerTimelineSubTab>("all");
   const [customerOrderTab, setCustomerOrderTab] = useState<CustomerOrderTab>("paid");
   const [customerRenewModalOpen, setCustomerRenewModalOpen] = useState(false);
@@ -5956,6 +5957,27 @@ export default function Home() {
       return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
     })[0] || null;
   }, [selectedCustomer]);
+  const selectedCustomerPaidActiveOrders = useMemo(() => {
+    return selectedCustomerOrders.filter((item) => item.status === "PAID" && (isOrderActive(item) || isLifetimeText(item.plan_name)));
+  }, [selectedCustomerOrders]);
+  const selectedCustomerPaidExpiredOrders = useMemo(() => {
+    return selectedCustomerOrders.filter((item) => item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name));
+  }, [selectedCustomerOrders]);
+  const selectedCustomerUnpaidOrders = useMemo(() => {
+    return selectedCustomerOrders.filter((item) => String(item.status || "").toUpperCase() !== "PAID");
+  }, [selectedCustomerOrders]);
+  const selectedCustomerPrimaryPaidOrder = useMemo(() => {
+    if (!selectedCustomerOrders.length) return null;
+    return [...selectedCustomerPaidActiveOrders, ...selectedCustomerPaidExpiredOrders]
+      .sort((a, b) => {
+        const activeRank = Number(isOrderActive(b)) - Number(isOrderActive(a));
+        if (activeRank !== 0) return activeRank;
+        return (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0);
+      })[0] || null;
+  }, [selectedCustomerPaidActiveOrders, selectedCustomerPaidExpiredOrders, selectedCustomerOrders]);
+  useEffect(() => {
+    setCustomerTimelineLoaded(false);
+  }, [selectedCustomer?.id]);
   const selectedCustomerRenewPlanOptions = useMemo(() => {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.paidOrders.map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
@@ -6106,7 +6128,7 @@ export default function Home() {
       .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0));
   }, [selectedCustomer, supportEvents]);
   const selectedCustomerTimelineRows = useMemo(() => {
-    if (!selectedCustomer) return [];
+    if (!selectedCustomer || !customerTimelineLoaded) return [];
     const customerId = selectedCustomer.id;
     const orderTrace: CustomerTraceEvent[] = selectedCustomer.orders.map((item) => ({
       key: `order-${item.order_id}`,
@@ -6200,7 +6222,7 @@ export default function Home() {
     if (customerTimelineSubTab === "kickMute") return rows.filter((item) => ["vip_kicked", "vip_muted", "vip_unmuted", "member_kicked", "member_muted", "member_unmuted"].includes(item.type)).map((item) => item.row);
     if (customerTimelineSubTab === "orders") return rows.filter((item) => ["order_created", "order_paid", "order_expired"].includes(item.type)).map((item) => item.row);
     return rows.map((item) => item.row);
-  }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit, customerTimelineSubTab]);
+  }, [selectedCustomer, selectedCustomerSupportEvents, kickAudit, vipGroupAudit, customerTimelineSubTab, customerTimelineLoaded]);
   const selectedCustomerTimelineCounts = useMemo(() => {
     if (!selectedCustomer) return { total: 0, joined: 0, left: 0, muted: 0, kicked: 0 };
     const joined = selectedCustomerSupportEvents.filter((item) => ["support_joined", "vip_joined"].includes(item.event_type)).length;
@@ -10774,100 +10796,100 @@ export default function Home() {
                       <strong>Khách này đang bị blacklist.</strong> Hệ thống sẽ từ chối phục vụ bot và admin nên cẩn thận trước khi tạo đơn/gia hạn. Lý do: {customerQuickLookupResult.blacklistEntry?.reason || "chưa ghi lý do"}.
                     </Alert>
                   ) : null}
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gap: 1,
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                      },
-                    }}
-                  >
-                    {[
-                      {
-                        label: "Tên khách",
-                        value: customerQuickLookupResult.name || "-",
-                        icon: <Users size={15} />,
-                        badge: customerQuickLookupResult.isBlacklisted ? "Blacklist" : "",
-                        badgeTone: "error" as const,
-                      },
-                      { label: "Trạng thái", value: customerQuickLookupResult.statusText, icon: <ShieldCheck size={15} /> },
-                      { label: "Đã có đơn", value: customerQuickLookupResult.hasPaidOrder ? "Có" : "Chưa", icon: <ClipboardList size={15} /> },
-                      { label: "Đang còn hạn", value: customerQuickLookupResult.hasActiveOrder ? "Có" : "Không", icon: <CheckCircle2 size={15} /> },
-                    ].map((item) => (
-                      <Box
-                        key={item.label}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1,
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: 2,
-                          bgcolor: "rgba(15, 23, 42, 0.03)",
-                          border: "1px solid rgba(148, 163, 184, 0.14)",
-                        }}
-                      >
-                        <Box sx={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", bgcolor: "rgba(37, 99, 235, 0.08)", color: "primary.main", flex: "0 0 auto" }}>
-                          {item.icon}
-                        </Box>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.2 }}>
-                              {item.label}
+                  {(() => {
+                    const customerPaid = customerQuickLookupResult.paidOrderCount > 0;
+                    const customerActive = customerQuickLookupResult.hasActiveOrder;
+                    const tone = customerQuickLookupResult.isBlacklisted ? "error" : customerActive ? "success" : customerPaid ? "warning" : "muted";
+                    const heroBg = customerQuickLookupResult.isBlacklisted
+                      ? "linear-gradient(135deg, rgba(254,242,242,1) 0%, rgba(255,251,235,1) 100%)"
+                      : customerActive
+                        ? "linear-gradient(135deg, rgba(236,253,245,1) 0%, rgba(240,253,244,1) 100%)"
+                        : customerPaid
+                          ? "linear-gradient(135deg, rgba(255,251,235,1) 0%, rgba(255,247,237,1) 100%)"
+                          : "linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(241,245,249,1) 100%)";
+                    return (
+                      <Box sx={{ p: 2, borderRadius: 3, background: heroBg, border: 1, borderColor: customerQuickLookupResult.isBlacklisted ? "rgba(248,113,113,0.22)" : customerActive ? "rgba(34,197,94,0.22)" : customerPaid ? "rgba(245,158,11,0.22)" : "divider", boxShadow: "0 14px 32px rgba(15,23,42,0.06)" }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1.5, alignItems: "flex-start", flexWrap: "wrap" }}>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase" }}>
+                              Tra cứu nhanh
                             </Typography>
-                            {item.badge ? <Chip size="small" color={item.badgeTone} variant="outlined" label={item.badge} sx={{ height: 18, fontSize: 10.5, fontWeight: 800 }} /> : null}
+                            <Typography sx={{ fontWeight: 900, fontSize: 22, lineHeight: 1.1, mt: 0.35, wordBreak: "break-word" }}>
+                              {customerQuickLookupResult.name || "-"}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                              Telegram ID: <strong>{customerQuickLookupResult.id}</strong>
+                            </Typography>
                           </Box>
-                          <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2, wordBreak: "break-word" }}>
-                            {item.value}
-                          </Typography>
+                          <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", justifyContent: "flex-end" }} useFlexGap>
+                            <Chip size="small" label={customerQuickLookupResult.isBlacklisted ? "Blacklist" : customerActive ? "PAID còn hạn" : customerPaid ? "PAID hết hạn" : "Chưa có PAID"} color={tone} variant="filled" />
+                            <Chip size="small" label={customerQuickLookupResult.hasPaidOrder ? "Đã thanh toán" : "Chưa thanh toán"} variant="outlined" />
+                            <Chip size="small" label={customerQuickLookupResult.statusText} variant="outlined" />
+                          </Stack>
+                        </Box>
+
+                        <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, mt: 1.5 }}>
+                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Thanh toán</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: customerQuickLookupResult.hasPaidOrder ? "success.main" : "text.primary" }}>
+                              {customerQuickLookupResult.hasPaidOrder ? "Đã từng trả tiền" : "Chưa thấy PAID"}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Còn hạn</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: customerActive ? "success.main" : customerPaid ? "warning.main" : "text.primary" }}>
+                              {customerActive ? "Đang còn hạn" : customerPaid ? "Đã hết hạn" : "Chưa có đơn"}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Gói gần nhất</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: "text.primary", lineHeight: 1.15 }}>
+                              {customerQuickLookupResult.latestExpireOrder ? String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-" : "-"}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 1.25 }}>
+                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Số đơn PAID</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 18 }}>{customerQuickLookupResult.paidOrderCount}</Typography>
+                          </Box>
+                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Hạn gần nhất</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 18 }}>{customerQuickLookupResult.latestExpireText || "-"}</Typography>
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: "block", mb: 0.75 }}>Thông tin phụ</Typography>
+                          <Box sx={{ display: "grid", gap: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">Gói gần nhất: <strong>{customerQuickLookupResult.latestExpireOrder ? String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-" : "-"}</strong></Typography>
+                            <Typography variant="body2" color="text.secondary">Group gần nhất: <strong>{customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"}</strong></Typography>
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 1.5 }}>
+                          <Button
+                            variant="contained"
+                            onClick={() => void openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
+                            startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
+                            disabled={customerQuickLookupResult.isBlacklisted}
+                            sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
+                          >
+                            {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
+                          </Button>
+                          <Button variant="text" onClick={() => void openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
+                            Mở hồ sơ
+                          </Button>
+                          {customerQuickLookupResult.isBlacklisted ? (
+                            <Button variant="outlined" color="error" onClick={() => openSecurityTabForCustomer(customerQuickLookupResult.id)} sx={{ borderRadius: 999, px: 1.75 }}>
+                              Mở blacklist
+                            </Button>
+                          ) : null}
                         </Box>
                       </Box>
-                    ))}
-                  </Box>
-                  <SimpleTable
-                    headers={["Mục", "Giá trị"]}
-                    rows={[
-                      ["Telegram ID", customerQuickLookupResult.id],
-                      ["Số đơn PAID", String(customerQuickLookupResult.paidOrderCount)],
-                      ["Số đơn active", String(customerQuickLookupResult.activeOrderCount)],
-                      ["Hạn gần nhất", customerQuickLookupResult.latestExpireText],
-                      ["Gói gần nhất", customerQuickLookupResult.latestExpireOrder ? (
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                            {String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-"}
-                          </Typography>
-                        </Box>
-                      ) : "-"],
-                      ["Group gần nhất", customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"],
-                    ]}
-                  />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
-                    <Button
-                      variant="contained"
-                      onClick={() => void openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
-                      startIcon={customerQuickLookupResult.hasActiveOrder ? <RefreshCw size={16} /> : <Plus size={16} />}
-                      disabled={customerQuickLookupResult.isBlacklisted}
-                      sx={{ borderRadius: 999, px: 2.25, py: 0.9, boxShadow: "none" }}
-                    >
-                      {customerQuickLookupResult.hasActiveOrder ? "Gia hạn nhanh" : "Tạo đơn mới"}
-                    </Button>
-                    <Button variant="text" onClick={() => void openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
-                      Mở khách gần nhất
-                    </Button>
-                    <Button variant="text" onClick={() => void openCustomerRenewFromLookup(customerQuickLookupResult.id)} startIcon={<RefreshCw size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
-                      Gia hạn nhanh
-                    </Button>
-                    <Button variant="text" onClick={() => openManualOrderFromLookup(customerQuickLookupResult.id)} startIcon={<Plus size={16} />} sx={{ borderRadius: 999, px: 1.75 }} disabled={customerQuickLookupResult.isBlacklisted}>
-                      Tạo đơn mới
-                    </Button>
-                    {customerQuickLookupResult.isBlacklisted ? (
-                      <Button variant="outlined" color="error" onClick={() => openSecurityTabForCustomer(customerQuickLookupResult.id)} sx={{ borderRadius: 999, px: 1.75 }}>
-                        Mở tab blacklist
-                      </Button>
-                    ) : null}
-                  </Box>
+                    );
+                  })()}
                 </>
               ) : customerQuickLookupSearched && customerQuickLookupQuery.trim().length >= 2 && !customerQuickLookupLoading ? (
                 <>
@@ -10918,12 +10940,12 @@ export default function Home() {
 	                <Box
 	                  component="aside"
 	                  sx={{
-                    width: { xs: "100%", md: 320 },
+                    width: { xs: "100%", md: 250 },
                     flexShrink: 0,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 2,
-                    p: 2,
+                    gap: 1.25,
+                    p: 1.25,
                     border: 1,
                     borderColor: "rgba(148, 163, 184, 0.15)",
                     bgcolor: "rgba(255, 255, 255, 0.6)",
@@ -10935,17 +10957,22 @@ export default function Home() {
 	                  <Tabs
 	                    orientation="vertical"
 	                    value={customerDetailTab}
-	                    onChange={(_, next) => setCustomerDetailTab(next)}
+	                    onChange={(_, next) => {
+                          setCustomerDetailTab(next);
+                          if (next === "timeline") setCustomerTimelineLoaded(true);
+                        }}
 	                    textColor="inherit"
 	                    indicatorColor="primary"
 	                    sx={{
 	                      ...customerPopupTabSx,
 	                      "& .MuiTab-root": {
-	                        borderRadius: 2,
-	                        mb: 0.5,
+	                        borderRadius: 1.5,
+	                        mb: 0.35,
 	                        justifyContent: "flex-start",
 	                        textAlign: "left",
-	                        padding: "10px 16px",
+	                        padding: "8px 12px",
+	                        minHeight: 34,
+	                        fontSize: 13,
 	                      },
 	                      "& .Mui-selected": {
 	                        bgcolor: "var(--primary)",
@@ -10954,9 +10981,9 @@ export default function Home() {
 	                      }
 	                    }}
 	                  >
-	                    <Tab value="orders" label="Đơn hàng" iconPosition="start" icon={<CreditCard size={16} />} sx={{ minHeight: 44 }} />
-	                    <Tab value="groups" label="Nhóm active" iconPosition="start" icon={<Users size={16} />} sx={{ minHeight: 44 }} />
-	                    <Tab value="timeline" label="Dấu vết" iconPosition="start" icon={<Activity size={16} />} sx={{ minHeight: 44 }} />
+	                    <Tab value="groups" label="Tóm tắt" iconPosition="start" icon={<Users size={14} />} sx={{ minHeight: 34 }} />
+	                    <Tab value="orders" label="Đơn" iconPosition="start" icon={<CreditCard size={14} />} sx={{ minHeight: 34 }} />
+	                    <Tab value="timeline" label="Lịch sử" iconPosition="start" icon={<Activity size={14} />} sx={{ minHeight: 34 }} />
 	                  </Tabs>
 
 	                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -10976,35 +11003,53 @@ export default function Home() {
                         <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.paidOrders.length}</Typography>
                       </Box>
                       <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Đang active</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomer.activeOrders.length}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>PAID còn hạn</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomerPaidActiveOrders.length}</Typography>
                       </Box>
                       <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Hạn gần nhất</Typography>
-                        <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--ink)", mt: 0.5 }}>{dateTextShort(selectedCustomer.latestExpire)}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>PAID hết hạn</Typography>
+                        <Typography sx={{ fontWeight: 800, fontSize: 20, color: "var(--ink)", lineHeight: 1 }}>{selectedCustomerPaidExpiredOrders.length}</Typography>
                       </Box>
                       <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Doanh thu</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", mt: 0.5 }}>{formatDisplayCurrency(Number(selectedCustomer.revenue || 0), "VND")}</Typography>
                       </Box>
                     </Box>
-
-                    {/* Attention Point */}
-                    <Box sx={{ p: 1.5, borderRadius: 2.5, background: "linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)", border: 1, borderColor: "rgba(59,130,246,0.2)" }}>
-                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>Gợi ý Gia Hạn</Typography>
-                      <Typography sx={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", mt: 0.5 }}>
-                        {selectedCustomerRenewTargetOrder ? selectedCustomerRenewTargetOrder.plan_name : "Khách chưa có đơn gợi ý"}
-                      </Typography>
-                      {selectedCustomerRenewTargetOrder ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
-                          Đơn gốc: {selectedCustomerRenewTargetOrder.order_id}
-                        </Typography>
-                      ) : null}
-                    </Box>
+                    {selectedCustomerPrimaryPaidOrder ? (
+                      <Box sx={{ p: 2, borderRadius: 3, background: (isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)" : "linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)", border: 1, borderColor: (isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "rgba(16,185,129,0.22)" : "rgba(245,158,11,0.22)", boxShadow: (isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "0 18px 40px rgba(16,185,129,0.14)" : "0 18px 40px rgba(245,158,11,0.12)", position: "relative", overflow: "hidden", minHeight: 168 }}>
+                        <Box sx={{ position: "absolute", inset: 0, opacity: 0.08, background: (isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "radial-gradient(circle at top right, #10b981, transparent 55%)" : "radial-gradient(circle at top right, #f59e0b, transparent 55%)" }} />
+                        <Stack spacing={1} sx={{ position: "relative", height: "100%", justifyContent: "space-between" }}>
+                          <Box>
+                            <Typography variant="caption" color={(isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "success.main" : "warning.main"} sx={{ fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                              {(isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "PAID còn hạn" : "PAID đã hết hạn"}
+                            </Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: 20, lineHeight: 1.1, color: "var(--ink)", mt: 0.8 }}>
+                              {selectedCustomerPrimaryPaidOrder.plan_name || "Không có tên gói"}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                              Mã đơn: <strong>{selectedCustomerPrimaryPaidOrder.order_id}</strong>
+                            </Typography>
+                          </Box>
+                          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }} useFlexGap>
+                            <Chip size="small" label={formatDisplayCurrency(orderAmountValue(selectedCustomerPrimaryPaidOrder), inferOrderCurrency(selectedCustomerPrimaryPaidOrder))} color={(isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "success" : "warning"} variant="filled" />
+                            <Chip size="small" label={`Qua ${providerLabel(inferOrderProvider(selectedCustomerPrimaryPaidOrder))}`} variant="outlined" />
+                            <Chip size="small" label={inferOrderCurrency(selectedCustomerPrimaryPaidOrder)} variant="outlined" />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8, position: "relative", fontWeight: 600 }}>
+                            {(isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? `Còn hạn đến ${dateTextShort(selectedCustomerPrimaryPaidOrder.expire_at)}` : `Đã hết hạn từ ${dateTextShort(selectedCustomerPrimaryPaidOrder.expire_at)}`}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    ) : (
+                      <Box sx={{ p: 1.5, borderRadius: 2.5, background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)", border: 1, borderColor: "divider" }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>Đơn trọng tâm</Typography>
+                        <Typography sx={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", mt: 0.5 }}>Khách chưa có đơn PAID.</Typography>
+                      </Box>
+                    )}
 
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
-                      {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups, "g") : null}
-                      {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.map((item) => `Mã: ${item}`), "c") : null}
+                      {selectedCustomer.groups.length ? renderLimitedTags(selectedCustomer.groups.slice(0, 3), "g") : null}
+                      {selectedCustomer.coupons.length ? renderLimitedTags(selectedCustomer.coupons.slice(0, 2).map((item) => `Mã: ${item}`), "c") : null}
                     </Box>
                   </Box>
 
@@ -11021,7 +11066,7 @@ export default function Home() {
                       sx={{ ...statusChipSx(selectedCustomer.statusColor === "default" ? "muted" : (selectedCustomer.statusColor as "success" | "warning" | "error" | "muted" | "purple")), fontWeight: 800, height: 28, px: 1 }}
                     />
                     <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, display: { xs: "none", sm: "block" } }}>
-                      {selectedCustomerIsBlacklisted ? "Khách đang bị Blacklist." : selectedCustomer.activeOrders.length ? "Khách đang Active." : "Khách chưa có quyền Active."}
+                      {selectedCustomerIsBlacklisted ? "Khách đang bị Blacklist." : selectedCustomerOrders.some((item) => item.status === "PAID" && (isOrderActive(item) || isLifetimeText(item.plan_name))) ? "Khách đang có đơn PAID còn hạn." : selectedCustomerOrders.some((item) => item.status === "PAID") ? "Khách chỉ còn đơn PAID đã hết hạn." : "Khách chưa có đơn PAID."}
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={1.5}>
@@ -11035,11 +11080,17 @@ export default function Home() {
                 </Box>
                 {customerDetailTab === "orders" ? (
                   <>
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Đơn hôm nay" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "today")).length)} accent="blue" icon={<CalendarClock size={16} />} />
-                      <Metric label="Đơn tháng này" value={String(selectedCustomerOrders.filter((item) => isWithinPeriod(item.created_at, "month")).length)} accent="cyan" icon={<BarChart3 size={16} />} />
-                      <Metric label="Đã thanh toán" value={String(selectedCustomerOrders.filter((item) => item.status === "PAID").length)} accent="emerald" icon={<CheckCircle2 size={16} />} />
-                      <Metric label="Trạng thái còn lại" value={String(selectedCustomerOrders.filter((item) => item.status !== "PAID").length)} accent="amber" icon={<Activity size={16} />} />
+                    <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: "repeat(3, minmax(0, 1fr))", mb: 1.5 }}>
+                      {[
+                        { key: "paid-active", label: "PAID còn hạn", count: selectedCustomerPaidActiveOrders.length, color: "success" as const },
+                        { key: "paid-expired", label: "PAID hết hạn", count: selectedCustomerPaidExpiredOrders.length, color: "warning" as const },
+                        { key: "unpaid", label: "Chưa thanh toán", count: selectedCustomerUnpaidOrders.length, color: "default" as const },
+                      ].map((item) => (
+                        <Box key={item.key} sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "background.paper", border: 1, borderColor: "divider", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                          <Typography sx={{ fontWeight: 900, fontSize: 18, lineHeight: 1, mt: 0.5, color: item.color === "success" ? "success.main" : item.color === "warning" ? "warning.main" : "text.primary" }}>{item.count}</Typography>
+                        </Box>
+                      ))}
                     </Box>
                     <Tabs
                       value={customerOrderTab}
@@ -11050,14 +11101,16 @@ export default function Home() {
                       indicatorColor="primary"
                       sx={{ ...customerPopupTabSx, mb: 2 }}
                     >
-                      <Tab value="paid" label={`Đã thanh toán (${selectedCustomerOrders.filter((item) => item.status === "PAID").length})`} />
-                      <Tab value="other" label={`Trạng thái còn lại (${selectedCustomerOrders.filter((item) => item.status !== "PAID").length})`} />
+                      <Tab value="paid" label={`PAID còn hạn (${selectedCustomerPaidActiveOrders.length})`} />
+                      <Tab value="other" label={`PAID hết hạn (${selectedCustomerPaidExpiredOrders.length})`} />
+                      <Tab value="timeline" label={`Chưa thanh toán (${selectedCustomerUnpaidOrders.length})`} />
                     </Tabs>
                     <CustomerOrdersTable
                       orders={selectedCustomerOrders.filter((item) => {
-                        if (customerOrderTab === "paid") return item.status === "PAID";
-                        if (customerOrderTab === "other") return item.status !== "PAID";
-                        return item.status === "PAID";
+                        if (customerOrderTab === "paid") return item.status === "PAID" && (isOrderActive(item) || isLifetimeText(item.plan_name));
+                        if (customerOrderTab === "other") return item.status === "PAID" && !isOrderActive(item) && !isLifetimeText(item.plan_name);
+                        if (customerOrderTab === "timeline") return String(item.status || "").toUpperCase() !== "PAID";
+                        return item.status === "PAID" && (isOrderActive(item) || isLifetimeText(item.plan_name));
                       })}
                       saving={saving}
                       onExpireChange={changeOrderExpire}
@@ -11069,83 +11122,84 @@ export default function Home() {
                 ) : null}
                 {customerDetailTab === "timeline" ? (
                   <>
-                    <Tabs
-                      value={customerTimelineSubTab}
-                      onChange={(_, next) => setCustomerTimelineSubTab(next)}
-                      variant="scrollable"
-                      scrollButtons="auto"
-                      textColor="inherit"
-                      indicatorColor="primary"
-                      sx={{ ...customerPopupTabSx, mb: 2 }}
-                    >
-                      <Tab value="all" label="Tất cả" />
-                      <Tab value="joinLeft" label="Join/Left" />
-                      <Tab value="role" label="Quyền" />
-                      <Tab value="restricted" label="Hạn chế" />
-                      <Tab value="kickMute" label="Kick/Mute" />
-                      <Tab value="orders" label="Dòng thời gian đơn" />
-                    </Tabs>
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
-                      <Metric label="Tổng sự kiện" value={String(selectedCustomerTimelineCounts.total)} accent="blue" icon={<Activity size={16} />} />
-                      <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} accent="emerald" icon={<Plus size={16} />} />
-                      <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} accent="amber" icon={<TrendingUp size={16} />} />
-                      <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} accent="rose" icon={<XCircle size={16} />} />
-                    </Box>
-                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
-                      <PanelHead title="Lịch sử group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
-                      <SimpleTable
-                        headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
-                        rows={selectedCustomerTimelineRows.slice(0, 12)}
-                      />
-                    </section>
+                    {!customerTimelineLoaded ? (
+                      <Box sx={{ p: 2, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "rgba(59,130,246,0.04)" }}>
+                        <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Lịch sử chưa tải</Typography>
+                        <Typography variant="body2" color="text.secondary">Mở tab Lịch sử để tải dữ liệu khi cần. Mặc định popup sẽ nhẹ hơn.</Typography>
+                      </Box>
+                    ) : (
+                      <>
+                        <Tabs
+                          value={customerTimelineSubTab}
+                          onChange={(_, next) => setCustomerTimelineSubTab(next)}
+                          variant="scrollable"
+                          scrollButtons="auto"
+                          textColor="inherit"
+                          indicatorColor="primary"
+                          sx={{ ...customerPopupTabSx, mb: 2 }}
+                        >
+                          <Tab value="all" label="Tất cả" />
+                          <Tab value="joinLeft" label="Join/Left" />
+                          <Tab value="role" label="Quyền" />
+                          <Tab value="restricted" label="Hạn chế" />
+                          <Tab value="kickMute" label="Kick/Mute" />
+                          <Tab value="orders" label="Dòng thời gian đơn" />
+                        </Tabs>
+                        <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr 1fr", lg: "repeat(4, minmax(0, 1fr))" }, mb: 1.5 }}>
+                          <Metric label="Tổng sự kiện" value={String(selectedCustomerTimelineCounts.total)} accent="blue" icon={<Activity size={16} />} />
+                          <Metric label="Join" value={String(selectedCustomerTimelineCounts.joined)} accent="emerald" icon={<Plus size={16} />} />
+                          <Metric label="Left" value={String(selectedCustomerTimelineCounts.left)} accent="amber" icon={<TrendingUp size={16} />} />
+                          <Metric label="Kick / mute" value={`${selectedCustomerTimelineCounts.kicked} / ${selectedCustomerTimelineCounts.muted}`} accent="rose" icon={<XCircle size={16} />} />
+                        </Box>
+                        <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
+                          <PanelHead title="Lịch sử group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
+                          <SimpleTable
+                            headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
+                            rows={selectedCustomerTimelineRows.slice(0, 12)}
+                          />
+                        </section>
+                      </>
+                    )}
                   </>
 	                ) : null}
 	                {customerDetailTab === "groups" ? (
-	                  <>
-	                    <section className="panel nested-panel" style={{ marginBottom: 16, borderRadius: "20px" }}>
-                      <PanelHead title="Nhóm còn hoạt động" subtitle="Danh sách group user vẫn còn quyền, ưu tiên nhìn nhanh khi rà soát." />
-	                      {selectedCustomerActiveGroups.length ? (
-	                        <div
-	                          className="tag-list"
-	                          style={{
-	                            display: "flex",
-	                            flexWrap: "wrap",
-	                            gap: "10px",
-	                            padding: "6px 0 2px",
-	                          }}
-	                        >
-	                          {selectedCustomerActiveGroups.map((group) => (
-	                            <span
-	                              key={group}
-	                              style={{
-	                                fontSize: "14px",
-	                                fontWeight: 800,
-	                                padding: "10px 14px",
-	                                borderRadius: "999px",
-	                                background: "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,165,233,0.08))",
-	                                border: "1px solid rgba(37,99,235,0.18)",
-	                                color: "#1e3a8a",
-	                                boxShadow: "0 8px 18px rgba(37,99,235,0.08)",
-	                              }}
-	                            >
-	                              {group}
-	                            </span>
-	                          ))}
-	                        </div>
-                      ) : <div className="empty-card">Chưa có nhóm hoạt động nào.</div>}
-	                    </section>
-	                  </>
-	                ) : null}
-	                {customerDetailTab === "timeline" ? (
-	                  <>
+	                  <Box sx={{ display: "grid", gap: 1.25 }}>
 	                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
-                      <PanelHead title="Lịch sử group" subtitle="Lịch sử join / out / mute / kick / nhắc gia hạn của khách theo dữ liệu bot theo dõi được." />
-	                      <SimpleTable
-	                        headers={["Sự kiện", "Group", "Đơn", "Giờ", "Chi tiết"]}
-	                        rows={selectedCustomerTimelineRows.slice(0, 12)}
-	                      />
+                      <PanelHead title="Tóm tắt" subtitle="Chỉ giữ thông tin cần quyết định: đã trả bao nhiêu, qua cổng nào, còn hạn hay không." />
+	                      <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+	                        <Box sx={customerInnerCardSx}>
+	                          <Typography variant="caption" color="text.secondary">Khách trả tiền</Typography>
+	                          <Typography sx={{ fontWeight: 900, fontSize: 20, mt: 0.25 }}>{selectedCustomerPaidActiveOrders.length + selectedCustomerPaidExpiredOrders.length}</Typography>
+	                        </Box>
+	                        <Box sx={customerInnerCardSx}>
+	                          <Typography variant="caption" color="text.secondary">Đang còn hạn</Typography>
+	                          <Typography sx={{ fontWeight: 900, fontSize: 20, mt: 0.25, color: "success.main" }}>{selectedCustomerPaidActiveOrders.length}</Typography>
+	                        </Box>
+	                        <Box sx={customerInnerCardSx}>
+	                          <Typography variant="caption" color="text.secondary">Hết hạn</Typography>
+	                          <Typography sx={{ fontWeight: 900, fontSize: 20, mt: 0.25, color: "warning.main" }}>{selectedCustomerPaidExpiredOrders.length}</Typography>
+	                        </Box>
+	                        <Box sx={customerInnerCardSx}>
+	                          <Typography variant="caption" color="text.secondary">Chưa thanh toán</Typography>
+	                          <Typography sx={{ fontWeight: 900, fontSize: 20, mt: 0.25 }}>{selectedCustomerUnpaidOrders.length}</Typography>
+	                        </Box>
+	                      </Box>
 	                    </section>
-	                  </>
+	                    <section className="panel nested-panel" style={{ borderRadius: "20px" }}>
+                      <PanelHead title="Đơn trọng tâm" subtitle="Ưu tiên đơn PAID còn hạn hoặc đơn gần nhất để nhìn nhanh tình trạng khách." />
+	                      {selectedCustomerPrimaryPaidOrder ? (
+	                        <Box sx={{ p: 1.75 }}>
+	                          <Typography sx={{ fontWeight: 900, fontSize: 17, color: "var(--ink)" }}>{selectedCustomerPrimaryPaidOrder.plan_name || "-"}</Typography>
+	                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>Mã: {selectedCustomerPrimaryPaidOrder.order_id}</Typography>
+	                          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }} useFlexGap>
+	                            <Chip size="small" label={formatDisplayCurrency(orderAmountValue(selectedCustomerPrimaryPaidOrder), inferOrderCurrency(selectedCustomerPrimaryPaidOrder))} color={(isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name)) ? "success" : "warning"} variant="outlined" />
+	                            <Chip size="small" label={`Qua ${providerLabel(inferOrderProvider(selectedCustomerPrimaryPaidOrder))}`} variant="outlined" />
+	                            <Chip size="small" label={isOrderActive(selectedCustomerPrimaryPaidOrder) || isLifetimeText(selectedCustomerPrimaryPaidOrder.plan_name) ? `Còn hạn đến ${dateTextShort(selectedCustomerPrimaryPaidOrder.expire_at)}` : `Đã hết hạn từ ${dateTextShort(selectedCustomerPrimaryPaidOrder.expire_at)}`} variant="outlined" />
+	                          </Stack>
+	                        </Box>
+	                      ) : <div className="empty-card">Khách chưa có đơn PAID.</div>}
+	                    </section>
+	                  </Box>
 	                ) : null}
 	              </Box>
               </Box>
@@ -11716,6 +11770,9 @@ function CustomerOrdersTable({ orders, saving, onExpireChange, onPlanChange, onN
                 </Tooltip>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                   <Users size={14} /> {groupNamesForOrder(order).join(", ") || orderPlanKind(order)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                  <BadgeDollarSign size={14} /> Đã thanh toán: <strong>{orderMoney(order)}</strong> · Qua: <strong>{providerLabel(inferOrderProvider(order))}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.25 }}>
                   <Ticket size={14} /> {orderCouponCode(order) ? <span style={{ color: "var(--amber)", fontWeight: 700 }}>{orderCouponCode(order)} (-{orderAmountValue(order) === 0 ? "Free" : orderMoney(order, order.coupon_discount_amount)})</span> : "Không mã"}
