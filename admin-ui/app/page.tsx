@@ -10799,7 +10799,7 @@ export default function Home() {
                   {(() => {
                     const customerPaid = customerQuickLookupResult.paidOrderCount > 0;
                     const customerActive = customerQuickLookupResult.hasActiveOrder;
-                    const tone = customerQuickLookupResult.isBlacklisted ? "error" : customerActive ? "success" : customerPaid ? "warning" : "muted";
+                    const tone = customerQuickLookupResult.isBlacklisted ? "error" : customerActive ? "success" : customerPaid ? "warning" : "default";
                     const heroBg = customerQuickLookupResult.isBlacklisted
                       ? "linear-gradient(135deg, rgba(254,242,242,1) 0%, rgba(255,251,235,1) 100%)"
                       : customerActive
