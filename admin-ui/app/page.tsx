@@ -8984,11 +8984,11 @@ export default function Home() {
                           </Box>
                           {selectedRenewalDetail ? (
                             <>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                                 <Chip size="small" label={renewalStatusLabel(selectedRenewalDetail.renewalStatus || "")} color={renewalStatusTone(selectedRenewalDetail.renewalStatus || "")} variant="outlined" />
                                 <Chip size="small" label={selectedRenewalDetail.customerName || "-"} variant="outlined" />
                                 <Chip size="small" label={`Order ${selectedRenewalDetail.orderId || "-"}`} variant="outlined" />
-                              </Stack>
+                              </Box>
                               <Box>
                                 <Typography variant="caption" color="text.secondary">Telegram</Typography>
                                 <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.telegramId || "-"}</Typography>
