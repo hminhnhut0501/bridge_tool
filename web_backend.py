@@ -3410,7 +3410,7 @@ async def admin_kick_audit_member(request: Request):
     if not user_id or not order_id or not chat_id:
         raise HTTPException(status_code=400, detail="Cần đủ Telegram ID, mã đơn và group ID để kick.")
 
-    try:
+    async def _kick_once():
         plan_label = display_plan_name(plan_name, user_id)
         parsed_chat_id = parse_chat_id(chat_id)
         await bot.ban_chat_member(chat_id=parsed_chat_id, user_id=int(user_id))
@@ -3435,6 +3435,23 @@ async def admin_kick_audit_member(request: Request):
             plan_name=plan_label,
             raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin", "plan_name_raw": plan_name},
         )
+        return plan_label
+
+    try:
+        try:
+            await asyncio.wait_for(_kick_once(), timeout=12)
+        except asyncio.TimeoutError as exc:
+            record_support_event(
+                "member_kick_failed",
+                user_id,
+                full_name=customer_name,
+                chat_id=chat_id,
+                chat_title=group_label_for_chat_id(chat_id),
+                order_id=order_id,
+                plan_name=display_plan_name(plan_name, user_id),
+                raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": "timeout", "plan_name_raw": plan_name},
+            )
+            raise HTTPException(status_code=504, detail="Kick bị treo quá lâu. Vui lòng thử lại hoặc kiểm tra quyền bot.") from exc
     except Exception as exc:
         record_support_event(
             "member_kick_failed",
@@ -3443,7 +3460,7 @@ async def admin_kick_audit_member(request: Request):
             chat_id=chat_id,
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
-            plan_name=plan_label if 'plan_label' in locals() else plan_name,
+            plan_name=display_plan_name(plan_name, user_id),
             raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc), "plan_name_raw": plan_name},
         )
         raise HTTPException(status_code=500, detail=f"Kick không thành công: {exc}")

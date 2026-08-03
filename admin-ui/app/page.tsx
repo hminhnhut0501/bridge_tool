@@ -7549,6 +7549,9 @@ export default function Home() {
     await runAction(`retry-kick-${orderId}`, async () => {
       let successCount = 0;
       let errorCount = 0;
+      if (groupsToKick.length > 0) {
+        showNotice("ok", `Đang kick ${groupsToKick.length} nhóm...`);
+      }
       for (const groupId of groupsToKick) {
         try {
           await kickAuditMember(savedSecret, {
@@ -7561,6 +7564,8 @@ export default function Home() {
           successCount++;
         } catch (err) {
           console.error("Retry kick error for group", groupId, err);
+          const message = err instanceof Error ? err.message : "Không xác định";
+          showNotice("error", `Lỗi kick nhóm ${groupId}: ${message}`);
           errorCount++;
         }
       }
