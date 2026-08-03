@@ -9029,7 +9029,7 @@ export default function Home() {
                                   )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
                                 </Stack>
                               </Box>
-                              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                                 <Button variant="outlined" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
                                 {selectedRenewalDetail.orderId ? (
                                   <Button
@@ -9049,7 +9049,7 @@ export default function Home() {
                                   </Button>
                                 ) : null}
                                 <Button variant="text" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
-                              </Stack>
+                              </Box>
                               {selectedRenewalDetail.renewalLatestKickAt ? (
                                 <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
                               ) : null}
