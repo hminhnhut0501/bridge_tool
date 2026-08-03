@@ -1622,22 +1622,44 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             latest_group_kick = latest_event(support_events, "member_kicked", user_id, None, gid)
             latest_kick = latest_order_kick or latest_group_kick
             latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
+            latest_close = latest_event(support_events, "member_kick_closed", user_id, order_id, gid) or latest_event(support_events, "member_kick_closed", user_id, None, gid)
+
+            latest_kick_state = ""
+            for candidate in (latest_close, latest_fail, latest_kick, latest_order_kick, latest_group_kick):
+                raw_data = (candidate or {}).get("raw_data") or {}
+                if isinstance(raw_data, dict) and raw_data.get("kick_state"):
+                    latest_kick_state = str(raw_data.get("kick_state") or "").strip().lower()
+                    break
+            if not latest_kick_state:
+                if latest_close:
+                    latest_kick_state = "done"
+                elif latest_fail:
+                    latest_kick_state = "error"
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
-            if live:
+            should_live_check = live and not latest_kick_state == "done" and (retained or latest_fail or not latest_kick)
+            if should_live_check:
                 live_state = await member_live_state(gid, user_id)
 
-            status = "ACTIVE_RETAINED" if retained else "KICKED" if latest_kick else "WAITING_KICK"
+            status = "ACTIVE_RETAINED" if retained else "DONE" if latest_kick_state == "done" else "ERROR" if latest_kick_state == "error" else "KICKED" if latest_kick else "WAITING_KICK"
             status_label = (
                 "Còn quyền active"
                 if retained
+                else "Đã kick xong"
+                if latest_kick_state == "done"
+                else "Lỗi kick"
+                if latest_kick_state == "error"
                 else "Đã kick cùng group"
                 if latest_kick and latest_kick is not latest_order_kick
                 else "Đã kick"
                 if latest_kick
                 else "Chờ kick"
             )
-            needs_action = not retained and not latest_kick
+            needs_action = not retained and latest_kick_state != "done" and not latest_kick_state == "error" and not latest_kick
+            if latest_kick_state == "error":
+                needs_action = True
+            if latest_kick_state == "done":
+                needs_action = False
 
             if live_state["checked"]:
                 if live_state["error"]:
@@ -1674,6 +1696,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "live_checked": live_state["checked"],
                 "live_status": live_state["status"],
                 "live_present": live_state["present"],
+                "kick_state": latest_kick_state or ("done" if latest_kick else ""),
                 "retained_reason": (
                     f"Còn {len(retained_orders)} đơn active khác giữ group"
                     if retained and retained_orders
@@ -3423,7 +3446,7 @@ async def admin_kick_audit_member(request: Request):
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
             plan_name=plan_label,
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "plan_name_raw": plan_name},
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "plan_name_raw": plan_name, "kick_state": "done"},
         )
         record_support_event(
             "member_kick_closed",
@@ -3433,7 +3456,7 @@ async def admin_kick_audit_member(request: Request):
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
             plan_name=plan_label,
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin", "plan_name_raw": plan_name},
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "closed_by": "admin", "plan_name_raw": plan_name, "kick_state": "done"},
         )
         return plan_label
 
@@ -3449,7 +3472,7 @@ async def admin_kick_audit_member(request: Request):
                 chat_title=group_label_for_chat_id(chat_id),
                 order_id=order_id,
                 plan_name=display_plan_name(plan_name, user_id),
-                raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": "timeout", "plan_name_raw": plan_name},
+                raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": "timeout", "kick_state": "error", "plan_name_raw": plan_name},
             )
             raise HTTPException(status_code=504, detail="Kick bị treo quá lâu. Vui lòng thử lại hoặc kiểm tra quyền bot.") from exc
     except Exception as exc:
@@ -3461,7 +3484,7 @@ async def admin_kick_audit_member(request: Request):
             chat_title=group_label_for_chat_id(chat_id),
             order_id=order_id,
             plan_name=display_plan_name(plan_name, user_id),
-            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc), "plan_name_raw": plan_name},
+            raw_data={"reason": "manual_kick_audit", "source": "dashboard", "error": str(exc), "kick_state": "error", "plan_name_raw": plan_name},
         )
         raise HTTPException(status_code=500, detail=f"Kick không thành công: {exc}")
 

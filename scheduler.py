@@ -730,6 +730,7 @@ async def ensure_member_kicked(
                 "reason": reason,
                 "source": "kick_finalized",
                 "closed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "kick_state": "done",
                 "plan_name_raw": plan_name,
                 **(raw_data or {}),
             },
@@ -742,7 +743,7 @@ async def ensure_member_kicked(
         payload.update(raw_data or {})
         plan_label = display_plan_name(plan_name, user_id)
         payload["plan_name_raw"] = plan_name
-        record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data=payload)
+        record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data={**payload, "kick_state": "error"})
         if run_kick_cache is not None:
             run_kick_cache.add(run_kick_key)
         return False

@@ -3455,7 +3455,9 @@ export default function Home() {
   const [renewalAutoRefreshEnabled, setRenewalAutoRefreshEnabled] = useState(true);
   const [renewalAutoRefreshUntil, setRenewalAutoRefreshUntil] = useState(0);
   const [renewalKickingOrderIds, setRenewalKickingOrderIds] = useState<string[]>([]);
+  const [renewalKickStatusByOrder, setRenewalKickStatusByOrder] = useState<Record<string, { state: "pending" | "error"; message: string; updatedAt: number }>>({});
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
+  const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
@@ -6406,16 +6408,21 @@ export default function Home() {
     if (status === "Đã kick xong") return "success";
     if (status === "Đã kick một phần") return "warning";
     if (status === "Đang kick") return "info";
+    if (status === "Đang chờ Telegram xác nhận..." || status === "Đang xử lý") return "info";
     if (status === "Bị giữ lại") return "info";
     if (status === "Lỗi") return "error";
+    if (status === "Cần xử lý") return "warning";
     return "warning";
   }
   function renewalStatusLabel(status: string) {
     if (status === "Đã kick xong") return "Đã kick xong";
     if (status === "Đã kick một phần") return "Đã kick một phần";
     if (status === "Đang kick") return "Đang kick";
+    if (status === "Đang chờ Telegram xác nhận...") return "Đang chờ Telegram xác nhận";
+    if (status === "Đang xử lý") return "Đang xử lý";
     if (status === "Bị giữ lại") return "Bị giữ lại";
     if (status === "Lỗi") return "Lỗi";
+    if (status === "Cần xử lý") return "Cần xử lý";
     if (status === "Chờ kick") return "Chờ kick";
     if (status === "Chờ audit") return "Chờ audit";
     return status || "-";
@@ -6485,7 +6492,7 @@ export default function Home() {
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Gói", "Hết hạn", "Nhắc gần nhất", "Trạng thái"],
     reminded: ["Khách", "Gói / Đơn", "Loại", "Lần thông báo", "Hạn dùng"],
-    expired: ["Khách", "Gói / Đơn", "Hết hạn", "Xử lý kick", "Tiến độ", "Group đã kick", "Ghi chú"],
+    expired: ["Khách", "Gói / Đơn", "Hết hạn", "Xử lý kick", "Trạng thái"],
     lifetime: ["Khách", "Gói", "Ngày mua", "Nguồn", "Group"],
   };
   const renewalNoticeEvents = useMemo(() => {
@@ -6670,7 +6677,17 @@ export default function Home() {
       })),
       expired: expiredRenewalOrders.map((item) => {
         const summary = expiredKickSummary(item);
-        const tone = renewalStatusTone(summary.status);
+        const localKickState = renewalKickStatusByOrder[String(item.order_id || "")] || null;
+        const displayStatus = localKickState?.state === "error"
+          ? "Lỗi kick"
+          : localKickState?.state === "pending"
+            ? "Đang chờ Telegram xác nhận..."
+            : summary.status;
+        const tone = localKickState?.state === "error"
+          ? "error"
+          : localKickState?.state === "pending"
+            ? "info"
+            : renewalStatusTone(summary.status);
         const progress = renewalProgressText(summary);
         const progressDone = progress.total > 0 ? Math.round(((progress.done + progress.retained) / progress.total) * 100) : 0;
         return {
@@ -6681,13 +6698,13 @@ export default function Home() {
           customerName: renewalCustomerName(item),
           groupsToKick: summary.groupDetails.filter(g => g.status === "Lỗi" || g.status === "Chờ kick").map(g => g.groupId),
           groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick xong").map(g => g.groupId),
-          renewalStatus: summary.status,
-          renewalNote: summary.note,
+          renewalStatus: displayStatus,
+          renewalNote: localKickState?.message || summary.note,
           renewalProgress: progress,
           renewalGroupDetails: summary.groupDetails,
           renewalLatestKickAt: summary.latestKickAt,
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
-          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong"].includes(summary.status) }),
+          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Đang chờ Telegram xác nhận..."].includes(displayStatus) }),
           cells: [
             <Fragment key="customer">
               {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
@@ -6697,7 +6714,7 @@ export default function Home() {
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status">
               <Stack spacing={0.75}>
-                <Chip size="small" label={renewalStatusLabel(summary.status)} color={tone} variant="outlined" />
+                <Chip size="small" label={renewalStatusLabel(displayStatus)} color={tone} variant="outlined" />
                 {summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}
               </Stack>
             </Fragment>,
@@ -7549,33 +7566,80 @@ export default function Home() {
     await runAction(`retry-kick-${orderId}`, async () => {
       let successCount = 0;
       let errorCount = 0;
+      let lastKickAuditRows: KickAuditRow[] | null = null;
+      const groupListText = groupsToKick.join(", ");
       if (groupsToKick.length > 0) {
-        showNotice("ok", `Đang kick ${groupsToKick.length} nhóm...`);
+        showNotice("ok", `Đang kick order ${orderId} · ${groupsToKick.length} nhóm · ${groupListText}`);
       }
+      setRenewalKickStatusByOrder((current) => ({
+        ...current,
+        [orderId]: {
+          state: "pending",
+          message: `Đang chờ Telegram xác nhận · order ${orderId} · ${groupsToKick.length} nhóm${groupListText ? ` · ${groupListText}` : ""}`,
+          updatedAt: Date.now(),
+        },
+      }));
       for (const groupId of groupsToKick) {
         try {
-          await kickAuditMember(savedSecret, {
+          const res = await kickAuditMember(savedSecret, {
             telegram_user_id: telegramId,
             order_id: orderId,
             group_id: groupId,
             plan_name: planName,
             customer_name: customerName,
           });
+          lastKickAuditRows = res.data || lastKickAuditRows;
           successCount++;
         } catch (err) {
           console.error("Retry kick error for group", groupId, err);
           const message = err instanceof Error ? err.message : "Không xác định";
-          showNotice("error", `Lỗi kick nhóm ${groupId}: ${message}`);
+          const detail = `Order ${orderId} · group ${groupId} · ${message}`;
+          showNotice("error", `Lỗi kick nhóm ${groupId} · order ${orderId}: ${message}`);
+          setRenewalKickStatusByOrder((current) => ({
+            ...current,
+            [orderId]: {
+              state: "error",
+              message: detail,
+              updatedAt: Date.now(),
+            },
+          }));
           errorCount++;
         }
       }
       if (errorCount === 0 && successCount > 0) {
-        showNotice("ok", `Đã kick thành công khỏi ${successCount} nhóm.`);
+        showNotice("ok", `Đã kick thành công order ${orderId} khỏi ${successCount} nhóm.`);
+        setRenewalKickStatusByOrder((current) => ({
+          ...current,
+          [orderId]: {
+            state: "pending",
+            message: `Đã kick xong API · đang chờ Telegram xác nhận lại trạng thái cho order ${orderId}`,
+            updatedAt: Date.now(),
+          },
+        }));
       } else if (successCount > 0) {
-        showNotice("error", `Đã kick thành công ${successCount} nhóm. Lỗi ${errorCount} nhóm.`);
+        showNotice("error", `Đã kick thành công order ${orderId} khỏi ${successCount} nhóm. Lỗi ${errorCount} nhóm.`);
       } else {
-        showNotice("error", `Lỗi kick lại cho ${groupsToKick.length} nhóm. Vui lòng kiểm tra log.`);
+        showNotice("error", `Lỗi kick lại order ${orderId} cho ${groupsToKick.length} nhóm. Vui lòng kiểm tra log.`);
       }
+      if (lastKickAuditRows?.length) {
+        setKickAudit((current) => {
+          const next = [...current];
+          for (const updated of lastKickAuditRows || []) {
+            const idx = next.findIndex((item) => item.audit_id === updated.audit_id);
+            if (idx >= 0) next[idx] = updated;
+          }
+          return next;
+        });
+        setRenewalKickStatusByOrder((current) => ({
+          ...current,
+          [orderId]: {
+            state: "pending",
+            message: `Đã nhận phản hồi API cho order ${orderId} · đang chờ Telegram xác nhận`,
+            updatedAt: Date.now(),
+          },
+        }));
+      }
+      setRenewalAutoRefreshUntil(Date.now() + 60000);
       await refreshKickAudit(true);
     });
   }
@@ -8834,24 +8898,18 @@ export default function Home() {
                     <Button variant="outlined" size="small" onClick={() => refreshKickAudit(renewalLiveCheck)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
 	                      {renewalLiveCheck ? "Kiểm tra live" : "Kiểm tra log"}
                     </Button>
-                    <Button variant="outlined" size="small" onClick={() => setRenewalLiveCheck((current) => !current)} startIcon={<ShieldCheck size={16} />}>
-                      Live check: {renewalLiveCheck ? "Bật" : "Tắt"}
-                    </Button>
-                    <Button variant="outlined" size="small" onClick={() => setRenewalAutoRefreshEnabled((current) => !current)} startIcon={<RefreshCw size={16} />}>
-                      Auto refresh: {renewalAutoRefreshEnabled ? "Bật" : "Tắt"}
-                    </Button>
                     <Button variant="contained" size="small" onClick={() => setRenewalSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
                   </div>
                 }
               />
-	              <Box sx={{ display: "grid", gap: 1.25, p: 2, pb: 1 }}>
-	                <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
+              <Box sx={{ display: "grid", gap: 1.25, p: 2, pb: 1 }}>
+                <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
                   {renewalTab === "expired" ? (
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                       {[
                         { key: "all", label: "Tất cả" },
-                        { key: "chokick", label: "Cần kick" },
-                        { key: "review", label: "Đang kick" },
+                        { key: "chokick", label: "Cần xử lý" },
+                        { key: "review", label: "Đang xử lý" },
                         { key: "kicked", label: "Đã xong" },
                         { key: "error", label: "Lỗi" },
                       ].map((item) => (
@@ -8868,8 +8926,8 @@ export default function Home() {
                           sx={{ fontWeight: 800, height: 28 }}
                         />
                       ))}
-                      <Chip size="small" label={`Cần kick: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
-                      <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
+                      <Chip size="small" label={`Cần xử lý: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
+                      <Chip size="small" label={`Đang xử lý: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
                       <Chip size="small" label={`Lỗi: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
                     </Box>
@@ -8881,55 +8939,7 @@ export default function Home() {
 	                <Tab value="expired" label={`Đã hết hạn (${expiredRenewalOrders.length})`} />
 	                <Tab value="lifetime" label={`Trọn đời (${lifetimeRenewalOrders.length})`} />
 	              </Tabs>
-              {renewalTab === "expired" ? (
-                <Box sx={{ px: 2, pb: 1 }}>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" }, gap: 0.75 }}>
-                    {[
-                      { label: "Cần kick", value: expiredRenewalStats.pending, color: "warning.main" },
-                      { label: "Đang kick", value: expiredRenewalStats.kicking, color: "info.main" },
-                      { label: "Đã xong", value: expiredRenewalStats.done, color: "success.main" },
-                      { label: "Lỗi", value: expiredRenewalStats.error, color: "error.main" },
-                    ].map((item) => (
-                      <Box key={item.label} sx={{ p: 1.25, borderRadius: 2.5, border: 1, borderColor: "divider", bgcolor: "background.paper", boxShadow: "0 2px 4px rgba(15,23,42,0.03)" }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{item.label}</Typography>
-                        <Typography sx={{ fontWeight: 900, fontSize: 20, color: item.color, lineHeight: 1 }}>{item.value}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-	              ) : null}
-	              {renewalTab === "expired" ? (
-	                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, px: 2, pb: 1 }}>
-	                  <Button
-	                    variant="outlined"
-	                    size="small"
-	                    onClick={() => refreshKickAudit(true)}
-	                    disabled={saving === "kick-audit-live"}
-	                    startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-	                  >
-	                    Kéo tất cả về live trạng thái
-	                  </Button>
-	                  <Button
-	                    variant="contained"
-	                    size="small"
-	                    onClick={() => void liveCheckAndKickAllExpiredRows()}
-	                    disabled={saving === "bulk-kick-expired" || !currentRenewalOpsRows.some((row) => (row.groupsToKick || []).length > 0)}
-	                    startIcon={saving === "bulk-kick-expired" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-	                  >
-	                    Live check + kick toàn bộ
-	                  </Button>
-	                  <Button
-	                    variant="outlined"
-	                    size="small"
-	                    onClick={() => void bulkKickExpiredRowsHandler(renewalOpsRows.expired)}
-	                    disabled={saving === "bulk-kick-expired" || !renewalOpsRows.expired.some((row) => (row.groupsToKick || []).length > 0)}
-	                    startIcon={saving === "bulk-kick-expired" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-	                  >
-	                    Kick tay toàn bộ
-	                  </Button>
-	                </Box>
-	              ) : null}
-	              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 320px" }, gap: 1.25, px: 2, pb: 2 }}>
+	              <Box sx={{ px: 2, pb: 2 }}>
                   <Box sx={{ minWidth: 0 }}>
                     {renewalTab === "expired" ? (
                       <Box sx={{ mb: 1 }}>
@@ -8956,19 +8966,16 @@ export default function Home() {
                         const status = String(row.renewalStatus || "");
                         return (
                           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.35 }}>
-                            <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); }} startIcon={<Eye size={14} />}>Chi tiết</Button>
+                            <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<Eye size={14} />}>Chi tiết</Button>
                             <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<Search size={14} />}>Mở</Button>
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {(status === "Chờ kick" || status === "Chờ audit" || status === "Lỗi" || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
-                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Kick lại ({groupsToKick.length})</Button>
+                                {(status === "Cần xử lý" || status === "Lỗi" || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Xử lý ({groupsToKick.length})</Button>
                                 ) : null}
-                                {(status === "Bị giữ lại" || renewalFocusFilter === "retained") && groupsToReview.length > 0 ? (
-                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<ShieldCheck size={14} />}>Soi giữ lại ({groupsToReview.length})</Button>
-                                ) : null}
-                                {["Đã kick xong"].includes(status) ? (
-                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerFromLookup(row.telegramId); }} startIcon={<CheckCircle2 size={14} />}>Đã xong</Button>
+                                {groupsToReview.length > 0 && status === "Bị giữ lại" ? (
+                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<ShieldCheck size={14} />}>Kiểm tra giữ lại</Button>
                                 ) : null}
                               </>
                             ) : null}
@@ -8978,106 +8985,124 @@ export default function Home() {
                     />
                     <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalOpsRows.length} onPage={setRenewalPage} label="dòng" />
                   </Box>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Card variant="outlined" sx={{ height: "100%", borderRadius: 3, bgcolor: "background.paper", position: "sticky", top: 0 }}>
-                      <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
-                        <Stack spacing={1.25}>
-                          <Box>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.2 }}>Chi tiết nhanh</Typography>
-                            <Typography variant="body2" color="text.secondary">Ghim một dòng để xem trạng thái, tiến độ và action chính.</Typography>
-                          </Box>
-                          {selectedRenewalDetail ? (
-                            <>
-                              <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.14)" }}>
-                                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Khách</Typography>
-                                    <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{selectedRenewalDetail.customerName || "-"}</Typography>
-                                    <Typography variant="body2" color="text.secondary">Telegram: <strong>{selectedRenewalDetail.telegramId || "-"}</strong></Typography>
-                                  </Box>
-                                  <Chip size="small" label={renewalStatusLabel(selectedRenewalDetail.renewalStatus || "")} color={renewalStatusTone(selectedRenewalDetail.renewalStatus || "")} variant="filled" />
-                                </Box>
-                                <Box sx={{ mt: 1, display: "grid", gap: 0.75, gridTemplateColumns: "1fr 1fr" }}>
-                                  <Box>
-                                    <Typography variant="caption" color="text.secondary">Gói</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.planName ? resolveOrderLabel({ plan_name: selectedRenewalDetail.planName }).displayLabel : "-"}</Typography>
-                                  </Box>
-                                  <Box>
-                                    <Typography variant="caption" color="text.secondary">Đơn</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.orderId || "-"}</Typography>
-                                  </Box>
-                                </Box>
-                                <Box sx={{ mt: 1 }}>
-                                  <Typography variant="caption" color="text.secondary">Ghi chú</Typography>
-                                  <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
-                                    {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Tiến độ kick</Typography>
-                                <Box sx={{ mt: 0.75, height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
-                                  <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.done / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
-                                  <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.kicking / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
-                                  <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.pending / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
-                                  <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.error / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
-                                </Box>
-                                <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
-                                  {selectedRenewalDetail.renewalProgress?.done || 0}/{selectedRenewalDetail.renewalProgress?.total || 0} xong · {selectedRenewalDetail.renewalProgress?.pending || 0} cần kick · {selectedRenewalDetail.renewalProgress?.error || 0} lỗi
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Group liên quan</Typography>
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
-                                  {(selectedRenewalDetail.renewalGroupDetails || []).length ? selectedRenewalDetail.renewalGroupDetails!.map((group) => (
-                                    <Chip
-                                      key={group.groupId}
-                                      size="small"
-                                      label={`${group.groupName} · ${renewalStatusLabel(group.status)}`}
-                                      color={group.status === "Đã kick xong" ? "success" : group.status === "Đang kick" ? "info" : group.status === "Lỗi" ? "error" : "warning"}
-                                      variant="outlined"
-                                    />
-                                  )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
-                                </Box>
-                              </Box>
-                              {selectedRenewalDetail.renewalLatestKickAt ? (
-                                <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
-                              ) : null}
-                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
-                                <Button variant="contained" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
-                                {selectedRenewalDetail.orderId ? (
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    startIcon={<RefreshCw size={14} />}
-                                    disabled={saving === `retry-kick-${selectedRenewalDetail.orderId}`}
-                                    onClick={() => void retryKickUserHandler(
-                                      selectedRenewalDetail.telegramId,
-                                      selectedRenewalDetail.orderId,
-                                      selectedRenewalDetail.planName || "",
-                                      selectedRenewalDetail.customerName || "",
-                                      selectedRenewalDetail.groupsToKick || [],
-                                    )}
-                                  >
-                                    Kick lại
-                                  </Button>
-                                ) : null}
-                                <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
-                              </Box>
-                            </>
-                          ) : (
-                            <Box sx={{ p: 2, borderRadius: 2, bgcolor: "rgba(59,130,246,0.04)", border: "1px dashed", borderColor: "divider" }}>
-                              <Typography variant="body2" color="text.secondary">Chưa chọn dòng nào. Bấm “Chi tiết” ở cột thao tác để ghim một order vào đây.</Typography>
-                            </Box>
-                          )}
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  </Box>
                 </Box>
 	            </section>
           </div>
         ) : null}
+
+        <Drawer
+          anchor="right"
+          open={renewalDetailDrawerOpen}
+          onClose={() => setRenewalDetailDrawerOpen(false)}
+          sx={{
+            "& .MuiDrawer-paper": {
+              width: { xs: "100%", sm: 420 },
+              maxWidth: "100vw",
+              borderTopLeftRadius: 20,
+              borderBottomLeftRadius: 20,
+            },
+          }}
+        >
+          <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.2 }}>Chi tiết nhanh</Typography>
+                <Typography variant="body2" color="text.secondary">Popup ghim một order để xem trạng thái, tiến độ và action chính.</Typography>
+              </Box>
+              <IconButton onClick={() => setRenewalDetailDrawerOpen(false)} size="small">
+                <XCircle size={18} />
+              </IconButton>
+            </Box>
+            <Box sx={{ p: 2, overflow: "auto" }}>
+              <Stack spacing={1.25}>
+                {selectedRenewalDetail ? (
+                  <>
+                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.14)" }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Khách</Typography>
+                          <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{selectedRenewalDetail.customerName || "-"}</Typography>
+                          <Typography variant="body2" color="text.secondary">Telegram: <strong>{selectedRenewalDetail.telegramId || "-"}</strong></Typography>
+                        </Box>
+                        <Chip size="small" label={renewalStatusLabel(selectedRenewalDetail.renewalStatus || "")} color={renewalStatusTone(selectedRenewalDetail.renewalStatus || "")} variant="filled" />
+                      </Box>
+                      <Box sx={{ mt: 1, display: "grid", gap: 0.75, gridTemplateColumns: "1fr 1fr" }}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Gói</Typography>
+                          <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.planName ? resolveOrderLabel({ plan_name: selectedRenewalDetail.planName }).displayLabel : "-"}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Đơn</Typography>
+                          <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.orderId || "-"}</Typography>
+                        </Box>
+                      </Box>
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Ghi chú</Typography>
+                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
+                          {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Tiến độ kick</Typography>
+                      <Box sx={{ mt: 0.75, height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
+                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.done / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
+                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.kicking / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
+                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.pending / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
+                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.error / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
+                      </Box>
+                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
+                        {selectedRenewalDetail.renewalProgress?.done || 0}/{selectedRenewalDetail.renewalProgress?.total || 0} xong · {selectedRenewalDetail.renewalProgress?.pending || 0} cần kick · {selectedRenewalDetail.renewalProgress?.error || 0} lỗi
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Group liên quan</Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
+                        {(selectedRenewalDetail.renewalGroupDetails || []).length ? selectedRenewalDetail.renewalGroupDetails!.map((group) => (
+                          <Chip
+                            key={group.groupId}
+                            size="small"
+                            label={`${group.groupName} · ${renewalStatusLabel(group.status)}`}
+                            color={group.status === "Đã kick xong" ? "success" : group.status === "Đang kick" ? "info" : group.status === "Lỗi" ? "error" : "warning"}
+                            variant="outlined"
+                          />
+                        )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
+                      </Box>
+                    </Box>
+                    {selectedRenewalDetail.renewalLatestKickAt ? (
+                      <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
+                    ) : null}
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
+                      <Button variant="contained" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
+                      {selectedRenewalDetail.orderId ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<RefreshCw size={14} />}
+                          disabled={saving === `retry-kick-${selectedRenewalDetail.orderId}`}
+                          onClick={() => void retryKickUserHandler(
+                            selectedRenewalDetail.telegramId,
+                            selectedRenewalDetail.orderId,
+                            selectedRenewalDetail.planName || "",
+                            selectedRenewalDetail.customerName || "",
+                            selectedRenewalDetail.groupsToKick || [],
+                          )}
+                        >
+                          Kick lại
+                        </Button>
+                      ) : null}
+                      <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
+                    </Box>
+                  </>
+                ) : (
+                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: "rgba(59,130,246,0.04)", border: "1px dashed", borderColor: "divider" }}>
+                    <Typography variant="body2" color="text.secondary">Chưa chọn dòng nào. Bấm “Chi tiết” ở cột thao tác để mở popup này.</Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Box>
+          </Box>
+        </Drawer>
 
         {tab === "supportGroup" ? (
           <div className="stack">
