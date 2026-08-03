@@ -10829,46 +10829,34 @@ export default function Home() {
                         </Box>
 
                         <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, mt: 1.5 }}>
-                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                          <Box sx={{ p: 1.15, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Thanh toán</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: customerQuickLookupResult.hasPaidOrder ? "success.main" : "text.primary" }}>
+                            <Typography sx={{ fontWeight: 900, fontSize: 17, color: customerQuickLookupResult.hasPaidOrder ? "success.main" : "text.primary", lineHeight: 1.15 }}>
                               {customerQuickLookupResult.hasPaidOrder ? "Đã từng trả tiền" : "Chưa thấy PAID"}
                             </Typography>
                           </Box>
-                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                          <Box sx={{ p: 1.15, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Còn hạn</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: customerActive ? "success.main" : customerPaid ? "warning.main" : "text.primary" }}>
+                            <Typography sx={{ fontWeight: 900, fontSize: 17, color: customerActive ? "success.main" : customerPaid ? "warning.main" : "text.primary", lineHeight: 1.15 }}>
                               {customerActive ? "Đang còn hạn" : customerPaid ? "Đã hết hạn" : "Chưa có đơn"}
                             </Typography>
                           </Box>
-                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                          <Box sx={{ p: 1.15, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
                             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Gói gần nhất</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: 18, color: "text.primary", lineHeight: 1.15 }}>
+                            <Typography sx={{ fontWeight: 900, fontSize: 17, color: "text.primary", lineHeight: 1.15 }}>
                               {customerQuickLookupResult.latestExpireOrder ? String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-" : "-"}
                             </Typography>
                           </Box>
                         </Box>
 
-                        <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 1.25 }}>
-                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Số đơn PAID</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: 18 }}>{customerQuickLookupResult.paidOrderCount}</Typography>
-                          </Box>
-                          <Box sx={{ p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Hạn gần nhất</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: 18 }}>{customerQuickLookupResult.latestExpireText || "-"}</Typography>
-                          </Box>
+                        <Box sx={{ mt: 1.25, p: 1.15, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: "block", mb: 0.5 }}>Thông tin phụ</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                            <strong>{customerQuickLookupResult.paidOrderCount}</strong> đơn PAID · <strong>{customerQuickLookupResult.latestExpireText || "-"}</strong> · {customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"}
+                          </Typography>
                         </Box>
 
-                        <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 2.25, bgcolor: "rgba(255,255,255,0.72)", border: "1px solid rgba(148,163,184,0.14)" }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: "block", mb: 0.75 }}>Thông tin phụ</Typography>
-                          <Box sx={{ display: "grid", gap: 0.5 }}>
-                            <Typography variant="body2" color="text.secondary">Gói gần nhất: <strong>{customerQuickLookupResult.latestExpireOrder ? String(customerQuickLookupResult.latestExpireOrder.plan_name || "-").trim() || "-" : "-"}</strong></Typography>
-                            <Typography variant="body2" color="text.secondary">Group gần nhất: <strong>{customerQuickLookupResult.latestExpireOrder ? groupNamesForOrder(customerQuickLookupResult.latestExpireOrder).join(", ") || "-" : "-"}</strong></Typography>
-                          </Box>
-                        </Box>
-
-                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 1.5 }}>
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 1.25 }}>
                           <Button
                             variant="contained"
                             onClick={() => void openQuickLookupPrimaryAction(customerQuickLookupResult.id)}
@@ -10881,11 +10869,7 @@ export default function Home() {
                           <Button variant="text" onClick={() => void openCustomerFromLookup(customerQuickLookupResult.id)} startIcon={<Search size={16} />} sx={{ borderRadius: 999, px: 1.75 }}>
                             Mở hồ sơ
                           </Button>
-                          {customerQuickLookupResult.isBlacklisted ? (
-                            <Button variant="outlined" color="error" onClick={() => openSecurityTabForCustomer(customerQuickLookupResult.id)} sx={{ borderRadius: 999, px: 1.75 }}>
-                              Mở blacklist
-                            </Button>
-                          ) : null}
+                          {customerQuickLookupResult.isBlacklisted ? <Chip size="small" label="Blacklist" color="error" variant="outlined" /> : null}
                         </Box>
                       </Box>
                     );
