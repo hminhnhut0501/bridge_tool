@@ -30,6 +30,7 @@ from hidden_group_utils import (
     is_hidden_plan_token,
     main_group_matches_plan,
 )
+from duration_model import normalize_duration_key
 
 router = Router()
 
@@ -211,9 +212,12 @@ def _plan_candidates() -> list[str]:
             return
         if "30 NGÀY" in upper or "30 NGAY" in upper or "30 DAYS" in upper or "30D" in upper:
             lifetime = base
+            annual = f"{base} 365 Ngày"
         else:
             lifetime = f"{base} Trọn Đời"
+            annual = f"{base} 365 Ngày"
         add(lifetime)
+        add(annual)
 
     try:
         for group_no in group_numbers():
@@ -269,7 +273,7 @@ def _resolve_plan_pricing(plan_name: str, provider: str = "") -> dict[str, Any]:
 
     if is_hidden_plan_token(token):
         group_id = hidden_plan_group_id(token)
-        duration_key = hidden_plan_duration_key(token) or ("LIFE" if _guess_lifetime(text) else "1M")
+        duration_key = normalize_duration_key(hidden_plan_duration_key(token) or ("LIFE" if _guess_lifetime(text) else "1M"))
         try:
             hidden_group = next((item for item in list_hidden_groups(include_inactive=False) if str(item.get("id") or "") == group_id), None)
             if hidden_group:
@@ -295,12 +299,13 @@ def _resolve_plan_pricing(plan_name: str, provider: str = "") -> dict[str, Any]:
         return {"amount": "", "duration_days": "", "payment_currency": currency}
 
     life = _guess_lifetime(text)
-    price_key = localized_price_key(f"PRICE_G{group_no}_{'LIFE' if life else '1M'}", currency)
+    duration_key = "LIFE" if life else ("365D" if "365" in text or "1Y" in text or "YEAR" in text.upper() else "1M")
+    price_key = localized_price_key(f"PRICE_G{group_no}_{duration_key}", currency)
     try:
         amount, _sale = get_price(price_key, 0, currency)
     except Exception:
         amount = 0
-    duration_days = 3650 if life else 30
+    duration_days = 3650 if duration_key == "LIFE" else 365 if duration_key == "365D" else 30
     return {
         "amount": str(amount) if amount else "",
         "duration_days": str(duration_days),

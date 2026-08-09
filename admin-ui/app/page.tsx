@@ -2707,16 +2707,22 @@ const SALE_CONTENT_FIELDS: ConfigField[] = [
 const PLAN_FIELDS: ConfigField[] = [
   { key: "PLAN_COMBO_30D", label: "Tên gói Combo 30 ngày", placeholder: "Combo 30 Ngày", help: "Tên gói hiển thị khi khách mua Combo 30 ngày. Fallback từ PLAN_ALL_ACCESS_30D." },
   { key: "PLAN_COMBO_LIFE", label: "Tên gói Combo trọn đời", placeholder: "Combo Trọn Đời", help: "Tên gói hiển thị khi khách mua Combo trọn đời. Fallback từ PLAN_ALL_ACCESS_LIFE." },
+  { key: "PLAN_COMBO_365D", label: "Tên gói Combo 365 ngày", placeholder: "Combo 365 Ngày", help: "Tên gói hiển thị khi khách mua Combo 365 ngày. Fallback từ PLAN_ALL_ACCESS_365D." },
   { key: "PLAN_COMBO_30D_ALIASES", label: "Alias gói Combo 30 ngày", placeholder: "All Access 30 Ngày, SVIP 30 Ngày, FULL 30D", help: "Các tên cũ vẫn được hiểu là cùng gói 30 ngày. Phân tách bằng dấu phẩy hoặc xuống dòng.", kind: "textarea" },
   { key: "PLAN_COMBO_LIFE_ALIASES", label: "Alias gói Combo trọn đời", placeholder: "All Access Trọn Đời, SVIP Trọn Đời, FULL LIFE", help: "Các tên cũ vẫn được hiểu là cùng gói trọn đời. Phân tách bằng dấu phẩy hoặc xuống dòng.", kind: "textarea" },
+  { key: "PLAN_COMBO_365D_ALIASES", label: "Alias gói Combo 365 ngày", placeholder: "All Access 365 Ngày, SVIP 365 Ngày, FULL 365D", help: "Các tên cũ vẫn được hiểu là cùng gói 365 ngày. Phân tách bằng dấu phẩy hoặc xuống dòng.", kind: "textarea" },
   { key: "PLAN_COLLECTION_30D", label: "Tiền tố gói collection 30 ngày", placeholder: "Collection 30 Ngày", help: "Ghép với tên collection, ví dụ: Collection 30 Ngày - Hang Cú Prime." },
   { key: "PLAN_COLLECTION_LIFE", label: "Tiền tố gói collection trọn đời", placeholder: "Collection Trọn Đời", help: "Ghép với tên collection, ví dụ: Collection Trọn Đời - Hang Cú Prime." },
+  { key: "PLAN_COLLECTION_365D", label: "Tiền tố gói collection 365 ngày", placeholder: "Collection 365 Ngày", help: "Ghép với tên collection, ví dụ: Collection 365 Ngày - Hang Cú Prime." },
   { key: "PRICE_COMBO_30D", label: "Giá Combo 30 ngày", placeholder: "99000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_COMBO_LIFE", label: "Giá Combo trọn đời", placeholder: "499000", help: "Nhập số tiền VND, không cần dấu chấm." },
+  { key: "PRICE_COMBO_365D", label: "Giá Combo 365 ngày", placeholder: "299000", help: "Nhập số tiền VND, không cần dấu chấm." },
   { key: "PRICE_COMBO_30D_USD", label: "Giá USD Combo 30 ngày", placeholder: "4.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
   { key: "PRICE_COMBO_LIFE_USD", label: "Giá USD Combo trọn đời", placeholder: "19.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
+  { key: "PRICE_COMBO_365D_USD", label: "Giá USD Combo 365 ngày", placeholder: "12.99", help: "Giá PayPal độc lập, không quy đổi từ VNĐ." },
   { key: "BTN_BUY_COMBO_30D", label: "Nút mua Combo 30 ngày", placeholder: "MUA 30 NGÀY", help: "Text nút trong bot." },
   { key: "BTN_BUY_COMBO_LIFE", label: "Nút mua Combo trọn đời", placeholder: "MUA TRỌN ĐỜI", help: "Text nút trong bot." },
+  { key: "BTN_BUY_COMBO_365D", label: "Nút mua Combo 365 ngày", placeholder: "MUA 365 NGÀY", help: "Text nút trong bot." },
 ];
 
 function localizedFields(fields: ConfigField[], language: "EN"): ConfigField[] {
@@ -2966,18 +2972,22 @@ const SALE_CONTENT_EN_FIELDS = localizedFields(SALE_CONTENT_FIELDS.filter((field
 const PRICE_KEY_OPTIONS = [
   "PRICE_COMBO_30D",
   "PRICE_COMBO_LIFE",
+  "PRICE_COMBO_365D",
   "PRICE_COMBO_30D_USD",
   "PRICE_COMBO_LIFE_USD",
+  "PRICE_COMBO_365D_USD",
 ];
 
 const PLAN_KEY_OPTIONS = [
   "FULL_1M",
   "FULL_LIFE",
+  "FULL_365D",
 ];
 
 const SELECTABLE_GROUP_COUPON_OPTIONS = [
   "SELECT_GROUP_1M",
   "SELECT_GROUP_LIFE",
+  "SELECT_GROUP_365D",
 ];
 
 const EMPTY_COUPON_FORM = {
@@ -3480,7 +3490,7 @@ export default function Home() {
   const notificationSoundRef = useRef<{ playedAt: number }>({ playedAt: 0 });
   const [comboSettingsOpen, setComboSettingsOpen] = useState(false);
   const [comboSettingsTab, setComboSettingsTab] = useState<"price" | "name">("price");
-  const [comboSettingsVariant, setComboSettingsVariant] = useState<"30d" | "life">("30d");
+  const [comboSettingsVariant, setComboSettingsVariant] = useState<"30d" | "life" | "365d">("30d");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupNo, setGroupNo] = useState("1");
   const [groupName, setGroupName] = useState("");
@@ -5749,11 +5759,11 @@ export default function Home() {
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
-    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
+    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_365D`, `G${item}_LIFE`]),
   ], [configuredGroups]);
   const discountPlanKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
-    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
+    ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_365D`, `G${item}_LIFE`]),
   ], [configuredGroups]);
   const manualPlanKeyOptions = useMemo(() => [
     ...discountPlanKeyOptions,
@@ -5762,7 +5772,7 @@ export default function Home() {
   const customDurationEnabled = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "MANUAL_CUSTOM_DURATION_ENABLED", "ON").toUpperCase());
   const priceKeyOptions = useMemo(() => [
     ...PRICE_KEY_OPTIONS,
-    ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_LIFE_USD`]),
+    ...configuredGroups.flatMap((item) => [`PRICE_G${item}_1M`, `PRICE_G${item}_365D`, `PRICE_G${item}_LIFE`, `PRICE_G${item}_1M_USD`, `PRICE_G${item}_365D_USD`, `PRICE_G${item}_LIFE_USD`]),
   ], [configuredGroups]);
   const groupViContentFields = useMemo<ConfigField[]>(() => configuredGroups.flatMap((item) => [
     { key: `DESC_G${item}`, label: `G${item} - Mô tả tiếng Việt`, placeholder: "Mô tả nội dung nhóm", help: "Nội dung trang chi tiết nhóm tiếng Việt.", kind: "textarea" as const },
@@ -7424,33 +7434,38 @@ export default function Home() {
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "Combo - 30 ngày";
+    if (value === "FULL_365D") return "Combo - 365 ngày";
     if (value === "FULL_LIFE") return "Combo - trọn đời";
     if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
+    if (value === "SELECT_GROUP_365D") return "Khách tự chọn collection lẻ - 365 ngày";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
-    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "30 ngày" : "trọn đời"}`;
+    return `${name} - ${match[2] === "1M" ? "30 ngày" : match[2] === "365D" ? "365 ngày" : "trọn đời"}`;
   }
 
   function priceOptionLabel(value: string) {
     if (value === "PRICE_COMBO_30D") return "Giá Combo - 30 ngày";
+    if (value === "PRICE_COMBO_365D") return "Giá Combo - 365 ngày";
     if (value === "PRICE_COMBO_LIFE") return "Giá Combo - trọn đời";
     if (value === "PRICE_COMBO_30D_USD") return "Giá USD Combo - 30 ngày";
+    if (value === "PRICE_COMBO_365D_USD") return "Giá USD Combo - 365 ngày";
     if (value === "PRICE_COMBO_LIFE_USD") return "Giá USD Combo - trọn đời";
-    const match = value.match(/^PRICE_G(\d+)_(1M|LIFE)(_USD)?$/);
+    const match = value.match(/^PRICE_G(\d+)_(1M|365D|LIFE)(_USD)?$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : "giá trọn đời"}${match[3] ? " (USD)" : " (VNĐ)"}`;
+    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : match[2] === "365D" ? "giá 365 ngày" : "giá trọn đời"}${match[3] ? " (USD)" : " (VNĐ)"}`;
   }
 
   function manualPlanNameFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
+    if (value === "FULL_365D") return getConfigValue(config, "PLAN_COMBO_365D", getConfigValue(config, "PLAN_ALL_ACCESS_365D", "Combo 365 Ngày")) || "Combo 365 Ngày";
     if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_COMBO_LIFE", getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "Combo Trọn Đời")) || "Combo Trọn Đời";
-    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return "";
-    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
-    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : "Collection Trọn Đời";
+    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : match[2] === "365D" ? "PLAN_COLLECTION_365D" : "PLAN_COLLECTION_LIFE";
+    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : match[2] === "365D" ? "Collection 365 Ngày" : "Collection Trọn Đời";
     const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
     const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
     return `${prefix} - ${groupName}`;
@@ -7458,8 +7473,9 @@ export default function Home() {
 
   function manualPriceFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_COMBO_30D", "0");
+    if (value === "FULL_365D") return getConfigValue(config, "PRICE_COMBO_365D", "0");
     if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_COMBO_LIFE", "0");
-    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
   }
@@ -8603,6 +8619,18 @@ export default function Home() {
                       priceUsd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_LIFE_USD", "0") || 0), "USD"),
                       accent: "#2563eb",
                       softBg: "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(255,255,255,0.92))",
+                    },
+                    {
+                      variant: "365d" as const,
+                      title: getConfigValue(config, "PLAN_COMBO_365D", "Combo 365 Ngày"),
+                      aliases: String(getConfigValue(config, "PLAN_COMBO_365D_ALIASES", "All Access 365 Ngày, SVIP 365 Ngày, FULL 365D"))
+                        .split(/[\n,;|]+/)
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                      priceVnd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0), "VND"),
+                      priceUsd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0), "USD"),
+                      accent: "#7c3aed",
+                      softBg: "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(255,255,255,0.92))",
                     },
                   ].map((item) => (
                     <Card
@@ -10087,7 +10115,7 @@ export default function Home() {
         {comboSettingsOpen ? (
           <MuiDialogShell
             open
-            title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : "Combo Trọn Đời"}
+            title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : comboSettingsVariant === "life" ? "Combo Trọn Đời" : "Combo 365 Ngày"}
             subtitle="Bấm đổi tên hoặc đổi giá đúng card này. Dữ liệu legacy vẫn tương thích qua alias."
             onClose={() => setComboSettingsOpen(false)}
             maxWidth="lg"
@@ -10107,18 +10135,32 @@ export default function Home() {
             </Box>
             {comboSettingsTab === "price" ? (
               <ConfigEditor
-                title={comboSettingsVariant === "30d" ? "Cài đặt giá Combo 30 ngày" : "Cài đặt giá Combo trọn đời"}
+                title={comboSettingsVariant === "30d" ? "Cài đặt giá Combo 30 ngày" : comboSettingsVariant === "life" ? "Cài đặt giá Combo trọn đời" : "Cài đặt giá Combo 365 ngày"}
                 subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal."
-                fields={comboSettingsVariant === "30d" ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_30D", "PRICE_COMBO_30D_USD"].includes(field.key)) : COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_LIFE", "PRICE_COMBO_LIFE_USD"].includes(field.key))}
+                fields={
+                  comboSettingsVariant === "30d"
+                    ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_30D", "PRICE_COMBO_30D_USD"].includes(field.key))
+                    : comboSettingsVariant === "life"
+                      ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_LIFE", "PRICE_COMBO_LIFE_USD"].includes(field.key))
+                      : COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_365D", "PRICE_COMBO_365D_USD"].includes(field.key))
+                }
                 values={fieldValues}
                 setValues={setFieldValues}
                 onSave={saveFields}
               />
             ) : (
               <ConfigEditor
-                title={comboSettingsVariant === "30d" ? "Đổi tên Combo 30 ngày" : "Đổi tên Combo trọn đời"}
+                title={comboSettingsVariant === "30d" ? "Đổi tên Combo 30 ngày" : comboSettingsVariant === "life" ? "Đổi tên Combo trọn đời" : "Đổi tên Combo 365 ngày"}
                 subtitle="Sửa tên hiển thị và alias tương thích. Dữ liệu cũ vẫn chạy bằng alias legacy."
-                fields={PLAN_VI_FIELDS.filter((field) => comboSettingsVariant === "30d" ? ["PLAN_COMBO_30D", "PLAN_COMBO_30D_ALIASES"].includes(field.key) : ["PLAN_COMBO_LIFE", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key))}
+                fields={
+                  PLAN_VI_FIELDS.filter((field) =>
+                    comboSettingsVariant === "30d"
+                      ? ["PLAN_COMBO_30D", "PLAN_COMBO_30D_ALIASES"].includes(field.key)
+                      : comboSettingsVariant === "life"
+                        ? ["PLAN_COMBO_LIFE", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key)
+                        : ["PLAN_COMBO_365D", "PLAN_COMBO_365D_ALIASES"].includes(field.key),
+                  )
+                }
                 values={fieldValues}
                 setValues={setFieldValues}
                 onSave={saveFields}

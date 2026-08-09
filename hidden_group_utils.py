@@ -8,6 +8,7 @@ import database
 from config_aliases import config_lookup_keys
 from i18n import localized_default, t
 from supabase_store import supabase_store
+from duration_model import duration_days_from_key, duration_label as duration_label_text, normalize_duration_key
 
 REQUIREMENT_NONE = "NONE"
 REQUIREMENT_SVIP_ACTIVE = "SVIP_ACTIVE"
@@ -175,7 +176,7 @@ def significant_group_tokens(value):
 
 
 def build_hidden_plan_token(hidden_group_id, duration_key):
-    duration = "LIFE" if normalize_key_text(duration_key) == "LIFE" else "1M"
+    duration = normalize_duration_key(duration_key)
     return f"{PLAN_TOKEN_PREFIX}{normalize_text(hidden_group_id)}:{duration}"
 
 
@@ -232,6 +233,8 @@ def _localized_combo_plan_text(user_id, suffix, default, language=None):
     candidates = [f"PLAN_COMBO_{suffix}"]
     if suffix == "30D":
         candidates.append("PLAN_ALL_ACCESS_30D")
+    elif suffix == "365D":
+        candidates.append("PLAN_ALL_ACCESS_365D")
     elif suffix == "LIFE":
         candidates.append("PLAN_ALL_ACCESS_LIFE")
     for key in candidates:
@@ -645,16 +648,30 @@ def validate_hidden_code_for_user(code, user_id):
 def hidden_duration_price(hidden_group, duration_key, currency="VND"):
     duration = normalize_key_text(duration_key)
     if normalize_key_text(currency) == "USD":
-        return parse_number(hidden_group.get("price_life_usd" if duration == "LIFE" else "price_1m_usd"), 0)
-    return parse_number(hidden_group.get("price_life_vnd" if duration == "LIFE" else "price_1m_vnd"), 0)
+        if duration == "LIFE":
+            return parse_number(hidden_group.get("price_life_usd"), 0)
+        if duration == "365D":
+            return parse_number(hidden_group.get("price_365d_usd", hidden_group.get("price_1m_usd")), 0)
+        return parse_number(hidden_group.get("price_1m_usd"), 0)
+    if duration == "LIFE":
+        return parse_number(hidden_group.get("price_life_vnd"), 0)
+    if duration == "365D":
+        return parse_number(hidden_group.get("price_365d_vnd", hidden_group.get("price_1m_vnd")), 0)
+    return parse_number(hidden_group.get("price_1m_vnd"), 0)
 
 
 def hidden_duration_days(hidden_group, duration_key):
-    return parse_int(hidden_group.get("lifetime_days" if normalize_key_text(duration_key) == "LIFE" else "duration_1m_days"), DEFAULT_HIDDEN_LIFETIME_DAYS if normalize_key_text(duration_key) == "LIFE" else DEFAULT_HIDDEN_1M_DAYS)
+    normalized = normalize_duration_key(duration_key)
+    if normalized == "LIFE":
+        return parse_int(hidden_group.get("lifetime_days"), DEFAULT_HIDDEN_LIFETIME_DAYS)
+    if normalized == "365D":
+        return parse_int(hidden_group.get("duration_365d_days", hidden_group.get("duration_1m_days")), 365)
+    return parse_int(hidden_group.get("duration_1m_days"), DEFAULT_HIDDEN_1M_DAYS)
 
 
 def build_hidden_plan_name(hidden_group, duration_key):
-    duration_label = "Trọn Đời" if normalize_key_text(duration_key) == "LIFE" else f"{hidden_duration_days(hidden_group, duration_key)} Ngày"
+    normalized = normalize_duration_key(duration_key)
+    duration_label = "Trọn Đời" if normalized == "LIFE" else duration_label_text(normalized, language="vi") if normalized == "365D" else f"{hidden_duration_days(hidden_group, duration_key)} Ngày"
     base_name = f"Hidden - {hidden_group.get('name')} - {duration_label}"
     return embed_plan_token(base_name, build_hidden_plan_token(hidden_group.get("id"), duration_key))
 

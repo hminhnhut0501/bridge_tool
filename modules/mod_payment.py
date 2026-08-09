@@ -39,6 +39,7 @@ from support_utils import (
 )
 from bot_links import bot_version
 from license_utils import license_backend_url, build_license_deeplink
+from duration_model import normalize_duration_key
 
 router = Router()
 
@@ -288,10 +289,14 @@ def buy_data_from_plan_key(plan_key):
     key = str(plan_key or "").strip().upper()
     if key == "FULL_1M":
         return "buy_full_1m"
+    if key == "FULL_365D":
+        return "buy_full_365d"
     if key == "FULL_LIFE":
         return "buy_full_life"
     if key.startswith("G") and key.endswith("_1M"):
         return f"buy_{key[:-3]}_1m"
+    if key.startswith("G") and key.endswith("_365D"):
+        return f"buy_{key[:-5]}_365d"
     if key.startswith("G") and key.endswith("_LIFE"):
         return f"buy_{key[:-5]}_life"
     return ""
@@ -301,10 +306,14 @@ def plan_token_for_offer(data):
     key = str(data or "").strip().lower()
     if key == "buy_full_1m":
         return "FULL_1M"
+    if key == "buy_full_365d":
+        return "FULL_365D"
     if key == "buy_full_life":
         return "FULL_LIFE"
     if key.startswith("buy_g") and key.endswith("_1m"):
         return f"G{key[5:-3]}:1M"
+    if key.startswith("buy_g") and key.endswith("_365d"):
+        return f"G{key[5:-5]}:365D"
     if key.startswith("buy_g") and key.endswith("_life"):
         return f"G{key[5:-5]}:LIFE"
     return ""
@@ -352,25 +361,25 @@ def resolve_purchase_offer(data, user_id=None, provider=""):
         sale_info = sale_life or sale_1m
         original_amount = max(0, parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_LIFE", currency), default_group), default_group, currency) - parse_price(db.get_config(localized_price_key(f"PRICE_G{num}_1M", currency), default_group), default_group, currency))
     elif "full" in data:
-        is_1m = "1m" in data
-        plan_token = "FULL_1M" if is_1m else "FULL_LIFE"
+        duration_key = "LIFE" if "life" in data else ("365D" if "365d" in data else "1M")
+        plan_token = f"FULL_{duration_key}"
         plan_name = config_text(
             user_id,
-            "PLAN_ALL_ACCESS_30D" if is_1m else "PLAN_ALL_ACCESS_LIFE",
+            "PLAN_ALL_ACCESS_30D" if duration_key == "1M" else "PLAN_ALL_ACCESS_365D" if duration_key == "365D" else "PLAN_ALL_ACCESS_LIFE",
             localized_default(
                 user_id,
-                "All Access 30 Ngày" if is_1m else "All Access Trọn Đời",
-                "All Access 30 Days" if is_1m else "All Access Lifetime",
+                "All Access 30 Ngày" if duration_key == "1M" else "All Access 365 Ngày" if duration_key == "365D" else "All Access Trọn Đời",
+                "All Access 30 Days" if duration_key == "1M" else "All Access 365 Days" if duration_key == "365D" else "All Access Lifetime",
             ),
         )
-        price_key = "PRICE_ALL_ACCESS_30D" if is_1m else "PRICE_ALL_ACCESS_LIFE"
+        price_key = "PRICE_ALL_ACCESS_30D" if duration_key == "1M" else "PRICE_ALL_ACCESS_365D" if duration_key == "365D" else "PRICE_ALL_ACCESS_LIFE"
         amount, sale_info = get_price(price_key, default_svip, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_svip), default_svip, currency)
     else:
         parts = data.split("_")
-        num, type_p = parts[1][1:], parts[2].upper()
+        num, type_p = parts[1][1:], normalize_duration_key(parts[2])
         plan_token = f"G{num}:{type_p}"
-        plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_LIFE', localized_default(user_id, 'Collection 30 Ngày', 'Collection 30 Days' if type_p == '1M' else 'Collection Lifetime'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
+        plan_name = f"{config_text(user_id, 'PLAN_COLLECTION_30D' if type_p == '1M' else 'PLAN_COLLECTION_365D' if type_p == '365D' else 'PLAN_COLLECTION_LIFE', localized_default(user_id, 'Collection 30 Ngày' if type_p == '1M' else 'Collection 365 Ngày' if type_p == '365D' else 'Collection Trọn Đời', 'Collection 30 Days' if type_p == '1M' else 'Collection 365 Days' if type_p == '365D' else 'Collection Lifetime'))} - {config_text(user_id, f'BTN_G{num}', localized_default(user_id, f'Nhóm {num}', f'Group {num}'))}"
         price_key = f"PRICE_G{num}_{type_p}"
         amount, sale_info = get_price(price_key, default_group, currency)
         original_amount = parse_price(db.get_config(localized_price_key(price_key, currency), default_group), default_group, currency)
@@ -1385,10 +1394,12 @@ async def view_group_detail(callback: CallbackQuery):
     currency = default_currency_for_user(callback.from_user.id)
     desc = t(callback.from_user.id, f"DESC_G{num}", "Đang cập nhật...").replace("\\n", "\n")
     desc += sale_text_for_price(f"PRICE_G{num}_1M", "50000", currency)
+    desc += sale_text_for_price(f"PRICE_G{num}_365D", "0", currency)
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000", currency)
     
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_30D', '💎 COLLECTION 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_365D', '💎 COLLECTION 365 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_365D', '0')}", callback_data=f"buy_G{num}_365d"))
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_LIFE', '👑 COLLECTION TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang All Access Page
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_ALL_ACCESS_PAGE", localized_default(callback.from_user.id, "🌟 XEM ALL ACCESS", "🌟 View All Access")), callback_data="view_all_access_page"))
@@ -1400,7 +1411,7 @@ async def view_group_detail(callback: CallbackQuery):
 # 🌟 TRANG CHI TIẾT ALL ACCESS (GIỮ NGUYÊN CODE CỦA BẠN - ĐÃ FIX LỖI VÒNG LẶP)
 # ==========================================
 # 🛠 FIX 1: Loại bỏ "buy_full_life" và "buy_full_1m" khỏi F.data.in_ để không tranh sóng với hàm tạo QR
-@router.callback_query(F.data.in_(["view_all_access_page", "view_svip_page", "view_full_life", "view_full_1m"]))
+@router.callback_query(F.data.in_(["view_all_access_page", "view_svip_page", "view_full_life", "view_full_365d", "view_full_1m"]))
 async def show_all_access_page(callback: CallbackQuery):
     """Hiển thị trang giới thiệu All Access với ảnh cover và mô tả"""
     if callback.data.startswith("confirm_"):
@@ -1413,6 +1424,7 @@ async def show_all_access_page(callback: CallbackQuery):
     description = t(callback.from_user.id, "TXT_ALL_ACCESS_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\n\n✅ Truy cập toàn bộ các collection VIP.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
     currency = default_currency_for_user(callback.from_user.id)
     description += sale_text_for_price("PRICE_ALL_ACCESS_LIFE", "3000", currency)
+    description += sale_text_for_price("PRICE_ALL_ACCESS_365D", "0", currency)
     description += sale_text_for_price("PRICE_ALL_ACCESS_30D", "2000", currency)
     
     btn_life_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_LIFE", "🔥 MUA ALL ACCESS TRỌN ĐỜI")
@@ -1423,6 +1435,7 @@ async def show_all_access_page(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
     kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_LIFE', '3000')}", callback_data="buy_full_life"))
+    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_ALL_ACCESS_365D', '💎 MUA ALL ACCESS 365 NGÀY')} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_365D', '0')}", callback_data="buy_full_365d"))
     kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_30D', '2000')}", callback_data="buy_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 

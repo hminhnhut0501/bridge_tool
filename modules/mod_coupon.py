@@ -29,6 +29,7 @@ from hidden_group_utils import (
     resolve_plan_groups,
     validate_hidden_code_for_user,
 )
+from duration_model import normalize_duration_key
 from license_utils import load_license_plan_mapping
 from i18n import get_user_language, localized_default, t
 from processor import escape_html, find_current_expire, find_current_expire_from_orders, normalize_chat_id, parse_expire_datetime
@@ -47,6 +48,7 @@ COUPONS_SHEET = "Coupons"
 REDEMPTIONS_SHEET = "CouponRedemptions"
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 SELECT_GROUP_1M = "SELECT_GROUP_1M"
+SELECT_GROUP_365D = "SELECT_GROUP_365D"
 SELECT_GROUP_LIFE = "SELECT_GROUP_LIFE"
 PLACEHOLDER_RE = re.compile(r"\{\s*([a-zA-Z0-9_]+)\s*\}")
 DEFAULT_LIFETIME_DAYS = 3650
@@ -226,16 +228,16 @@ def normalize_plan_key(value):
 
 
 def all_coupon_plan_keys():
-    keys = ["FULL_1M", "FULL_LIFE"]
+    keys = ["FULL_1M", "FULL_365D", "FULL_LIFE"]
     for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") or db.get_config(f"ID_G{group_no}"):
-            keys.extend([f"G{group_no}_1M", f"G{group_no}_LIFE"])
+            keys.extend([f"G{group_no}_1M", f"G{group_no}_365D", f"G{group_no}_LIFE"])
     return keys
 
 
 def selectable_group_plan_keys(plan_name):
     key = normalize_plan_key(plan_name)
-    suffix = "_LIFE" if key == SELECT_GROUP_LIFE else "_1M"
+    suffix = "_LIFE" if key == SELECT_GROUP_LIFE else "_365D" if key == SELECT_GROUP_365D else "_1M"
     keys = []
     for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") and db.get_config(f"ID_G{group_no}"):
@@ -244,7 +246,7 @@ def selectable_group_plan_keys(plan_name):
 
 
 def is_selectable_group_coupon_plan(plan_name):
-    return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_LIFE}
+    return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_365D, SELECT_GROUP_LIFE}
 
 
 def coupon_lifetime_days():
@@ -257,8 +259,11 @@ def is_lifetime_coupon_plan(plan_name):
 
 
 def coupon_duration_days(coupon, plan_key=None):
-    if is_lifetime_coupon_plan(plan_key or (coupon or {}).get("Plan_Name")):
+    normalized = normalize_duration_key(plan_key or (coupon or {}).get("Plan_Name"))
+    if normalized == "LIFE":
         return coupon_lifetime_days()
+    if normalized == "365D":
+        return max(365, safe_int((coupon or {}).get("Duration_Days"), 365))
     return safe_int((coupon or {}).get("Duration_Days"), 30)
 
 
@@ -442,10 +447,13 @@ def resolve_plan_name(plan_key, user_id=None):
 
     plan_map = {
         "FULL_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
+        "FULL_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "All Access 365 Ngày"),
         "FULL_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
         "SVIP_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
+        "SVIP_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "All Access 365 Ngày"),
         "SVIP_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
         SELECT_GROUP_1M: "Khách tự chọn collection lẻ - 30 ngày",
+        SELECT_GROUP_365D: "Khách tự chọn collection lẻ - 365 ngày",
         SELECT_GROUP_LIFE: "Khách tự chọn collection lẻ - trọn đời",
     }
     if key in plan_map:
@@ -454,6 +462,8 @@ def resolve_plan_name(plan_key, user_id=None):
     for group_no in group_numbers():
         if key == f"G{group_no}_1M":
             return f"{localized_config(user_id, 'PLAN_COLLECTION_30D', 'Collection 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
+        if key == f"G{group_no}_365D":
+            return f"{localized_config(user_id, 'PLAN_COLLECTION_365D', 'Collection 365 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
         if key == f"G{group_no}_LIFE":
             return f"{localized_config(user_id, 'PLAN_COLLECTION_LIFE', 'Collection Trọn Đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
 
@@ -465,6 +475,8 @@ def group_name_from_plan_key(plan_key, user_id=None):
     match = None
     if key.startswith("G") and key.endswith("_1M"):
         match = key[1:-3]
+    elif key.startswith("G") and key.endswith("_365D"):
+        match = key[1:-5]
     elif key.startswith("G") and key.endswith("_LIFE"):
         match = key[1:-5]
     if not match:

@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from duration_model import normalize_duration_key
+
 
 def _text(value) -> str:
     return str(value or "").strip()
@@ -36,9 +38,30 @@ def _is_lifetime_plan(plan_name: str) -> bool:
     return any(token in text for token in ("trọn đời", "tron doi", "lifetime", "vĩnh viễn", "vinh vien", "life"))
 
 
+def _duration_bucket(plan_name: str) -> str:
+    text = _text(plan_name)
+    upper = text.upper()
+    normalized = normalize_duration_key(upper)
+    if normalized == "LIFE" or _is_lifetime_plan(plan_name):
+        return "LIFE"
+    if normalized == "365D" or any(token in upper for token in ("365", "1Y", "YEAR", "ANNUAL")):
+        return "365D"
+    return "1M"
+
+
 def _plan_bucket(plan_name: str) -> str:
     plan = _text(plan_name)
     return plan or "Không rõ gói"
+
+
+def _plan_bucket_duration(plan_name: str) -> str:
+    plan = _plan_bucket(plan_name)
+    duration = _duration_bucket(plan_name)
+    if duration == "365D":
+        return f"{plan} · 365 ngày"
+    if duration == "LIFE":
+        return f"{plan} · trọn đời"
+    return f"{plan} · 30 ngày"
 
 
 def _day_key(dt: datetime) -> str:
@@ -118,6 +141,7 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
     prev_conversion = round((previous_paid / len(previous_orders)) * 100) if previous_orders else 0
 
     grouped_by_plan = defaultdict(list)
+    grouped_by_duration = defaultdict(list)
     grouped_by_user = defaultdict(list)
     grouped_by_day = defaultdict(list)
     grouped_by_hour = defaultdict(list)
@@ -130,7 +154,9 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
 
     for order in paid_orders:
         plan = _plan_bucket(order.get("plan_name"))
+        duration_plan = _plan_bucket_duration(order.get("plan_name"))
         grouped_by_plan[plan].append(order)
+        grouped_by_duration[duration_plan].append(order)
         user_id = _text(order.get("telegram_user_id"))
         if user_id:
             grouped_by_user[user_id].append(order)
@@ -180,6 +206,7 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
         active_count = len([order for order in active_orders if _plan_bucket(order.get("plan_name")) == plan])
         plan_stats.append({
             "plan_name": plan,
+            "duration_bucket": duration_plan,
             "orders": len(items),
             "revenue": _money_sum(items),
             "customers": unique_customers,
@@ -190,6 +217,17 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
         })
 
     plan_stats.sort(key=lambda item: (item["revenue"], item["orders"]), reverse=True)
+    duration_stats = [
+        {
+            "duration_bucket": duration,
+            "orders": len(items),
+            "revenue": _money_sum(items),
+            "customers": len({ _text(order.get("telegram_user_id")) for order in items if _text(order.get("telegram_user_id")) }),
+            "active_customers": len([order for order in active_orders if _plan_bucket_duration(order.get("plan_name")) == duration]),
+        }
+        for duration, items in grouped_by_duration.items()
+    ]
+    duration_stats.sort(key=lambda item: (item["revenue"], item["orders"]), reverse=True)
     previous_grouped_by_plan = defaultdict(list)
     for order in previous_paid_orders:
         plan = _plan_bucket(order.get("plan_name"))
@@ -247,13 +285,14 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
             grouped_by_label[label].append((plan, items))
         for label, plan_items in grouped_by_label.items():
             plan_name, items = max(plan_items, key=lambda item: (len(item[1]), _money_sum(item[1])), default=("", []))
-            rows.append({
-                label_key: label,
-                "plan_name": plan_name,
-                "orders": len(items),
-                "revenue": _money_sum(items),
-                "customers": len({ _text(order.get("telegram_user_id")) for order in items if _text(order.get("telegram_user_id")) }),
-            })
+        rows.append({
+            label_key: label,
+            "plan_name": plan_name,
+            "duration_bucket": _plan_bucket_duration(plan_name),
+            "orders": len(items),
+            "revenue": _money_sum(items),
+            "customers": len({ _text(order.get("telegram_user_id")) for order in items if _text(order.get("telegram_user_id")) }),
+        })
         return sorted(rows, key=lambda item: (item["orders"], item["revenue"]), reverse=True)
 
     top_by_day = _top_plan_rows(grouped_by_plan_day, "day")
@@ -527,6 +566,7 @@ def build_marketing_stats_response(orders, *, tz: ZoneInfo, period: str = "month
         },
         "revenue_compare": revenue_compare,
         "plan_stats": plan_stats,
+        "duration_stats": duration_stats,
         "retention_stats": retention_stats,
         "payment_breakdown": payment_breakdown,
         "time_stats": time_stats,

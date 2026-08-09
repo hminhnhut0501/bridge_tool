@@ -135,6 +135,7 @@ from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
 from manual_order_helpers import should_skip_manual_active_code
 from admin_notification_utils import admin_notification_from_support_event
 from payment import PAYMENT_PROVIDER_SCHEMA, payment_manager
+from duration_model import duration_days_from_key, is_lifetime_key, normalize_duration_key
 from license_utils import (
     build_license_deeplink,
     license_flow_enabled,

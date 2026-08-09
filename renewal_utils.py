@@ -3,6 +3,7 @@ from datetime import datetime
 
 from config_utils import group_numbers
 from database import db, normalize_key
+from duration_model import normalize_duration_key
 from sale_utils import format_currency as format_money, localized_price_key, parse_price
 
 
@@ -77,12 +78,16 @@ def resolve_price_key(plan_name):
         return None
 
     if "FULL" in plan or "SVIP" in plan:
+        if "365" in plan or "1Y" in plan or "YEAR" in plan:
+            return "PRICE_COMBO_365D"
         return "PRICE_COMBO_30D"
 
     for group in group_numbers():
         btn_name = normalize_key(db.get_config(f"BTN_G{group}", f"Nhóm {group}")).upper()
         alias_text = normalize_key(db.get_config(f"BTN_G{group}_ALIASES", "")).upper()
         if (btn_name and (btn_name in plan or f"G{group}" in plan)) or (alias_text and any(token.strip() and token.strip().upper() in plan for token in re.split(r"[\n,;|]+", alias_text))):
+            if "365" in plan or "1Y" in plan or "YEAR" in plan:
+                return f"PRICE_G{group}_365D"
             return f"PRICE_G{group}_1M"
     return None
 
