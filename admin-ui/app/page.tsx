@@ -9684,6 +9684,54 @@ export default function Home() {
                     <Tab value="en" label="Trang tiếng Anh" />
                   </Tabs>
                 </section>
+                <section className="panel">
+                  <PanelHead
+                    title="Hướng dẫn biến cho Menu Builder"
+                    subtitle="Dùng các biến chuẩn này trong Nội dung trang và Nút bấm để bot render đúng tên gói, giá và action."
+                  />
+                  <Box sx={{ p: 2, display: "grid", gap: 1.25 }}>
+                    <Alert severity="info" variant="outlined" icon={<FileText size={16} />}>
+                      <strong>Quy ước nhanh:</strong> `nav:*` để chuyển trang, `buy_*` để bấm mua, `{"{...}"}` để chèn biến text/giá.
+                    </Alert>
+                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+                      <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography sx={{ fontWeight: 900, mb: 0.75 }}>Chuyển trang</Typography>
+                        <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-line", lineHeight: 1.65 }}>
+                          {[
+                            "• `nav:vip_boy` → mở trang menu có page_id `vip_boy`",
+                            "• `nav:main_menu` → về trang chính",
+                            "• `nav:support_page` → mở trang hỗ trợ",
+                            "• `nav:policy_page` → mở trang điều khoản",
+                          ].join("\n")}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+                        <Typography sx={{ fontWeight: 900, mb: 0.75 }}>Mua gói / callback</Typography>
+                        <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-line", lineHeight: 1.65 }}>
+                          {[
+                            "• `buy_full_1m` → mua Combo 30 ngày",
+                            "• `buy_full_365d` → mua Combo 365 ngày",
+                            "• `buy_full_life` → mua Combo trọn đời",
+                            "• `buy_G2_life` → mua collection nhóm 2 trọn đời",
+                            "• `buy_G2_365d` → mua collection nhóm 2 365 ngày",
+                          ].join("\n")}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ p: 1.5, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "rgba(59,130,246,0.04)" }}>
+                      <Typography sx={{ fontWeight: 900, mb: 0.75 }}>Biến giá / tên gói thường dùng</Typography>
+                      <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-line", lineHeight: 1.65 }}>
+                        {[
+                          "• `{BTN_BUY_COMBO_30D}` / `{BTN_BUY_COMBO_365D}` / `{BTN_BUY_COMBO_LIFE}`",
+                          "• `{PLAN_COMBO_30D}` / `{PLAN_COMBO_365D}` / `{PLAN_COMBO_LIFE}`",
+                          "• `{PRICE_COMBO_30D}` / `{PRICE_COMBO_365D}` / `{PRICE_COMBO_LIFE}`",
+                          "• `{PRICE_G2_1M}` / `{PRICE_G2_365D}` / `{PRICE_G2_LIFE}`",
+                          "• `{SALE_LABEL_PRICE_COMBO_30D}` để hiện label sale nếu có",
+                        ].join("\n")}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </section>
               <section className="panel">
                 <PanelHead
                   title={menuLanguage === "en" ? "Menu Builder tiếng Anh" : "Menu Builder tiếng Việt"}
@@ -10476,8 +10524,8 @@ export default function Home() {
               <div className="form-grid two">
                 <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
                 <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_COMBO_30D}, {SALE_LABEL_PRICE_COMBO_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
-                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua Combo => buy_full_1m | Hỗ trợ => nav:support_page"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Có thể dùng biến như {"{BTN_BUY_COMBO_30D}"}</span>} />
+                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_COMBO_30D}, {PRICE_G2_365D}, {SALE_LABEL_PRICE_COMBO_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
+                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua Combo => buy_full_1m | Hỗ trợ => nav:support_page\\nMua G2 365 ngày => buy_G2_365d"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Cú pháp nhanh: `nav:page_id` để chuyển trang, `buy_*` để mua, ví dụ {`{PRICE_G2_LIFE}`}</span>} />
               </div>
             </Box>
           </MuiDialogShell>
