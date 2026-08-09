@@ -66,6 +66,7 @@ import {
   Typography,
   TextField,
   Grid,
+  type ChipProps,
 } from "@mui/material";
 import { Fragment, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6460,6 +6461,28 @@ export default function Home() {
       "-"
     );
   }
+  function supportKickStateLabel(item: SupportEvent) {
+    const state = String(item.raw_data?.kick_state || item.raw_data?.state || "").trim().toLowerCase();
+    if (!state) {
+      if (item.event_type === "member_kick_closed") return "done";
+      if (item.event_type === "member_kick_failed") return "error";
+      if (item.event_type === "member_kick_skipped_admin") return "skipped_admin";
+      if (item.event_type === "member_kicked") return "pending";
+      return "";
+    }
+    if (state === "done") return "done";
+    if (state === "error" || state === "failed") return "error";
+    if (state === "skipped_admin") return "skipped_admin";
+    if (state === "pending" || state === "running" || state === "waiting") return "pending";
+    return state;
+  }
+  function supportKickStateChipColor(state: string): ChipProps["color"] {
+    if (state === "done") return "success";
+    if (state === "error") return "error";
+    if (state === "skipped_admin") return "info";
+    if (state === "pending") return "warning";
+    return "default";
+  }
   const supportEventRows = useMemo(() => {
     const filtered = supportGroupEvents.filter((item) => {
       if (supportTab === "joined") return item.event_type === "support_joined";
@@ -6482,8 +6505,18 @@ export default function Home() {
         item.raw_data?.old_status ? `Cũ: ${item.raw_data.old_status}` : "",
         item.raw_data?.new_status ? `Mới: ${item.raw_data.new_status}` : "",
         item.raw_data?.reason ? `Lý do: ${String(item.raw_data.reason)}` : "",
+        item.raw_data?.kick_state ? `Kick state: ${String(item.raw_data.kick_state)}` : "",
       ].filter(Boolean).join(" • ") || "-", item.event_type)} arrow>
         <Box component="span" sx={{ display: "inline-grid", gap: 0.25 }}>
+          {supportKickStateLabel(item) ? (
+            <Chip
+              size="small"
+              label={`Kick: ${supportKickStateLabel(item)}`}
+              color={supportKickStateChipColor(supportKickStateLabel(item))}
+              variant="outlined"
+              sx={{ height: 20, fontSize: 10.5, fontWeight: 800, width: "fit-content" }}
+            />
+          ) : null}
           {item.raw_data?.old_status || item.raw_data?.new_status ? (
             <Chip size="small" label={`${friendlyDetailText(String(item.raw_data?.old_status || "-"))} → ${friendlyDetailText(String(item.raw_data?.new_status || "-"))}`} color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800, width: "fit-content" }} />
           ) : null}

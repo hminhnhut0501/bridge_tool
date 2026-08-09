@@ -531,6 +531,39 @@ def latest_support_event(event_type, user_id, order_id, chat_id):
         logging.warning("⚠️ Không đọc được support event %s user=%s order=%s chat=%s: %s", event_type, user_id, order_id, chat_id, exc)
         return None
 
+
+def support_event_state(user_id, order_id, chat_id):
+    """
+    Chuẩn hóa trạng thái cuối của kick/mute để tránh xử lý lặp.
+    - done: đã hoàn tất kick
+    - pending: đã có sự kiện kick/mute nhưng chưa đóng
+    - error: đã ghi nhận lỗi
+    - skipped_admin: người dùng là admin/owner
+    - none: chưa có sự kiện nào
+    """
+    for event_type, state in (
+        ("member_kick_closed", "done"),
+        ("member_kick_failed", "error"),
+        ("member_kick_skipped_admin", "skipped_admin"),
+        ("member_kicked", "pending"),
+    ):
+        event = latest_support_event(event_type, user_id, order_id, chat_id)
+        if event:
+            return state, event
+    return "none", None
+
+
+def support_mute_state(user_id, order_id, chat_id):
+    for event_type, state in (
+        ("member_unmuted", "done"),
+        ("member_mute_skipped_admin", "skipped_admin"),
+        ("member_muted", "pending"),
+    ):
+        event = latest_support_event(event_type, user_id, order_id, chat_id)
+        if event:
+            return state, event
+    return "none", None
+
 def is_kick_finalized(user_id, order_id, chat_id):
     return bool(latest_support_event("member_kick_closed", user_id, order_id, chat_id))
 
@@ -539,11 +572,11 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
     if not (support_group_enabled() and support_group_mute_enabled() and gid):
         return False
     plan_label = display_plan_name(plan_name, user_id)
-    if latest_support_event("member_muted", user_id, order_id, gid):
+    mute_state, mute_event = support_mute_state(user_id, order_id, gid)
+    if mute_state in {"pending", "done", "skipped_admin"}:
         return True
-    if latest_support_event("member_mute_skipped_admin", user_id, order_id, gid):
-        return True
-    if latest_support_event("member_kicked", user_id, order_id, gid):
+    kick_state, kick_event = support_event_state(user_id, order_id, gid)
+    if kick_state in {"done", "skipped_admin"}:
         return True
     member = await get_chat_member_safe(gid, user_id)
     if member_is_admin_or_owner(member):
@@ -560,13 +593,20 @@ async def ensure_support_group_muted(user_id, order_id, plan_name, expire_str):
         return True
     try:
         await mute_member(gid, user_id)
+        payload = {
+            "reason": "support_grace_started",
+            "expire_at": expire_str,
+            "grace_days": support_group_grace_days(),
+            "plan_name_raw": plan_name,
+            "mute_state": "done",
+        }
         record_support_event(
             "member_muted",
             user_id,
             chat_id=gid,
             order_id=order_id,
             plan_name=plan_label,
-            raw_data={"reason": "support_grace_started", "expire_at": expire_str, "grace_days": support_group_grace_days(), "plan_name_raw": plan_name},
+            raw_data=payload,
         )
         logging.info("🔇 Đã mute User %s trong group hỗ trợ %s sau khi hết hạn.", user_id, gid)
         return True
@@ -579,7 +619,7 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
     if not (support_group_enabled() and gid):
         return
     plan_label = display_plan_name(plan_name, user_id)
-    muted_event = latest_support_event("member_muted", user_id, order_id, gid)
+    mute_state, muted_event = support_mute_state(user_id, order_id, gid)
     if not muted_event:
         return
     unmuted_event = latest_support_event("member_unmuted", user_id, order_id, gid)
@@ -593,7 +633,7 @@ async def ensure_support_group_unmuted(user_id, order_id, plan_name):
             chat_id=gid,
             order_id=order_id,
             plan_name=plan_label,
-            raw_data={"reason": "active_membership", "plan_name_raw": plan_name},
+            raw_data={"reason": "active_membership", "plan_name_raw": plan_name, "mute_state": "done"},
         )
         logging.info("🔊 User %s đang có gói active, đã mở mute trong group hỗ trợ %s.", user_id, gid)
     except Exception as exc:
@@ -637,7 +677,8 @@ async def ensure_member_kicked(
             chat_id,
         )
         return True
-    if is_kick_finalized(user_id, order_id, normalized_chat_id):
+    kick_state, kick_event = support_event_state(user_id, order_id, normalized_chat_id)
+    if kick_state == "done":
         logging.info(
             "⏭ Bỏ qua kick User %s group %s đơn %s vì đã có member_kick_closed.",
             user_id,
@@ -645,6 +686,14 @@ async def ensure_member_kicked(
             order_id,
         )
         return True
+    if kick_state == "error":
+        logging.info(
+            "⏭ Bỏ qua kick User %s group %s đơn %s vì đã có member_kick_failed.",
+            user_id,
+            chat_id,
+            order_id,
+        )
+        return False
     recent_at = recent_kicks.get(kick_key)
     if recent_at and now - recent_at < timedelta(minutes=cooldown_minutes):
         logging.info(
@@ -717,6 +766,7 @@ async def ensure_member_kicked(
         if existing_kick:
             payload["previous_kick_event_at"] = existing_kick.get("created_at")
             payload["source"] = "recheck_member_present"
+        payload["kick_state"] = "pending"
         plan_label = display_plan_name(plan_name, user_id)
         payload["plan_name_raw"] = plan_name
         record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data=payload)
@@ -836,7 +886,7 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
         )
         return
 
-    muted_event = latest_support_event("member_muted", user_id, order_id, gid)
+    mute_state, muted_event = support_mute_state(user_id, order_id, gid)
     if not muted_event:
         await ensure_support_group_muted(user_id, order_id, plan_name, expire_str)
         return
