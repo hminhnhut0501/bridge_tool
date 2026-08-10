@@ -3499,8 +3499,10 @@ export default function Home() {
   const [groupAliases, setGroupAliases] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groupPrice1m, setGroupPrice1m] = useState("");
+  const [groupPrice365, setGroupPrice365] = useState("");
   const [groupPriceLife, setGroupPriceLife] = useState("");
   const [groupPrice1mUsd, setGroupPrice1mUsd] = useState("");
+  const [groupPrice365Usd, setGroupPrice365Usd] = useState("");
   const [groupPriceLifeUsd, setGroupPriceLifeUsd] = useState("");
   const groupAliasRef = useRef<HTMLTextAreaElement | null>(null);
   const [groupAliasFocusKey, setGroupAliasFocusKey] = useState("");
@@ -4450,8 +4452,10 @@ export default function Home() {
     setGroupAliases("");
     setGroupId("");
     setGroupPrice1m("");
+    setGroupPrice365("");
     setGroupPriceLife("");
     setGroupPrice1mUsd("");
+    setGroupPrice365Usd("");
     setGroupPriceLifeUsd("");
   }
 
@@ -4473,8 +4477,10 @@ export default function Home() {
     setGroupAliases(getConfigValue(config, `BTN_G${normalized}_ALIASES`));
     setGroupId(getConfigValue(config, `ID_G${normalized}`));
     setGroupPrice1m(getConfigValue(config, `PRICE_G${normalized}_1M`));
+    setGroupPrice365(getConfigValue(config, `PRICE_G${normalized}_365D`));
     setGroupPriceLife(getConfigValue(config, `PRICE_G${normalized}_LIFE`));
     setGroupPrice1mUsd(getConfigValue(config, `PRICE_G${normalized}_1M_USD`));
+    setGroupPrice365Usd(getConfigValue(config, `PRICE_G${normalized}_365D_USD`));
     setGroupPriceLifeUsd(getConfigValue(config, `PRICE_G${normalized}_LIFE_USD`));
   }
 
@@ -4541,8 +4547,10 @@ export default function Home() {
         { key: canonicalConfigKey(`BTN_G${normalizedGroupNo}_ALIASES`), value: Array.from(aliasValues).join("\n") },
         { key: canonicalConfigKey(`ID_G${normalizedGroupNo}`), value: groupId },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_1M`), value: groupPrice1m },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_365D`), value: groupPrice365 },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_LIFE`), value: groupPriceLife },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_1M_USD`), value: groupPrice1mUsd },
+        { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_365D_USD`), value: groupPrice365Usd },
         { key: canonicalConfigKey(`PRICE_G${normalizedGroupNo}_LIFE_USD`), value: groupPriceLifeUsd },
       ]);
       clearGroupFields();
@@ -8663,7 +8671,9 @@ export default function Home() {
                       priceVnd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0), "VND"),
                       priceUsd: formatDisplayCurrency(Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0), "USD"),
                       accent: "#7c3aed",
-                      softBg: "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(255,255,255,0.92))",
+                      softBg: Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) > 0 || Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0) > 0
+                        ? "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(250,245,255,0.98))"
+                        : "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(255,255,255,0.92))",
                     },
                   ].map((item) => (
                     <Card
@@ -8685,13 +8695,13 @@ export default function Home() {
                         overflow: "hidden",
                         borderColor: "rgba(37,99,235,0.12)",
                         background: item.softBg,
-                        boxShadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
+                        boxShadow: item.variant === "365d" ? "0 14px 34px rgba(124, 58, 237, 0.10)" : "0 10px 28px rgba(15, 23, 42, 0.05)",
                         cursor: "pointer",
                         transition: "transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
                         "&:hover": {
                           transform: "translateY(-1px)",
-                          boxShadow: "0 14px 34px rgba(15, 23, 42, 0.08)",
-                          borderColor: "rgba(37,99,235,0.20)",
+                          boxShadow: item.variant === "365d" ? "0 20px 42px rgba(124, 58, 237, 0.16)" : "0 14px 34px rgba(15, 23, 42, 0.08)",
+                          borderColor: item.variant === "365d" ? "rgba(124,58,237,0.28)" : "rgba(37,99,235,0.20)",
                         },
                       }}
                     >
@@ -8702,6 +8712,13 @@ export default function Home() {
                               <ShieldCheck size={20} />
                             </Box>
                             <Box sx={{ minWidth: 0 }}>
+                              <Chip
+                                size="small"
+                                label={item.variant === "365d" ? "365 NGÀY" : item.variant === "life" ? "TRỌN ĐỜI" : "30 NGÀY"}
+                                color={item.variant === "365d" ? "secondary" : item.variant === "life" ? "primary" : "success"}
+                                variant="filled"
+                                sx={{ mb: 1, fontWeight: 900, letterSpacing: 0.4 }}
+                              />
                               <Typography sx={{ fontSize: 16.5, fontWeight: 900, lineHeight: 1.15 }}>
                                 {item.title}
                               </Typography>
@@ -8710,14 +8727,22 @@ export default function Home() {
                               </Typography>
                             </Box>
                           </Box>
-                          <Typography sx={{ fontSize: 24, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap", color: "text.primary", pt: 0.1 }}>
-                            {item.priceVnd}
-                          </Typography>
+                          <Box sx={{ textAlign: "right" }}>
+                            <Typography sx={{ fontSize: 24, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap", color: "text.primary", pt: 0.1 }}>
+                              {item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 ? "Chưa cấu hình" : item.priceVnd}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
+                              {item.variant === "365d" ? "Giá chính cho luồng 365 ngày" : item.variant === "life" ? "Giá chính cho trọn đời" : "Giá chính cho 30 ngày"}
+                            </Typography>
+                          </Box>
                         </Box>
 
                         <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 1.25 }}>
-                          <Chip size="small" label={`VNĐ ${item.priceVnd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
-                          <Chip size="small" label={`USD ${item.priceUsd}`} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
+                          <Chip size="small" label={`VNĐ ${item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 ? "Chưa có giá" : item.priceVnd}`} variant="outlined" color={item.variant === "365d" ? "secondary" : "default"} sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
+                          <Chip size="small" label={`USD ${item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0) <= 0 ? "Chưa có giá" : item.priceUsd}`} variant="outlined" color={item.variant === "365d" ? "secondary" : "default"} sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
+                          {item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 && Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0) <= 0 ? (
+                            <Chip size="small" label="Thiếu giá 365" color="warning" variant="outlined" sx={{ bgcolor: "rgba(255,251,235,0.95)", fontWeight: 800 }} />
+                          ) : null}
                           {item.aliases.slice(0, 2).map((alias) => (
                             <Chip key={`${item.title}-${alias}`} size="small" label={alias} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", maxWidth: "100%", "& .MuiChip-label": { maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" } }} />
                           ))}
@@ -8775,9 +8800,23 @@ export default function Home() {
                           <span className="price-value">{formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_1M`, "0") || 0), "VND")}</span>
                         </div>
                         <div className="bento-price-row">
+                          <span className="price-label">Gói 365 ngày</span>
+                          <span className="price-value">
+                            {Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0) > 0
+                              ? formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0), "VND")
+                              : <span className="muted">Chưa có giá</span>}
+                          </span>
+                        </div>
+                        <div className="bento-price-row">
                           <span className="price-label">Gói Trọn đời</span>
                           <span className="price-value">{formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_LIFE`, "0") || 0), "VND")}</span>
                         </div>
+                        {Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0) <= 0 ? (
+                          <div className="bento-price-row">
+                            <span className="price-label">365 ngày</span>
+                            <span className="price-value muted">Chưa cấu hình</span>
+                          </div>
+                        ) : null}
                       </div>
                     </button>
                   );
@@ -10317,8 +10356,10 @@ export default function Home() {
                 />
                 <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice1m(roundMoneyInput(groupPrice1m, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
+                <TextField className="field" label="Giá VNĐ 365 ngày" value={groupPrice365} onChange={(event) => setGroupPrice365(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice365(roundMoneyInput(groupPrice365, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_365D`) || "VD: 199000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
                 <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPriceLife(roundMoneyInput(groupPriceLife, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
                 <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice1mUsd(roundMoneyInput(groupPrice1mUsd, "USD"))} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
+                <TextField className="field" label="Giá USD 365 ngày" value={groupPrice365Usd} onChange={(event) => setGroupPrice365Usd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice365Usd(roundMoneyInput(groupPrice365Usd, "USD"))} placeholder="VD: 9.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
                 <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPriceLifeUsd(roundMoneyInput(groupPriceLifeUsd, "USD"))} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
               </div>
             </Box>
