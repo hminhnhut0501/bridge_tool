@@ -361,7 +361,7 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
-    def list_orders(self, limit=200, created_at_gte=None, created_at_lt=None):
+    def list_orders(self, limit=200, created_at_gte=None, created_at_lt=None, updated_after=None):
         params = [
             ("select", "*"),
             ("order", "created_at.desc"),
@@ -371,6 +371,8 @@ class SupabaseStore:
             params.append(("created_at", f"gte.{_parse_datetime(created_at_gte) or created_at_gte}"))
         if created_at_lt is not None:
             params.append(("created_at", f"lt.{_parse_datetime(created_at_lt) or created_at_lt}"))
+        if updated_after is not None:
+            params.append(("updated_at", f"gt.{_parse_datetime(updated_after) or updated_after}"))
         rows = self._cached_request(
             "GET",
             "orders",
@@ -1591,10 +1593,12 @@ class SupabaseStore:
         )
         return rows[0] if rows else None
 
-    def list_support_tickets(self, limit=100, status=None):
+    def list_support_tickets(self, limit=100, status=None, updated_after=None):
         params = {"select": "*", "order": "updated_at.desc", "limit": str(limit)}
         if status:
             params["status"] = f"eq.{_clean_text(status)}"
+        if updated_after is not None:
+            params["updated_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         return self._cached_request("GET", "support_tickets", params=params)
 
     def search_support_tickets(self, query, limit=20):
@@ -1817,15 +1821,18 @@ class SupabaseStore:
                 row["username"] = usernames_by_user_id[user_id]
         return rows
 
-    def list_support_events(self, limit=500):
+    def list_support_events(self, limit=500, updated_after=None):
+        params = {
+            "select": "id,event_type,telegram_user_id,username,full_name,chat_id,chat_title,order_id,plan_name,raw_data,created_at",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        }
+        if updated_after is not None:
+            params["created_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         rows = self._cached_request(
             "GET",
             "support_events",
-            params={
-                "select": "id,event_type,telegram_user_id,username,full_name,chat_id,chat_title,order_id,plan_name,raw_data,created_at",
-                "order": "created_at.desc",
-                "limit": str(limit),
-            },
+            params=params,
         )
         return self._enrich_support_event_names(rows)
 
@@ -2101,12 +2108,15 @@ class SupabaseStore:
             return []
         return self._request("POST", "analytics_events", json=payload)
 
-    def list_analytics_events(self, limit=500):
+    def list_analytics_events(self, limit=500, updated_after=None):
         fetch_limit = min(max(int(limit) * 5, int(limit)), 5000)
+        params = {"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(fetch_limit)}
+        if updated_after is not None:
+            params["created_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         rows = self._cached_request(
             "GET",
             "analytics_events",
-            params={"select": "id,event_name,telegram_user_id,payload,created_at", "order": "created_at.desc", "limit": str(fetch_limit)},
+            params=params,
         )
         visible = []
         for row in rows:
@@ -2265,11 +2275,14 @@ class SupabaseStore:
             counts[recipient["segment"]] = counts.get(recipient["segment"], 0) + 1
         return {"total": len(recipients), "counts": counts, "sample": recipients[:20]}
 
-    def list_broadcast_campaigns(self, limit=100):
+    def list_broadcast_campaigns(self, limit=100, updated_after=None):
+        params = {"select": "id,title,message,status,target_segment,plan_filter,plan_match_scope,created_at,updated_at", "order": "created_at.desc", "limit": str(limit)}
+        if updated_after is not None:
+            params["updated_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         campaigns = self._cached_request(
             "GET",
             "broadcast_campaigns",
-            params={"select": "id,title,message,status,target_segment,plan_filter,plan_match_scope,created_at", "order": "created_at.desc", "limit": str(limit)},
+            params=params,
         )
         return campaigns
 
@@ -2515,10 +2528,12 @@ class SupabaseStore:
             legacy_payload.pop("repeat_daily", None)
             return self._request(method, "channel_posts", params=params, json=legacy_payload, prefer=prefer)
 
-    def list_channel_posts(self, limit=200, status=None):
+    def list_channel_posts(self, limit=200, status=None, updated_after=None):
         params = {"select": "*", "order": "updated_at.desc", "limit": str(min(int(limit or 200), 100))}
         if status:
             params["status"] = f"eq.{_clean_text(status).lower()}"
+        if updated_after is not None:
+            params["updated_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         return self._cached_request("GET", "channel_posts", params=params, ttl=60)
 
     def get_channel_post(self, post_id):

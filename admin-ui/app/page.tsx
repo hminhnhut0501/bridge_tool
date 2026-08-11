@@ -3428,6 +3428,15 @@ export default function Home() {
   const adminReplyFallbackTimerRef = useRef<number | null>(null);
   const adminReplyThreadBottomRef = useRef<HTMLDivElement | null>(null);
   const adminReplyStickToBottomRef = useRef(false);
+  const ordersUpdatedAfterRef = useRef("");
+  const supportEventsUpdatedAfterRef = useRef("");
+  const activityEventsUpdatedAfterRef = useRef("");
+  const campaignsUpdatedAfterRef = useRef("");
+  const channelPostsUpdatedAfterRef = useRef("");
+  const kickAuditUpdatedAfterRef = useRef("");
+  const vipGroupAuditUpdatedAfterRef = useRef("");
+  const vipMemberAuditUpdatedAfterRef = useRef("");
+  const blacklistUpdatedAfterRef = useRef("");
   const [campaignForm, setCampaignForm] = useState({ ...EMPTY_CAMPAIGN_FORM });
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
@@ -3442,18 +3451,69 @@ export default function Home() {
   const [supportInboxMenuAnchorEl, setSupportInboxMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [supportInboxCases, setSupportInboxCases] = useState<SupportCaseItem[]>([]);
   const [supportInboxCasesLoading, setSupportInboxCasesLoading] = useState(false);
+  const supportInboxUpdatedAfterRef = useRef("");
+  const activityLogUpdatedAfterRef = useRef("");
   const refreshSupportInboxCases = useCallback(async () => {
     if (!savedSecret) return;
     setSupportInboxCasesLoading(true);
     try {
-      const res = await getSupportCases(savedSecret, "", 12);
-      setSupportInboxCases(res.data || []);
+      const res = await getSupportCases(savedSecret, "", 12, "", 20, supportInboxUpdatedAfterRef.current || undefined);
+      const nextCases = res.data || [];
+      setSupportInboxCases((current) => mergeSupportCases(current, nextCases));
+      const newest = getNewestTimestamp(
+        nextCases.flatMap((item) => [item.ticket, ...(item.messages || [])]) as Array<Record<string, unknown>>,
+        ["updated_at", "created_at"],
+      );
+      supportInboxUpdatedAfterRef.current = newest || supportInboxUpdatedAfterRef.current;
     } catch (err) {
       console.warn("⚠️ Không tải được support cases:", err);
     } finally {
       setSupportInboxCasesLoading(false);
     }
   }, [savedSecret]);
+
+  function getNewestTimestamp(rows: Array<Record<string, unknown>>, fields: string[]) {
+    let newest = "";
+    let newestMs = -1;
+    for (const row of rows || []) {
+      for (const field of fields) {
+        const value = String(row?.[field] ?? "").trim();
+        if (!value) continue;
+        const ms = safeDateMillis(value) ?? Date.parse(value);
+        if (!Number.isNaN(ms) && ms > newestMs) {
+          newestMs = ms;
+          newest = value;
+        }
+      }
+    }
+    return newest;
+  }
+
+  function mergeById<T extends Record<string, unknown>>(current: T[], incoming: T[], key: string) {
+    const map = new Map<string, T>();
+    for (const item of current) {
+      const id = String(item[key] ?? "").trim();
+      if (id) map.set(id, item);
+    }
+    for (const item of incoming) {
+      const id = String(item[key] ?? "").trim();
+      if (id) map.set(id, item);
+    }
+    return [...map.values()];
+  }
+
+  function mergeSupportCases(current: SupportCaseItem[], incoming: SupportCaseItem[]) {
+    const map = new Map<string, SupportCaseItem>();
+    for (const item of current) {
+      const id = String(item.ticket?.id ?? "").trim();
+      if (id) map.set(id, item);
+    }
+    for (const item of incoming) {
+      const id = String(item.ticket?.id ?? "").trim();
+      if (id) map.set(id, item);
+    }
+    return [...map.values()];
+  }
   const [channelPostTab, setChannelPostTab] = useState<ChannelPostTab>("queue");
   const [channelPostPage, setChannelPostPage] = useState(1);
   const [selectedChannelPostId, setSelectedChannelPostId] = useState<number | null>(null);
@@ -3777,7 +3837,7 @@ export default function Home() {
     if (!savedSecret) return;
     if (!["campaigns", "channelPosts"].includes(tab)) return;
     const interval = window.setInterval(() => {
-      loadAll(savedSecret, { silent: true, resetPages: false, scope: tab, mode: "light" });
+      void refreshTabDelta(savedSecret, { scope: tab });
     }, AUTO_REFRESH_SECONDS * 1000);
     return () => window.clearInterval(interval);
   }, [savedSecret, tab]);
@@ -4011,7 +4071,23 @@ export default function Home() {
     });
   }
 
-  async function loadAll(activeSecret = savedSecret, options: LoadOptions = {}) {
+  async function loadSummary(activeSecret = savedSecret, options: { includeOverview?: boolean } = {}) {
+    if (!activeSecret) return;
+    const tasks = [
+      getDashboardSummary(activeSecret).then((res) => setDashboardSummary(res.data)),
+      getWebhookInfo(activeSecret).then((res) => {
+        setWebhook(res.data);
+        setWebhookMeta(res.meta);
+      }),
+      getBotScheduleStatus(activeSecret).then((res) => setBotScheduleStatusApi(res.data)),
+    ];
+    if (options.includeOverview) {
+      tasks.push(getDashboardOverview(activeSecret).then((res) => setDashboardOverview(res.data)));
+    }
+    await Promise.all(tasks);
+  }
+
+  async function loadTab(activeSecret = savedSecret, options: LoadOptions = {}) {
     if (!activeSecret) return;
     const silent = Boolean(options.silent);
     const resetPages = options.resetPages ?? !silent;
@@ -4020,110 +4096,271 @@ export default function Home() {
     const light = mode === "light";
     const isAll = scope === "all";
     const shouldLoad = (...tabs: Tab[]) => isAll || tabs.includes(scope as Tab);
+    const tasks: Promise<void>[] = [];
+    const addTask = <T,>(
+      enabled: boolean,
+      promiseFactory: () => Promise<{ data: T }>,
+      setter: (data: T) => void,
+      afterSet?: (data: T) => void,
+    ) => {
+      if (enabled) {
+        tasks.push(
+          promiseFactory().then((res) => {
+            setter(res.data);
+            afterSet?.(res.data);
+          })
+        );
+      }
+    };
+
+    if (!light && shouldLoad("analytics", "overview")) {
+      addTask(true, () => getMarketingStats(activeSecret, marketingRange), setMarketingStats);
+    }
+    const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || scope === "overview";
+    const needsUsers = (!light && shouldLoad("analytics")) || scope === "overview";
+    const needsConfig = !light;
+    const needsPaymentSchema = !light && shouldLoad("payment");
+    const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
+    const needsSales = !light && shouldLoad("sales");
+    const needsCoupons = !light && shouldLoad("overview", "coupons");
+    const needsLicense = !light && shouldLoad("license");
+    const needsActivationCodes = !light && shouldLoad("activationCodes");
+    const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
+    const needsBlacklist = !light && shouldLoad("security");
+    const needsSupportEvents = (!light && shouldLoad("renewals", "supportGroup")) || scope === "overview";
+    const needsKickAudit = !light && shouldLoad("renewals");
+    const needsVipGroupAudit = !light && shouldLoad("renewals");
+    const needsVipMemberAudit = !light && shouldLoad("vipAudit", "renewals", "security");
+    const needsActivityEvents = (!light && shouldLoad("analytics")) || scope === "overview";
+    const needsCampaigns = shouldLoad("campaigns");
+    const needsChannelPosts = shouldLoad("channelPosts");
+
+    addTask(
+      needsOrders,
+      () => getOrders(activeSecret, scope === "overview" ? 50 : 5000),
+      setOrders,
+      (data) => {
+        ordersUpdatedAfterRef.current = getNewestTimestamp(data as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || ordersUpdatedAfterRef.current;
+      }
+    );
+    addTask(needsUsers, () => getUsers(activeSecret), setUsers);
+    addTask(needsConfig, () => getConfig(activeSecret), setConfig);
+    addTask(needsPaymentSchema, () => getPaymentSchema(activeSecret), setPaymentSchema);
+    addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
+    addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
+    addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
+    addTask(needsLicense, () => getLicenses(activeSecret), setLicenses);
+    addTask(needsLicense, () => getLicenseSessions(activeSecret), setLicenseSessions);
+    addTask(needsLicense, () => getLicenseAudits(activeSecret), setLicenseAudits);
+    addTask(needsActivationCodes, () => getActivationCodes(activeSecret), setActivationCodes);
+    addTask(needsHidden, () => getHiddenGroups(activeSecret), setHiddenGroups);
+    addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
+    addTask(needsHidden, () => getHiddenRedemptions(activeSecret, 200), setHiddenRedemptions);
+    addTask(needsBlacklist, () => getBlacklist(activeSecret), setBlacklist);
+    addTask(
+      needsSupportEvents,
+      () => getSupportEvents(activeSecret, scope === "overview" ? 25 : 1000),
+      setSupportEvents,
+      (data) => {
+        supportEventsUpdatedAfterRef.current = getNewestTimestamp(data as Array<Record<string, unknown>>, ["created_at"]) || supportEventsUpdatedAfterRef.current;
+      }
+    );
+    addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
+    addTask(needsVipGroupAudit, () => getVipGroupAudit(activeSecret), setVipGroupAudit);
+    addTask(needsVipMemberAudit, () => getVipMemberAudit(activeSecret), setVipMemberAudit);
+    addTask(
+      needsActivityEvents,
+      () => getActivityEvents(activeSecret, scope === "overview" ? 25 : 50),
+      setActivityEvents,
+      (data) => {
+        activityEventsUpdatedAfterRef.current = getNewestTimestamp(data as Array<Record<string, unknown>>, ["created_at"]) || activityEventsUpdatedAfterRef.current;
+      }
+    );
+    addTask(
+      needsCampaigns,
+      () => getCampaigns(activeSecret),
+      setCampaigns,
+      (data) => {
+        campaignsUpdatedAfterRef.current = getNewestTimestamp(data as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || campaignsUpdatedAfterRef.current;
+      }
+    );
+    addTask(
+      needsChannelPosts,
+      () => getChannelPosts(activeSecret),
+      setChannelPosts,
+      (data) => {
+        channelPostsUpdatedAfterRef.current = getNewestTimestamp(data as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || channelPostsUpdatedAfterRef.current;
+      }
+    );
+
+    await Promise.all(tasks);
+    if (
+      process.env.NODE_ENV !== "production" &&
+      !demoDataInjected &&
+      !orders.length &&
+      !users.length &&
+      typeof window !== "undefined" &&
+      ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ) {
+      setOrders(DEMO_ORDERS);
+      setUsers(DEMO_USERS);
+      setWebhook((current) =>
+        current?.url
+          ? current
+          : {
+              url: "http://127.0.0.1:8000/webhook",
+              has_custom_certificate: false,
+              pending_update_count: 0,
+              allowed_updates: ["message", "callback_query", "chat_member"],
+            }
+      );
+      setWebhookMeta((current) =>
+        current ?? {
+          expected_url: "http://127.0.0.1:8000/webhook",
+          last_reset_reason: "",
+          failure_streak: 0,
+          problem_reason: "",
+          maintenance_override: { active: false, reason: "", source: "" },
+        }
+      );
+      setDemoDataInjected(true);
+    }
+    if (resetPages) {
+      setOrderPage(1);
+      setCouponPage(1);
+    }
+  }
+
+  async function refreshTabDelta(activeSecret = savedSecret, options: LoadOptions = {}) {
+    if (!activeSecret) return;
+    const scope = options.scope || tab;
+    const shouldLoad = (...tabs: Tab[]) => scope === "all" || tabs.includes(scope as Tab);
+    if (shouldLoad("overview")) {
+      await loadSummary(activeSecret);
+      return;
+    }
+    const tasks: Promise<void>[] = [];
+    const add = <T,>(promise: Promise<{ data: T }>, apply: (data: T) => void) => {
+      tasks.push(promise.then((res) => apply(res.data)));
+    };
+    if (shouldLoad("orders", "customers", "renewals")) {
+      add(getOrders(activeSecret, 1000, ordersUpdatedAfterRef.current || undefined), (data) => {
+        const nextOrders = data as Order[];
+        setOrders((current) => mergeById(current, nextOrders, "order_id"));
+        ordersUpdatedAfterRef.current = getNewestTimestamp(nextOrders as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || ordersUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("renewals", "supportGroup")) {
+      add(getSupportEvents(activeSecret, 200, supportEventsUpdatedAfterRef.current || undefined), (data) => {
+        const nextEvents = data as SupportEvent[];
+        setSupportEvents((current) => mergeById(current, nextEvents, "id"));
+        supportEventsUpdatedAfterRef.current = getNewestTimestamp(nextEvents as Array<Record<string, unknown>>, ["created_at"]) || supportEventsUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("analytics")) {
+      add(getActivityEvents(activeSecret, 50, activityEventsUpdatedAfterRef.current || undefined), (data) => {
+        const nextEvents = data as ActivityEvent[];
+        setActivityEvents((current) => mergeById(current, nextEvents, "id"));
+        activityEventsUpdatedAfterRef.current = getNewestTimestamp(nextEvents as Array<Record<string, unknown>>, ["created_at"]) || activityEventsUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("security")) {
+      add(getBlacklist(activeSecret), (data) => {
+        const nextBlacklist = data as BlacklistEntry[];
+        setBlacklist((current) => mergeById(current, nextBlacklist, "telegram_user_id"));
+        blacklistUpdatedAfterRef.current = new Date().toISOString();
+      });
+    }
+    if (shouldLoad("renewals")) {
+      add(getKickAudit(activeSecret, false, kickAuditUpdatedAfterRef.current || undefined), (data) => {
+        const nextKickAudit = data as KickAuditRow[];
+        setKickAudit((current) => mergeById(current, nextKickAudit, "audit_id"));
+        kickAuditUpdatedAfterRef.current = getNewestTimestamp(nextKickAudit as Array<Record<string, unknown>>, ["latest_kick_at", "expire_at"]) || kickAuditUpdatedAfterRef.current;
+      });
+      add(getVipGroupAudit(activeSecret, false, vipGroupAuditUpdatedAfterRef.current || undefined), (data) => {
+        const nextVipGroupAudit = data as VipGroupAuditRow[];
+        setVipGroupAudit((current) => mergeById(current, nextVipGroupAudit, "audit_id"));
+        vipGroupAuditUpdatedAfterRef.current = getNewestTimestamp(nextVipGroupAudit as Array<Record<string, unknown>>, ["latest_kick_at", "expire_at"]) || vipGroupAuditUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("vipAudit", "renewals", "security")) {
+      add(getVipMemberAudit(activeSecret, false, vipMemberAuditRiskType, vipMemberAuditUpdatedAfterRef.current || undefined), (data) => {
+        const nextVipMemberAudit = data as VipMemberAuditRow[];
+        setVipMemberAudit((current) => mergeById(current, nextVipMemberAudit, "audit_id"));
+        vipMemberAuditUpdatedAfterRef.current = getNewestTimestamp(nextVipMemberAudit as Array<Record<string, unknown>>, ["latest_event_at", "expire_at"]) || vipMemberAuditUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("activityLog")) {
+      tasks.push(
+        getActivityLog(activeSecret, {
+          page: 1,
+          limit: LOG_PAGE_SIZE,
+          query,
+          direction: logDirection,
+          type: logType,
+          date: logDate,
+          updatedAfter: activityLogUpdatedAfterRef.current || undefined,
+        }).then((nextResponse) => {
+          if (!nextResponse?.data?.length) return;
+          const current = activityLogResponse || {
+            data: [],
+            total: 0,
+            page: 1,
+            limit: LOG_PAGE_SIZE,
+            summary: { user: 0, bot: 0, today: 0 },
+            facets: { types: [], dates: [] },
+          };
+          const merged = [...nextResponse.data];
+          for (const item of current.data) {
+            if (!merged.some((fresh) => fresh.id === item.id)) merged.push(item);
+          }
+          setActivityLogResponse({ ...nextResponse, data: merged.slice(0, LOG_PAGE_SIZE) });
+          activityLogUpdatedAfterRef.current = getNewestTimestamp(nextResponse.data as Array<Record<string, unknown>>, ["createdAt"]) || activityLogUpdatedAfterRef.current;
+        })
+      );
+    }
+    if (shouldLoad("campaigns")) {
+      add(getCampaigns(activeSecret, campaignsUpdatedAfterRef.current || undefined), (data) => {
+        const nextCampaigns = data as BroadcastCampaign[];
+        setCampaigns((current) => mergeById(current, nextCampaigns, "id"));
+        campaignsUpdatedAfterRef.current = getNewestTimestamp(nextCampaigns as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || campaignsUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("channelPosts")) {
+      add(getChannelPosts(activeSecret, 200, channelPostsUpdatedAfterRef.current || undefined), (data) => {
+        const nextPosts = data as ChannelPost[];
+        setChannelPosts((current) => mergeById(current, nextPosts, "id"));
+        channelPostsUpdatedAfterRef.current = getNewestTimestamp(nextPosts as Array<Record<string, unknown>>, ["updated_at", "created_at"]) || channelPostsUpdatedAfterRef.current;
+      });
+    }
+    if (shouldLoad("supportGroup")) {
+      add(getSupportCases(activeSecret, "", 12, "", 20, supportInboxUpdatedAfterRef.current || undefined), (data) => {
+        const nextCases = data as SupportCaseItem[];
+        setSupportInboxCases((current) => mergeSupportCases(current, nextCases));
+        const newest = getNewestTimestamp(
+          nextCases.flatMap((item) => [item.ticket, ...(item.messages || [])]) as Array<Record<string, unknown>>,
+          ["updated_at", "created_at"],
+        );
+        supportInboxUpdatedAfterRef.current = newest || supportInboxUpdatedAfterRef.current;
+      });
+    }
+    await Promise.all(tasks);
+  }
+
+  async function loadAll(activeSecret = savedSecret, options: LoadOptions = {}) {
+    if (!activeSecret) return;
+    const silent = Boolean(options.silent);
+    const resetPages = options.resetPages ?? !silent;
+    const scope = options.scope || tab;
     if (!silent) {
       setLoading(true);
       setNotice(null);
     }
     try {
-      const tasks: Promise<void>[] = [];
-      const addTask = <T,>(enabled: boolean, promiseFactory: () => Promise<{ data: T }>, setter: (data: T) => void) => {
-        if (enabled) tasks.push(promiseFactory().then((res) => setter(res.data)));
-      };
-
-      const overviewLite = scope === "overview";
-      addTask(true, () => getDashboardSummary(activeSecret), setDashboardSummary);
-      if (overviewLite) {
-        addTask(true, () => getDashboardOverview(activeSecret), setDashboardOverview);
-      }
-      if (!light && shouldLoad("analytics", "overview")) {
-        addTask(true, () => getMarketingStats(activeSecret, marketingRange), setMarketingStats);
-      }
-      const needsOrders = (!light && shouldLoad("analytics", "orders", "customers", "campaigns", "renewals")) || overviewLite;
-      const needsUsers = (!light && shouldLoad("analytics")) || overviewLite;
-      const needsConfig = !light;
-      const needsPaymentSchema = !light && shouldLoad("payment");
-      const needsMenu = !light && shouldLoad("overview", "content", "botVi", "botEn", "menuBot");
-      const needsSales = !light && shouldLoad("sales");
-      const needsCoupons = !light && shouldLoad("overview", "coupons");
-      const needsLicense = !light && shouldLoad("license");
-      const needsActivationCodes = !light && shouldLoad("activationCodes");
-      const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
-      const needsBlacklist = !light && shouldLoad("security");
-      const needsSupportEvents = (!light && shouldLoad("renewals", "supportGroup")) || overviewLite;
-      const needsKickAudit = !light && shouldLoad("renewals");
-      const needsVipGroupAudit = !light && shouldLoad("renewals");
-      const needsVipMemberAudit = !light && shouldLoad("vipAudit", "renewals", "security");
-      const needsActivityEvents = (!light && shouldLoad("analytics")) || overviewLite;
-      const needsCampaigns = shouldLoad("campaigns");
-      const needsChannelPosts = shouldLoad("channelPosts");
-      const needsWebhook = !light;
-      const needsBotScheduleStatus = !light;
-
-      addTask(needsOrders, () => getOrders(activeSecret, overviewLite ? 50 : 5000), setOrders);
-      addTask(needsUsers, () => getUsers(activeSecret), setUsers);
-      addTask(needsConfig, () => getConfig(activeSecret), setConfig);
-      addTask(needsPaymentSchema, () => getPaymentSchema(activeSecret), setPaymentSchema);
-      addTask(needsMenu, () => getMenuPages(activeSecret), setMenuPages);
-      addTask(needsSales, () => getSaleRules(activeSecret), setSaleRules);
-      addTask(needsCoupons, () => getCoupons(activeSecret), setCoupons);
-      addTask(needsLicense, () => getLicenses(activeSecret), setLicenses);
-      addTask(needsLicense, () => getLicenseSessions(activeSecret), setLicenseSessions);
-      addTask(needsLicense, () => getLicenseAudits(activeSecret), setLicenseAudits);
-      addTask(needsActivationCodes, () => getActivationCodes(activeSecret), setActivationCodes);
-      addTask(needsHidden, () => getHiddenGroups(activeSecret), setHiddenGroups);
-      addTask(needsHidden, () => getHiddenCodes(activeSecret), setHiddenCodes);
-      addTask(needsHidden, () => getHiddenRedemptions(activeSecret, 200), setHiddenRedemptions);
-      addTask(needsBlacklist, () => getBlacklist(activeSecret), setBlacklist);
-      addTask(needsSupportEvents, () => getSupportEvents(activeSecret, overviewLite ? 25 : 1000), setSupportEvents);
-      addTask(needsKickAudit, () => getKickAudit(activeSecret), setKickAudit);
-      addTask(needsVipGroupAudit, () => getVipGroupAudit(activeSecret), setVipGroupAudit);
-      addTask(needsVipMemberAudit, () => getVipMemberAudit(activeSecret), setVipMemberAudit);
-      addTask(needsActivityEvents, () => getActivityEvents(activeSecret, overviewLite ? 25 : 50), setActivityEvents);
-      addTask(needsCampaigns, () => getCampaigns(activeSecret), setCampaigns);
-      addTask(needsChannelPosts, () => getChannelPosts(activeSecret), setChannelPosts);
-      if (needsWebhook) {
-        tasks.push(
-          getWebhookInfo(activeSecret).then((res) => {
-            setWebhook(res.data);
-            setWebhookMeta(res.meta);
-          })
-        );
-      }
-      addTask(needsBotScheduleStatus, () => getBotScheduleStatus(activeSecret), setBotScheduleStatusApi);
-
-      await Promise.all(tasks);
-      if (
-        process.env.NODE_ENV !== "production" &&
-        !demoDataInjected &&
-        !orders.length &&
-        !users.length &&
-        typeof window !== "undefined" &&
-        ["localhost", "127.0.0.1"].includes(window.location.hostname)
-      ) {
-        setOrders(DEMO_ORDERS);
-        setUsers(DEMO_USERS);
-        setWebhook((current) =>
-          current?.url
-            ? current
-            : {
-                url: "http://127.0.0.1:8000/webhook",
-                has_custom_certificate: false,
-                pending_update_count: 0,
-                allowed_updates: ["message", "callback_query", "chat_member"],
-              }
-        );
-        setWebhookMeta((current) =>
-          current ?? {
-            expected_url: "http://127.0.0.1:8000/webhook",
-            last_reset_reason: "",
-            failure_streak: 0,
-            problem_reason: "",
-            maintenance_override: { active: false, reason: "", source: "" },
-          }
-        );
-        setDemoDataInjected(true);
-      }
-      if (resetPages) {
+      await loadSummary(activeSecret, { includeOverview: scope === "overview" || scope === "all" });
+      if (scope !== "overview") {
+        await loadTab(activeSecret, { ...options, silent: true, resetPages });
+      } else if (resetPages) {
         setOrderPage(1);
         setCouponPage(1);
       }
@@ -4175,7 +4412,7 @@ export default function Home() {
     }
   }
 
-  async function loadActivityLogPage(activeSecret = savedSecret, options: { page?: number; limit?: number; query?: string; direction?: string; type?: string; date?: string; silent?: boolean } = {}) {
+  async function loadActivityLogPage(activeSecret = savedSecret, options: { page?: number; limit?: number; query?: string; direction?: string; type?: string; date?: string; silent?: boolean; updatedAfter?: string } = {}) {
     if (!activeSecret) return;
     const requestId = ++activityLogRequestIdRef.current;
     const page = Math.max(1, options.page || logPage || 1);
@@ -4192,9 +4429,13 @@ export default function Home() {
         direction: options.direction ?? logDirection,
         type: options.type ?? logType,
         date: options.date ?? logDate,
+        updatedAfter: options.updatedAfter,
       });
       if (requestId !== activityLogRequestIdRef.current) return;
       setActivityLogResponse(response);
+      if (page === 1) {
+        activityLogUpdatedAfterRef.current = getNewestTimestamp(response.data as Array<Record<string, unknown>>, ["createdAt"]) || activityLogUpdatedAfterRef.current;
+      }
     } catch (err) {
       if (requestId !== activityLogRequestIdRef.current) return;
       if (!silent) showNotice("error", err instanceof Error ? err.message : "Không tải được nhật ký.");

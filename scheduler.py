@@ -6,8 +6,33 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from database import db
 from bot_instance import bot
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
+try:
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+except Exception:
+    class InlineKeyboardBuilder:  # pragma: no cover - test fallback
+        def __init__(self, *args, **kwargs):
+            self._buttons = []
+
+        def button(self, *args, **kwargs):
+            self._buttons.append((args, kwargs))
+            return self
+
+        def row(self, *args, **kwargs):
+            if args:
+                self._buttons.append(("row", args, kwargs))
+            return self
+
+        def adjust(self, *args, **kwargs):
+            return self
+
+        def as_markup(self, *args, **kwargs):
+            return {"inline_keyboard": []}
+
+    class InlineKeyboardButton:  # pragma: no cover - test fallback
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
 from config_utils import config_int, group_numbers
 try:
     from hidden_group_utils import display_plan_name, is_lifetime_order, resolve_plan_groups

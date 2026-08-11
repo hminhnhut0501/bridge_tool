@@ -1,20 +1,39 @@
 import os
 import time
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
-from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 from dotenv import load_dotenv
 
 load_dotenv()
 
-bot = Bot(
-    token=os.getenv("BOT_TOKEN"), 
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
-dp = Dispatcher()
+try:
+    from aiogram import Bot, Dispatcher
+    from aiogram.enums import ParseMode
+    from aiogram.client.default import DefaultBotProperties
+    from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
+
+    bot = Bot(
+        token=os.getenv("BOT_TOKEN"),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    dp = Dispatcher()
+    _AIOGRAM_AVAILABLE = True
+except Exception:
+    BotCommand = BotCommandScopeAllGroupChats = BotCommandScopeAllPrivateChats = None
+    _AIOGRAM_AVAILABLE = False
+
+    class _FallbackBot:
+        async def set_my_commands(self, *args, **kwargs):
+            return None
+
+    class _FallbackDispatcher:
+        def include_router(self, *args, **kwargs):
+            return None
+
+    bot = _FallbackBot()
+    dp = _FallbackDispatcher()
 
 async def set_commands():
+    if not _AIOGRAM_AVAILABLE:
+        return
     try:
         from database import db
 

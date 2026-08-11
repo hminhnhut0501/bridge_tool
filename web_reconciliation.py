@@ -10,6 +10,7 @@ import json
 import os
 import secrets
 import time
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, timezone
 
 import requests
@@ -37,6 +38,21 @@ def _utc_iso_z():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _paypal_amount_minor(order: dict) -> int:
+    """Convert the bot's PayPal USD amount to the web contract's minor units.
+
+    PayPal orders in the bot store ``amount`` as dollars (for example 1.00),
+    while Hangcu_web reconciliation requires cents (100). Keeping this
+    conversion at the boundary prevents the web from recording $0.01.
+    """
+    raw_amount = order.get("amount")
+    try:
+        amount = Decimal(str(raw_amount or "0"))
+    except (InvalidOperation, TypeError, ValueError):
+        return 0
+    return int((amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
 def report_paypal_reconciliation(order: dict, *, license_code: str = "", license_status: str = "", delivery_evidence=None):
     """Send one idempotent evidence snapshot; never changes bot delivery state."""
     url = _url()
@@ -60,7 +76,7 @@ def report_paypal_reconciliation(order: dict, *, license_code: str = "", license
         "paypalCaptureId": str(metadata.get("paypal_capture_id") or metadata.get("payment_id") or ""),
         "paypalPayerId": str(metadata.get("paypal_payer_id") or ""),
         "payerEmail": str(metadata.get("paypal_payer_email") or order.get("customer_email") or ""),
-        "amountMinor": int(order.get("amount") or 0),
+        "amountMinor": _paypal_amount_minor(order),
         "currency": "USD",
         "productType": "support",
         "productName": "Support package",

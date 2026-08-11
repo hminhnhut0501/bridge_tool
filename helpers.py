@@ -1,8 +1,17 @@
 import asyncio
 import logging
-from aiogram.types import Message, CallbackQuery, InputMediaPhoto
-from aiogram.exceptions import TelegramBadRequest
-from aiogram import BaseMiddleware
+try:
+    from aiogram.types import Message, CallbackQuery, InputMediaPhoto
+    from aiogram.exceptions import TelegramBadRequest
+    from aiogram import BaseMiddleware
+except ImportError:  # pragma: no cover - lightweight test fallback
+    Message = CallbackQuery = InputMediaPhoto = object
+
+    class TelegramBadRequest(Exception):
+        pass
+
+    class BaseMiddleware:  # pragma: no cover - lightweight test fallback
+        pass
 from datetime import datetime, time as datetime_time
 import re
 from html import unescape
@@ -16,7 +25,10 @@ from bot_instance import bot, is_spamming
 from i18n import t
 from supabase_store import supabase_store
 from message_filter_utils import is_private_user_content_message
-from aiogram.exceptions import TelegramBadRequest
+try:
+    from aiogram.exceptions import TelegramBadRequest
+except ImportError:  # pragma: no cover - lightweight test fallback
+    pass
 from bot_links import bot_new_url, is_legacy_bot
 
 ADMIN_ID = 887869657  # Nhớ thay bằng ID Telegram của bạn nếu chưa đổi nhé

@@ -21,8 +21,89 @@ except ImportError:  # pragma: no cover - lightweight test fallback
     class Update:  # minimal placeholder for import-time test stubs
         pass
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+try:
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request
+    from fastapi.middleware.cors import CORSMiddleware
+except ImportError:  # pragma: no cover - lightweight test fallback
+    class _FallbackHTTPException(Exception):
+        def __init__(self, status_code=500, detail=None, headers=None):
+            super().__init__(detail or "")
+            self.status_code = status_code
+            self.detail = detail
+            self.headers = headers or {}
+
+    def Depends(*args, **kwargs):
+        return None
+
+    def Header(default=None, *args, **kwargs):
+        return default
+
+    class Request:  # minimal placeholder for import-time test stubs
+        pass
+
+    class FastAPI:  # pragma: no cover - lightweight test fallback
+        def __init__(self, *args, **kwargs):
+            self._routes = []
+
+        def add_middleware(self, *args, **kwargs):
+            return None
+
+        def get(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("get", args, kwargs, func))
+                return func
+            return decorator
+
+        def post(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("post", args, kwargs, func))
+                return func
+            return decorator
+
+        def put(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("put", args, kwargs, func))
+                return func
+            return decorator
+
+        def delete(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("delete", args, kwargs, func))
+                return func
+            return decorator
+
+        def patch(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("patch", args, kwargs, func))
+                return func
+            return decorator
+
+        def options(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("options", args, kwargs, func))
+                return func
+            return decorator
+
+        def on_event(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("on_event", args, kwargs, func))
+                return func
+            return decorator
+
+        def __getattr__(self, name):
+            if name.lower() in {"get", "post", "put", "delete", "patch", "options", "head", "trace"}:
+                def decorator_factory(*args, **kwargs):
+                    def decorator(func):
+                        self._routes.append((name.lower(), args, kwargs, func))
+                        return func
+                    return decorator
+                return decorator_factory
+            raise AttributeError(name)
+
+    class CORSMiddleware:  # pragma: no cover - lightweight test fallback
+        pass
+
+    HTTPException = _FallbackHTTPException
 
 from bot_links import normalize_bot_link_template
 try:
@@ -131,7 +212,11 @@ from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_r
 from stats_marketing_utils import build_marketing_stats_response
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items
 from payment import payment_manager
-from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+try:
+    from modules.mod_auto_payment_schedule import apply_auto_payment_schedule
+except ImportError:  # pragma: no cover - lightweight test fallback
+    def apply_auto_payment_schedule(*args, **kwargs):
+        return None
 from manual_order_helpers import should_skip_manual_active_code
 from admin_notification_utils import admin_notification_from_support_event
 from payment import PAYMENT_PROVIDER_SCHEMA, payment_manager
@@ -2052,8 +2137,8 @@ async def telegram_webhook(request: Request):
 
 
 @app.get("/admin-api/orders", dependencies=[Depends(require_admin)])
-async def admin_orders(limit: int = 200):
-    return {"data": supabase_store.list_orders(limit=limit)}
+async def admin_orders(limit: int = 200, updated_after: str | None = None):
+    return {"data": supabase_store.list_orders(limit=limit, updated_after=updated_after)}
 
 
 @app.get("/admin-api/dashboard-summary", dependencies=[Depends(require_admin)])
@@ -3315,10 +3400,10 @@ async def admin_delete_blacklist(telegram_user_id: str):
 
 
 @app.get("/admin-api/support-events", dependencies=[Depends(require_admin)])
-async def admin_support_events(limit: int = 1000):
+async def admin_support_events(limit: int = 1000, updated_after: str | None = None):
     try:
         safe_limit = max(1, min(int(limit or 1000), 2000))
-        return {"data": supabase_store.list_support_events(limit=safe_limit)}
+        return {"data": supabase_store.list_support_events(limit=safe_limit, updated_after=updated_after)}
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "support_events"):
             warn_missing_table_once("support_events", exc)
@@ -3341,7 +3426,7 @@ async def admin_customer_identity_history(telegram_user_id: str, limit: int = 50
 
 
 @app.get("/admin-api/support-cases", dependencies=[Depends(require_admin)])
-async def admin_support_cases(query: str = "", limit: int = 20, status: str = "", message_limit: int = 20):
+async def admin_support_cases(query: str = "", limit: int = 20, status: str = "", message_limit: int = 20, updated_after: str | None = None):
     try:
         safe_limit = max(1, min(int(limit or 20), 50))
         safe_message_limit = max(1, min(int(message_limit or 20), 200))
@@ -3351,7 +3436,7 @@ async def admin_support_cases(query: str = "", limit: int = 20, status: str = ""
         rows = (
             supabase_store.search_support_tickets(query, limit=safe_limit)
             if str(query or "").strip()
-            else supabase_store.list_support_tickets(limit=safe_limit, status=normalized_status or None)
+            else supabase_store.list_support_tickets(limit=safe_limit, status=normalized_status or None, updated_after=updated_after)
         )
         if normalized_status and str(query or "").strip():
             rows = [row for row in rows if str(row.get("status") or "").strip().lower() == normalized_status]
@@ -3396,27 +3481,27 @@ async def admin_update_support_case(ticket_id: str, request: Request):
 
 
 @app.get("/admin-api/kick-audit", dependencies=[Depends(require_admin)])
-async def admin_kick_audit(live: bool = False):
+async def admin_kick_audit(live: bool = False, updated_after: str | None = None):
     try:
-        return {"data": await build_kick_audit_rows(live=live)}
+        return {"data": await build_kick_audit_rows(live=live, updated_after=updated_after)}
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách kiểm tra kick: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách kiểm tra kick: {exc}")
 
 
 @app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])
-async def admin_vip_group_audit(live: bool = False):
+async def admin_vip_group_audit(live: bool = False, updated_after: str | None = None):
     try:
-        return {"data": await build_vip_group_audit_rows(live=live)}
+        return {"data": await build_vip_group_audit_rows(live=live, updated_after=updated_after)}
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách quét nhóm hỗ trợ: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách quét nhóm hỗ trợ: {exc}")
 
 
 @app.get("/admin-api/vip-member-audit", dependencies=[Depends(require_admin)])
-async def admin_vip_member_audit(live: bool = False, risk_type: str = "ALL"):
+async def admin_vip_member_audit(live: bool = False, risk_type: str = "ALL", updated_after: str | None = None):
     try:
-        return {"data": await build_vip_member_risk_rows(live=live, risk_type_filter=risk_type)}
+        return {"data": await build_vip_member_risk_rows(live=live, risk_type_filter=risk_type, updated_after=updated_after)}
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách audit member VIP: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách audit member VIP: {exc}")
@@ -3528,6 +3613,7 @@ async def admin_activity_log(
     direction: str = "all",
     type: str = "ALL",
     date: str = "ALL",
+    updated_after: str | None = None,
 ):
     try:
         page = max(1, int(page or 1))
@@ -3620,13 +3706,21 @@ async def admin_activity_log(
 
     MAX_FETCH = 3000
 
+    updated_after_value = _backend_text(updated_after)
+
     def fetch_activity(offset: int):
         if offset >= MAX_FETCH: return []
-        return supabase_store.list_analytics_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
+        rows = supabase_store.list_analytics_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
+        if not updated_after_value:
+            return rows
+        return [row for row in rows if _backend_text(row.get("created_at")) > updated_after_value]
 
     def fetch_support(offset: int):
         if offset >= MAX_FETCH: return []
-        return supabase_store.list_support_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
+        rows = supabase_store.list_support_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
+        if not updated_after_value:
+            return rows
+        return [row for row in rows if _backend_text(row.get("created_at")) > updated_after_value]
 
     sources = {
         "activity": {"offset": 0, "rows": [], "index": 0, "done": False, "fetch": fetch_activity},
@@ -3850,9 +3944,9 @@ def is_missing_channel_post_table_error(exc: Exception) -> bool:
 
 
 @app.get("/admin-api/campaigns", dependencies=[Depends(require_admin)])
-async def admin_campaigns(limit: int = 100):
+async def admin_campaigns(limit: int = 100, updated_after: str | None = None):
     try:
-        return {"data": supabase_store.list_broadcast_campaigns(limit=limit)}
+        return {"data": supabase_store.list_broadcast_campaigns(limit=limit, updated_after=updated_after)}
     except Exception as exc:
         if is_missing_campaign_table_error(exc):
             warn_missing_table_once("broadcast_campaigns", exc)
@@ -3915,9 +4009,9 @@ async def admin_cancel_campaign(campaign_id: str):
 
 
 @app.get("/admin-api/channel-posts", dependencies=[Depends(require_admin)])
-async def admin_channel_posts(limit: int = 200, status: str | None = None):
+async def admin_channel_posts(limit: int = 200, status: str | None = None, updated_after: str | None = None):
     try:
-        return {"data": supabase_store.list_channel_posts(limit=limit, status=status)}
+        return {"data": supabase_store.list_channel_posts(limit=limit, status=status, updated_after=updated_after)}
     except Exception as exc:
         if is_missing_channel_post_table_error(exc):
             warn_missing_table_once("channel_posts", exc)

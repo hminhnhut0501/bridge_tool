@@ -171,7 +171,7 @@ def _order_is_active(order, now):
     return bool(expire_at and expire_at > now)
 
 
-async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filter="", risk_type_filter="ALL"):
+async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filter="", risk_type_filter="ALL", updated_after=None):
     db.reload_config(force=True)
     now = now_local().replace(tzinfo=None)
     orders = supabase_store.list_scheduler_orders(limit=5000)
@@ -185,7 +185,10 @@ async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filt
     if selected_risk_type not in {"ALL", "NO_ORDER", "EXPIRED_ORDER"}:
         selected_risk_type = "ALL"
     latest_membership_events = {}
+    updated_after_value = str(updated_after or "").strip()
     for event in support_events:
+        if updated_after_value and support_event_time(event) <= updated_after_value:
+            continue
         event_type = str(event.get("event_type") or "").strip()
         if event_type not in {"vip_joined", "vip_left", "vip_kicked", "vip_restricted_changed", "vip_unmuted", "vip_role_changed"}:
             continue
@@ -269,15 +272,18 @@ async def build_vip_member_risk_rows(live=False, user_id_filter="", chat_id_filt
     return rows
 
 
-async def build_vip_group_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter=""):
+async def build_vip_group_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter="", updated_after=None):
     db.reload_config(force=True)
     now = now_local().replace(tzinfo=None)
     orders = supabase_store.list_scheduler_orders(limit=5000)
     users_data = [supabase_store.order_to_sheet_row(order) for order in orders]
+    updated_after_value = str(updated_after or "").strip()
     try:
         support_events = supabase_store.list_support_events(limit=5000)
     except Exception:
         support_events = []
+    if updated_after_value:
+        support_events = [event for event in support_events if support_event_time(event) > updated_after_value]
 
     rows = []
     for order in orders:

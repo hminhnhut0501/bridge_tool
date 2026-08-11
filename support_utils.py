@@ -1,6 +1,10 @@
 from datetime import datetime
-from aiogram.types import ChatPermissions, InlineKeyboardButton
-from aiogram.exceptions import TelegramBadRequest
+
+try:
+    from aiogram.types import ChatPermissions, InlineKeyboardButton
+    from aiogram.exceptions import TelegramBadRequest
+except Exception:
+    ChatPermissions = InlineKeyboardButton = TelegramBadRequest = None
 
 from bot_instance import bot
 from database import db

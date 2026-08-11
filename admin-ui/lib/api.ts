@@ -25,6 +25,7 @@ export type Order = {
   last_reminder_date?: string | null;
   expired_notice_at?: string | null;
   created_at: string;
+  updated_at?: string | null;
 };
 
 export type UserRow = {
@@ -204,6 +205,7 @@ export type SupportEvent = {
   plan_name: string | null;
   raw_data: Record<string, unknown>;
   created_at: string;
+  updated_at?: string | null;
 };
 
 export type SupportMessage = {
@@ -256,6 +258,7 @@ export type ActivityEvent = {
   telegram_user_id: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+  updated_at?: string | null;
 };
 
 export type ActivityLogEntry = {
@@ -817,8 +820,10 @@ async function request<T>(path: string, secret: string, init?: RequestInit): Pro
   return res.json();
 }
 
-export async function getOrders(secret: string, limit = 5000) {
-  return request<{ data: Order[] }>(`/admin-api/orders?limit=${limit}`, secret);
+export async function getOrders(secret: string, limit = 5000, updatedAfter?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: Order[] }>(`/admin-api/orders?${params.toString()}`, secret);
 }
 
 export async function getDashboardSummary(secret: string) {
@@ -1078,17 +1083,20 @@ export async function deleteBlacklist(secret: string, telegramUserId: string) {
   });
 }
 
-export async function getSupportEvents(secret: string, limit = 1000) {
-  return request<{ data: SupportEvent[] }>(`/admin-api/support-events?limit=${limit}`, secret);
+export async function getSupportEvents(secret: string, limit = 1000, updatedAfter?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: SupportEvent[] }>(`/admin-api/support-events?${params.toString()}`, secret);
 }
 
-export async function getSupportCases(secret: string, query = "", limit = 20, status = "", messageLimit = 20) {
+export async function getSupportCases(secret: string, query = "", limit = 20, status = "", messageLimit = 20, updatedAfter?: string) {
   const params = new URLSearchParams({
     query,
     limit: String(limit),
     status,
     message_limit: String(messageLimit),
   });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
   return request<{ data: SupportCaseItem[] }>(`/admin-api/support-cases?${params.toString()}`, secret);
 }
 
@@ -1096,19 +1104,24 @@ export async function getCustomerIdentityHistory(secret: string, telegramUserId:
   return request<{ data: CustomerIdentityHistoryRow[] }>(`/admin-api/customer-identity-history/${encodeURIComponent(telegramUserId)}?limit=${limit}`, secret);
 }
 
-export async function getKickAudit(secret: string, live = false) {
-  return request<{ data: KickAuditRow[] }>(`/admin-api/kick-audit?live=${live ? "true" : "false"}`, secret);
+export async function getKickAudit(secret: string, live = false, updatedAfter?: string) {
+  const params = new URLSearchParams({ live: live ? "true" : "false" });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: KickAuditRow[] }>(`/admin-api/kick-audit?${params.toString()}`, secret);
 }
 
-export async function getVipGroupAudit(secret: string, live = false) {
-  return request<{ data: VipGroupAuditRow[] }>(`/admin-api/vip-group-audit?live=${live ? "true" : "false"}`, secret);
+export async function getVipGroupAudit(secret: string, live = false, updatedAfter?: string) {
+  const params = new URLSearchParams({ live: live ? "true" : "false" });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: VipGroupAuditRow[] }>(`/admin-api/vip-group-audit?${params.toString()}`, secret);
 }
 
-export async function getVipMemberAudit(secret: string, live = false, riskType: "ALL" | "NO_ORDER" | "EXPIRED_ORDER" = "ALL") {
+export async function getVipMemberAudit(secret: string, live = false, riskType: "ALL" | "NO_ORDER" | "EXPIRED_ORDER" = "ALL", updatedAfter?: string) {
   const params = new URLSearchParams({
     live: live ? "true" : "false",
     risk_type: riskType,
   });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
   return request<{ data: VipMemberAuditRow[] }>(`/admin-api/vip-member-audit?${params.toString()}`, secret);
 }
 
@@ -1130,13 +1143,15 @@ export async function cleanupVipInviteLinks(secret: string, payload: { group_id?
   );
 }
 
-export async function getActivityEvents(secret: string, limit = 50) {
-  return request<{ data: ActivityEvent[] }>(`/admin-api/activity-events?limit=${limit}`, secret);
+export async function getActivityEvents(secret: string, limit = 50, updatedAfter?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: ActivityEvent[] }>(`/admin-api/activity-events?${params.toString()}`, secret);
 }
 
 export async function getActivityLog(
   secret: string,
-  params: { page: number; limit: number; query?: string; direction?: string; type?: string; date?: string },
+  params: { page: number; limit: number; query?: string; direction?: string; type?: string; date?: string; updatedAfter?: string },
 ) {
   const search = new URLSearchParams({
     page: String(params.page),
@@ -1146,11 +1161,15 @@ export async function getActivityLog(
     type: params.type || "ALL",
     date: params.date || "ALL",
   });
+  if (params.updatedAfter) search.set("updated_after", params.updatedAfter);
   return request<ActivityLogResponse>(`/admin-api/activity-log?${search.toString()}`, secret);
 }
 
-export async function getCampaigns(secret: string) {
-  return request<{ data: BroadcastCampaign[] }>("/admin-api/campaigns", secret);
+export async function getCampaigns(secret: string, updatedAfter?: string) {
+  const params = new URLSearchParams();
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns${suffix}`, secret);
 }
 
 export async function previewCampaign(secret: string, segment: string, planFilter = "ALL", planMatchScope = "ANY_PAID") {
@@ -1185,8 +1204,10 @@ export async function cancelCampaign(secret: string, campaignId: string) {
   return request<{ data: BroadcastCampaign[] }>(`/admin-api/campaigns/${encodeURIComponent(campaignId)}/cancel`, secret, { method: "POST" });
 }
 
-export async function getChannelPosts(secret: string, limit = 200) {
-  return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts?limit=${limit}`, secret);
+export async function getChannelPosts(secret: string, limit = 200, updatedAfter?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (updatedAfter) params.set("updated_after", updatedAfter);
+  return request<{ data: ChannelPost[] }>(`/admin-api/channel-posts?${params.toString()}`, secret);
 }
 
 export async function createChannelPost(secret: string, payload: Record<string, unknown>) {
