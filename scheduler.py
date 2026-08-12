@@ -54,8 +54,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
 recent_kicks = {}
-SCHEDULER_DEFAULT_INTERVAL_SECONDS = 10800
-SCHEDULER_MIN_INTERVAL_SECONDS = 10800
+# Quét hạn dùng thường xuyên hơn để kick sát thời điểm hết hạn.
+# Nếu để quá thưa, đơn đã quá hạn có thể nằm ở trạng thái "chờ kick" quá lâu.
+SCHEDULER_DEFAULT_INTERVAL_SECONDS = 60
+SCHEDULER_MIN_INTERVAL_SECONDS = 60
+KICK_CONFIRMATION_DELAY_SECONDS = 30
 
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
@@ -539,6 +542,146 @@ def split_scheduler_rows(rows, now, days_notice):
             expiring_user_ids.add(user_id)
     return expired_rows, reminder_rows, expiring_user_ids
 
+def task_state_value(task):
+    return str((task or {}).get("state") or "").strip().lower()
+
+async def enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
+    current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
+    if not current_group_ids or not supabase_store.enabled:
+        return []
+    task_rows = []
+    for gid in current_group_ids:
+        task = {
+            "order_id": order_id,
+            "telegram_user_id": user_id,
+            "group_id": gid,
+            "plan_name": plan_name,
+            "expire_at": expire_str,
+            "due_at": expire_str,
+            "state": "queued",
+            "attempt_count": 0,
+            "next_retry_at": now,
+            "metadata": {
+                "source": "scheduler_expired",
+                "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "plan_name_raw": plan_name,
+            },
+        }
+        try:
+            task_rows.extend(supabase_store.upsert_renewal_kick_task(task) or [])
+        except Exception as exc:
+            logging.warning("⚠️ Không enqueue được renewal_kick_task order=%s group=%s: %s", order_id, gid, exc)
+    return task_rows
+
+async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None, limit=500):
+    if not supabase_store.enabled:
+        return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0}
+    try:
+        tasks = supabase_store.list_renewal_kick_tasks(limit=limit)
+    except Exception as exc:
+        if "renewal_kick_tasks" in str(exc).lower():
+            return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0}
+        raise
+
+    summary = {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0}
+    for task in tasks:
+        state = task_state_value(task)
+        due_at = parse_expire_datetime(task.get("due_at"))
+        next_retry_at = parse_expire_datetime(task.get("next_retry_at"))
+        if state not in {"queued", "retry_pending", "pending_confirm", "processing", "error_retryable"}:
+            continue
+        if due_at and due_at > now:
+            continue
+        if next_retry_at and next_retry_at > now:
+            continue
+        order_id = str(task.get("order_id") or "")
+        user_id = str(task.get("telegram_user_id") or "")
+        group_id = str(task.get("group_id") or "")
+        plan_name = str(task.get("plan_name") or "")
+        if not order_id or not user_id or not group_id:
+            continue
+        if user_cache and user_id in user_cache:
+            active_group_ids = set(user_cache[user_id].get("active_group_ids") or set())
+        else:
+            active_group_ids = user_active_group_ids(user_id, order_id, [], now, plan_group_cache=plan_group_cache)
+        if group_id in active_group_ids:
+            try:
+                supabase_store.update_renewal_kick_task(task["id"], {
+                    "state": "blocked_active_order",
+                    "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_error": "",
+                    "metadata": {**(task.get("metadata") or {}), "reason": "active_order_retained"},
+                })
+                summary["blocked"] += 1
+            except Exception:
+                summary["error"] += 1
+            continue
+
+        if state in {"pending_confirm", "processing"}:
+            try:
+                member = await member_is_present(group_id, user_id)
+                if member is False:
+                    supabase_store.update_renewal_kick_task(task["id"], {
+                        "state": "done",
+                        "confirmed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "completed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "metadata": {**(task.get("metadata") or {}), "reason": "confirmed_removed"},
+                    })
+                    summary["done"] += 1
+                else:
+                    supabase_store.update_renewal_kick_task(task["id"], {
+                        "state": "retry_pending",
+                        "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
+                        "attempt_count": int(task.get("attempt_count") or 0),
+                        "metadata": {**(task.get("metadata") or {}), "reason": "still_present_after_confirm"},
+                    })
+                    summary["queued"] += 1
+            except Exception as exc:
+                supabase_store.update_renewal_kick_task(task["id"], {
+                    "state": "error_retryable",
+                    "last_error": str(exc),
+                    "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
+                    "metadata": {**(task.get("metadata") or {}), "reason": "confirm_failed"},
+                })
+                summary["error"] += 1
+            continue
+
+        try:
+            supabase_store.update_renewal_kick_task(task["id"], {
+                "state": "processing",
+                "processing_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "locked_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "locked_by": "scheduler",
+                "attempt_count": int(task.get("attempt_count") or 0) + 1,
+                "metadata": {**(task.get("metadata") or {}), "reason": "kick_attempt"},
+            })
+        except Exception:
+            summary["error"] += 1
+            continue
+        ok = await ensure_member_kicked(
+            group_id,
+            user_id,
+            order_id,
+            plan_name,
+            "renewal_due",
+            raw_data={"expire_at": task.get("expire_at") or "", "task_id": task.get("id"), "kick_task_state": "processing"},
+            run_kick_cache=run_kick_cache,
+            run_presence_cache=run_presence_cache,
+        )
+        try:
+            supabase_store.update_renewal_kick_task(task["id"], {
+                "state": "pending_confirm" if ok else "error_retryable",
+                "requested_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "next_retry_at": (now + timedelta(seconds=KICK_CONFIRMATION_DELAY_SECONDS)).strftime("%Y-%m-%d %H:%M:%S") if ok else (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
+                "last_error": "" if ok else "kick_failed",
+                "metadata": {**(task.get("metadata") or {}), "reason": "kick_sent" if ok else "kick_failed"},
+            })
+            summary["processing"] += 1
+        except Exception:
+            summary["error"] += 1
+    return summary
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -583,6 +726,18 @@ def support_mute_state(user_id, order_id, chat_id):
         ("member_unmuted", "done"),
         ("member_mute_skipped_admin", "skipped_admin"),
         ("member_muted", "pending"),
+    ):
+        event = latest_support_event(event_type, user_id, order_id, chat_id)
+        if event:
+            return state, event
+    return "none", None
+
+def renewal_kick_state(user_id, order_id, chat_id):
+    for event_type, state in (
+        ("renewal_kick_confirmed", "done"),
+        ("renewal_kick_failed", "error"),
+        ("renewal_kick_processing", "processing"),
+        ("renewal_kick_queued", "queued"),
     ):
         event = latest_support_event(event_type, user_id, order_id, chat_id)
         if event:
@@ -756,6 +911,25 @@ async def ensure_member_kicked(
     if latest_support_event("member_kick_skipped_admin", user_id, None, chat_id):
         return True
 
+    queue_state, queue_event = renewal_kick_state(user_id, order_id, normalized_chat_id)
+    if queue_state == "done":
+        logging.info(
+            "⏭ Bỏ qua kick User %s group %s đơn %s vì đã có renewal_kick_confirmed.",
+            user_id,
+            chat_id,
+            order_id,
+        )
+        return True
+    if queue_state == "processing":
+        logging.info(
+            "⏭ Bỏ qua kick User %s group %s đơn %s vì task đang processing từ %s.",
+            user_id,
+            chat_id,
+            order_id,
+            (queue_event or {}).get("created_at") or "",
+        )
+        return True
+
     if run_presence_cache is not None and kick_key in run_presence_cache:
         member = run_presence_cache[kick_key]
     else:
@@ -781,6 +955,21 @@ async def ensure_member_kicked(
         return True
 
     try:
+        plan_label = display_plan_name(plan_name, user_id)
+        queue_raw = {
+            "reason": reason,
+            "phase": "kick_queue",
+            "expire_at": raw_data.get("expire_at") if isinstance(raw_data, dict) else None,
+            "plan_name_raw": plan_name,
+        }
+        record_support_event(
+            "renewal_kick_processing",
+            user_id,
+            chat_id=chat_id,
+            order_id=order_id,
+            plan_name=plan_label,
+            raw_data=queue_raw,
+        )
         await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))
         await bot.unban_chat_member(chat_id=chat_id, user_id=int(user_id))
         recent_kicks[kick_key] = now
@@ -792,7 +981,6 @@ async def ensure_member_kicked(
             payload["previous_kick_event_at"] = existing_kick.get("created_at")
             payload["source"] = "recheck_member_present"
         payload["kick_state"] = "pending"
-        plan_label = display_plan_name(plan_name, user_id)
         payload["plan_name_raw"] = plan_name
         record_support_event("member_kicked", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data=payload)
         record_support_event(
@@ -810,6 +998,19 @@ async def ensure_member_kicked(
                 **(raw_data or {}),
             },
         )
+        record_support_event(
+            "renewal_kick_confirmed",
+            user_id,
+            chat_id=chat_id,
+            order_id=order_id,
+            plan_name=plan_label,
+            raw_data={
+                "reason": reason,
+                "phase": "kick_confirmed",
+                "plan_name_raw": plan_name,
+                "confirmed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            },
+        )
         logging.info("🚪 Đã kick User %s khỏi group %s vì %s.", user_id, chat_id, reason)
         return True
     except Exception as exc:
@@ -819,6 +1020,19 @@ async def ensure_member_kicked(
         plan_label = display_plan_name(plan_name, user_id)
         payload["plan_name_raw"] = plan_name
         record_support_event("member_kick_failed", user_id, chat_id=chat_id, order_id=order_id, plan_name=plan_label, raw_data={**payload, "kick_state": "error"})
+        record_support_event(
+            "renewal_kick_failed",
+            user_id,
+            chat_id=chat_id,
+            order_id=order_id,
+            plan_name=plan_label,
+            raw_data={
+                "reason": reason,
+                "phase": "kick_failed",
+                "error": str(exc),
+                "plan_name_raw": plan_name,
+            },
+        )
         if run_kick_cache is not None:
             run_kick_cache.add(run_kick_key)
         return False
@@ -871,22 +1085,26 @@ async def process_vip_kicks_for_expired_order(
                 logging.info("🔊 User %s đã gia hạn, mở mute lại ở group %s.", user_id, gid)
             except Exception as exc:
                 logging.error("❌ Lỗi mở mute User %s ở group %s: %s", user_id, gid, exc)
-
-    kick_errors = []
-    for gid in expired_group_ids:
-        ok = await ensure_member_kicked(
-            gid,
-            user_id,
-            order_id,
-            plan_name,
-            "vip_expired",
-            raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "expire_at": expire_str},
-            run_kick_cache=run_kick_cache,
-            run_presence_cache=run_presence_cache,
-        )
-        if not ok:
-            kick_errors.append(gid)
-    return expired_group_ids, kick_errors
+    if supabase_store.enabled:
+        await enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expire_str, now, plan_group_cache=plan_group_cache)
+    else:
+        # Fallback legacy path cho môi trường chưa có bảng task mới.
+        kick_errors = []
+        for gid in expired_group_ids:
+            ok = await ensure_member_kicked(
+                gid,
+                user_id,
+                order_id,
+                plan_name,
+                "vip_expired",
+                raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "expire_at": expire_str},
+                run_kick_cache=run_kick_cache,
+                run_presence_cache=run_presence_cache,
+            )
+            if not ok:
+                kick_errors.append(gid)
+        return expired_group_ids, kick_errors
+    return expired_group_ids, []
 
 async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None):
     has_active_membership = user_cache[user_id]["has_active_membership"] if user_cache and user_id in user_cache else user_has_active_membership(user_id, order_id, users_data, now, plan_group_cache=plan_group_cache)
@@ -1051,6 +1269,14 @@ async def check_expirations_professional():
                     logging.info("📮 Đã gửi tin báo hết hạn cho User %s, đơn/dòng %s, plan=%s.", user_id, offer_ref, plan_label)
                 except Exception as e:
                     logging.error(f"❌ Lỗi gửi tin báo hết hạn cho {user_id}: {e}")
+
+        kick_queue_summary = await process_due_renewal_kick_tasks(
+            now,
+            run_kick_cache=run_kick_cache,
+            run_presence_cache=run_presence_cache,
+            user_cache=user_membership_cache,
+            plan_group_cache=plan_group_cache,
+        )
 
         # Pass 2: xử lý PAID reminder.
         for offset, row in reminder_rows:
@@ -1278,12 +1504,13 @@ async def check_expirations_professional():
                     logging.error("❌ Lỗi gửi nhắc license cho %s: %s", telegram_user_id, exc)
 
         logging.info(
-            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s.",
+            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue=%s.",
             summary["expired"],
             summary["expired_notice"],
             summary["reminded"],
             summary["skipped_not_due"],
             summary["invalid"],
+            kick_queue_summary,
         )
 
     except Exception as e:

@@ -1661,6 +1661,17 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             support_events = []
         else:
             raise
+    try:
+        try:
+            renewal_kick_tasks = supabase_store.list_renewal_kick_tasks(limit=5000)
+        except TypeError:
+            renewal_kick_tasks = supabase_store.list_renewal_kick_tasks(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_tasks"):
+            warn_missing_table_once("renewal_kick_tasks", exc)
+            renewal_kick_tasks = []
+        else:
+            raise
 
     rows = []
     for order in orders:
@@ -1747,25 +1758,65 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             latest_kick = latest_order_kick or latest_group_kick
             latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
             latest_close = latest_event(support_events, "member_kick_closed", user_id, order_id, gid) or latest_event(support_events, "member_kick_closed", user_id, None, gid)
+            latest_kick_queue = latest_event(support_events, "renewal_kick_queued", user_id, order_id, gid)
+            latest_kick_processing = latest_event(support_events, "renewal_kick_processing", user_id, order_id, gid)
+            latest_kick_confirmed = latest_event(support_events, "renewal_kick_confirmed", user_id, order_id, gid)
+            latest_kick_failed = latest_event(support_events, "renewal_kick_failed", user_id, order_id, gid)
+            task_match = next((task for task in renewal_kick_tasks if str(task.get("order_id") or "") == order_id and str(task.get("group_id") or "") == gid), None)
+            task_state = str((task_match or {}).get("state") or "").strip().lower()
 
             latest_kick_state = ""
-            for candidate in (latest_close, latest_fail, latest_kick, latest_order_kick, latest_group_kick):
+            for candidate in (latest_kick_confirmed, latest_close, latest_kick_failed, latest_fail, latest_kick_processing, latest_kick_queue, latest_kick, latest_order_kick, latest_group_kick):
                 raw_data = (candidate or {}).get("raw_data") or {}
                 if isinstance(raw_data, dict) and raw_data.get("kick_state"):
                     latest_kick_state = str(raw_data.get("kick_state") or "").strip().lower()
                     break
             if not latest_kick_state:
+                if latest_kick_confirmed:
+                    latest_kick_state = "done"
                 if latest_close:
                     latest_kick_state = "done"
+                elif latest_kick_failed:
+                    latest_kick_state = "error"
                 elif latest_fail:
                     latest_kick_state = "error"
+                elif latest_kick_processing:
+                    latest_kick_state = "processing"
+                elif latest_kick_queue:
+                    latest_kick_state = "queued"
+            if task_state and task_state not in {"", "queued"}:
+                latest_kick_state = task_state
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
-            should_live_check = live and not latest_kick_state == "done" and (retained or latest_fail or not latest_kick)
+            should_live_check = live and not latest_kick_state == "done" and (retained or latest_fail or not latest_kick or task_state in {"processing", "pending_confirm", "retry_pending"})
             if should_live_check:
                 live_state = await member_live_state(gid, user_id)
 
-            status = "ACTIVE_RETAINED" if retained else "DONE" if latest_kick_state == "done" else "ERROR" if latest_kick_state == "error" else "KICKED" if latest_kick else "WAITING_KICK"
+            status = (
+                "ACTIVE_RETAINED"
+                if retained
+                else "DONE"
+                if latest_kick_state == "done"
+                else "ERROR"
+                if latest_kick_state == "error"
+                else "PROCESSING"
+                if latest_kick_state == "processing"
+                else "PENDING_CONFIRM"
+                if latest_kick_state == "pending_confirm"
+                else "RETRY_PENDING"
+                if latest_kick_state == "retry_pending"
+                else "BLOCKED"
+                if latest_kick_state == "blocked_active_order"
+                else "REVIEW_REQUIRED"
+                if latest_kick_state == "review_required"
+                else "UNMAPPED_GROUP"
+                if latest_kick_state == "unmapped_group"
+                else "QUEUED"
+                if latest_kick_state == "queued"
+                else "KICKED"
+                if latest_kick
+                else "WAITING_KICK"
+            )
             status_label = (
                 "Còn quyền active"
                 if retained
@@ -1773,14 +1824,28 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 if latest_kick_state == "done"
                 else "Lỗi kick"
                 if latest_kick_state == "error"
+                else "Đang kick"
+                if latest_kick_state == "processing"
+                else "Đã xếp hàng kick"
+                if latest_kick_state == "queued"
+                else "Đang chờ xác nhận"
+                if latest_kick_state == "pending_confirm"
+                else "Chờ thử lại"
+                if latest_kick_state == "retry_pending"
+                else "Bị giữ bởi đơn active khác"
+                if latest_kick_state == "blocked_active_order"
+                else "Cần xử lý"
+                if latest_kick_state == "review_required"
+                else "Không map được group"
+                if latest_kick_state == "unmapped_group"
                 else "Đã kick cùng group"
                 if latest_kick and latest_kick is not latest_order_kick
                 else "Đã kick"
                 if latest_kick
                 else "Chờ kick"
             )
-            needs_action = not retained and latest_kick_state != "done" and not latest_kick_state == "error" and not latest_kick
-            if latest_kick_state == "error":
+            needs_action = not retained and latest_kick_state not in {"done"} and latest_kick_state != "error" and not latest_kick
+            if latest_kick_state in {"error", "queued", "processing", "pending_confirm", "retry_pending", "blocked_active_order", "review_required", "unmapped_group"}:
                 needs_action = True
             if latest_kick_state == "done":
                 needs_action = False

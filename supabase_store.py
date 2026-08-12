@@ -153,6 +153,7 @@ class SupabaseStore:
         self._table_cache_ttl = {
             "orders": int(os.getenv("SUPABASE_CACHE_TTL_ORDERS", "10")),
             "support_events": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_EVENTS", "20")),
+            "renewal_kick_tasks": int(os.getenv("SUPABASE_CACHE_TTL_RENEWAL_KICK_TASKS", "10")),
             "customer_identity_history": int(os.getenv("SUPABASE_CACHE_TTL_CUSTOMER_IDENTITY_HISTORY", "20")),
             "analytics_events": int(os.getenv("SUPABASE_CACHE_TTL_ANALYTICS_EVENTS", "30")),
             "security_blacklist": int(os.getenv("SUPABASE_CACHE_TTL_BLACKLIST", "20")),
@@ -280,6 +281,7 @@ class SupabaseStore:
             "broadcast_recipients": "id",
             "channel_posts": "id",
             "support_events": "id",
+            "renewal_kick_tasks": "id",
             "analytics_events": "id",
             "orders": "order_id",
         }
@@ -1464,6 +1466,68 @@ class SupabaseStore:
         except Exception:
             pass
         return rows
+
+    def upsert_renewal_kick_task(self, payload):
+        row = {
+            "order_id": _clean_text(payload.get("order_id")),
+            "telegram_user_id": _clean_text(payload.get("telegram_user_id")),
+            "group_id": _clean_text(payload.get("group_id")),
+            "plan_name": _clean_text(payload.get("plan_name")),
+            "expire_at": _parse_datetime(payload.get("expire_at")) or payload.get("expire_at"),
+            "due_at": _parse_datetime(payload.get("due_at")) or payload.get("due_at"),
+            "state": _clean_text(payload.get("state") or "queued") or "queued",
+            "attempt_count": _parse_int(payload.get("attempt_count") or 0),
+            "next_retry_at": _parse_datetime(payload.get("next_retry_at")) or payload.get("next_retry_at"),
+            "last_error": _clean_text(payload.get("last_error")),
+            "last_error_code": _clean_text(payload.get("last_error_code")),
+            "locked_by": _clean_text(payload.get("locked_by")),
+            "locked_at": _parse_datetime(payload.get("locked_at")) or payload.get("locked_at"),
+            "requested_at": _parse_datetime(payload.get("requested_at")) or payload.get("requested_at"),
+            "processing_at": _parse_datetime(payload.get("processing_at")) or payload.get("processing_at"),
+            "confirmed_at": _parse_datetime(payload.get("confirmed_at")) or payload.get("confirmed_at"),
+            "completed_at": _parse_datetime(payload.get("completed_at")) or payload.get("completed_at"),
+            "resolved_at": _parse_datetime(payload.get("resolved_at")) or payload.get("resolved_at"),
+            "metadata": payload.get("metadata") or {},
+        }
+        return self._request(
+            "POST",
+            "renewal_kick_tasks",
+            params={"on_conflict": "order_id,group_id"},
+            json=row,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def list_renewal_kick_tasks(self, *, state=None, due_before=None, next_retry_before=None, limit=200):
+        params = {"select": "*", "order": "updated_at.asc", "limit": str(limit)}
+        if state:
+            params["state"] = f"eq.{_clean_text(state)}"
+        if due_before is not None:
+            params["due_at"] = f"lte.{_parse_datetime(due_before) or due_before}"
+        if next_retry_before is not None:
+            params["or"] = f"(next_retry_at.is.null,next_retry_at.lte.{_parse_datetime(next_retry_before) or next_retry_before})"
+        return self._cached_request("GET", "renewal_kick_tasks", params=params)
+
+    def get_renewal_kick_task(self, order_id, group_id):
+        rows = self._request(
+            "GET",
+            "renewal_kick_tasks",
+            params={
+                "select": "*",
+                "order_id": f"eq.{_clean_text(order_id)}",
+                "group_id": f"eq.{_clean_text(group_id)}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    def update_renewal_kick_task(self, task_id, payload):
+        return self._request(
+            "PATCH",
+            "renewal_kick_tasks",
+            params={"id": f"eq.{_clean_text(task_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
 
     def get_customer_identity_history(self, telegram_user_id, limit=50):
         user_id = _clean_text(telegram_user_id)

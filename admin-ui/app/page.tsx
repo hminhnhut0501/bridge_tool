@@ -6790,36 +6790,60 @@ export default function Home() {
     return chips;
   }
   function renewalStatusTone(status: string) {
-    if (status === "Đã kick xong") return "success";
-    if (status === "Đã kick một phần") return "warning";
-    if (status === "Đang kick") return "info";
-    if (status === "Đang chờ Telegram xác nhận..." || status === "Đang xử lý") return "info";
-    if (status === "Bị giữ lại") return "info";
-    if (status === "Lỗi") return "error";
-    if (status === "Cần xử lý") return "warning";
-    return "warning";
+    return renewalStatusMeta(status).tone;
+  }
+  function renewalStatusMeta(status: string) {
+    const normalized = String(status || "").trim();
+    const map: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
+      "Đã kick xong": { label: "Đã kick xong", tone: "success", hint: "Kick đã hoàn tất và xác nhận xong." },
+      "Đã kick một phần": { label: "Đã kick một phần", tone: "warning", hint: "Một phần group đã xong, còn group khác cần theo dõi." },
+      "Đang kick": { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
+      "Đang chờ Telegram xác nhận": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "Đang chờ Telegram xác nhận...": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "Đã xếp hàng kick": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
+      "Chờ thử lại": { label: "Chờ thử lại", tone: "info", hint: "Kick tạm lỗi, hệ thống sẽ thử lại sau backoff." },
+      "Bị giữ lại": { label: "Bị giữ lại", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
+      "Bị giữ bởi đơn active khác": { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
+      "Lỗi": { label: "Lỗi", tone: "error", hint: "Task kick gặp lỗi cần xử lý thủ công hoặc retry." },
+      "Không map được group": { label: "Không map được group", tone: "error", hint: "Tên gói chưa map được sang group để kick." },
+      "Cần xử lý": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
+      "Chờ kick": { label: "Chờ kick", tone: "warning", hint: "Đang chờ worker hoặc dữ liệu kick tiếp theo." },
+      "Chờ audit": { label: "Chờ audit", tone: "warning", hint: "Đang chờ audit kick / reconcile trạng thái." },
+      "QUEUED": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
+      "PROCESSING": { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
+      "PENDING_CONFIRM": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "RETRY_PENDING": { label: "Chờ thử lại", tone: "info", hint: "Kick tạm lỗi, hệ thống sẽ thử lại sau backoff." },
+      "BLOCKED": { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
+      "REVIEW_REQUIRED": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
+      "UNMAPPED_GROUP": { label: "Không map được group", tone: "error", hint: "Tên gói chưa map được sang group để kick." },
+    };
+    return map[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái kick hiện tại." };
   }
   function renewalStatusLabel(status: string) {
-    if (status === "Đã kick xong") return "Đã kick xong";
-    if (status === "Đã kick một phần") return "Đã kick một phần";
-    if (status === "Đang kick") return "Đang kick";
-    if (status === "Đang chờ Telegram xác nhận...") return "Đang chờ Telegram xác nhận";
-    if (status === "Đang xử lý") return "Đang xử lý";
-    if (status === "Bị giữ lại") return "Bị giữ lại";
-    if (status === "Lỗi") return "Lỗi";
-    if (status === "Cần xử lý") return "Cần xử lý";
-    if (status === "Chờ kick") return "Chờ kick";
-    if (status === "Chờ audit") return "Chờ audit";
-    return status || "-";
+    return renewalStatusMeta(status).label;
+  }
+  function renewalStatusHint(status: string) {
+    return renewalStatusMeta(status).hint;
   }
   function renewalProgressText(summary: { status: string; groupDetails: { status: string }[] }) {
     const total = summary.groupDetails.length;
     const done = summary.groupDetails.filter((item) => item.status === "Đã kick xong").length;
     const retained = summary.groupDetails.filter((item) => item.status === "Bị giữ lại").length;
-    const pending = summary.groupDetails.filter((item) => item.status === "Chờ kick").length;
+    const pending = summary.groupDetails.filter((item) => ["Chờ kick", "Đã xếp hàng kick", "Chờ thử lại"].includes(item.status)).length;
     const error = summary.groupDetails.filter((item) => item.status === "Lỗi").length;
     const kicking = summary.groupDetails.filter((item) => item.status === "Đang kick").length;
     return { total, done, retained, pending, error, kicking };
+  }
+  function renewalTaskStateLabel(status: string) {
+    const normalized = String(status || "").trim().toUpperCase();
+    if (normalized === "QUEUED") return "Queued";
+    if (normalized === "PROCESSING") return "Processing";
+    if (normalized === "PENDING_CONFIRM") return "Pending confirm";
+    if (normalized === "RETRY_PENDING") return "Retry pending";
+    if (normalized === "BLOCKED") return "Blocked";
+    if (normalized === "UNMAPPED_GROUP") return "Unmapped";
+    if (normalized === "REVIEW_REQUIRED") return "Review";
+    return normalized || "-";
   }
   function supportCustomerName(item: SupportEvent) {
     const telegramId = String(item.telegram_user_id || "").trim();
@@ -6982,9 +7006,16 @@ export default function Home() {
       const isDone = isKickedEvent || isKickedAudit || (liveLeft && !isRetained);
       const isPending = audit.needs_action || (!isDone && !isRetained && !hasError);
 
-      let groupStatus: "Đã kick xong" | "Đang kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" = "Chờ kick";
+      let groupStatus: "Đã kick xong" | "Đang kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" | "Đã xếp hàng kick" | "Đang chờ Telegram xác nhận" | "Chờ thử lại" | "Bị giữ bởi đơn active khác" | "Không map được group" | "Cần xử lý" = "Chờ kick";
       if (isDone) groupStatus = "Đã kick xong";
       else if (renewalKickingOrderIds.includes(String(order.order_id || ""))) groupStatus = "Đang kick";
+      else if (String(audit.status || "").toUpperCase() === "QUEUED") groupStatus = "Đã xếp hàng kick";
+      else if (String(audit.status || "").toUpperCase() === "PROCESSING") groupStatus = "Đang kick";
+      else if (String(audit.status || "").toUpperCase() === "PENDING_CONFIRM") groupStatus = "Đang chờ Telegram xác nhận";
+      else if (String(audit.status || "").toUpperCase() === "RETRY_PENDING") groupStatus = "Chờ thử lại";
+      else if (String(audit.status || "").toUpperCase() === "BLOCKED") groupStatus = "Bị giữ bởi đơn active khác";
+      else if (String(audit.status || "").toUpperCase() === "UNMAPPED_GROUP") groupStatus = "Không map được group";
+      else if (String(audit.status || "").toUpperCase() === "REVIEW_REQUIRED") groupStatus = "Cần xử lý";
       else if (isRetained) groupStatus = "Bị giữ lại";
       else if (hasError) groupStatus = "Lỗi";
       else if (livePresent && !isRetained) groupStatus = "Chờ kick";
@@ -7003,7 +7034,7 @@ export default function Home() {
     const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
     const kickedCount = groupDetails.filter((g) => g.status === "Đã kick xong").length;
     const kickingCount = groupDetails.filter((g) => g.status === "Đang kick").length;
-    const pendingCount = groupDetails.filter((g) => g.status === "Chờ kick").length;
+    const pendingCount = groupDetails.filter((g) => ["Chờ kick", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận", "Cần xử lý"].includes(g.status)).length;
     const errorCount = groupDetails.filter((g) => g.status === "Lỗi").length;
     const retainedCount = groupDetails.filter((g) => g.status === "Bị giữ lại").length;
     const isKickingNow = renewalKickingOrderIds.includes(String(order.order_id || ""));
@@ -7016,7 +7047,7 @@ export default function Home() {
       else if ((pendingCount > 0 || retainedCount > 0) && kickedCount > 0) overallStatus = "Đã kick một phần";
       else if (pendingCount === 0 && kickedCount > 0) overallStatus = "Đã kick xong";
       else if (retainedCount > 0 && kickedCount === 0 && pendingCount === 0 && errorCount === 0) overallStatus = "Đã kick xong";
-      else if (pendingCount > 0) overallStatus = "Chờ kick";
+      else if (pendingCount > 0) overallStatus = groupDetails.some((g) => ["Đang chờ Telegram xác nhận", "Đang kick", "Đã xếp hàng kick", "Chờ thử lại"].includes(g.status)) ? "Đang kick" : "Chờ kick";
       else if (errorCount > 0) overallStatus = "Lỗi";
     }
 
@@ -7113,7 +7144,7 @@ export default function Home() {
           orderId: item.order_id,
           planName: item.plan_name,
           customerName: renewalCustomerName(item),
-          groupsToKick: summary.groupDetails.filter(g => g.status === "Lỗi" || g.status === "Chờ kick").map(g => g.groupId),
+          groupsToKick: summary.groupDetails.filter(g => ["Lỗi", "Chờ kick", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận", "Cần xử lý"].includes(g.status)).map(g => g.groupId),
           groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick xong").map(g => g.groupId),
           renewalStatus: displayStatus,
           renewalNote: localKickState?.message || summary.note,
@@ -7121,7 +7152,7 @@ export default function Home() {
           renewalGroupDetails: summary.groupDetails,
           renewalLatestKickAt: summary.latestKickAt,
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note}`.toLowerCase(),
-          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Đang chờ Telegram xác nhận..."].includes(displayStatus) }),
+          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Đang chờ Telegram xác nhận...", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Đang kick"].includes(displayStatus) }),
           cells: [
             <Fragment key="customer">
               {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
@@ -7197,10 +7228,10 @@ export default function Home() {
       if (q && !item.searchText.includes(q)) return false;
       if (renewalTab === "expired" && renewalFocusFilter !== "all") {
         const status = String(item.renewalStatus || "");
-        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit"].includes(status)) return false;
-        if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick"].includes(status)) return false;
-        if (renewalFocusFilter === "retained" && status !== "Bị giữ lại") return false;
-        if (renewalFocusFilter === "error" && status !== "Lỗi") return false;
+        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit", "Đã xếp hàng kick", "Chờ thử lại", "Cần xử lý"].includes(status)) return false;
+        if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick", "Đang chờ Telegram xác nhận"].includes(status)) return false;
+        if (renewalFocusFilter === "retained" && !["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status)) return false;
+        if (renewalFocusFilter === "error" && !["Lỗi", "Không map được group"].includes(status)) return false;
         if (renewalFocusFilter === "review" && ["Đã kick xong"].includes(status)) return false;
       }
       return true;
@@ -7213,7 +7244,7 @@ export default function Home() {
         if (status === "Đã kick xong") acc.done += 1;
         else if (status === "Đã kick một phần") acc.partial += 1;
         else if (status === "Đang kick") acc.kicking += 1;
-        else if (status === "Lỗi") acc.error += 1;
+        else if (["Lỗi", "Không map được group"].includes(status)) acc.error += 1;
         else acc.pending += 1;
         return acc;
       },
@@ -9450,10 +9481,10 @@ export default function Home() {
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                       {[
                         { key: "all", label: "Tất cả" },
-                        { key: "chokick", label: "Cần xử lý" },
+                        { key: "chokick", label: "Chờ xử lý" },
                         { key: "review", label: "Đang xử lý" },
                         { key: "kicked", label: "Đã xong" },
-                        { key: "error", label: "Lỗi" },
+                        { key: "error", label: "Lỗi / thiếu map" },
                       ].map((item) => (
                         <Chip
                           key={item.key}
@@ -9468,8 +9499,8 @@ export default function Home() {
                           sx={{ fontWeight: 800, height: 28 }}
                         />
                       ))}
-                      <Chip size="small" label={`Cần xử lý: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
-                      <Chip size="small" label={`Đang xử lý: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
+                      <Chip size="small" label={`Chờ xử lý: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
+                      <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
                       <Chip size="small" label={`Lỗi: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
                     </Box>
@@ -9484,8 +9515,9 @@ export default function Home() {
 	              <Box sx={{ px: 2, pb: 2 }}>
                   <Box sx={{ minWidth: 0 }}>
                     {renewalTab === "expired" ? (
-                      <Box sx={{ mb: 1 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Dòng cần xử lý</Typography>
+                      <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue kick / pending confirm / retry</Typography>
+                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là "Chờ kick".</Typography>
                       </Box>
                     ) : null}
                     <SimpleTable
@@ -9496,8 +9528,8 @@ export default function Home() {
                         const isSelected = row?.orderId && String(row.orderId) === renewalSelectedOrderKey;
                         if (isSelected) return { bgcolor: "rgba(59, 130, 246, 0.08)" };
                         if (row?.renewalStatus === "Đã kick xong") return { bgcolor: "rgba(16, 185, 129, 0.04)" };
-                        if (row?.renewalStatus === "Đang kick") return { bgcolor: "rgba(6, 182, 212, 0.04)" };
-                        if (row?.renewalStatus === "Lỗi") return { bgcolor: "rgba(239, 68, 68, 0.04)" };
+                        if (["Đang kick", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
+                        if (["Lỗi", "Không map được group"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(239, 68, 68, 0.04)" };
                         return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.06)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.04)" } : {};
                       }}
                       actions={(idx) => {
@@ -9506,6 +9538,7 @@ export default function Home() {
                         const groupsToKick = row.groupsToKick || [];
                         const groupsToReview = row.groupsToReview || [];
                         const status = String(row.renewalStatus || "");
+                        const statusLabel = renewalStatusLabel(status);
                         return (
                           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.35 }}>
                             <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<Eye size={14} />}>Chi tiết</Button>
@@ -9513,12 +9546,13 @@ export default function Home() {
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {(status === "Cần xử lý" || status === "Lỗi" || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                {(["Cần xử lý", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Xử lý ({groupsToKick.length})</Button>
                                 ) : null}
-                                {groupsToReview.length > 0 && status === "Bị giữ lại" ? (
+                                {groupsToReview.length > 0 && ["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status) ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<ShieldCheck size={14} />}>Kiểm tra giữ lại</Button>
                                 ) : null}
+                                <Chip size="small" label={statusLabel} color={renewalStatusTone(status)} variant="outlined" sx={{ height: 24, fontWeight: 800 }} />
                               </>
                             ) : null}
                           </Box>
@@ -9584,6 +9618,12 @@ export default function Home() {
                           {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
                         </Typography>
                       </Box>
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Ý nghĩa trạng thái</Typography>
+                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13, color: "text.secondary" }}>
+                          {renewalStatusHint(String(selectedRenewalDetail.renewalStatus || ""))}
+                        </Typography>
+                      </Box>
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Tiến độ kick</Typography>
@@ -9605,11 +9645,17 @@ export default function Home() {
                             key={group.groupId}
                             size="small"
                             label={`${group.groupName} · ${renewalStatusLabel(group.status)}`}
-                            color={group.status === "Đã kick xong" ? "success" : group.status === "Đang kick" ? "info" : group.status === "Lỗi" ? "error" : "warning"}
+                            color={group.status === "Đã kick xong" ? "success" : ["Đang kick", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Chờ thử lại"].includes(group.status) ? "info" : ["Lỗi", "Không map được group"].includes(group.status) ? "error" : group.status === "Bị giữ lại" || group.status === "Bị giữ bởi đơn active khác" ? "info" : "warning"}
                             variant="outlined"
                           />
                         )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
                       </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>State queue</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {renewalTaskStateLabel(selectedRenewalDetail.renewalStatus || "")}
+                      </Typography>
                     </Box>
                     {selectedRenewalDetail.renewalLatestKickAt ? (
                       <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
@@ -9652,7 +9698,7 @@ export default function Home() {
               <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} accent="emerald" icon={<Plus size={16} />} />
               <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} accent="rose" icon={<TrendingUp size={16} />} />
               <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} accent="amber" icon={<XCircle size={16} />} />
-              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} accent="violet" icon={<ShieldCheck size={16} />} />
+              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} accent="violet" note="member_kicked / member_kick_closed" icon={<ShieldCheck size={16} />} />
               <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} accent="blue" icon={<Activity size={16} />} />
               <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} accent="cyan" icon={<Users size={16} />} />
               <Metric label="Mode hỗ trợ" value={String(getConfigValue(config, "SUPPORT_GROUP_MODE", "group")).toUpperCase()} accent="indigo" icon={<Settings size={16} />} />
@@ -9689,9 +9735,9 @@ export default function Home() {
               />
               <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
-                <Tab value="joined" label={`Join (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
-                <Tab value="left" label={`Left (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
-                <Tab value="muted" label={`Đã mute (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
+                <Tab value="joined" label={`Đã tham gia (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
+                <Tab value="left" label={`Đã rời (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
+                <Tab value="muted" label={`Đã tắt tiếng (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
                 <Tab value="kicked" label={`Đã kick (${supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})`} />
               </Tabs>
               <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
