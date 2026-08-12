@@ -116,6 +116,18 @@ def parse_hidden_start_payload(payload: str):
     return None
 
 
+def parse_coupon_start_payload(payload: str):
+    text = str(payload or "").strip()
+    lower = text.lower()
+    if lower.startswith("coupon_"):
+        code = text[7:].strip()
+        return {"kind": "coupon_redeem", "code": code}
+    if lower.startswith("cp_"):
+        code = text[3:].strip()
+        return {"kind": "coupon_redeem", "code": code}
+    return None
+
+
 class StartPayloadCallback:
     def __init__(self, message: Message, data: str):
         self.message = message
@@ -993,6 +1005,20 @@ async def cmd_start(message: Message, state: FSMContext):
                 )
                 await deliver_license_activation(message, license_key)
                 return
+            coupon_payload = parse_coupon_start_payload(normalized)
+            if coupon_payload:
+                coupon_code = str(coupon_payload.get("code") or "").strip()
+                if coupon_code:
+                    print(f"🚀 cmd_start coupon deeplink user={message.from_user.id} coupon_code={coupon_code}")
+                    await record_start_event(
+                        message,
+                        normalized,
+                        "start_coupon_redeem",
+                        source_ref=coupon_code,
+                    )
+                    from modules.mod_coupon import redeem_coupon
+                    await redeem_coupon(message, coupon_code)
+                    return
             if normalized.strip().upper() == "COUPON":
                 print(f"🚀 cmd_start coupon shortcut user={message.from_user.id}")
                 await record_start_event(
