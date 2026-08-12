@@ -1640,15 +1640,21 @@ def order_display_name(order, support_events):
     return resolve_order_display_label(order, support_events)
 
 
-async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter=""):
+async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter="", updated_after: str | None = None):
     from scheduler import parse_expire_datetime, plan_group_ids, user_active_group_ids
 
     db.reload_config(force=False)
     now = now_local().replace(tzinfo=None)
-    orders = supabase_store.list_scheduler_orders(limit=5000)
+    try:
+        orders = supabase_store.list_scheduler_orders(limit=5000, updated_after=updated_after)
+    except TypeError:
+        orders = supabase_store.list_scheduler_orders(limit=5000)
     users_data = [supabase_store.order_to_sheet_row(order) for order in orders]
     try:
-        support_events = supabase_store.list_support_events(limit=5000)
+        try:
+            support_events = supabase_store.list_support_events(limit=5000, updated_after=updated_after)
+        except TypeError:
+            support_events = supabase_store.list_support_events(limit=5000)
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "support_events"):
             warn_missing_table_once("support_events", exc)

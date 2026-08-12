@@ -7975,10 +7975,10 @@ export default function Home() {
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
       void Promise.all([
-        loadAll(savedSecret, { silent: true, resetPages: false, scope: "orders" }),
-        loadAll(savedSecret, { silent: true, resetPages: false, scope: "activationCodes" }),
+        getOrders(savedSecret, 1000).then((res) => setOrders((current) => mergeById(current, res.data || [], "order_id"))),
+        getActivationCodes(savedSecret, 500).then((res) => setActivationCodes((current) => mergeById(current, res.data || [], "code"))),
       ]).catch((err) => {
-        console.warn("⚠️ Không refresh nền sau khi tạo đơn thủ công:", err);
+        console.warn("⚠️ Không refresh nhẹ sau khi tạo đơn thủ công:", err);
       });
     });
   }
@@ -8007,8 +8007,8 @@ export default function Home() {
           manual_order_text: res.data.manual_order_text,
         };
       });
-      void loadAll(savedSecret, { silent: true, resetPages: false, scope: "activationCodes" }).catch((err) => {
-        console.warn("⚠️ Không refresh nền sau khi gen active code:", err);
+      void getActivationCodes(savedSecret, 500).then((res) => setActivationCodes((current) => mergeById(current, res.data || [], "code"))).catch((err) => {
+        console.warn("⚠️ Không refresh nhẹ sau khi gen active code:", err);
       });
       showNotice("ok", "Đã tạo link active code thành công.");
     });
@@ -8074,25 +8074,41 @@ export default function Home() {
   }
 
   async function openCustomerFromLookup(customerId: string) {
-    const customer = await ensureCustomerDataset(customerId);
-    if (!customer) return;
-    await ensureHiddenGroupsDataset();
-    setSelectedCustomerId(customer.id);
+    const customer = lookupCustomerByTelegramId(customerId);
+    if (customer) {
+      setSelectedCustomerId(customer.id);
+    } else {
+      setSelectedCustomerId(customerId);
+      void loadAll(savedSecret, { silent: true, resetPages: false, scope: "customers" }).catch((err) => {
+        console.warn("⚠️ Không nạp kịp dữ liệu khách khi mở hồ sơ:", err);
+      });
+    }
     setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
     setCustomerTimelineSubTab("all");
     setCustomerModalOpen(true);
+    void ensureHiddenGroupsDataset().catch((err) => {
+      console.warn("⚠️ Không nạp được nhóm ẩn khi mở hồ sơ khách:", err);
+    });
   }
 
   async function openCustomerRenewFromLookup(customerId: string) {
-    const customer = await ensureCustomerDataset(customerId);
-    if (!customer) return;
-    await ensureHiddenGroupsDataset();
-    setSelectedCustomerId(customer.id);
+    const customer = lookupCustomerByTelegramId(customerId);
+    if (customer) {
+      setSelectedCustomerId(customer.id);
+    } else {
+      setSelectedCustomerId(customerId);
+      void loadAll(savedSecret, { silent: true, resetPages: false, scope: "customers" }).catch((err) => {
+        console.warn("⚠️ Không nạp kịp dữ liệu khách khi mở gia hạn:", err);
+      });
+    }
     setCustomerOrderTab("paid");
     setCustomerDetailTab("orders");
     setCustomerTimelineSubTab("all");
     setCustomerModalOpen(true);
+    void ensureHiddenGroupsDataset().catch((err) => {
+      console.warn("⚠️ Không nạp được nhóm ẩn khi mở gia hạn khách:", err);
+    });
     requestAnimationFrame(() => {
       setCustomerRenewModalOpen(true);
     });

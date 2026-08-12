@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import CommandStart, Command
@@ -913,7 +914,7 @@ async def deliver_manual_order_message(message: Message, code: str):
 
 # [3] LỆNH START & QUAY LẠI MENU CHÍNH
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
     payload_preview = (message.text or "").replace("\n", " ")[:120]
     entity_types = [getattr(entity, "type", "") for entity in (getattr(message, "entities", None) or [])]
     print(
@@ -991,6 +992,17 @@ async def cmd_start(message: Message):
                     source_ref=license_key,
                 )
                 await deliver_license_activation(message, license_key)
+                return
+            if normalized.strip().upper() == "COUPON":
+                print(f"🚀 cmd_start coupon shortcut user={message.from_user.id}")
+                await record_start_event(
+                    message,
+                    normalized,
+                    "start_coupon_shortcut",
+                    source_ref="COUPON",
+                )
+                from modules.mod_coupon import send_coupon_prompt
+                await send_coupon_prompt(message, state)
                 return
             classified = classify_private_message(message)
             if classified["kind"] == "other" and classified["reason"] == "start_source":

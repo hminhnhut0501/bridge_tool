@@ -467,16 +467,19 @@ class SupabaseStore:
         )
         return [_normalize_payment_provider(row) for row in rows]
 
-    def list_scheduler_orders(self, limit=1000):
+    def list_scheduler_orders(self, limit=1000, updated_after=None):
+        params = {
+            "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
+            "status": "in.(PAID,EXPIRED)",
+            "order": "expire_at.asc",
+            "limit": str(limit),
+        }
+        if updated_after:
+            params["updated_at"] = f"gt.{_parse_datetime(updated_after) or updated_after}"
         rows = self._cached_request(
             "GET",
             "orders",
-            params={
-                "select": "order_id,telegram_user_id,full_name,plan_name,amount,status,paid_at,expire_at,sale_id,original_amount,last_reminder_date,expired_notice_at,coupon_code,payment_currency,payment_provider,metadata",
-                "status": "in.(PAID,EXPIRED)",
-                "order": "expire_at.asc",
-                "limit": str(limit),
-            },
+            params=params,
         )
         return [_normalize_payment_provider(row) for row in rows]
 
