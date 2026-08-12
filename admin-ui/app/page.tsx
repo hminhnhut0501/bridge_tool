@@ -9517,7 +9517,7 @@ export default function Home() {
                     {renewalTab === "expired" ? (
                       <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue kick / pending confirm / retry</Typography>
-                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là "Chờ kick".</Typography>
+                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là &quot;Chờ kick&quot;.</Typography>
                       </Box>
                     ) : null}
                     <SimpleTable
