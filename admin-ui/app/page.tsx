@@ -4632,6 +4632,22 @@ export default function Home() {
     });
   }
 
+  async function toggle365PlansVisibility(next: boolean) {
+    if (!savedSecret) return;
+    await runAction("fields", async () => {
+      const items = [{ key: canonicalConfigKey("SHOW_365D_PLANS"), value: next ? "ON" : "OFF" }];
+      const res = await updateConfigs(savedSecret, items);
+      const changedKeys = new Set(items.map((item) => item.key));
+      const returnedKeys = new Set((res.data || []).map((item) => item.key));
+      setConfig((current) => [
+        ...current.filter((item) => !changedKeys.has(item.key) && !returnedKeys.has(item.key)),
+        ...res.data,
+      ]);
+      setFieldValues((current) => ({ ...current, SHOW_365D_PLANS: next ? "ON" : "OFF" }));
+    });
+    showNotice("ok", next ? "Đã bật hiển thị gói VIP 365 ngày." : "Đã ẩn gói VIP 365 ngày.");
+  }
+
   function autoPaymentUiValue(key: string, fallback = "", legacyKey = "") {
     const localValue = String(fieldValues[key] || "").trim();
     if (localValue) return localValue;
@@ -8904,6 +8920,53 @@ export default function Home() {
 
         {tab === "setup" ? (
           <div className="stack">
+            <section className="panel">
+              <PanelHead
+                title="Công tắc hiển thị"
+                subtitle="Bật/tắt gói VIP 365 ngày trực tiếp tại đây để toàn bộ luồng tạo đơn / thanh toán / coupon dùng cùng một nguồn config."
+              />
+              <Box
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1.5,
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px solid rgba(37,99,235,0.10)",
+                  bgcolor: show365DPlans ? "rgba(124,58,237,0.08)" : "rgba(148,163,184,0.06)",
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.2 }}>
+                    {show365DPlans ? "Gói VIP 365 ngày đang hiển thị" : "Gói VIP 365 ngày đang ẩn"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Khi tắt, toàn bộ menu / tạo đơn / coupon sẽ bỏ qua 365 ngày để tránh tạo nhầm dữ liệu cho đơn cũ.
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  <Button
+                    variant={show365DPlans ? "contained" : "outlined"}
+                    onClick={() => void toggle365PlansVisibility(true)}
+                    startIcon={<CheckCircle2 size={16} />}
+                    disabled={show365DPlans || saving === "fields"}
+                  >
+                    Bật 365
+                  </Button>
+                  <Button
+                    variant={!show365DPlans ? "contained" : "outlined"}
+                    color="inherit"
+                    onClick={() => void toggle365PlansVisibility(false)}
+                    startIcon={<XCircle size={16} />}
+                    disabled={!show365DPlans || saving === "fields"}
+                  >
+                    Ẩn 365
+                  </Button>
+                </Box>
+              </Box>
+            </section>
             <section className="panel">
               <PanelHead
                 title="Bảng giá Combo"
