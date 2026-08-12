@@ -649,6 +649,35 @@ type CustomerStatusFilter = "all" | "active" | "expiring" | "lifetime" | "expire
 type CustomerOrderTab = "paid" | "other";
 type CustomerDetailTab = "orders" | "groups" | "timeline";
 type CustomerTimelineSubTab = "all" | "joinLeft" | "role" | "restricted" | "kickMute" | "orders";
+type CustomerDetailRow = {
+  id: string;
+  name: string;
+  orders: Order[];
+  paidOrders: Order[];
+  activeOrders: Order[];
+  latestExpire: string;
+  coupons: string[];
+  groups: string[];
+  plans: string[];
+  revenue: number;
+  lastOrderAt: string;
+  hasLifetimeSvip: boolean;
+  hasLifetimeOrder: boolean;
+  expiringWithinWindow: boolean;
+  hasAnyPaidOrder: boolean;
+  hasAnyExpiredPaidOrder: boolean;
+  status: string;
+  statusLabel: string;
+  statusColor: "success" | "warning" | "error" | "default";
+  isBlacklisted: boolean;
+  hasPaidOrder: boolean;
+  hasActiveOrder: boolean;
+  activeOrderCount: number;
+  paidOrderCount: number;
+  latestExpireText: string;
+  latestExpireOrder: Order | null;
+  blacklistEntry: BlacklistEntry | null;
+};
 type CustomerTraceEvent = {
   key: string;
   type: string;
@@ -3379,6 +3408,8 @@ export default function Home() {
   const marketingRefreshTimerRef = useRef<number | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [customerIdentityHistory, setCustomerIdentityHistory] = useState<CustomerIdentityHistoryRow[]>([]);
+  const [customerIdentityHistoryLoading, setCustomerIdentityHistoryLoading] = useState(false);
+  const customerIdentityHistoryLoadedForRef = useRef<string>("");
   const [activityLogResponse, setActivityLogResponse] = useState<ActivityLogResponse | null>(null);
   const [activityLogLoading, setActivityLogLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
@@ -3911,15 +3942,23 @@ export default function Home() {
   useEffect(() => {
     if (!savedSecret || !selectedCustomerId) {
       setCustomerIdentityHistory([]);
+      setCustomerIdentityHistoryLoading(false);
+      customerIdentityHistoryLoadedForRef.current = "";
       return;
     }
+    if (customerIdentityHistoryLoadedForRef.current === selectedCustomerId) return;
+    customerIdentityHistoryLoadedForRef.current = selectedCustomerId;
     let cancelled = false;
+    setCustomerIdentityHistoryLoading(true);
     getCustomerIdentityHistory(savedSecret, selectedCustomerId, 50)
       .then((res) => {
         if (!cancelled) setCustomerIdentityHistory(res.data || []);
       })
       .catch(() => {
         if (!cancelled) setCustomerIdentityHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCustomerIdentityHistoryLoading(false);
       });
     return () => {
       cancelled = true;
@@ -6171,9 +6210,67 @@ export default function Home() {
     const start = (safePage - 1) * CUSTOMER_PAGE_SIZE;
     return filteredCustomers.slice(start, start + CUSTOMER_PAGE_SIZE);
   }, [filteredCustomers, customerPage, totalCustomerPages]);
+  const selectedCustomerQuickLookup = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    const result = customerQuickLookupResults.find((item) => item.id === selectedCustomerId) || null;
+    if (!result) return null;
+    return {
+      ...result,
+      coupons: [],
+      groups: [],
+      plans: [],
+      revenue: 0,
+      lastOrderAt: "",
+      hasLifetimeSvip: false,
+      hasLifetimeOrder: false,
+      expiringWithinWindow: false,
+      hasAnyPaidOrder: result.hasPaidOrder,
+      hasAnyExpiredPaidOrder: false,
+      statusLabel: result.statusText,
+      statusColor: "default",
+      statusText: result.statusText,
+      isBlacklisted: result.isBlacklisted,
+      hasPaidOrder: result.hasPaidOrder,
+      hasActiveOrder: result.hasActiveOrder,
+      activeOrderCount: result.activeOrderCount,
+      paidOrderCount: result.paidOrderCount,
+      latestExpireText: result.latestExpireText,
+      latestExpireOrder: result.latestExpireOrder,
+      blacklistEntry: result.blacklistEntry,
+    } as CustomerDetailRow;
+  }, [customerQuickLookupResults, selectedCustomerId]);
   const selectedCustomer = useMemo(() => {
-    return customerSummaries.find((item) => item.id === selectedCustomerId) || null;
-  }, [customerSummaries, selectedCustomerId]);
+    return customerSummaries.find((item) => item.id === selectedCustomerId) || selectedCustomerQuickLookup || ({
+      id: selectedCustomerId,
+      name: "Đang tải...",
+      paidOrders: [],
+      activeOrders: [],
+      orders: [],
+      groups: [],
+      coupons: [],
+      plans: [],
+      revenue: 0,
+      latestExpire: "",
+      blacklistEntry: null,
+      hasPaidOrder: false,
+      hasActiveOrder: false,
+      activeOrderCount: 0,
+      paidOrderCount: 0,
+      latestExpireText: "",
+      latestExpireOrder: null,
+      status: "loading",
+      statusLabel: "Đang tải",
+      statusColor: "default",
+      statusText: "Đang tải",
+      isBlacklisted: false,
+      expiringWithinWindow: false,
+      hasLifetimeOrder: false,
+      hasLifetimeSvip: false,
+      hasAnyPaidOrder: false,
+      hasAnyExpiredPaidOrder: false,
+      lastOrderAt: "",
+    } as CustomerDetailRow);
+  }, [customerSummaries, selectedCustomerId, selectedCustomerQuickLookup]);
   const selectedOrderForEditor = useMemo(() => {
     if (!orderEditorOrderId) return null;
     return orders.find((item) => item.order_id === orderEditorOrderId) || null;
@@ -11463,8 +11560,8 @@ export default function Home() {
           onCopy={(value) => navigator.clipboard.writeText(stripHtml(value || ""))}
         />
 
-        {customerModalOpen && selectedCustomer ? (
-          <MuiDialogShell open title={selectedCustomer.name} subtitle={`Telegram ID: ${selectedCustomer.id}`} onClose={() => setCustomerModalOpen(false)} maxWidth="xl">
+        {customerModalOpen && selectedCustomerId ? (
+          <MuiDialogShell open title={selectedCustomer?.name || "Tra cứu khách hàng"} subtitle={`Telegram ID: ${selectedCustomerId}`} onClose={() => setCustomerModalOpen(false)} maxWidth="xl">
               <Box sx={{ display: "flex", gap: 2, alignItems: "stretch", minHeight: "72vh", flexDirection: { xs: "column", md: "row" } }}>
 	                <Box
 	                  component="aside"
