@@ -7083,6 +7083,8 @@ export default function Home() {
     groupsToReview?: string[];
     renewalStatus?: string;
     renewalNote?: string;
+    renewalLastError?: string;
+    renewalReason?: string;
     renewalProgress?: { total: number; done: number; retained: number; pending: number; error: number; kicking: number };
     renewalGroupDetails?: { groupId: string; groupName: string; status: string; note: string; auditId?: string }[];
     renewalLatestKickAt?: string;
@@ -7140,6 +7142,7 @@ export default function Home() {
             : renewalStatusTone(summary.status);
         const progress = renewalProgressText(summary);
         const progressDone = progress.total > 0 ? Math.round(((progress.done + progress.retained) / progress.total) * 100) : 0;
+        const reviewReason = summary.groupDetails.find((g) => g.status === "Cần xử lý" || g.status === "Lỗi" || g.status === "Không map được group")?.note || "";
         return {
           key: `expired-${item.order_id}`,
           telegramId: String(item.telegram_user_id || "").trim(),
@@ -7150,6 +7153,8 @@ export default function Home() {
           groupsToReview: summary.groupDetails.filter(g => g.status !== "Đã kick xong").map(g => g.groupId),
           renewalStatus: displayStatus,
           renewalNote: localKickState?.message || summary.note,
+          renewalLastError: localKickState?.message || reviewReason,
+          renewalReason: reviewReason || summary.note,
           renewalProgress: progress,
           renewalGroupDetails: summary.groupDetails,
           renewalLatestKickAt: summary.latestKickAt,
@@ -9484,7 +9489,7 @@ export default function Home() {
                       {[
                         { key: "all", label: "Tất cả" },
                         { key: "chokick", label: "Chờ xử lý" },
-                        { key: "review", label: "Đang xử lý" },
+                        { key: "review", label: "Cần review" },
                         { key: "kicked", label: "Đã xong" },
                         { key: "error", label: "Lỗi / thiếu map" },
                       ].map((item) => (
@@ -9618,6 +9623,18 @@ export default function Home() {
                         <Typography variant="caption" color="text.secondary">Ghi chú</Typography>
                         <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
                           {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Last error</Typography>
+                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
+                          {selectedRenewalDetail.renewalLastError || "Không có last_error"}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">metadata.reason</Typography>
+                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
+                          {selectedRenewalDetail.renewalReason || "Không có reason"}
                         </Typography>
                       </Box>
                       <Box sx={{ mt: 1 }}>
