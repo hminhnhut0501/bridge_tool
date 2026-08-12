@@ -804,6 +804,10 @@ def truthy_config(key, default="OFF"):
     return value in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def show_365d_plans():
+    return truthy_config("SHOW_365D_PLANS", "OFF")
+
+
 def web_payment_enabled():
     return truthy_config("WEB_PAYMENT_ENABLED", "OFF")
 
@@ -1394,12 +1398,14 @@ async def view_group_detail(callback: CallbackQuery):
     currency = default_currency_for_user(callback.from_user.id)
     desc = t(callback.from_user.id, f"DESC_G{num}", "Đang cập nhật...").replace("\\n", "\n")
     desc += sale_text_for_price(f"PRICE_G{num}_1M", "50000", currency)
-    desc += sale_text_for_price(f"PRICE_G{num}_365D", "0", currency)
+    if show_365d_plans():
+        desc += sale_text_for_price(f"PRICE_G{num}_365D", "0", currency)
     desc += sale_text_for_price(f"PRICE_G{num}_LIFE", "149000", currency)
     
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_30D', '💎 COLLECTION 30 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_1M', '50000')}", callback_data=f"buy_G{num}_1m"))
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_365D', '💎 COLLECTION 365 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_365D', '0')}", callback_data=f"buy_G{num}_365d"))
+    if show_365d_plans():
+        kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_365D', '💎 VIP 365 NGÀY')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_365D', '0')}", callback_data=f"buy_G{num}_365d"))
     kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_COLLECTION_LIFE', '👑 COLLECTION TRỌN ĐỜI')} • {price_label_for_user(callback.from_user.id, f'PRICE_G{num}_LIFE', '149000')}", callback_data=f"buy_G{num}_life"))
     # Nút dẫn sang trang All Access Page
     kb.row(InlineKeyboardButton(text=t(callback.from_user.id, "BTN_VIEW_ALL_ACCESS_PAGE", localized_default(callback.from_user.id, "🌟 XEM ALL ACCESS", "🌟 View All Access")), callback_data="view_all_access_page"))
@@ -1424,7 +1430,8 @@ async def show_all_access_page(callback: CallbackQuery):
     description = t(callback.from_user.id, "TXT_ALL_ACCESS_DESCRIPTION", "🔥 <b>ĐẶC QUYỀN ALL ACCESS</b> 🔥\n\n✅ Truy cập toàn bộ các collection VIP.\n✅ Cập nhật nội dung mới mỗi ngày.\n✅ Hỗ trợ ưu tiên 24/7.\n\n👇 <i>Chọn gói đăng ký bên dưới:</i>").replace("\\n", "\n")
     currency = default_currency_for_user(callback.from_user.id)
     description += sale_text_for_price("PRICE_ALL_ACCESS_LIFE", "3000", currency)
-    description += sale_text_for_price("PRICE_ALL_ACCESS_365D", "0", currency)
+    if show_365d_plans():
+        description += sale_text_for_price("PRICE_ALL_ACCESS_365D", "0", currency)
     description += sale_text_for_price("PRICE_ALL_ACCESS_30D", "2000", currency)
     
     btn_life_text = t(callback.from_user.id, "BTN_BUY_ALL_ACCESS_LIFE", "🔥 MUA ALL ACCESS TRỌN ĐỜI")
@@ -1435,7 +1442,8 @@ async def show_all_access_page(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     # TRUYỀN TÍN HIỆU BUY ĐỂ GỌI HÀM TẠO MÃ QR BÊN DƯỚI
     kb.row(InlineKeyboardButton(text=f"{btn_life_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_LIFE', '3000')}", callback_data="buy_full_life"))
-    kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_ALL_ACCESS_365D', '💎 MUA ALL ACCESS 365 NGÀY')} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_365D', '0')}", callback_data="buy_full_365d"))
+    if show_365d_plans():
+        kb.row(InlineKeyboardButton(text=f"{t(callback.from_user.id, 'BTN_BUY_ALL_ACCESS_365D', '💎 MUA VIP 365 NGÀY')} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_365D', '0')}", callback_data="buy_full_365d"))
     kb.row(InlineKeyboardButton(text=f"{btn_30d_text} • {price_label_for_user(callback.from_user.id, 'PRICE_ALL_ACCESS_30D', '2000')}", callback_data="buy_full_1m"))
     kb.row(InlineKeyboardButton(text=btn_back_text, callback_data="back_main"))
 

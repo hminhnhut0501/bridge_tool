@@ -143,6 +143,10 @@ def config_enabled(key, default="OFF"):
     return truthy(db.get_config(key, default) or default)
 
 
+def show_365d_plans():
+    return config_enabled("SHOW_365D_PLANS", "OFF")
+
+
 def coupon_auto_prefixes():
     raw = db.get_config("COUPON_AUTO_REDEEM_PREFIXES", "HANGCU_")
     prefixes = {"HANGCU_"}
@@ -228,10 +232,15 @@ def normalize_plan_key(value):
 
 
 def all_coupon_plan_keys():
-    keys = ["FULL_1M", "FULL_365D", "FULL_LIFE"]
+    keys = ["FULL_1M", "FULL_LIFE"]
+    if show_365d_plans():
+        keys.insert(1, "FULL_365D")
     for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") or db.get_config(f"ID_G{group_no}"):
-            keys.extend([f"G{group_no}_1M", f"G{group_no}_365D", f"G{group_no}_LIFE"])
+            keys.append(f"G{group_no}_1M")
+            if show_365d_plans():
+                keys.append(f"G{group_no}_365D")
+            keys.append(f"G{group_no}_LIFE")
     return keys
 
 
@@ -241,12 +250,17 @@ def selectable_group_plan_keys(plan_name):
     keys = []
     for group_no in group_numbers():
         if db.get_config(f"BTN_G{group_no}") and db.get_config(f"ID_G{group_no}"):
+            if suffix == "_365D" and not show_365d_plans():
+                continue
             keys.append(f"G{group_no}{suffix}")
     return keys
 
 
 def is_selectable_group_coupon_plan(plan_name):
-    return normalize_plan_key(plan_name) in {SELECT_GROUP_1M, SELECT_GROUP_365D, SELECT_GROUP_LIFE}
+    key = normalize_plan_key(plan_name)
+    if key == SELECT_GROUP_365D and not show_365d_plans():
+        return False
+    return key in {SELECT_GROUP_1M, SELECT_GROUP_365D, SELECT_GROUP_LIFE}
 
 
 def coupon_lifetime_days():
@@ -447,15 +461,18 @@ def resolve_plan_name(plan_key, user_id=None):
 
     plan_map = {
         "FULL_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
-        "FULL_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "All Access 365 Ngày"),
         "FULL_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
         "SVIP_1M": localized_config(user_id, "PLAN_ALL_ACCESS_30D", "All Access 30 Ngày"),
-        "SVIP_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "All Access 365 Ngày"),
         "SVIP_LIFE": localized_config(user_id, "PLAN_ALL_ACCESS_LIFE", "All Access Trọn Đời"),
         SELECT_GROUP_1M: "Khách tự chọn collection lẻ - 30 ngày",
-        SELECT_GROUP_365D: "Khách tự chọn collection lẻ - 365 ngày",
         SELECT_GROUP_LIFE: "Khách tự chọn collection lẻ - trọn đời",
     }
+    if show_365d_plans():
+        plan_map.update({
+            "FULL_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "VIP 365 Ngày"),
+            "SVIP_365D": localized_config(user_id, "PLAN_ALL_ACCESS_365D", "VIP 365 Ngày"),
+            SELECT_GROUP_365D: "Khách tự chọn collection lẻ - VIP 365 ngày",
+        })
     if key in plan_map:
         return plan_map[key]
 
@@ -463,7 +480,9 @@ def resolve_plan_name(plan_key, user_id=None):
         if key == f"G{group_no}_1M":
             return f"{localized_config(user_id, 'PLAN_COLLECTION_30D', 'Collection 30 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
         if key == f"G{group_no}_365D":
-            return f"{localized_config(user_id, 'PLAN_COLLECTION_365D', 'Collection 365 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
+            if not show_365d_plans():
+                break
+            return f"{localized_config(user_id, 'PLAN_COLLECTION_365D', 'VIP 365 Ngày')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
         if key == f"G{group_no}_LIFE":
             return f"{localized_config(user_id, 'PLAN_COLLECTION_LIFE', 'Collection Trọn Đời')} - {localized_config(user_id, f'BTN_G{group_no}', f'Collection {group_no}')}"
 
