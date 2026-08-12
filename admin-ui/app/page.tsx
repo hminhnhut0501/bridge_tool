@@ -6807,6 +6807,8 @@ export default function Home() {
       "Lỗi": { label: "Lỗi", tone: "error", hint: "Task kick gặp lỗi cần xử lý thủ công hoặc retry." },
       "Không map được group": { label: "Không map được group", tone: "error", hint: "Tên gói chưa map được sang group để kick." },
       "Cần xử lý": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
+      "review_required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
+      "Review required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
       "Chờ kick": { label: "Chờ kick", tone: "warning", hint: "Đang chờ worker hoặc dữ liệu kick tiếp theo." },
       "Chờ audit": { label: "Chờ audit", tone: "warning", hint: "Đang chờ audit kick / reconcile trạng thái." },
       "QUEUED": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
@@ -7228,10 +7230,10 @@ export default function Home() {
       if (q && !item.searchText.includes(q)) return false;
       if (renewalTab === "expired" && renewalFocusFilter !== "all") {
         const status = String(item.renewalStatus || "");
-        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit", "Đã xếp hàng kick", "Chờ thử lại", "Cần xử lý"].includes(status)) return false;
+        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit", "Đã xếp hàng kick", "Chờ thử lại", "Cần xử lý", "Cần review"].includes(status)) return false;
         if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick", "Đang chờ Telegram xác nhận"].includes(status)) return false;
         if (renewalFocusFilter === "retained" && !["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status)) return false;
-        if (renewalFocusFilter === "error" && !["Lỗi", "Không map được group"].includes(status)) return false;
+        if (renewalFocusFilter === "error" && !["Lỗi", "Không map được group", "Cần review"].includes(status)) return false;
         if (renewalFocusFilter === "review" && ["Đã kick xong"].includes(status)) return false;
       }
       return true;
@@ -7244,7 +7246,7 @@ export default function Home() {
         if (status === "Đã kick xong") acc.done += 1;
         else if (status === "Đã kick một phần") acc.partial += 1;
         else if (status === "Đang kick") acc.kicking += 1;
-        else if (["Lỗi", "Không map được group"].includes(status)) acc.error += 1;
+        else if (["Lỗi", "Không map được group", "Cần review"].includes(status)) acc.error += 1;
         else acc.pending += 1;
         return acc;
       },
@@ -9502,7 +9504,7 @@ export default function Home() {
                       <Chip size="small" label={`Chờ xử lý: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
                       <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
-                      <Chip size="small" label={`Lỗi: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
+                      <Chip size="small" label={`Lỗi / review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
                     </Box>
                   ) : null}
 	              </Box>
@@ -9529,7 +9531,7 @@ export default function Home() {
                         if (isSelected) return { bgcolor: "rgba(59, 130, 246, 0.08)" };
                         if (row?.renewalStatus === "Đã kick xong") return { bgcolor: "rgba(16, 185, 129, 0.04)" };
                         if (["Đang kick", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
-                        if (["Lỗi", "Không map được group"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(239, 68, 68, 0.04)" };
+                        if (["Lỗi", "Không map được group", "Cần review"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(239, 68, 68, 0.04)" };
                         return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.06)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.04)" } : {};
                       }}
                       actions={(idx) => {
@@ -9546,7 +9548,7 @@ export default function Home() {
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {(["Cần xử lý", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                {(["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Xử lý ({groupsToKick.length})</Button>
                                 ) : null}
                                 {groupsToReview.length > 0 && ["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status) ? (

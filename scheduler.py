@@ -59,6 +59,8 @@ recent_kicks = {}
 SCHEDULER_DEFAULT_INTERVAL_SECONDS = 60
 SCHEDULER_MIN_INTERVAL_SECONDS = 60
 KICK_CONFIRMATION_DELAY_SECONDS = 30
+KICK_MAX_ATTEMPTS = 3
+KICK_CONFIRM_MAX_ATTEMPTS = 3
 
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
@@ -262,8 +264,19 @@ async def get_chat_member_safe(chat_id, user_id):
     except Exception as exc:
         text = str(exc).lower()
         if "user not found" in text or "participant_id_invalid" in text or "chat not found" in text:
+            logging.info(
+                "ℹ️ Telegram không tra được member user %s trong group %s: %s",
+                user_id,
+                chat_id,
+                exc,
+            )
             return None
-        logging.warning("⚠️ Không kiểm tra được quyền user %s trong group %s: %s", user_id, chat_id, exc)
+        logging.warning(
+            "⚠️ Telegram lỗi khi kiểm tra member user %s trong group %s; trả unknown để scheduler retry: %s",
+            user_id,
+            chat_id,
+            exc,
+        )
         return "unknown"
 
 def member_is_admin_or_owner(member):
@@ -588,7 +601,31 @@ async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presen
         state = task_state_value(task)
         due_at = parse_expire_datetime(task.get("due_at"))
         next_retry_at = parse_expire_datetime(task.get("next_retry_at"))
+        attempt_count = int(task.get("attempt_count") or 0)
         if state not in {"queued", "retry_pending", "pending_confirm", "processing", "error_retryable"}:
+            continue
+        if attempt_count >= KICK_MAX_ATTEMPTS and state not in {"done", "blocked_active_order"}:
+            logging.warning(
+                "🛑 Renewal kick task %s vượt max attempts=%s, đẩy sang review_required (state=%s, order=%s, user=%s, group=%s, last_error=%s).",
+                task.get("id"),
+                KICK_MAX_ATTEMPTS,
+                state,
+                str(task.get("order_id") or ""),
+                str(task.get("telegram_user_id") or ""),
+                str(task.get("group_id") or ""),
+                task.get("last_error") or "",
+            )
+            try:
+                supabase_store.update_renewal_kick_task(task["id"], {
+                    "state": "review_required",
+                    "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_error": str(task.get("last_error") or "max_attempts_reached"),
+                    "metadata": {**(task.get("metadata") or {}), "reason": "max_attempts_reached", "attempt_count": attempt_count},
+                })
+            except Exception:
+                summary["error"] += 1
+            else:
+                summary["error"] += 1
             continue
         if due_at and due_at > now:
             continue
@@ -605,6 +642,14 @@ async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presen
         else:
             active_group_ids = user_active_group_ids(user_id, order_id, [], now, plan_group_cache=plan_group_cache)
         if group_id in active_group_ids:
+            logging.info(
+                "⏭ Renewal kick task %s giữ lại vì user %s còn đơn active cho group %s (order=%s, active_groups=%s).",
+                task.get("id"),
+                user_id,
+                group_id,
+                order_id,
+                sorted(active_group_ids),
+            )
             try:
                 supabase_store.update_renewal_kick_task(task["id"], {
                     "state": "blocked_active_order",
@@ -621,6 +666,13 @@ async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presen
             try:
                 member = await member_is_present(group_id, user_id)
                 if member is False:
+                    logging.info(
+                        "✅ Renewal kick task %s xác nhận user %s đã rời group %s (order=%s).",
+                        task.get("id"),
+                        user_id,
+                        group_id,
+                        order_id,
+                    )
                     supabase_store.update_renewal_kick_task(task["id"], {
                         "state": "done",
                         "confirmed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -629,25 +681,80 @@ async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presen
                         "metadata": {**(task.get("metadata") or {}), "reason": "confirmed_removed"},
                     })
                     summary["done"] += 1
-                else:
+                elif member is True:
+                    logging.warning(
+                        "↩️ Renewal kick task %s vẫn thấy user %s còn trong group %s sau confirm, sẽ retry (order=%s, attempt=%s).",
+                        task.get("id"),
+                        user_id,
+                        group_id,
+                        order_id,
+                        attempt_count,
+                    )
                     supabase_store.update_renewal_kick_task(task["id"], {
                         "state": "retry_pending",
                         "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
-                        "attempt_count": int(task.get("attempt_count") or 0),
+                        "attempt_count": attempt_count,
                         "metadata": {**(task.get("metadata") or {}), "reason": "still_present_after_confirm"},
                     })
                     summary["queued"] += 1
+                else:
+                    confirm_attempts = int((task.get("metadata") or {}).get("confirm_attempts") or 0) + 1
+                    next_state = "retry_pending" if confirm_attempts < KICK_CONFIRM_MAX_ATTEMPTS else "review_required"
+                    logging.warning(
+                        "⚠️ Renewal kick task %s không xác nhận được trạng thái Telegram cho user %s group %s (order=%s, confirm_attempts=%s/%s) -> %s.",
+                        task.get("id"),
+                        user_id,
+                        group_id,
+                        order_id,
+                        confirm_attempts,
+                        KICK_CONFIRM_MAX_ATTEMPTS,
+                        next_state,
+                    )
+                    supabase_store.update_renewal_kick_task(task["id"], {
+                        "state": next_state,
+                        "last_error": "confirm_unknown" if next_state != "review_required" else "confirm_unknown_max_attempts",
+                        "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S") if next_state == "retry_pending" else None,
+                        "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S") if next_state == "review_required" else None,
+                        "metadata": {**(task.get("metadata") or {}), "reason": "confirm_unknown", "confirm_attempts": confirm_attempts},
+                    })
+                    if next_state == "review_required":
+                        summary["error"] += 1
+                    else:
+                        summary["queued"] += 1
             except Exception as exc:
+                retry_attempts = int((task.get("metadata") or {}).get("confirm_attempts") or 0) + 1
+                next_state = "error_retryable" if retry_attempts < KICK_CONFIRM_MAX_ATTEMPTS else "review_required"
+                logging.exception(
+                    "❌ Renewal kick task %s confirm bị lỗi cho user %s group %s (order=%s, retry_attempts=%s/%s) -> %s: %s",
+                    task.get("id"),
+                    user_id,
+                    group_id,
+                    order_id,
+                    retry_attempts,
+                    KICK_CONFIRM_MAX_ATTEMPTS,
+                    next_state,
+                    exc,
+                )
                 supabase_store.update_renewal_kick_task(task["id"], {
-                    "state": "error_retryable",
+                    "state": next_state,
                     "last_error": str(exc),
-                    "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
-                    "metadata": {**(task.get("metadata") or {}), "reason": "confirm_failed"},
+                    "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S") if next_state == "error_retryable" else None,
+                    "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S") if next_state == "review_required" else None,
+                    "metadata": {**(task.get("metadata") or {}), "reason": "confirm_failed", "confirm_attempts": retry_attempts},
                 })
                 summary["error"] += 1
             continue
 
         try:
+            logging.info(
+                "▶️ Renewal kick task %s bắt đầu kick user %s khỏi group %s (order=%s, plan=%s, attempt=%s).",
+                task.get("id"),
+                user_id,
+                group_id,
+                order_id,
+                plan_name,
+                attempt_count + 1,
+            )
             supabase_store.update_renewal_kick_task(task["id"], {
                 "state": "processing",
                 "processing_at": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -670,12 +777,20 @@ async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presen
             run_presence_cache=run_presence_cache,
         )
         try:
+            logging.info(
+                "⏳ Renewal kick task %s đã gửi kick, chuyển sang %s (order=%s, user=%s, group=%s).",
+                task.get("id"),
+                "pending_confirm" if ok else "error_retryable",
+                order_id,
+                user_id,
+                group_id,
+            )
             supabase_store.update_renewal_kick_task(task["id"], {
                 "state": "pending_confirm" if ok else "error_retryable",
                 "requested_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "next_retry_at": (now + timedelta(seconds=KICK_CONFIRMATION_DELAY_SECONDS)).strftime("%Y-%m-%d %H:%M:%S") if ok else (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
                 "last_error": "" if ok else "kick_failed",
-                "metadata": {**(task.get("metadata") or {}), "reason": "kick_sent" if ok else "kick_failed"},
+                "metadata": {**(task.get("metadata") or {}), "reason": "kick_sent" if ok else "kick_failed", "attempt_count": attempt_count + 1},
             })
             summary["processing"] += 1
         except Exception:
@@ -937,6 +1052,11 @@ async def ensure_member_kicked(
         if run_presence_cache is not None:
             run_presence_cache[kick_key] = member
     if member is None:
+        logging.info(
+            "ℹ️ Không tra được member user %s trong group %s, tạm coi như không còn trong group để tránh kick mù.",
+            user_id,
+            chat_id,
+        )
         if run_presence_cache is not None:
             run_presence_cache[kick_key] = False
         return True
@@ -972,6 +1092,13 @@ async def ensure_member_kicked(
         )
         await bot.ban_chat_member(chat_id=chat_id, user_id=int(user_id))
         await bot.unban_chat_member(chat_id=chat_id, user_id=int(user_id))
+        logging.info(
+            "✅ Đã gửi lệnh kick user %s khỏi group %s cho đơn %s (%s).",
+            user_id,
+            chat_id,
+            order_id,
+            plan_label,
+        )
         recent_kicks[kick_key] = now
         if run_kick_cache is not None:
             run_kick_cache.add(run_kick_key)
@@ -1014,7 +1141,16 @@ async def ensure_member_kicked(
         logging.info("🚪 Đã kick User %s khỏi group %s vì %s.", user_id, chat_id, reason)
         return True
     except Exception as exc:
-        logging.error("❌ Lỗi kick User %s khỏi group %s: %s", user_id, chat_id, exc)
+        logging.exception(
+            "❌ Kick user %s khỏi group %s thất bại cho đơn %s (%s), reason=%s, raw=%s: %s",
+            user_id,
+            chat_id,
+            order_id,
+            display_plan_name(plan_name, user_id),
+            reason,
+            raw_data or {},
+            exc,
+        )
         payload = {"reason": reason, "error": str(exc)}
         payload.update(raw_data or {})
         plan_label = display_plan_name(plan_name, user_id)
