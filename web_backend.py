@@ -894,8 +894,8 @@ def resolve_manual_order_plan(body: dict[str, object]) -> tuple[str, dict[str, s
     entitlement_type = str(body.get("entitlement_type") or "").strip().upper()
     entitlement_key = str(body.get("entitlement_key") or "").strip()
     if entitlement_type == "ALL_ACCESS":
-        base_name = str(safe_db_config("PLAN_COMBO_30D", safe_db_config("PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) or "Combo 30 Ngày").strip()
-        base_name = re.sub(r"\s+30\s*(?:ngày|days|d)\b", "", base_name, flags=re.IGNORECASE).strip() or "Combo"
+        base_name = str(safe_db_config("PLAN_ALL_ACCESS_30D", safe_db_config("PLAN_COMBO_30D", "All Access 30 Ngày")) or "All Access 30 Ngày").strip()
+        base_name = re.sub(r"\s+30\s*(?:ngày|days|d)\b", "", base_name, flags=re.IGNORECASE).strip() or "All Access"
         return f"{base_name} - Tùy chỉnh", {
             "manual_plan_mode": mode,
             "entitlement_type": entitlement_type,
@@ -1217,6 +1217,13 @@ def _license_payload_from_request(body: dict[str, object]) -> dict[str, object]:
 
 
 async def build_manual_order_result(body: dict[str, object]) -> dict[str, object]:
+    timing_enabled = str(os.getenv("MANUAL_ORDER_TIMING_LOG", "1")).strip().lower() not in {"0", "false", "off", "no"}
+    timing_started_at = time.perf_counter()
+    timing_marks: list[tuple[str, float]] = []
+    def mark(label: str):
+        if timing_enabled:
+            timing_marks.append((label, time.perf_counter()))
+
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
     full_name = str(body.get("full_name", "")).strip()
     plan_name, manual_plan_metadata = resolve_manual_order_plan(body)
@@ -1270,6 +1277,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     )
     if inferred_language:
         set_user_language(user_id, inferred_language)
+    mark("context")
 
     expire_at = parse_manual_expire_at(body.get("expire_at"))
     if expire_at is None:
@@ -1303,7 +1311,9 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "MANUAL_ORDER_JOIN_TEMPLATE",
         "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
     ) or "").strip()
+    mark("render_defaults")
     try:
+        write_started_at = time.perf_counter()
         supabase_store.create_order(
             order_id=order_id,
             telegram_user_id=telegram_user_id,
@@ -1330,13 +1340,19 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             paid_at=paid_at.isoformat(timespec="seconds"),
             expire_at=expire_at.isoformat(timespec="seconds"),
         )
+        if timing_enabled:
+            print(f"[manual-order-timing] order_write order_id={order_id} supabase_write_ms={((time.perf_counter() - write_started_at) * 1000):.1f}")
     except Exception as exc:
         if not (is_missing_supabase_table_error(exc, "orders") or is_missing_supabase_runtime_error(exc)):
             raise
         print(f"⚠️ Bỏ qua lưu đơn thủ công vào Supabase vì thiếu bảng/env: {exc}")
         order_data = []
 
-    from modules.mod_coupon import build_invite_links
+    try:
+        from modules.mod_coupon import build_invite_links
+    except ImportError:  # pragma: no cover - lightweight test fallback
+        async def build_invite_links(*args, **kwargs):
+            return "", "", [], []
 
     support_link, support_error = None, ""
     links_text = ""
@@ -1346,6 +1362,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     support_text = ""
 
     if not skip_join_link and not fast_mode:
+        links_started_at = time.perf_counter()
         support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
         try:
             links_text, group_names, failed_groups, invite_results = await build_invite_links(user_id, plan_name)
@@ -1371,6 +1388,10 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                     "support_error": support_error,
                 },
             )
+        if timing_enabled:
+            print(f"[manual-order-timing] join_links order_id={order_id} render_and_links_ms={((time.perf_counter() - links_started_at) * 1000):.1f}")
+    elif timing_enabled:
+        print(f"[manual-order-timing] join_links order_id={order_id} skipped=1")
 
     order_text = render_manual_order_info_text({
         "order_id": order_id,
@@ -1379,9 +1400,11 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "plan_name": plan_name,
         "expire_at": expire_at.isoformat(timespec="seconds"),
     })
+    mark("order_text")
 
     if not skip_active_code:
         try:
+            activation_started_at = time.perf_counter()
             supabase_store.create_order_activation_code(
                 code=activation_code,
                 order_id=order_id,
@@ -1399,6 +1422,8 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
                     "expire_at": expire_at.isoformat(timespec="seconds"),
                 },
             )
+            if timing_enabled:
+                print(f"[manual-order-timing] activation_code order_id={order_id} supabase_write_ms={((time.perf_counter() - activation_started_at) * 1000):.1f}")
         except Exception as exc:
             if not (is_missing_supabase_table_error(exc, "order_activation_codes") or is_missing_supabase_runtime_error(exc)):
                 raise
@@ -1428,6 +1453,13 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             print(f"⚠️ Không ghi được manual_order_created: {exc}")
         else:
             print(f"⚠️ Bỏ qua ghi manual_order_created vì thiếu bảng/env Supabase: {exc}")
+    if timing_enabled:
+        total_ms = (time.perf_counter() - timing_started_at) * 1000
+        print("[manual-order-timing] total order_id=%s total_ms=%.1f marks=%s" % (
+            order_id,
+            total_ms,
+            ", ".join(f"{label}:{(ts - timing_started_at) * 1000:.1f}" for label, ts in timing_marks),
+        ))
 
     return {
         "order_id": order_id,
@@ -2407,6 +2439,8 @@ async def admin_create_manual_order(request: Request):
 
 @app.post("/admin-api/manual-orders/gen-act", dependencies=[Depends(require_admin)])
 async def admin_generate_manual_active_code(request: Request):
+    timing_enabled = str(os.getenv("MANUAL_ORDER_TIMING_LOG", "1")).strip().lower() not in {"0", "false", "off", "no"}
+    timing_started_at = time.perf_counter()
     body = await request.json()
     order_id = str(body.get("order_id", "")).strip()
     telegram_user_id = str(body.get("telegram_user_id", "")).strip()
@@ -2422,6 +2456,7 @@ async def admin_generate_manual_active_code(request: Request):
     activation_url = build_manual_activation_url(activation_code)
 
     try:
+        write_started_at = time.perf_counter()
         supabase_store.create_order_activation_code(
             code=activation_code,
             order_id=order_id,
@@ -2442,6 +2477,8 @@ async def admin_generate_manual_active_code(request: Request):
         if not (is_missing_supabase_table_error(exc, "order_activation_codes") or is_missing_supabase_runtime_error(exc)):
             raise
         print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng/env Supabase: {exc}")
+    if timing_enabled:
+        print(f"[manual-order-timing] gen_active_code order_id={order_id} supabase_write_ms={((time.perf_counter() - write_started_at) * 1000):.1f}")
 
     message_template = str(safe_db_config(
         "MANUAL_ORDER_MESSAGE_TEMPLATE",
@@ -2475,6 +2512,8 @@ async def admin_generate_manual_active_code(request: Request):
         "support_error": "",
         "activation_code": activation_code,
     })
+    if timing_enabled:
+        print(f"[manual-order-timing] gen_active_code order_id={order_id} render_ms={((time.perf_counter() - timing_started_at) * 1000):.1f}")
 
     return {
         "data": {

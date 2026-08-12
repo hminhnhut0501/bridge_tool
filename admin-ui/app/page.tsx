@@ -7952,6 +7952,7 @@ export default function Home() {
     const durationDays = manualOrderForm.expiry_mode === "days" || isLifetime ? (manualOrderForm.duration_days || String(lifetimeCouponDays || 3650)) : "";
     const expireAt = manualOrderForm.expiry_mode === "date" && !isLifetime ? manualOrderForm.expire_at : "";
     await runAction("manual-order", async () => {
+      const requestStartedAt = performance.now();
       const res = await createManualOrder(savedSecret, {
         telegram_user_id: manualOrderForm.telegram_user_id.trim(),
         full_name: manualOrderForm.full_name.trim(),
@@ -7970,10 +7971,14 @@ export default function Home() {
         skip_join_link: true,
         skip_active_code: true,
       });
+      console.info("[manual-order-timing] createManualOrder request_ms=", Math.round(performance.now() - requestStartedAt));
       setManualOrderResult(res.data);
       setManualOrderForm({ ...EMPTY_MANUAL_ORDER_FORM, plan_name: manualPlanNameFromKey("FULL_1M"), amount: manualPriceFromKey("FULL_1M") || "0" });
-      void loadAll().catch((err) => {
-        console.warn("⚠️ Không refresh ngay sau khi tạo đơn thủ công:", err);
+      void Promise.all([
+        loadAll(savedSecret, { silent: true, resetPages: false, scope: "orders" }),
+        loadAll(savedSecret, { silent: true, resetPages: false, scope: "activationCodes" }),
+      ]).catch((err) => {
+        console.warn("⚠️ Không refresh nền sau khi tạo đơn thủ công:", err);
       });
     });
   }
@@ -7981,6 +7986,7 @@ export default function Home() {
   async function generateManualActiveCodeHandler() {
     if (!manualOrderResult) return;
     await runAction("generate-active-code", async () => {
+      const requestStartedAt = performance.now();
       const res = await generateManualActiveCode(savedSecret, {
         order_id: manualOrderResult.order_id,
         telegram_user_id: manualOrderResult.telegram_user_id,
@@ -7989,6 +7995,7 @@ export default function Home() {
         expire_at: manualOrderResult.expire_at,
         expire_at_iso: manualOrderResult.expire_at_iso,
       });
+      console.info("[manual-order-timing] generateManualActiveCode request_ms=", Math.round(performance.now() - requestStartedAt));
       
       setManualOrderResult(prev => {
         if (!prev) return prev;
@@ -7999,6 +8006,9 @@ export default function Home() {
           manual_order_message_url: res.data.manual_order_message_url,
           manual_order_text: res.data.manual_order_text,
         };
+      });
+      void loadAll(savedSecret, { silent: true, resetPages: false, scope: "activationCodes" }).catch((err) => {
+        console.warn("⚠️ Không refresh nền sau khi gen active code:", err);
       });
       showNotice("ok", "Đã tạo link active code thành công.");
     });
@@ -8025,6 +8035,9 @@ export default function Home() {
           support_error: res.data.support_error,
           manual_order_join_text: res.data.manual_order_join_text,
         };
+      });
+      void loadAll(savedSecret, { silent: true, resetPages: false, scope: "customers" }).catch((err) => {
+        console.warn("⚠️ Không refresh nền sau khi gen link tham gia:", err);
       });
       showNotice("ok", "Đã tạo link tham gia nhóm thành công.");
     });
