@@ -153,7 +153,6 @@ class SupabaseStore:
         self._table_cache_ttl = {
             "orders": int(os.getenv("SUPABASE_CACHE_TTL_ORDERS", "10")),
             "support_events": int(os.getenv("SUPABASE_CACHE_TTL_SUPPORT_EVENTS", "20")),
-            "renewal_kick_tasks": int(os.getenv("SUPABASE_CACHE_TTL_RENEWAL_KICK_TASKS", "10")),
             "customer_identity_history": int(os.getenv("SUPABASE_CACHE_TTL_CUSTOMER_IDENTITY_HISTORY", "20")),
             "analytics_events": int(os.getenv("SUPABASE_CACHE_TTL_ANALYTICS_EVENTS", "30")),
             "security_blacklist": int(os.getenv("SUPABASE_CACHE_TTL_BLACKLIST", "20")),
@@ -281,7 +280,6 @@ class SupabaseStore:
             "broadcast_recipients": "id",
             "channel_posts": "id",
             "support_events": "id",
-            "renewal_kick_tasks": "id",
             "analytics_events": "id",
             "orders": "order_id",
         }
@@ -1495,38 +1493,6 @@ class SupabaseStore:
             params={"on_conflict": "order_id,group_id"},
             json=row,
             prefer="resolution=merge-duplicates,return=representation",
-        )
-
-    def list_renewal_kick_tasks(self, *, state=None, due_before=None, next_retry_before=None, limit=200):
-        params = {"select": "*", "order": "updated_at.asc", "limit": str(limit)}
-        if state:
-            params["state"] = f"eq.{_clean_text(state)}"
-        if due_before is not None:
-            params["due_at"] = f"lte.{_parse_datetime(due_before) or due_before}"
-        if next_retry_before is not None:
-            params["or"] = f"(next_retry_at.is.null,next_retry_at.lte.{_parse_datetime(next_retry_before) or next_retry_before})"
-        return self._cached_request("GET", "renewal_kick_tasks", params=params)
-
-    def get_renewal_kick_task(self, order_id, group_id):
-        rows = self._request(
-            "GET",
-            "renewal_kick_tasks",
-            params={
-                "select": "*",
-                "order_id": f"eq.{_clean_text(order_id)}",
-                "group_id": f"eq.{_clean_text(group_id)}",
-                "limit": "1",
-            },
-        )
-        return rows[0] if rows else None
-
-    def update_renewal_kick_task(self, task_id, payload):
-        return self._request(
-            "PATCH",
-            "renewal_kick_tasks",
-            params={"id": f"eq.{_clean_text(task_id)}"},
-            json=payload,
-            prefer="return=representation",
         )
 
     def upsert_renewal_kick_task_v2(self, payload):

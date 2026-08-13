@@ -84,7 +84,11 @@ def _migrate_task_state(rows: list[dict[str, Any]]) -> str:
 
 
 def migrate_legacy_renewal_kick_tasks(limit: int, dry_run: bool = False) -> dict[str, int]:
-    legacy_rows = supabase_store.list_renewal_kick_tasks(limit=limit)
+    legacy_rows = supabase_store._request(
+        "GET",
+        "renewal_kick_tasks",
+        params={"select": "*", "order": "updated_at.asc", "limit": str(limit)},
+    )
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in legacy_rows:
         order_id = _text(row.get("order_id"))
