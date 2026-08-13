@@ -246,7 +246,10 @@ class SchedulerHarnessTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(ok)
         self.assertEqual(_FAKE_BOT.kicked, [("-100222", "42")])
-        self.assertEqual([event["event_type"] for event in _FAKE_STORE.events], ["member_kicked", "member_kick_closed"])
+        self.assertEqual(
+            [event["event_type"] for event in _FAKE_STORE.events],
+            ["renewal_kick_processing", "member_kicked", "member_kick_closed", "renewal_kick_confirmed"],
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -8161,8 +8161,8 @@ export default function Home() {
     }));
   }
 
-  async function retryKickUserHandler(telegramId: string, orderId: string, planName: string, customerName: string, groupsToKick: string[]) {
-    await runAction(`retry-kick-${orderId}`, async () => {
+  async function requeueRenewalKickV2Handler(telegramId: string, orderId: string, planName: string, customerName: string, groupsToKick: string[]) {
+    await runAction(`requeue-renewal-kick-v2-${orderId}`, async () => {
       const groupListText = groupsToKick.join(", ");
       setRenewalKickStatusByOrder((current) => ({
         ...current,
@@ -8184,7 +8184,7 @@ export default function Home() {
           tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
         }));
       }
-      showNotice("ok", `Đã đưa order ${orderId} vào v2 queue để kick lại.`);
+      showNotice("ok", `Đã đưa order ${orderId} vào queue kick v2.`);
       setRenewalAutoRefreshUntil(Date.now() + 60000);
       await refreshTabDelta(savedSecret, { scope: "renewals" });
     });
@@ -9659,7 +9659,7 @@ export default function Home() {
                             {renewalTab === "expired" && row.orderId ? (
                               <>
                                 {(["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
-                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Xử lý ({groupsToKick.length})</Button>
+                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void requeueRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `requeue-renewal-kick-v2-${row.orderId}`} startIcon={saving === `requeue-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Đưa lại queue ({groupsToKick.length})</Button>
                                 ) : null}
                                 {status === "Cần review" ? (
                                   <>
@@ -9805,6 +9805,32 @@ export default function Home() {
                       </Typography>
                     </Box>
                     <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Review filter</Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
+                        {[
+                          { key: "all", label: "Tất cả" },
+                          { key: "review", label: "Cần review" },
+                          { key: "chokick", label: "Chờ xử lý" },
+                          { key: "kicked", label: "Đã xong" },
+                          { key: "error", label: "Lỗi / thiếu map" },
+                        ].map((item) => (
+                          <Chip
+                            key={item.key}
+                            size="small"
+                            label={item.label}
+                            clickable
+                            color={renewalFocusFilter === item.key ? "primary" : "default"}
+                            variant={renewalFocusFilter === item.key ? "filled" : "outlined"}
+                            onClick={() => {
+                              setRenewalFocusFilter(item.key as RenewalFocusFilter);
+                              setRenewalPage(1);
+                            }}
+                            sx={{ height: 24, fontWeight: 800 }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                    <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Timeline attempts</Typography>
                       <Stack spacing={0.75} sx={{ mt: 0.75 }}>
                         {selectedRenewalAttempts.length ? selectedRenewalAttempts.map((attempt) => (
@@ -9841,16 +9867,15 @@ export default function Home() {
                           variant="outlined"
                           size="small"
                           startIcon={<RefreshCw size={14} />}
-                          disabled={saving === `retry-kick-${selectedRenewalDetail.orderId}`}
-                          onClick={() => void retryKickUserHandler(
+                          disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-requeue`}
+                          onClick={() => void reviewRenewalTaskHandler(
+                            selectedRenewalDetail.orderId || "",
                             selectedRenewalDetail.telegramId,
-                            selectedRenewalDetail.orderId,
-                            selectedRenewalDetail.planName || "",
-                            selectedRenewalDetail.customerName || "",
-                            selectedRenewalDetail.groupsToKick || [],
+                            "requeue",
+                            String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_requeue"),
                           )}
                         >
-                          Kick lại
+                          Đưa lại queue
                         </Button>
                       ) : null}
                       {selectedRenewalDetail.renewalStatus === "Cần review" ? (
@@ -11550,7 +11575,7 @@ export default function Home() {
                     ))}
                   </Stack>
                 ) : (
-                  <Alert severity="info" variant="outlined">Chưa thấy event lịch sử nào khớp order này trong support_events.</Alert>
+                  <Alert severity="info" variant="outlined">Chưa thấy lịch sử nào khớp order này trong nguồn event hiện tại.</Alert>
                 )}
               </Box>
             </Box>

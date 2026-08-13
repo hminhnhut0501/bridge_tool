@@ -57,6 +57,12 @@ class FakeStore:
     def list_support_events(self, limit=5000):
         return self.events
 
+    def list_renewal_kick_tasks_v2(self, limit=5000):
+        return []
+
+    def _request(self, method, table, params=None):
+        return []
+
 
 class KickAuditLogicTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -111,19 +117,27 @@ class KickAuditLogicTests(unittest.IsolatedAsyncioTestCase):
                 "expire_at": "2026-05-25 21:19:00",
             }],
             [{
-                "event_type": "member_kicked",
+                "id": "task-1",
+                "order_id": "old-b",
                 "telegram_user_id": "42",
-                "chat_id": "-100444",
-                "order_id": "old-a",
-                "plan_name": "VIP 1 ngày - Hang Cú Asia",
-                "created_at": "2026-05-25T21:20:00",
+                "task_state": "done",
+                "last_reason": "all_groups_kicked",
+                "metadata": {"reason": "all_groups_kicked"},
             }],
         )
+        web_backend.supabase_store._request = lambda method, table, params=None: [{
+            "id": "group-1",
+            "task_id": "task-1",
+            "order_id": "old-b",
+            "group_id": "-100444",
+            "group_state": "kicked",
+            "metadata": {"reason": "all_groups_kicked"},
+        }] if table == "renewal_kick_group_tasks_v2" else []
 
         rows = await web_backend.build_kick_audit_rows()
 
-        self.assertEqual(rows[0]["status"], "KICKED")
-        self.assertEqual(rows[0]["status_label"], "Đã kick cùng group")
+        self.assertEqual(rows[0]["status"], "DONE")
+        self.assertEqual(rows[0]["status_label"], "Đã kick xong")
         self.assertFalse(rows[0]["needs_action"])
 
     async def test_active_retained_audit_shows_reason_and_related_order(self):

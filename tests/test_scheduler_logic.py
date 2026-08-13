@@ -42,6 +42,9 @@ class FakeStore:
         self.expired_orders = []
         self.due_query_called = False
         self.full_query_called = False
+        self.renewal_kick_tasks_v2 = []
+        self.renewal_kick_group_tasks_v2 = []
+        self.renewal_kick_legacy_map_v2 = []
 
     def get_user_identity(self, telegram_user_id):
         return {}
@@ -120,6 +123,21 @@ class FakeStore:
 
     def list_order_activation_codes(self, limit=5000):
         return []
+
+    def upsert_renewal_kick_task_v2(self, payload):
+        row = {**payload, "id": payload.get("id") or f"task-{len(self.renewal_kick_tasks_v2) + 1}"}
+        self.renewal_kick_tasks_v2.append(row)
+        return [row]
+
+    def upsert_renewal_kick_group_task_v2(self, payload):
+        row = {**payload, "id": payload.get("id") or f"group-{len(self.renewal_kick_group_tasks_v2) + 1}"}
+        self.renewal_kick_group_tasks_v2.append(row)
+        return [row]
+
+    def upsert_renewal_kick_legacy_map_v2(self, payload):
+        row = {**payload}
+        self.renewal_kick_legacy_map_v2.append(row)
+        return [row]
 
     def order_to_sheet_row(self, order):
         return [
@@ -222,7 +240,10 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(expired_groups, ["-100444"])
         self.assertEqual(errors, [])
-        self.assertEqual(self.bot.kicked, [("-100444", "42")])
+        self.assertEqual(self.bot.kicked, [])
+        self.assertEqual(len(self.store.renewal_kick_tasks_v2), 1)
+        self.assertEqual(len(self.store.renewal_kick_group_tasks_v2), 1)
+        self.assertEqual(len(self.store.renewal_kick_legacy_map_v2), 1)
 
     async def test_custom_all_access_expiry_kicks_all_configured_groups(self):
         now = datetime(2026, 7, 16, 9, 0, 0)
@@ -531,8 +552,9 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         await scheduler.process_support_grace_for_expired_order("42", "old", "VIP 1 ngày - Hang Cú Boy", "2026-05-01 12:00:00", rows, now)
 
         self.assertEqual(self.bot.kicked, [("-100999", "42")])
-        self.assertIn("member_kicked", [event["event_type"] for event in self.store.events])
-        self.assertEqual(self.store.events[-1]["event_type"], "member_kick_closed")
+        event_types = [event["event_type"] for event in self.store.events]
+        self.assertIn("member_kicked", event_types)
+        self.assertEqual(event_types[-2:], ["member_kick_closed", "renewal_kick_confirmed"])
 
     async def test_support_group_rejoin_after_kick_is_kicked_again(self):
         now = datetime(2026, 5, 25, 12, 0, 0)

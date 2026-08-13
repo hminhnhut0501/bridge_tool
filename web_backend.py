@@ -1651,18 +1651,11 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         orders = supabase_store.list_scheduler_orders(limit=5000)
     users_data = [supabase_store.order_to_sheet_row(order) for order in orders]
     try:
-        try:
-            support_events = supabase_store.list_support_events(limit=5000, updated_after=updated_after)
-        except TypeError:
-            support_events = supabase_store.list_support_events(limit=5000)
-    except Exception as exc:
-        if is_missing_supabase_table_error(exc, "support_events"):
-            warn_missing_table_once("support_events", exc)
-            support_events = []
+        renewal_kick_tasks_v2_fn = getattr(supabase_store, "list_renewal_kick_tasks_v2", None)
+        if not callable(renewal_kick_tasks_v2_fn):
+            renewal_kick_tasks_v2 = []
         else:
-            raise
-    try:
-        renewal_kick_tasks_v2 = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
+            renewal_kick_tasks_v2 = renewal_kick_tasks_v2_fn(limit=5000)
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "renewal_kick_tasks_v2"):
             warn_missing_table_once("renewal_kick_tasks_v2", exc)
@@ -1670,11 +1663,15 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         else:
             raise
     try:
-        renewal_kick_group_tasks_v2 = supabase_store._request(
-            "GET",
-            "renewal_kick_group_tasks_v2",
-            params={"select": "*", "order": "updated_at.desc", "limit": "5000"},
-        )
+        renewal_kick_group_tasks_v2_fn = getattr(supabase_store, "_request", None)
+        if not callable(renewal_kick_group_tasks_v2_fn):
+            renewal_kick_group_tasks_v2 = []
+        else:
+            renewal_kick_group_tasks_v2 = renewal_kick_group_tasks_v2_fn(
+                "GET",
+                "renewal_kick_group_tasks_v2",
+                params={"select": "*", "order": "updated_at.desc", "limit": "5000"},
+            )
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "renewal_kick_group_tasks_v2"):
             warn_missing_table_once("renewal_kick_group_tasks_v2", exc)
@@ -1703,7 +1700,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             continue
 
         plan_name = str(order.get("plan_name") or "")
-        display_name = resolve_order_display_label(order, support_events)
+        display_name = str(order.get("full_name") or "").strip() or user_id or order_id or "-"
         raw_expire_at = order.get("expire_at")
         expire_at = parse_expire_datetime(raw_expire_at)
         if raw_expire_at and not expire_at:
@@ -1773,30 +1770,22 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                         if gid in {normalize_chat_id(item) for item in plan_group_ids(other_plan)}:
                             retained_orders.append(other_order_id)
                 retained_orders = sorted({item for item in retained_orders if item})
-            latest_order_kick = latest_event(support_events, "member_kicked", user_id, order_id, gid)
-            latest_group_kick = latest_event(support_events, "member_kicked", user_id, None, gid)
-            latest_kick = latest_order_kick or latest_group_kick
-            latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
-            latest_close = latest_event(support_events, "member_kick_closed", user_id, order_id, gid) or latest_event(support_events, "member_kick_closed", user_id, None, gid)
             v2_task = renewal_kick_v2_by_order.get(order_id)
             v2_group = next((item for item in renewal_kick_v2_groups_by_order.get(order_id, []) if str(item.get("group_id") or "") == gid), None)
             v2_task_state = str((v2_task or {}).get("task_state") or "").strip().lower()
             v2_group_state = str((v2_group or {}).get("group_state") or "").strip().lower()
+            latest_kick = bool(v2_task_state in {"done", "partial_done"} or v2_group_state in {"kicked", "retained"})
 
             latest_kick_state = ""
             if v2_group_state:
                 latest_kick_state = v2_group_state
             elif v2_task_state:
                 latest_kick_state = v2_task_state
-            elif latest_close:
-                latest_kick_state = "done"
-            elif latest_kick_failed or latest_fail:
-                latest_kick_state = "error"
             elif latest_kick:
-                latest_kick_state = "done"
+                latest_kick_state = "kicked"
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
-            should_live_check = live and latest_kick_state not in {"done", "kicked"} and (retained or latest_fail or not latest_kick or latest_kick_state in {"processing", "pending_confirm", "retry_pending", "waiting_confirm", "retry_scheduled"})
+            should_live_check = live and latest_kick_state not in {"done", "kicked"} and (retained or not latest_kick or latest_kick_state in {"processing", "pending_confirm", "retry_pending", "waiting_confirm", "retry_scheduled"})
             if should_live_check:
                 live_state = await member_live_state(gid, user_id)
 
@@ -1834,32 +1823,23 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "Còn quyền active"
                 if retained
                 else "Đã kick xong"
-                if latest_kick_state == "done"
-                or latest_kick_state == "kicked"
+                if latest_kick_state in {"done", "kicked"}
                 else "Lỗi kick"
-                if latest_kick_state == "error"
-                or latest_kick_state == "failed_terminal"
+                if latest_kick_state in {"error", "failed_terminal"}
                 else "Đang kick"
-                if latest_kick_state == "processing"
-                or latest_kick_state == "running"
+                if latest_kick_state in {"processing", "running"}
                 else "Đã xếp hàng kick"
-                if latest_kick_state == "queued"
-                or latest_kick_state == "pending"
-                else "Đang chờ xác nhận"
-                if latest_kick_state == "pending_confirm"
-                or latest_kick_state == "waiting_confirm"
+                if latest_kick_state in {"queued", "pending"}
+                else "Đang chờ Telegram xác nhận"
+                if latest_kick_state in {"pending_confirm", "waiting_confirm"}
                 else "Chờ thử lại"
-                if latest_kick_state == "retry_pending"
-                or latest_kick_state == "retry_scheduled"
+                if latest_kick_state in {"retry_pending", "retry_scheduled"}
                 else "Bị giữ bởi đơn active khác"
-                if latest_kick_state == "blocked_active_order"
-                or latest_kick_state == "blocked"
-                else "Cần xử lý"
+                if latest_kick_state in {"blocked_active_order", "blocked"}
+                else "Cần review"
                 if latest_kick_state == "review_required"
                 else "Không map được group"
                 if latest_kick_state == "unmapped_group"
-                else "Đã kick cùng group"
-                if latest_kick and latest_kick is not latest_order_kick
                 else "Đã kick"
                 if latest_kick
                 else "Chờ kick"
@@ -1900,8 +1880,8 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "status": status,
                 "status_label": status_label,
                 "needs_action": needs_action,
-                "latest_kick_at": (latest_kick or {}).get("created_at") or "",
-                "latest_error": support_event_error(latest_fail),
+                "latest_kick_at": str((v2_task or {}).get("updated_at") or (v2_group or {}).get("updated_at") or (v2_task or {}).get("last_transition_at") or (v2_group or {}).get("last_transition_at") or ""),
+                "latest_error": str((v2_task or {}).get("last_error") or (v2_group or {}).get("last_error") or (v2_task or {}).get("review_reason") or (v2_group or {}).get("review_reason") or ""),
                 "live_checked": live_state["checked"],
                 "live_status": live_state["status"],
                 "live_present": live_state["present"],
