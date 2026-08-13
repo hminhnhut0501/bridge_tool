@@ -1529,6 +1529,135 @@ class SupabaseStore:
             prefer="return=representation",
         )
 
+    def upsert_renewal_kick_task_v2(self, payload):
+        row = {
+            "order_id": _clean_text(payload.get("order_id")),
+            "telegram_user_id": _clean_text(payload.get("telegram_user_id")),
+            "plan_name": _clean_text(payload.get("plan_name")),
+            "task_state": _clean_text(payload.get("task_state") or "queued") or "queued",
+            "priority": _parse_int(payload.get("priority") or 0),
+            "due_at": _parse_datetime(payload.get("due_at")) or payload.get("due_at"),
+            "locked_at": _parse_datetime(payload.get("locked_at")) or payload.get("locked_at"),
+            "locked_by": _clean_text(payload.get("locked_by")),
+            "last_transition_at": _parse_datetime(payload.get("last_transition_at")) or payload.get("last_transition_at"),
+            "total_groups": _parse_int(payload.get("total_groups") or 0),
+            "kicked_groups": _parse_int(payload.get("kicked_groups") or 0),
+            "retained_groups": _parse_int(payload.get("retained_groups") or 0),
+            "pending_groups": _parse_int(payload.get("pending_groups") or 0),
+            "error_groups": _parse_int(payload.get("error_groups") or 0),
+            "review_groups": _parse_int(payload.get("review_groups") or 0),
+            "attempt_count": _parse_int(payload.get("attempt_count") or 0),
+            "confirm_count": _parse_int(payload.get("confirm_count") or 0),
+            "retry_count": _parse_int(payload.get("retry_count") or 0),
+            "last_error": _clean_text(payload.get("last_error")),
+            "last_reason": _clean_text(payload.get("last_reason")),
+            "review_reason": _clean_text(payload.get("review_reason")),
+            "terminal_reason": _clean_text(payload.get("terminal_reason")),
+            "metadata": payload.get("metadata") or {},
+            "completed_at": _parse_datetime(payload.get("completed_at")) or payload.get("completed_at"),
+            "resolved_at": _parse_datetime(payload.get("resolved_at")) or payload.get("resolved_at"),
+        }
+        return self._request(
+            "POST",
+            "renewal_kick_tasks_v2",
+            params={"on_conflict": "order_id,telegram_user_id"},
+            json=row,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def upsert_renewal_kick_group_task_v2(self, payload):
+        row = {
+            "order_id": _clean_text(payload.get("order_id")),
+            "telegram_user_id": _clean_text(payload.get("telegram_user_id")),
+            "group_id": _clean_text(payload.get("group_id")),
+            "group_name": _clean_text(payload.get("group_name")),
+            "group_no": _clean_text(payload.get("group_no")),
+            "plan_name": _clean_text(payload.get("plan_name")),
+            "group_state": _clean_text(payload.get("group_state") or "pending") or "pending",
+            "attempt_count": _parse_int(payload.get("attempt_count") or 0),
+            "confirm_count": _parse_int(payload.get("confirm_count") or 0),
+            "locked_at": _parse_datetime(payload.get("locked_at")) or payload.get("locked_at"),
+            "locked_by": _clean_text(payload.get("locked_by")),
+            "first_due_at": _parse_datetime(payload.get("first_due_at")) or payload.get("first_due_at"),
+            "next_retry_at": _parse_datetime(payload.get("next_retry_at")) or payload.get("next_retry_at"),
+            "last_transition_at": _parse_datetime(payload.get("last_transition_at")) or payload.get("last_transition_at"),
+            "last_error": _clean_text(payload.get("last_error")),
+            "last_reason": _clean_text(payload.get("last_reason")),
+            "review_reason": _clean_text(payload.get("review_reason")),
+            "terminal_reason": _clean_text(payload.get("terminal_reason")),
+            "metadata": payload.get("metadata") or {},
+            "task_id": _clean_text(payload.get("task_id")),
+            "completed_at": _parse_datetime(payload.get("completed_at")) or payload.get("completed_at"),
+            "resolved_at": _parse_datetime(payload.get("resolved_at")) or payload.get("resolved_at"),
+        }
+        return self._request(
+            "POST",
+            "renewal_kick_group_tasks_v2",
+            params={"on_conflict": "task_id,group_id"},
+            json=row,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
+    def list_due_renewal_kick_group_tasks_v2(self, *, state=None, due_before=None, limit=200):
+        params = {"select": "*", "order": "updated_at.asc", "limit": str(limit)}
+        if state:
+            params["group_state"] = f"eq.{_clean_text(state)}"
+        if due_before is not None:
+            params["or"] = f"(next_retry_at.is.null,next_retry_at.lte.{_parse_datetime(due_before) or due_before})"
+        return self._cached_request("GET", "renewal_kick_group_tasks_v2", params=params)
+
+    def update_renewal_kick_group_task_v2(self, group_task_id, payload):
+        return self._request(
+            "PATCH",
+            "renewal_kick_group_tasks_v2",
+            params={"id": f"eq.{_clean_text(group_task_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def insert_renewal_kick_attempt_v2(self, payload):
+        row = {
+            "task_id": _clean_text(payload.get("task_id")),
+            "group_task_id": _clean_text(payload.get("group_task_id")),
+            "order_id": _clean_text(payload.get("order_id")),
+            "telegram_user_id": _clean_text(payload.get("telegram_user_id")),
+            "group_id": _clean_text(payload.get("group_id")),
+            "group_name": _clean_text(payload.get("group_name")),
+            "attempt_no": _parse_int(payload.get("attempt_no") or 0),
+            "attempt_state": _clean_text(payload.get("attempt_state") or "planned") or "planned",
+            "action": _clean_text(payload.get("action") or "kick") or "kick",
+            "actor": _clean_text(payload.get("actor") or "worker") or "worker",
+            "reason_code": _clean_text(payload.get("reason_code")),
+            "error_code": _clean_text(payload.get("error_code")),
+            "error_message": _clean_text(payload.get("error_message")),
+            "started_at": _parse_datetime(payload.get("started_at")) or payload.get("started_at"),
+            "finished_at": _parse_datetime(payload.get("finished_at")) or payload.get("finished_at"),
+            "metadata": payload.get("metadata") or {},
+        }
+        return self._request(
+            "POST",
+            "renewal_kick_attempts_v2",
+            json=row,
+            prefer="return=representation",
+        )
+
+    def upsert_renewal_kick_legacy_map_v2(self, payload):
+        row = {
+            "legacy_key": _clean_text(payload.get("legacy_key")),
+            "task_id": _clean_text(payload.get("task_id")),
+            "group_task_id": _clean_text(payload.get("group_task_id")),
+            "legacy_source": _clean_text(payload.get("legacy_source") or "manual") or "manual",
+            "legacy_ref": _clean_text(payload.get("legacy_ref")),
+            "metadata": payload.get("metadata") or {},
+        }
+        return self._request(
+            "POST",
+            "renewal_kick_legacy_map_v2",
+            params={"on_conflict": "legacy_key"},
+            json=row,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+
     def get_customer_identity_history(self, telegram_user_id, limit=50):
         user_id = _clean_text(telegram_user_id)
         if not user_id:
