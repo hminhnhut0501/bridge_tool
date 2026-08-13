@@ -1378,7 +1378,7 @@ const RENEWAL_FIELDS: ConfigField[] = [
   },
   {
     key: "EARLY_RENEW",
-    label: "Gia hạn sớm legacy",
+    label: "Gia hạn sớm tương thích cũ",
     placeholder: "ON",
     help: "Key tương thích cũ. Nếu không dùng, đặt giống Ưu đãi gia hạn sớm.",
     kind: "select",
@@ -1401,7 +1401,7 @@ const RENEWAL_FIELDS: ConfigField[] = [
   },
   {
     key: "RENEWAL_DISCOUNT_PERCENT",
-    label: "Giảm giá gia hạn legacy",
+    label: "Giảm giá gia hạn tương thích cũ",
     placeholder: "10",
     help: "Key tương thích cũ. Nếu không dùng, đặt giống Giảm giá gia hạn sớm.",
   },
@@ -1643,13 +1643,13 @@ const SYSTEM_FIELDS: ConfigField[] = [
   },
   {
     key: "SHEET_DELETE_DELAY_SECONDS",
-    label: "Delay xoá dòng Sheet (legacy)",
+    label: "Delay xoá dòng Sheet",
     placeholder: "2",
     help: "Legacy cũ, runtime hiện tại không còn dùng Google Sheet.",
   },
   {
     key: "SHEET_APPEND_DELAY_SECONDS",
-    label: "Delay ghi dòng Sheet (legacy)",
+    label: "Delay ghi dòng Sheet",
     placeholder: "1",
     help: "Legacy cũ, runtime hiện tại không còn dùng Google Sheet.",
   },
@@ -3584,6 +3584,7 @@ export default function Home() {
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
+  const [renewalTimelineTaskStateFilter, setRenewalTimelineTaskStateFilter] = useState("ALL");
   const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
@@ -6937,9 +6938,9 @@ export default function Home() {
     return map[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái kick hiện tại." };
   }
   const renewalTaskStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
-    DRAFT: { label: "Chờ kick", tone: "default", hint: "Task mới tạo, chưa vào hàng đợi worker." },
+    DRAFT: { label: "Chờ xử lý", tone: "default", hint: "Task mới tạo, chưa vào hàng đợi worker." },
     QUEUED: { label: "Đã xếp hàng kick", tone: "warning", hint: "Task đã vào queue và chờ worker lấy." },
-    PENDING: { label: "Chờ kick", tone: "default", hint: "Task đã được ghi nhận nhưng chưa tới lượt xử lý." },
+    PENDING: { label: "Chờ xử lý", tone: "default", hint: "Task đã được ghi nhận nhưng chưa tới lượt xử lý." },
     RUNNING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
     PROCESSING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
     WAITING: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
@@ -6964,12 +6965,12 @@ export default function Home() {
   function renewalStatusHint(status: string) {
     return renewalStatusMeta(status).hint;
   }
-  function renewalV2StatusLabel(taskState: string, fallback = "Chờ kick") {
+  function renewalV2StatusLabel(taskState: string, fallback = "Chờ xử lý") {
     const normalized = String(taskState || "").trim().toUpperCase();
     const map: Record<string, string> = {
-      DRAFT: "Chờ kick",
+      DRAFT: "Chờ xử lý",
       QUEUED: "Đã xếp hàng kick",
-      PENDING: "Chờ kick",
+      PENDING: "Chờ xử lý",
       RUNNING: "Đang kick",
       PROCESSING: "Đang kick",
       WAITING: "Đang chờ Telegram xác nhận",
@@ -7039,7 +7040,7 @@ export default function Home() {
     return renewalTaskStateMeta(status).hint;
   }
   const renewalGroupStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
-    PENDING: { label: "Chờ kick", tone: "default", hint: "Nhóm đã được tạo task nhưng chưa đến lượt xử lý." },
+    PENDING: { label: "Chờ xử lý", tone: "default", hint: "Nhóm đã được tạo task nhưng chưa đến lượt xử lý." },
     SELECTED: { label: "Đã chọn", tone: "warning", hint: "Nhóm đã được worker chọn để xử lý." },
     PROCESSING: { label: "Đang kick", tone: "info", hint: "Worker đang gửi lệnh kick cho nhóm này." },
     WAITING_CONFIRM: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi kick và đang đợi phản hồi." },
@@ -7569,9 +7570,14 @@ export default function Home() {
   const selectedRenewalAttempts = useMemo(() => {
     if (!renewalSelectedOrderKey) return [];
     const attempts = renewalKickV2AttemptsByOrder.get(renewalSelectedOrderKey) || [];
-    if (renewalTimelineGroupStateFilter === "ALL") return attempts;
-    return attempts.filter((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) === renewalTimelineGroupStateFilter);
-  }, [renewalSelectedOrderKey, renewalKickV2AttemptsByOrder, renewalKickV2GroupStateByGroupTaskId, renewalTimelineGroupStateFilter]);
+    return attempts.filter((attempt) => {
+      const groupState = renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "";
+      const taskState = String(attempt.attempt_state || "").trim().toUpperCase();
+      if (renewalTimelineGroupStateFilter !== "ALL" && groupState !== renewalTimelineGroupStateFilter) return false;
+      if (renewalTimelineTaskStateFilter !== "ALL" && taskState !== renewalTimelineTaskStateFilter) return false;
+      return true;
+    });
+  }, [renewalSelectedOrderKey, renewalKickV2AttemptsByOrder, renewalKickV2GroupStateByGroupTaskId, renewalTimelineGroupStateFilter, renewalTimelineTaskStateFilter]);
   const activityLogRows = activityLogResponse?.data || [];
   const activityLogSummary = activityLogResponse?.summary || { user: 0, bot: 0, today: 0 };
   const activityLogTotal = activityLogResponse?.total || 0;
@@ -9851,7 +9857,7 @@ export default function Home() {
                     {renewalPanel === "audit" && renewalTab === "expired" ? (
                       <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue kick / pending confirm / retry</Typography>
-                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là &quot;Chờ kick&quot;.</Typography>
+                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là một nhãn chung chung.</Typography>
                       </Box>
                     ) : null}
                     <SimpleTable
@@ -10024,7 +10030,7 @@ export default function Home() {
                       </Box>
                     </Box>
                     <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>State queue</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Trạng thái task</Typography>
                       <Chip
                         size="small"
                         label={renewalTaskStateLabel(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
@@ -10066,7 +10072,7 @@ export default function Home() {
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Timeline attempts</Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75, mb: 0.75 }}>
                         {[
-                          { key: "ALL", label: "Tất cả" },
+                          { key: "ALL", label: "Tất cả group_state" },
                           ...Array.from(new Set((selectedRenewalAttempts.map((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "").filter(Boolean)))).sort().map((state) => ({
                             key: state,
                             label: renewalGroupStateLabel(state),
@@ -10080,6 +10086,51 @@ export default function Home() {
                             color={renewalTimelineGroupStateFilter === item.key ? "primary" : "default"}
                             variant={renewalTimelineGroupStateFilter === item.key ? "filled" : "outlined"}
                             onClick={() => setRenewalTimelineGroupStateFilter(item.key)}
+                            sx={{ height: 24, fontWeight: 800 }}
+                          />
+                        ))}
+                      </Box>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
+                        {[
+                          { key: "ALL", label: "Tất cả task_state" },
+                          ...Array.from(new Set(selectedRenewalAttempts.map((attempt) => String(attempt.attempt_state || "").trim().toUpperCase()).filter(Boolean))).sort().map((state) => ({
+                            key: state,
+                            label: state.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()),
+                          })),
+                        ].map((item) => (
+                          <Chip
+                            key={item.key}
+                            size="small"
+                            label={item.label}
+                            clickable
+                            color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"}
+                            variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"}
+                            onClick={() => setRenewalTimelineTaskStateFilter(item.key)}
+                            sx={{ height: 24, fontWeight: 800 }}
+                          />
+                        ))}
+                      </Box>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
+                        {[
+                          { key: "ALL", label: "Tất cả task" },
+                          { key: "PLANNED", label: "Planned" },
+                          { key: "CLAIMED", label: "Claimed" },
+                          { key: "KICK_SENT", label: "Kick sent" },
+                          { key: "CONFIRM_PASSED", label: "Confirm passed" },
+                          { key: "CONFIRM_FAILED", label: "Confirm failed" },
+                          { key: "RETRY_SCHEDULED", label: "Retry scheduled" },
+                          { key: "REVIEW_REQUIRED", label: "Review required" },
+                          { key: "ABORTED", label: "Aborted" },
+                          { key: "FAILED_EXCEPTION", label: "Failed" },
+                        ].map((item) => (
+                          <Chip
+                            key={item.key}
+                            size="small"
+                            label={item.label}
+                            clickable
+                            color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"}
+                            variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"}
+                            onClick={() => setRenewalTimelineTaskStateFilter(item.key)}
                             sx={{ height: 24, fontWeight: 800 }}
                           />
                         ))}
