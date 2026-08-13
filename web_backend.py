@@ -1672,6 +1672,33 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             renewal_kick_tasks = []
         else:
             raise
+    try:
+        renewal_kick_tasks_v2 = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_tasks_v2"):
+            warn_missing_table_once("renewal_kick_tasks_v2", exc)
+            renewal_kick_tasks_v2 = []
+        else:
+            raise
+    try:
+        renewal_kick_group_tasks_v2 = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_group_tasks_v2"):
+            warn_missing_table_once("renewal_kick_group_tasks_v2", exc)
+            renewal_kick_group_tasks_v2 = []
+        else:
+            raise
+    renewal_kick_v2_by_order = {
+        str(task.get("order_id") or ""): task
+        for task in renewal_kick_tasks_v2
+        if str(task.get("order_id") or "")
+    }
+    renewal_kick_v2_groups_by_order = {}
+    for group_task in renewal_kick_group_tasks_v2:
+        order_key = str(group_task.get("order_id") or "")
+        if not order_key:
+            continue
+        renewal_kick_v2_groups_by_order.setdefault(order_key, []).append(group_task)
 
     rows = []
     for order in orders:
@@ -1764,6 +1791,10 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             latest_kick_failed = latest_event(support_events, "renewal_kick_failed", user_id, order_id, gid)
             task_match = next((task for task in renewal_kick_tasks if str(task.get("order_id") or "") == order_id and str(task.get("group_id") or "") == gid), None)
             task_state = str((task_match or {}).get("state") or "").strip().lower()
+            v2_task = renewal_kick_v2_by_order.get(order_id)
+            v2_group = next((item for item in renewal_kick_v2_groups_by_order.get(order_id, []) if str(item.get("group_id") or "") == gid), None)
+            v2_task_state = str((v2_task or {}).get("task_state") or "").strip().lower()
+            v2_group_state = str((v2_group or {}).get("group_state") or "").strip().lower()
 
             latest_kick_state = ""
             for candidate in (latest_kick_confirmed, latest_close, latest_kick_failed, latest_fail, latest_kick_processing, latest_kick_queue, latest_kick, latest_order_kick, latest_group_kick):
@@ -1786,6 +1817,10 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                     latest_kick_state = "queued"
             if task_state and task_state not in {"", "queued"}:
                 latest_kick_state = task_state
+            if v2_group_state:
+                latest_kick_state = v2_group_state
+            elif v2_task_state:
+                latest_kick_state = v2_task_state
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
             should_live_check = live and not latest_kick_state == "done" and (retained or latest_fail or not latest_kick or task_state in {"processing", "pending_confirm", "retry_pending"})
@@ -1797,16 +1832,21 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 if retained
                 else "DONE"
                 if latest_kick_state == "done"
+                or latest_kick_state == "kicked"
                 else "ERROR"
                 if latest_kick_state == "error"
+                or latest_kick_state == "failed_terminal"
                 else "PROCESSING"
                 if latest_kick_state == "processing"
                 else "PENDING_CONFIRM"
                 if latest_kick_state == "pending_confirm"
+                or latest_kick_state == "waiting_confirm"
                 else "RETRY_PENDING"
                 if latest_kick_state == "retry_pending"
+                or latest_kick_state == "retry_scheduled"
                 else "BLOCKED"
                 if latest_kick_state == "blocked_active_order"
+                or latest_kick_state == "blocked"
                 else "REVIEW_REQUIRED"
                 if latest_kick_state == "review_required"
                 else "UNMAPPED_GROUP"
@@ -1822,18 +1862,25 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 if retained
                 else "Đã kick xong"
                 if latest_kick_state == "done"
+                or latest_kick_state == "kicked"
                 else "Lỗi kick"
                 if latest_kick_state == "error"
+                or latest_kick_state == "failed_terminal"
                 else "Đang kick"
                 if latest_kick_state == "processing"
+                or latest_kick_state == "running"
                 else "Đã xếp hàng kick"
                 if latest_kick_state == "queued"
+                or latest_kick_state == "pending"
                 else "Đang chờ xác nhận"
                 if latest_kick_state == "pending_confirm"
+                or latest_kick_state == "waiting_confirm"
                 else "Chờ thử lại"
                 if latest_kick_state == "retry_pending"
+                or latest_kick_state == "retry_scheduled"
                 else "Bị giữ bởi đơn active khác"
                 if latest_kick_state == "blocked_active_order"
+                or latest_kick_state == "blocked"
                 else "Cần xử lý"
                 if latest_kick_state == "review_required"
                 else "Không map được group"
@@ -1844,10 +1891,10 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 if latest_kick
                 else "Chờ kick"
             )
-            needs_action = not retained and latest_kick_state not in {"done"} and latest_kick_state != "error" and not latest_kick
-            if latest_kick_state in {"error", "queued", "processing", "pending_confirm", "retry_pending", "blocked_active_order", "review_required", "unmapped_group"}:
+            needs_action = not retained and latest_kick_state not in {"done", "kicked"} and latest_kick_state != "error" and not latest_kick
+            if latest_kick_state in {"error", "queued", "processing", "pending_confirm", "retry_pending", "blocked_active_order", "review_required", "unmapped_group", "waiting_confirm", "retry_scheduled", "blocked", "failed_terminal"}:
                 needs_action = True
-            if latest_kick_state == "done":
+            if latest_kick_state in {"done", "kicked"}:
                 needs_action = False
 
             if live_state["checked"]:
