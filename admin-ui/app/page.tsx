@@ -3577,6 +3577,7 @@ export default function Home() {
   const [renewalLiveCheck, setRenewalLiveCheck] = useState(false);
   const [renewalAutoRefreshEnabled, setRenewalAutoRefreshEnabled] = useState(true);
   const [renewalAutoRefreshUntil, setRenewalAutoRefreshUntil] = useState(0);
+  const [renewalV2BackendProbe, setRenewalV2BackendProbe] = useState<{ ok: boolean; status?: number; message: string; checkedAt: number }>({ ok: true, message: "Chưa kiểm tra", checkedAt: 0 });
   const [renewalHeavyLoaded, setRenewalHeavyLoaded] = useState(false);
   const [renewalKickingOrderIds, setRenewalKickingOrderIds] = useState<string[]>([]);
   const [renewalKickStatusByOrder, setRenewalKickStatusByOrder] = useState<Record<string, { state: "pending" | "error"; message: string; updatedAt: number }>>({});
@@ -4947,6 +4948,24 @@ export default function Home() {
     });
   }
 
+  async function probeRenewalKickV2Backend() {
+    if (!savedSecret) return;
+    try {
+      await getRenewalKickV2(savedSecret);
+      setRenewalV2BackendProbe({ ok: true, status: 200, message: "renewal_kick_v2 OK", checkedAt: Date.now() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "unknown_error");
+      const statusMatch = message.match(/\b(\d{3})\b/);
+      const status = statusMatch ? Number(statusMatch[1]) : undefined;
+      setRenewalV2BackendProbe({
+        ok: false,
+        status,
+        message: status === 404 ? "renewal_kick_v2 route 404" : message,
+        checkedAt: Date.now(),
+      });
+    }
+  }
+
   useEffect(() => {
     if (!renewalAutoRefreshEnabled) return;
     if (!renewalAutoRefreshUntil) return;
@@ -4961,6 +4980,11 @@ export default function Home() {
     }, 5000);
     return () => window.clearInterval(interval);
   }, [savedSecret, renewalAutoRefreshEnabled, renewalAutoRefreshUntil]);
+
+  useEffect(() => {
+    if (!savedSecret || tab !== "renewals") return;
+    void probeRenewalKickV2Backend();
+  }, [savedSecret, tab]);
 
   async function refreshVipGroupAudit(live = false) {
     await runAction(live ? "vip-audit-live" : "vip-audit-refresh", async () => {
@@ -6914,22 +6938,22 @@ export default function Home() {
       "Đã kick xong": { label: "Đã kick xong", tone: "success", hint: "Kick đã hoàn tất và xác nhận xong." },
       "Đã kick một phần": { label: "Đã kick một phần", tone: "warning", hint: "Một phần group đã xong, còn group khác cần theo dõi." },
       "Đang kick": { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
-      "Đang chờ Telegram xác nhận": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
-      "Đang chờ Telegram xác nhận...": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
-      "Đã xếp hàng kick": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
+      "Đang chờ Telegram xác nhận": { label: "Chờ xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "Đang chờ Telegram xác nhận...": { label: "Chờ xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "Đã xếp hàng kick": { label: "Đã xếp hàng", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
       "Chờ thử lại": { label: "Chờ thử lại", tone: "info", hint: "Kick tạm lỗi, hệ thống sẽ thử lại sau backoff." },
       "Bị giữ lại": { label: "Bị giữ lại", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
       "Bị giữ bởi đơn active khác": { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
       "Lỗi": { label: "Lỗi", tone: "error", hint: "Task kick gặp lỗi cần xử lý thủ công hoặc retry." },
       "Không map được group": { label: "Không map được group", tone: "error", hint: "Tên gói chưa map được sang group để kick." },
-      "Cần xử lý": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
+      "Cần xử lý": { label: "Cần review", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
       "review_required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
       "Review required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
-      "Chờ kick": { label: "Chờ xử lý", tone: "warning", hint: "Đang chờ worker hoặc dữ liệu kick tiếp theo." },
+      "Chờ kick": { label: "Đang chờ worker", tone: "warning", hint: "Task đã vào queue nhưng chưa được worker claim." },
       "Chờ audit": { label: "Chờ audit", tone: "warning", hint: "Đang chờ audit kick / reconcile trạng thái." },
-      "QUEUED": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
+      "QUEUED": { label: "Đã xếp hàng", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
       "PROCESSING": { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
-      "PENDING_CONFIRM": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
+      "PENDING_CONFIRM": { label: "Chờ xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
       "RETRY_PENDING": { label: "Chờ thử lại", tone: "info", hint: "Kick tạm lỗi, hệ thống sẽ thử lại sau backoff." },
       "BLOCKED": { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
       "REVIEW_REQUIRED": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
@@ -6938,13 +6962,13 @@ export default function Home() {
     return map[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái kick hiện tại." };
   }
   const renewalTaskStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
-    DRAFT: { label: "Chờ xử lý", tone: "default", hint: "Task mới tạo, chưa vào hàng đợi worker." },
-    QUEUED: { label: "Đã xếp hàng kick", tone: "warning", hint: "Task đã vào queue và chờ worker lấy." },
-    PENDING: { label: "Chờ xử lý", tone: "default", hint: "Task đã được ghi nhận nhưng chưa tới lượt xử lý." },
+    DRAFT: { label: "Đã xếp hàng", tone: "default", hint: "Task đã ghi nhận và sẵn sàng cho worker claim." },
+    QUEUED: { label: "Đã xếp hàng", tone: "warning", hint: "Task đã vào queue và chờ worker lấy." },
+    PENDING: { label: "Đã xếp hàng", tone: "default", hint: "Task đã được ghi nhận nhưng chưa tới lượt xử lý." },
     RUNNING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
     PROCESSING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
-    WAITING: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
-    PENDING_CONFIRM: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
+    WAITING: { label: "Chờ xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
+    PENDING_CONFIRM: { label: "Chờ xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
     RETRY_PENDING: { label: "Chờ thử lại", tone: "warning", hint: "Đang chờ retry sau backoff." },
     REVIEW_REQUIRED: { label: "Cần review", tone: "warning", hint: "Task đã hết retry, cần admin xử lý." },
     BLOCKED: { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "Group bị giữ vì user còn đơn active khác." },
@@ -6965,16 +6989,16 @@ export default function Home() {
   function renewalStatusHint(status: string) {
     return renewalStatusMeta(status).hint;
   }
-  function renewalV2StatusLabel(taskState: string, fallback = "Chờ xử lý") {
+  function renewalV2StatusLabel(taskState: string, fallback = "Đang chờ worker") {
     const normalized = String(taskState || "").trim().toUpperCase();
     const map: Record<string, string> = {
-      DRAFT: "Chờ xử lý",
-      QUEUED: "Đã xếp hàng kick",
-      PENDING: "Chờ xử lý",
+      DRAFT: "Đã xếp hàng",
+      QUEUED: "Đã xếp hàng",
+      PENDING: "Đã xếp hàng",
       RUNNING: "Đang kick",
       PROCESSING: "Đang kick",
-      WAITING: "Đang chờ Telegram xác nhận",
-      PENDING_CONFIRM: "Đang chờ Telegram xác nhận",
+      WAITING: "Chờ xác nhận",
+      PENDING_CONFIRM: "Chờ xác nhận",
       RETRY_PENDING: "Chờ thử lại",
       REVIEW_REQUIRED: "Cần review",
       BLOCKED: "Bị giữ bởi đơn active khác",
@@ -7025,7 +7049,7 @@ export default function Home() {
     const total = summary.groupDetails.length;
     const done = summary.groupDetails.filter((item) => item.status === "Đã kick xong").length;
     const retained = summary.groupDetails.filter((item) => item.status === "Bị giữ lại").length;
-    const pending = summary.groupDetails.filter((item) => ["Chờ kick", "Đã xếp hàng kick", "Chờ thử lại"].includes(item.status)).length;
+    const pending = summary.groupDetails.filter((item) => ["Đang chờ worker", "Đã xếp hàng", "Chờ thử lại"].includes(item.status)).length;
     const error = summary.groupDetails.filter((item) => item.status === "Lỗi").length;
     const kicking = summary.groupDetails.filter((item) => item.status === "Đang kick").length;
     return { total, done, retained, pending, error, kicking };
@@ -7039,11 +7063,50 @@ export default function Home() {
   function renewalTaskStateHint(status: string) {
     return renewalTaskStateMeta(status).hint;
   }
+  function renewalTaskAgeText(task: RenewalKickV2TaskRow | null) {
+    if (!task) return "";
+    const ms = safeDateMillis(task.last_transition_at || task.updated_at || task.created_at);
+    if (!ms) return "";
+    const ageMinutes = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+    if (ageMinutes < 1) return "vừa xong";
+    if (ageMinutes < 60) return `${ageMinutes} phút`;
+    const hours = Math.floor(ageMinutes / 60);
+    const restMinutes = ageMinutes % 60;
+    if (hours < 24) return restMinutes ? `${hours} giờ ${restMinutes} phút` : `${hours} giờ`;
+    const days = Math.floor(hours / 24);
+    const restHours = hours % 24;
+    return restHours ? `${days} ngày ${restHours} giờ` : `${days} ngày`;
+  }
+  function renewalTaskAgeTone(task: RenewalKickV2TaskRow | null): ChipProps["color"] {
+    if (!task) return "default";
+    const ms = safeDateMillis(task.last_transition_at || task.updated_at || task.created_at);
+    if (!ms) return "default";
+    const ageMinutes = (Date.now() - ms) / 60000;
+    if (ageMinutes >= 360) return "error";
+    if (ageMinutes >= 60) return "warning";
+    return "default";
+  }
+  function renewalQueuePhaseLabel(task: RenewalKickV2TaskRow | null, attempts: RenewalKickV2AttemptRow[]) {
+    if (!task) return "";
+    const state = String(task.task_state || "").trim().toUpperCase();
+    const hasAttempts = attempts.length > 0;
+    if (["DRAFT", "PENDING"].includes(state)) return hasAttempts ? "Đang chờ worker" : "Đã xếp hàng";
+    if (state === "QUEUED" && !hasAttempts) return "Đã xếp hàng";
+    if (state === "QUEUED" && hasAttempts) return "Đang chờ worker";
+    if (["RUNNING", "PROCESSING"].includes(state)) return "Đang xử lý";
+    if (["WAITING", "PENDING_CONFIRM"].includes(state)) return "Đang chờ xác nhận";
+    if (state === "RETRY_PENDING") return "Chờ thử lại";
+    if (state === "REVIEW_REQUIRED") return "Cần review";
+    if (state === "BLOCKED") return "Bị giữ";
+    if (state === "DONE") return "Đã xong";
+    if (state === "PARTIAL_DONE") return "Đã kick một phần";
+    return renewalTaskStateLabel(state);
+  }
   const renewalGroupStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
-    PENDING: { label: "Chờ xử lý", tone: "default", hint: "Nhóm đã được tạo task nhưng chưa đến lượt xử lý." },
+    PENDING: { label: "Đã xếp hàng", tone: "default", hint: "Nhóm đã được tạo task và đang chờ worker." },
     SELECTED: { label: "Đã chọn", tone: "warning", hint: "Nhóm đã được worker chọn để xử lý." },
     PROCESSING: { label: "Đang kick", tone: "info", hint: "Worker đang gửi lệnh kick cho nhóm này." },
-    WAITING_CONFIRM: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi kick và đang đợi phản hồi." },
+    WAITING_CONFIRM: { label: "Chờ xác nhận", tone: "info", hint: "Đã gửi kick và đang đợi phản hồi." },
     RETRY_SCHEDULED: { label: "Chờ thử lại", tone: "warning", hint: "Nhóm sẽ được xử lý lại sau backoff." },
     REVIEW_REQUIRED: { label: "Cần review", tone: "warning", hint: "Đã hết retry hoặc gặp tình huống cần admin xem lại." },
     KICKED: { label: "Đã kick xong", tone: "success", hint: "Nhóm đã bị kick và xác nhận xong." },
@@ -7200,7 +7263,7 @@ export default function Home() {
   const renewalHeaders: Record<RenewalSubTab, string[]> = {
     soon: ["Khách", "Gói", "Hết hạn", "Nhắc gần nhất", "Trạng thái"],
     reminded: ["Khách", "Gói / Đơn", "Loại", "Lần thông báo", "Hạn dùng"],
-    expired: ["Khách", "Gói / Đơn", "Hết hạn", "Xử lý kick", "Trạng thái"],
+    expired: ["Khách", "Gói / Đơn", "Trạng thái", "Thao tác"],
     lifetime: ["Khách", "Gói", "Ngày mua", "Nguồn", "Group"],
   };
   const renewalNoticeEvents = useMemo(() => {
@@ -7273,19 +7336,19 @@ export default function Home() {
       const isDone = isKickedEvent || isKickedAudit || (liveLeft && !isRetained);
       const isPending = audit.needs_action || (!isDone && !isRetained && !hasError);
 
-      let groupStatus: "Đã kick xong" | "Đang kick" | "Bị giữ lại" | "Lỗi" | "Chờ kick" | "Đã xếp hàng kick" | "Đang chờ Telegram xác nhận" | "Chờ thử lại" | "Bị giữ bởi đơn active khác" | "Không map được group" | "Cần xử lý" = "Chờ kick";
+      let groupStatus: "Đã kick xong" | "Đang kick" | "Bị giữ lại" | "Lỗi" | "Đang chờ worker" | "Đã xếp hàng" | "Chờ xác nhận" | "Chờ thử lại" | "Bị giữ bởi đơn active khác" | "Không map được group" | "Cần review" = "Đang chờ worker";
       if (isDone) groupStatus = "Đã kick xong";
       else if (renewalKickingOrderIds.includes(String(order.order_id || ""))) groupStatus = "Đang kick";
-      else if (String(audit.status || "").toUpperCase() === "QUEUED") groupStatus = "Đã xếp hàng kick";
+      else if (String(audit.status || "").toUpperCase() === "QUEUED") groupStatus = "Đã xếp hàng";
       else if (String(audit.status || "").toUpperCase() === "PROCESSING") groupStatus = "Đang kick";
-      else if (String(audit.status || "").toUpperCase() === "PENDING_CONFIRM") groupStatus = "Đang chờ Telegram xác nhận";
+      else if (String(audit.status || "").toUpperCase() === "PENDING_CONFIRM") groupStatus = "Chờ xác nhận";
       else if (String(audit.status || "").toUpperCase() === "RETRY_PENDING") groupStatus = "Chờ thử lại";
       else if (String(audit.status || "").toUpperCase() === "BLOCKED") groupStatus = "Bị giữ bởi đơn active khác";
       else if (String(audit.status || "").toUpperCase() === "UNMAPPED_GROUP") groupStatus = "Không map được group";
-      else if (String(audit.status || "").toUpperCase() === "REVIEW_REQUIRED") groupStatus = "Cần xử lý";
+      else if (String(audit.status || "").toUpperCase() === "REVIEW_REQUIRED") groupStatus = "Cần review";
       else if (isRetained) groupStatus = "Bị giữ lại";
       else if (hasError) groupStatus = "Lỗi";
-      else if (livePresent && !isRetained) groupStatus = "Chờ kick";
+      else if (livePresent && !isRetained) groupStatus = "Đang chờ worker";
 
       const note = audit.latest_error || audit.retained_reason || (audit.retained_orders?.length ? `Còn đơn active: ${audit.retained_orders.join(", ")}` : "") || kickAuditReason(audit);
       
@@ -7301,20 +7364,20 @@ export default function Home() {
     const latestKickAt = kickedEvents.map((item) => item.created_at).sort((a, b) => (safeDateMillis(b) ?? 0) - (safeDateMillis(a) ?? 0))[0] || "";
     const kickedCount = groupDetails.filter((g) => g.status === "Đã kick xong").length;
     const kickingCount = groupDetails.filter((g) => g.status === "Đang kick").length;
-    const pendingCount = groupDetails.filter((g) => ["Chờ kick", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận", "Cần xử lý"].includes(g.status)).length;
+    const pendingCount = groupDetails.filter((g) => ["Đang chờ worker", "Đã xếp hàng", "Chờ thử lại", "Chờ xác nhận", "Cần review"].includes(g.status)).length;
     const errorCount = groupDetails.filter((g) => g.status === "Lỗi").length;
     const retainedCount = groupDetails.filter((g) => g.status === "Bị giữ lại").length;
     const isKickingNow = renewalKickingOrderIds.includes(String(order.order_id || ""));
 
     // Overall status logic
-    let overallStatus: "Đã kick xong" | "Đã kick một phần" | "Đang kick" | "Chờ kick" | "Lỗi" = "Chờ kick";
+    let overallStatus: "Đã kick xong" | "Đã kick một phần" | "Đang kick" | "Đang chờ worker" | "Lỗi" = "Đang chờ worker";
     if (groupDetails.length > 0) {
       if (isKickingNow) overallStatus = "Đang kick";
       else if (errorCount > 0 && kickedCount === 0 && pendingCount === 0 && retainedCount === 0) overallStatus = "Lỗi";
       else if ((pendingCount > 0 || retainedCount > 0) && kickedCount > 0) overallStatus = "Đã kick một phần";
       else if (pendingCount === 0 && kickedCount > 0) overallStatus = "Đã kick xong";
       else if (retainedCount > 0 && kickedCount === 0 && pendingCount === 0 && errorCount === 0) overallStatus = "Đã kick xong";
-      else if (pendingCount > 0) overallStatus = groupDetails.some((g) => ["Đang chờ Telegram xác nhận", "Đang kick", "Đã xếp hàng kick", "Chờ thử lại"].includes(g.status)) ? "Đang kick" : "Chờ kick";
+      else if (pendingCount > 0) overallStatus = groupDetails.some((g) => ["Chờ xác nhận", "Đang kick", "Đã xếp hàng", "Chờ thử lại"].includes(g.status)) ? "Đang kick" : "Đang chờ worker";
       else if (errorCount > 0) overallStatus = "Lỗi";
     }
 
@@ -7322,7 +7385,7 @@ export default function Home() {
       groupDetails.length === 0
         ? "Chưa có audit kick gần nhất"
         : `Kick: ${kickedCount}/${groupDetails.length}` +
-          (pendingCount ? `, Chờ xử lý: ${pendingCount}` : "") +
+          (pendingCount ? `, Chờ worker: ${pendingCount}` : "") +
           (errorCount ? `, Lỗi: ${errorCount}` : "") +
           (retainedCount ? `, Giữ lại: ${retainedCount}` : "") +
           (isKickingNow ? ", Đang kick" : "");
@@ -7404,7 +7467,7 @@ export default function Home() {
           : localKickState?.state === "error"
             ? "Lỗi kick"
             : localKickState?.state === "pending"
-              ? "Đang chờ Telegram xác nhận..."
+              ? "Chờ xác nhận"
               : summary.status;
         const tone = renewalV2Task
           ? renewalV2StatusTone(renewalV2Task.task_state, summary.status)
@@ -7415,7 +7478,10 @@ export default function Home() {
               : renewalStatusTone(summary.status);
         const progress = renewalV2Task ? renewalV2Progress(renewalV2Task) : renewalProgressText(summary);
         const progressDone = progress.total > 0 ? Math.round(((progress.done + progress.retained) / progress.total) * 100) : 0;
-        const reviewReason = renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.groupDetails.find((g) => g.status === "Cần xử lý" || g.status === "Lỗi" || g.status === "Không map được group")?.note || "";
+        const taskAgeText = renewalTaskAgeText(renewalV2Task);
+        const taskAgeTone = renewalTaskAgeTone(renewalV2Task);
+        const queuePhaseLabel = renewalQueuePhaseLabel(renewalV2Task, renewalKickV2AttemptsByOrder.get(String(item.order_id || "")) || []);
+        const reviewReason = renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.groupDetails.find((g) => g.status === "Cần review" || g.status === "Lỗi" || g.status === "Không map được group")?.note || "";
         const groupDetails = renewalV2Task
           ? renewalV2GroupTasks.map((group) => {
               const groupState = String(group.group_state || "").trim().toUpperCase();
@@ -7439,7 +7505,7 @@ export default function Home() {
           : summary.groupDetails;
         const groupsToKick = renewalV2Task
           ? renewalV2GroupTasks.filter((group) => !["DONE", "PARTIAL_DONE", "SKIPPED_ADMIN"].includes(String(group.group_state || "").trim().toUpperCase())).map((group) => group.group_id)
-          : summary.groupDetails.filter((g) => ["Lỗi", "Chờ kick", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận", "Cần xử lý"].includes(g.status)).map((g) => g.groupId);
+          : summary.groupDetails.filter((g) => ["Lỗi", "Đang chờ worker", "Đã xếp hàng", "Chờ thử lại", "Đang chờ xác nhận", "Cần review"].includes(g.status)).map((g) => g.groupId);
         return {
           key: `expired-${item.order_id}`,
           telegramId: String(item.telegram_user_id || "").trim(),
@@ -7458,58 +7524,52 @@ export default function Home() {
           renewalGroupDetails: groupDetails,
           renewalLatestKickAt: renewalV2Task?.updated_at || summary.latestKickAt,
           searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note} ${renewalV2Task ? JSON.stringify(renewalV2Task.metadata || {}) : ""}`.toLowerCase(),
-          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Đang chờ Telegram xác nhận...", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Đang kick", "Cần review"].includes(displayStatus) }),
+          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Chờ xác nhận", "Đã xếp hàng", "Đang kick", "Đang chờ worker", "Cần review"].includes(displayStatus) }),
           cells: [
             <Fragment key="customer">
               {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
               <div className="muted">{item.telegram_user_id || "-"}</div>
             </Fragment>,
             <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
-            <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status">
               <Stack spacing={0.75}>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                  <Chip size="small" label={renewalStatusLabel(displayStatus)} color={tone} variant="outlined" />
+                  <Chip size="small" label={queuePhaseLabel || renewalStatusLabel(displayStatus)} color={tone} variant="outlined" />
                   {renewalV2Task ? (
                     <Chip size="small" label={renewalTaskStateLabel(renewalV2Task.task_state)} color={renewalTaskStateTone(renewalV2Task.task_state)} variant="outlined" />
                   ) : null}
                 </Box>
-                {summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}
+                <div className="muted">
+                  {item.expire_at ? `Hạn ${dateText(item.expire_at)}` : "-"}
+                  {taskAgeText ? ` · Tuổi task ${taskAgeText}` : ""}
+                </div>
+                {summary.latestKickAt ? <div className="muted">Cập nhật {dateText(summary.latestKickAt)}</div> : null}
               </Stack>
             </Fragment>,
-            <Box key="progress" sx={{ minWidth: 170, display: "flex", flexDirection: "column", gap: 0.5 }}>
-              <Box sx={{ height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
-                <Box sx={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
-                <Box sx={{ width: `${progress.total ? (progress.retained / progress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
-                <Box sx={{ width: `${progress.total ? (progress.pending / progress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
-                <Box sx={{ width: `${progress.total ? (progress.error / progress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
-              </Box>
+            <Box key="action" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
               <Typography variant="caption" sx={{ color: "text.secondary", lineHeight: 1.2 }}>
-                {progress.done}/{progress.total} đã xong · {progress.kicking} đang kick · {progress.pending} cần kick · {progress.retained} giữ · {progress.error} lỗi · {progressDone}% xong
+                {progress.done}/{progress.total} xong · {progress.kicking} đang xử lý · {progress.pending} chờ worker · {progress.error} lỗi
               </Typography>
-            </Box>,
-            <Box key="groups" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-              {groupDetails.length ? groupDetails.map((g, i) => (
-                <Tooltip key={i} title={g.note || "Không có ghi chú"} arrow placement="left">
-                  <Chip 
-                    size="small" 
-                    label={g.groupName} 
-                    color={g.status === "Đã kick xong" ? "success" : g.status === "Đang kick" ? "info" : g.status === "Lỗi" ? "error" : g.status === "Bị giữ lại" ? "info" : g.status === "Cần review" ? "warning" : "warning"} 
-                    variant="outlined" 
-                    sx={{ height: 20, fontSize: 11 }} 
-                  />
-                </Tooltip>
-              )) : "-"}
-            </Box>,
-            <Box key="notes" sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxWidth: 200 }}>
-              {groupDetails.length ? groupDetails.map((g, i) => {
-                if (g.status === "Đã kick xong") return null;
-                return (
-                  <Typography key={i} variant="caption" sx={{ color: g.status === "Lỗi" ? "error.main" : "text.secondary", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.2 }}>
-                    <strong style={{ opacity: 0.7 }}>{g.groupName}</strong>: {g.note || g.status}
-                  </Typography>
-                );
-              }) : (renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.note)}
+              {groupDetails.length ? (
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.35 }}>
+                  {groupDetails.slice(0, 3).map((g, i) => (
+                    <Tooltip key={i} title={g.note || "Không có ghi chú"} arrow placement="top">
+                      <Chip
+                        size="small"
+                        label={g.groupName}
+                        color={g.status === "Đã kick xong" ? "success" : g.status === "Đang kick" ? "info" : g.status === "Lỗi" ? "error" : g.status === "Cần review" ? "warning" : "warning"}
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: 11 }}
+                      />
+                    </Tooltip>
+                  ))}
+                  {groupDetails.length > 3 ? <Chip size="small" label={`+${groupDetails.length - 3}`} variant="outlined" sx={{ height: 20, fontSize: 11 }} /> : null}
+                </Box>
+              ) : (
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.note}
+                </Typography>
+              )}
             </Box>,
           ] as ReactNode[],
         };
@@ -7539,8 +7599,8 @@ export default function Home() {
       if (q && !item.searchText.includes(q)) return false;
       if (renewalTab === "expired" && renewalFocusFilter !== "all") {
         const status = String(item.renewalStatus || "");
-        if (renewalFocusFilter === "chokick" && !["Chờ kick", "Chờ audit", "Đã xếp hàng kick", "Chờ thử lại", "Cần xử lý", "Cần review"].includes(status)) return false;
-        if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick", "Đang chờ Telegram xác nhận"].includes(status)) return false;
+        if (renewalFocusFilter === "chokick" && !["Đang chờ worker", "Đã xếp hàng", "Chờ thử lại", "Chờ xác nhận", "Cần review"].includes(status)) return false;
+        if (renewalFocusFilter === "kicked" && !["Đã kick xong", "Đã kick một phần", "Đang kick", "Chờ xác nhận"].includes(status)) return false;
         if (renewalFocusFilter === "retained" && !["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status)) return false;
         if (renewalFocusFilter === "error" && !["Lỗi", "Không map được group", "Cần review"].includes(status)) return false;
         if (renewalFocusFilter === "review" && ["Đã kick xong"].includes(status)) return false;
@@ -9815,7 +9875,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Quản lý gia hạn"
-                subtitle="Nhìn nhanh theo queue/task state: còn hạn, hết hạn, cần kick. Dòng nào cần xử lý thì mở ngay trên danh sách."
+                subtitle="Nhìn nhanh theo queue/task state: còn hạn, hết hạn, cần xử lý. Dòng nào cần mở thì thao tác ngay trên danh sách."
                 action={
                   <div className="panel-actions">
                     <Button variant="contained" size="small" onClick={() => void processExpiredRenewalsBatchHandler(currentRenewalOpsRows)} startIcon={<Zap size={16} />}>
@@ -9828,6 +9888,21 @@ export default function Home() {
                   </div>
                 }
               />
+              <Box sx={{ px: 2, pt: 1.25 }}>
+                <Alert
+                  severity={renewalV2BackendProbe.ok ? "success" : "error"}
+                  variant="outlined"
+                  sx={{ alignItems: "center" }}
+                  action={
+                    <Button size="small" variant="text" onClick={() => void probeRenewalKickV2Backend()}>
+                      Kiểm tra backend
+                    </Button>
+                  }
+                >
+                  <strong>renewal_kick_v2</strong> {renewalV2BackendProbe.ok ? "đang sẵn sàng" : "đang lỗi/thiếu route"}.
+                  <span style={{ marginLeft: 6 }}>{renewalV2BackendProbe.message}</span>
+                </Alert>
+              </Box>
               <Box sx={{ display: "grid", gap: 1.25, p: 2, pb: 1 }}>
                 <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -9853,7 +9928,7 @@ export default function Home() {
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                       {[
                         { key: "all", label: "Tất cả" },
-                        { key: "chokick", label: "Chờ xử lý" },
+                        { key: "chokick", label: "Đang chờ worker" },
                         { key: "review", label: "Cần review" },
                         { key: "kicked", label: "Đã xong" },
                         { key: "error", label: "Lỗi / thiếu map" },
@@ -9879,7 +9954,7 @@ export default function Home() {
                       />
                       {[
                         { key: "ALL", label: "Tất cả task_state" },
-                        { key: "DRAFT", label: "Chờ xử lý" },
+                        { key: "DRAFT", label: "Đã xếp hàng" },
                         { key: "QUEUED", label: "Đã xếp hàng" },
                         { key: "RUNNING", label: "Đang xử lý" },
                         { key: "PENDING_CONFIRM", label: "Chờ xác nhận" },
@@ -9902,15 +9977,17 @@ export default function Home() {
                           sx={{ fontWeight: 800, height: 28 }}
                         />
                       ))}
-                      <Chip size="small" label={`Chờ xử lý: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
+                      <Chip size="small" label={`Chờ worker: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
                       <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
-                      <Chip size="small" label={`Lỗi / review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
-                      <Chip size="small" label={`task_state queued: ${expiredRenewalTaskStateStats.QUEUED}`} variant="outlined" color="warning" />
-                      <Chip size="small" label={`running: ${expiredRenewalTaskStateStats.RUNNING}`} variant="outlined" color="info" />
-                      <Chip size="small" label={`confirm: ${expiredRenewalTaskStateStats.PENDING_CONFIRM}`} variant="outlined" color="info" />
-                      <Chip size="small" label={`review: ${expiredRenewalTaskStateStats.REVIEW_REQUIRED}`} variant="outlined" color="error" />
-                      <Chip size="small" label={`done: ${expiredRenewalTaskStateStats.DONE}`} variant="outlined" color="success" />
+                      <Chip size="small" label={`Cần review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
+                      <Chip
+                        size="small"
+                        label={renewalV2BackendProbe.ok ? `v2 backend OK` : `v2 backend ${renewalV2BackendProbe.status || "ERR"}`}
+                        variant="outlined"
+                        color={renewalV2BackendProbe.ok ? "success" : "error"}
+                        title={`${renewalV2BackendProbe.message}${renewalV2BackendProbe.checkedAt ? ` · ${dateTimePreviewText(new Date(renewalV2BackendProbe.checkedAt).toISOString(), "")}` : ""}`}
+                      />
                     </Box>
                   ) : null}
                   {renewalTab === "expired" ? (
@@ -9941,7 +10018,7 @@ export default function Home() {
                         const isSelected = row?.orderId && String(row.orderId) === renewalSelectedOrderKey;
                         if (isSelected) return { bgcolor: "rgba(59, 130, 246, 0.08)" };
                         if (row?.renewalStatus === "Đã kick xong") return { bgcolor: "rgba(16, 185, 129, 0.04)" };
-                        if (["Đang kick", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
+                        if (["Đang kick", "Đang chờ xác nhận", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
                         if (["Lỗi", "Không map được group", "Cần review"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(239, 68, 68, 0.04)" };
                         return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.06)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.04)" } : {};
                       }}
@@ -9959,7 +10036,7 @@ export default function Home() {
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {renewalPanel === "queue" && (["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                {renewalPanel === "queue" && (["Cần review", "Lỗi", "Không map được group", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại", "Đang chờ xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
                                   <>
                                     <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void kickNowRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `kick-now-renewal-kick-v2-${row.orderId}`} startIcon={saving === `kick-now-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}>Kick ngay ({groupsToKick.length})</Button>
                                     <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void requeueRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `requeue-renewal-kick-v2-${row.orderId}`} startIcon={saving === `requeue-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Đưa vào queue</Button>
@@ -10033,95 +10110,68 @@ export default function Home() {
                 {selectedRenewalDetail ? (
                   <>
                     <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.14)" }}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>1. Tổng quan</Typography>
+                      <Box sx={{ mt: 0.75, display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Khách</Typography>
                           <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{selectedRenewalDetail.customerName || "-"}</Typography>
                           <Typography variant="body2" color="text.secondary">Telegram: <strong>{selectedRenewalDetail.telegramId || "-"}</strong></Typography>
+                          <Typography variant="body2" color="text.secondary">{selectedRenewalDetail.planName ? resolveOrderLabel({ plan_name: selectedRenewalDetail.planName }).displayLabel : "-"} · Đơn {selectedRenewalDetail.orderId || "-"}</Typography>
+                          <Typography variant="body2" color="text.secondary">{selectedRenewalDetail.expireAt ? `Hạn ${dateText(selectedRenewalDetail.expireAt)}` : "-"}</Typography>
                         </Box>
                         <Chip size="small" label={renewalStatusLabel(selectedRenewalDetail.renewalStatus || "")} color={renewalStatusTone(selectedRenewalDetail.renewalStatus || "")} variant="filled" />
                       </Box>
-                      <Box sx={{ mt: 1, display: "grid", gap: 0.75, gridTemplateColumns: "1fr 1fr" }}>
+                    </Box>
+
+                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.14)" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>2. Trạng thái</Typography>
+                      <Box sx={{ mt: 0.75, display: "grid", gap: 0.75 }}>
                         <Box>
-                          <Typography variant="caption" color="text.secondary">Gói</Typography>
-                          <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.planName ? resolveOrderLabel({ plan_name: selectedRenewalDetail.planName }).displayLabel : "-"}</Typography>
+                          <Typography variant="caption" color="text.secondary">Tiến độ</Typography>
+                          <Box sx={{ mt: 0.5, height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
+                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.done / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
+                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.kicking / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
+                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.pending / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
+                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.error / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
+                            {selectedRenewalDetail.renewalProgress?.done || 0}/{selectedRenewalDetail.renewalProgress?.total || 0} xong · {selectedRenewalDetail.renewalProgress?.pending || 0} chờ worker · {selectedRenewalDetail.renewalProgress?.error || 0} lỗi
+                          </Typography>
                         </Box>
                         <Box>
-                          <Typography variant="caption" color="text.secondary">Đơn</Typography>
-                          <Typography sx={{ fontWeight: 800 }}>{selectedRenewalDetail.orderId || "-"}</Typography>
-                        </Box>
-                      </Box>
-                      <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary">Ghi chú queue</Typography>
-                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
-                          {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary">Last error / fallback reason</Typography>
-                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
-                          {selectedRenewalDetail.renewalLastError || "Không có last_error"}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary">metadata.reason</Typography>
-                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
-                          {selectedRenewalDetail.renewalReason || "Không có reason"}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Ý nghĩa trạng thái</Typography>
-                        <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13, color: "text.secondary" }}>
-                          {renewalStatusHint(String(selectedRenewalDetail.renewalStatus || ""))}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Tiến độ kick</Typography>
-                      <Box sx={{ mt: 0.75, height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
-                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.done / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
-                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.kicking / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
-                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.pending / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
-                        <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.error / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
-                      </Box>
-                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
-                        {selectedRenewalDetail.renewalProgress?.done || 0}/{selectedRenewalDetail.renewalProgress?.total || 0} xong · {selectedRenewalDetail.renewalProgress?.pending || 0} cần kick · {selectedRenewalDetail.renewalProgress?.error || 0} lỗi
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Group liên quan</Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
-                        {(selectedRenewalDetail.renewalGroupDetails || []).length ? selectedRenewalDetail.renewalGroupDetails!.map((group) => (
+                          <Typography variant="caption" color="text.secondary">Trạng thái task</Typography>
                           <Chip
-                            key={group.groupId}
                             size="small"
-                            label={`${group.groupName} · ${renewalGroupStateLabel(String((group as { state?: string }).state || group.status || ""))}`}
-                            color={renewalGroupStateTone(String((group as { state?: string }).state || group.status || ""))}
+                            label={renewalTaskStateLabel(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
+                            color={renewalTaskStateTone(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
                             variant="outlined"
+                            sx={{ height: 24, width: "fit-content", fontWeight: 800 }}
                           />
-                        )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
+                            {renewalTaskStateHint(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Ghi chú / lỗi gần nhất</Typography>
+                          <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
+                            {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                            {selectedRenewalDetail.renewalLastError || "Không có last_error"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                            {selectedRenewalDetail.renewalReason || "Không có reason"}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Trạng thái task</Typography>
-                      <Chip
-                        size="small"
-                        label={renewalTaskStateLabel(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
-                        color={renewalTaskStateTone(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
-                        variant="outlined"
-                        sx={{ height: 24, width: "fit-content", fontWeight: 800 }}
-                      />
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                        {renewalTaskStateHint(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Review filter</Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
+
+                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(245,158,11,0.04)", border: "1px solid rgba(245,158,11,0.16)" }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>3. Timeline & hành động</Typography>
+                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {[
                           { key: "all", label: "Tất cả" },
                           { key: "review", label: "Cần review" },
-                          { key: "chokick", label: "Chờ xử lý" },
+                          { key: "chokick", label: "Đang chờ worker" },
                           { key: "kicked", label: "Đã xong" },
                           { key: "error", label: "Lỗi / thiếu map" },
                         ].map((item) => (
@@ -10140,10 +10190,7 @@ export default function Home() {
                           />
                         ))}
                       </Box>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Timeline attempts</Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75, mb: 0.75 }}>
+                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {[
                           { key: "ALL", label: "Tất cả group_state" },
                           ...Array.from(new Set((selectedRenewalAttempts.map((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "").filter(Boolean)))).sort().map((state) => ({
@@ -10163,7 +10210,7 @@ export default function Home() {
                           />
                         ))}
                       </Box>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
+                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {[
                           { key: "ALL", label: "Tất cả task_state" },
                           ...Array.from(new Set(selectedRenewalAttempts.map((attempt) => String(attempt.attempt_state || "").trim().toUpperCase()).filter(Boolean))).sort().map((state) => ({
@@ -10183,109 +10230,17 @@ export default function Home() {
                           />
                         ))}
                       </Box>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 0.75 }}>
-                        {[
-                          { key: "ALL", label: "Tất cả task" },
-                          { key: "PLANNED", label: "Planned" },
-                          { key: "CLAIMED", label: "Claimed" },
-                          { key: "KICK_SENT", label: "Kick sent" },
-                          { key: "CONFIRM_PASSED", label: "Confirm passed" },
-                          { key: "CONFIRM_FAILED", label: "Confirm failed" },
-                          { key: "RETRY_SCHEDULED", label: "Retry scheduled" },
-                          { key: "REVIEW_REQUIRED", label: "Review required" },
-                          { key: "ABORTED", label: "Aborted" },
-                          { key: "FAILED_EXCEPTION", label: "Failed" },
-                        ].map((item) => (
-                          <Chip
-                            key={item.key}
-                            size="small"
-                            label={item.label}
-                            clickable
-                            color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"}
-                            variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"}
-                            onClick={() => setRenewalTimelineTaskStateFilter(item.key)}
-                            sx={{ height: 24, fontWeight: 800 }}
-                          />
-                        ))}
-                      </Box>
-                      <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-                        {selectedRenewalAttempts.length ? selectedRenewalAttempts.map((attempt) => {
-                          const groupState = renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "";
-                          return (
-                            <Box key={attempt.id} sx={{ p: 1, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "rgba(148,163,184,0.04)" }}>
-                              <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
-                                  <Typography sx={{ fontSize: 12.5, fontWeight: 800 }}>
-                                    #{attempt.attempt_no} · {attempt.attempt_state} · {attempt.action} / {attempt.actor}
-                                  </Typography>
-                                  {groupState ? (
-                                    <Chip
-                                      size="small"
-                                      label={renewalGroupStateLabel(groupState)}
-                                      color={renewalGroupStateTone(groupState)}
-                                      variant="outlined"
-                                      sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }}
-                                    />
-                                  ) : null}
-                                </Box>
-                                <Typography variant="caption" color="text.secondary">
-                                  {dateText(attempt.started_at)}
-                                </Typography>
-                              </Box>
-                              {groupState ? (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
-                                  group_state: {renewalGroupStateHint(groupState)}
-                                </Typography>
-                              ) : null}
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
-                                {attempt.reason_code || "no_reason"}{attempt.error_message ? ` · ${attempt.error_message}` : ""}
-                              </Typography>
-                              {Object.keys(attempt.metadata || {}).length ? (
-                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "pre-wrap" }}>
-                                  metadata: {JSON.stringify(attempt.metadata, null, 0)}
-                                </Typography>
-                              ) : null}
-                            </Box>
-                          );
-                        }) : (
-                          <Typography variant="body2" color="text.secondary">Chưa có attempt nào trong v2.</Typography>
-                        )}
-                      </Stack>
-                    </Box>
-                    {selectedRenewalDetail.renewalLatestKickAt ? (
-                      <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
-                    ) : null}
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, pt: 0.25 }}>
-                      <Button variant="contained" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
-                      {selectedRenewalDetail.orderId ? (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<Zap size={14} />}
-                          disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
-                          onClick={() => void requeueRenewalKickV2Handler(
-                            selectedRenewalDetail.telegramId,
-                            selectedRenewalDetail.orderId || "",
-                            selectedRenewalDetail.planName || "",
-                            selectedRenewalDetail.customerName || "",
-                            (selectedRenewalDetail.renewalGroupDetails || [])
-                              .filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status))
-                              .map((group) => group.groupId),
-                          )}
-                        >
-                          Đưa vào queue
-                        </Button>
-                      ) : null}
-                      {selectedRenewalDetail.renewalStatus === "Cần review" ? (
-                        <>
+                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                        <Button variant="contained" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
+                        {selectedRenewalDetail.orderId ? (
                           <Button
                             variant="outlined"
                             size="small"
                             startIcon={<Zap size={14} />}
                             disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
-                            onClick={() => void kickNowRenewalKickV2Handler(
-                              selectedRenewalDetail.orderId || "",
+                            onClick={() => void requeueRenewalKickV2Handler(
                               selectedRenewalDetail.telegramId,
+                              selectedRenewalDetail.orderId || "",
                               selectedRenewalDetail.planName || "",
                               selectedRenewalDetail.customerName || "",
                               (selectedRenewalDetail.renewalGroupDetails || [])
@@ -10293,26 +10248,50 @@ export default function Home() {
                                 .map((group) => group.groupId),
                             )}
                           >
-                            Kick ngay
+                            Đưa vào queue
                           </Button>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            color="error"
-                            startIcon={<XCircle size={14} />}
-                            disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-close`}
-                            onClick={() => void reviewRenewalTaskHandler(
-                              selectedRenewalDetail.orderId || "",
-                              selectedRenewalDetail.telegramId,
-                              "close",
-                              String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_closed"),
-                            )}
-                          >
-                            Đóng review
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
+                        ) : null}
+                        {selectedRenewalDetail.renewalStatus === "Cần review" ? (
+                          <>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<Zap size={14} />}
+                              disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
+                              onClick={() => void kickNowRenewalKickV2Handler(
+                                selectedRenewalDetail.orderId || "",
+                                selectedRenewalDetail.telegramId,
+                                selectedRenewalDetail.planName || "",
+                                selectedRenewalDetail.customerName || "",
+                                (selectedRenewalDetail.renewalGroupDetails || [])
+                                  .filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status))
+                                  .map((group) => group.groupId),
+                              )}
+                            >
+                              Kick ngay
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="error"
+                              startIcon={<XCircle size={14} />}
+                              disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-close`}
+                              onClick={() => void reviewRenewalTaskHandler(
+                                selectedRenewalDetail.orderId || "",
+                                selectedRenewalDetail.telegramId,
+                                "close",
+                                String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_closed"),
+                              )}
+                            >
+                              Đóng review
+                            </Button>
+                          </>
+                        ) : null}
+                        <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
+                        {selectedRenewalDetail.renewalLatestKickAt ? `Cập nhật gần nhất: ${dateText(selectedRenewalDetail.renewalLatestKickAt)}` : "Chưa có update gần nhất"}
+                      </Typography>
                     </Box>
                   </>
                 ) : (
