@@ -61,6 +61,7 @@ SCHEDULER_MIN_INTERVAL_SECONDS = 60
 KICK_CONFIRMATION_DELAY_SECONDS = 30
 KICK_MAX_ATTEMPTS = 3
 KICK_CONFIRM_MAX_ATTEMPTS = 3
+RENEWAL_KICK_V2_LOCK_MINUTES = 5
 
 RENEWAL_KICK_TASK_STATES = {
     "queued",
@@ -663,6 +664,12 @@ def renewal_kick_state_reason(task):
     reason = raw.get("reason") or (task or {}).get("last_reason") or (task or {}).get("last_error") or ""
     return normalize_renewal_kick_reason(reason)
 
+def renewal_kick_v2_lock_expired(task, now, *, lock_minutes=RENEWAL_KICK_V2_LOCK_MINUTES):
+    locked_at = parse_expire_datetime(task.get("locked_at"))
+    if not locked_at:
+        return True
+    return now - locked_at >= timedelta(minutes=lock_minutes)
+
 async def enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
     current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
     if not current_group_ids or not supabase_store.enabled:
@@ -759,6 +766,9 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
         state = group_task_state_value(task)
         next_retry_at = parse_expire_datetime(task.get("next_retry_at"))
         if state not in {"pending", "selected", "retry_scheduled", "processing", "waiting_confirm"}:
+            continue
+        locked_by = str(task.get("locked_by") or "").strip()
+        if locked_by and locked_by != "scheduler_v2" and not renewal_kick_v2_lock_expired(task, now):
             continue
         if next_retry_at and next_retry_at > now:
             continue
@@ -883,16 +893,53 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
         )
         try:
             if ok:
+                try:
+                    supabase_store.insert_renewal_kick_attempt_v2({
+                        "task_id": task.get("task_id"),
+                        "group_task_id": task.get("id"),
+                        "order_id": order_id,
+                        "telegram_user_id": user_id,
+                        "group_id": group_id,
+                        "group_name": str(task.get("group_name") or group_id),
+                        "attempt_no": int(task.get("attempt_count") or 0) + 1,
+                        "attempt_state": "kick_sent",
+                        "action": "kick",
+                        "actor": "worker_v2",
+                        "reason_code": "kick_sent",
+                        "metadata": {"source": "worker_v2", "result": "ok"},
+                    })
+                except Exception:
+                    pass
                 supabase_store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "waiting_confirm",
+                    "confirm_count": int(task.get("confirm_count") or 0),
                     "next_retry_at": (now + timedelta(seconds=KICK_CONFIRMATION_DELAY_SECONDS)).strftime("%Y-%m-%d %H:%M:%S"),
                     "last_reason": "kick_sent",
                     "metadata": {**(task.get("metadata") or {}), "reason": "kick_sent"},
                 })
                 summary["processing"] += 1
             else:
+                try:
+                    supabase_store.insert_renewal_kick_attempt_v2({
+                        "task_id": task.get("task_id"),
+                        "group_task_id": task.get("id"),
+                        "order_id": order_id,
+                        "telegram_user_id": user_id,
+                        "group_id": group_id,
+                        "group_name": str(task.get("group_name") or group_id),
+                        "attempt_no": int(task.get("attempt_count") or 0) + 1,
+                        "attempt_state": "failed_exception",
+                        "action": "kick",
+                        "actor": "worker_v2",
+                        "reason_code": "bot_api_error",
+                        "error_message": "kick_failed",
+                        "metadata": {"source": "worker_v2", "result": "failed"},
+                    })
+                except Exception:
+                    pass
                 supabase_store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "retry_scheduled",
+                    "attempt_count": int(task.get("attempt_count") or 0) + 1,
                     "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
                     "last_error": "kick_failed",
                     "last_reason": "kick_failed",
