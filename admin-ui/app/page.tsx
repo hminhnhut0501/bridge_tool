@@ -7563,6 +7563,37 @@ export default function Home() {
       { pending: 0, kicking: 0, partial: 0, done: 0, error: 0 },
     );
   }, [renewalOpsRows.expired]);
+  const expiredRenewalTaskStateStats = useMemo(() => {
+    return (renewalOpsRows.expired || []).reduce(
+      (acc, row) => {
+        const state = String(row.taskState || "").trim().toUpperCase();
+        if (!state) acc.UNKNOWN += 1;
+        else if (state === "DRAFT") acc.DRAFT += 1;
+        else if (state === "QUEUED") acc.QUEUED += 1;
+        else if (state === "RUNNING") acc.RUNNING += 1;
+        else if (state === "PENDING_CONFIRM") acc.PENDING_CONFIRM += 1;
+        else if (state === "RETRY_PENDING") acc.RETRY_PENDING += 1;
+        else if (state === "REVIEW_REQUIRED") acc.REVIEW_REQUIRED += 1;
+        else if (state === "DONE") acc.DONE += 1;
+        else if (state === "PARTIAL_DONE") acc.PARTIAL_DONE += 1;
+        else if (state === "BLOCKED") acc.BLOCKED += 1;
+        else acc.UNKNOWN += 1;
+        return acc;
+      },
+      {
+        UNKNOWN: 0,
+        DRAFT: 0,
+        QUEUED: 0,
+        RUNNING: 0,
+        PENDING_CONFIRM: 0,
+        RETRY_PENDING: 0,
+        REVIEW_REQUIRED: 0,
+        DONE: 0,
+        PARTIAL_DONE: 0,
+        BLOCKED: 0,
+      },
+    );
+  }, [renewalOpsRows.expired]);
   const totalRenewalPages = Math.max(1, Math.ceil(currentRenewalOpsRows.length / RENEWAL_PAGE_SIZE));
   const pagedRenewalRows = useMemo(() => {
     const safePage = Math.min(renewalPage, totalRenewalPages);
@@ -9417,7 +9448,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Bảng giá Combo"
-                subtitle="Bấm trực tiếp vào từng card để sửa đúng gói đó trong popup."
+                subtitle="Bấm trực tiếp vào từng card để sửa đúng gói đó trong panel chi tiết."
               />
               <div className="pricing-grid">
                 <Box
@@ -9554,7 +9585,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Collection & bảng giá"
-                subtitle="Bấm một nhóm để sửa trong popup. Không còn form dài nằm sẵn trên trang."
+                subtitle="Bấm một nhóm để sửa trong panel chi tiết. Không còn form dài nằm sẵn trên trang."
                 action={<Button variant="contained" size="small" onClick={openNewGroupModal} startIcon={<Plus size={16} />}>Thêm nhóm mới</Button>}
               />
               <div className="hint">
@@ -9769,7 +9800,7 @@ export default function Home() {
 	              {[
 	                { key: "soon" as RenewalSubTab, label: "Sắp hết hạn", value: String(expiringSoon.length), accent: "amber" as const, note: "5 ngày tới" },
 	                { key: "reminded" as RenewalSubTab, label: "Đã thông báo", value: String(renewalNoticeEvents.length), accent: "cyan" as const, note: "Nhắc / báo hết hạn" },
-	                { key: "expired" as RenewalSubTab, label: "Đã hết hạn", value: String(expiredRenewalOrders.length), accent: "rose" as const, note: "Theo trạng thái kick" },
+	                { key: "expired" as RenewalSubTab, label: "Đã hết hạn", value: String(expiredRenewalOrders.length), accent: "rose" as const, note: "Theo queue/task state" },
                 { key: "lifetime" as RenewalSubTab, label: "Trọn đời", value: String(lifetimeRenewalOrders.length), accent: "indigo" as const, note: "Không cần nhắc/kick" },
 	              ].map((item) => (
                 <ButtonBase
@@ -9784,7 +9815,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Quản lý gia hạn"
-                subtitle="Nhìn nhanh: còn hạn, hết hạn, cần kick. Dòng nào cần xử lý thì bấm ngay trên danh sách."
+                subtitle="Nhìn nhanh theo queue/task state: còn hạn, hết hạn, cần kick. Dòng nào cần xử lý thì mở ngay trên danh sách."
                 action={
                   <div className="panel-actions">
                     <Button variant="contained" size="small" onClick={() => void processExpiredRenewalsBatchHandler(currentRenewalOpsRows)} startIcon={<Zap size={16} />}>
@@ -9849,9 +9880,9 @@ export default function Home() {
                       {[
                         { key: "ALL", label: "Tất cả task_state" },
                         { key: "DRAFT", label: "Chờ xử lý" },
-                        { key: "QUEUED", label: "Đã xếp hàng kick" },
-                        { key: "RUNNING", label: "Đang kick" },
-                        { key: "PENDING_CONFIRM", label: "Đang chờ xác nhận" },
+                        { key: "QUEUED", label: "Đã xếp hàng" },
+                        { key: "RUNNING", label: "Đang xử lý" },
+                        { key: "PENDING_CONFIRM", label: "Chờ xác nhận" },
                         { key: "RETRY_PENDING", label: "Chờ thử lại" },
                         { key: "REVIEW_REQUIRED", label: "Cần review" },
                         { key: "DONE", label: "Đã xong" },
@@ -9875,6 +9906,11 @@ export default function Home() {
                       <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
                       <Chip size="small" label={`Lỗi / review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
+                      <Chip size="small" label={`task_state queued: ${expiredRenewalTaskStateStats.QUEUED}`} variant="outlined" color="warning" />
+                      <Chip size="small" label={`running: ${expiredRenewalTaskStateStats.RUNNING}`} variant="outlined" color="info" />
+                      <Chip size="small" label={`confirm: ${expiredRenewalTaskStateStats.PENDING_CONFIRM}`} variant="outlined" color="info" />
+                      <Chip size="small" label={`review: ${expiredRenewalTaskStateStats.REVIEW_REQUIRED}`} variant="outlined" color="error" />
+                      <Chip size="small" label={`done: ${expiredRenewalTaskStateStats.DONE}`} variant="outlined" color="success" />
                     </Box>
                   ) : null}
                   {renewalTab === "expired" ? (
@@ -9893,8 +9929,8 @@ export default function Home() {
                   <Box sx={{ minWidth: 0 }}>
                     {renewalPanel === "audit" && renewalTab === "expired" ? (
                       <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue kick / pending confirm / retry</Typography>
-                        <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là một nhãn chung chung.</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue state / task state / retry</Typography>
+                        <Typography variant="caption" color="text.secondary">Mỗi dòng hiển thị đúng task state hiện tại, không còn gói chung vào một nhãn cũ.</Typography>
                       </Box>
                     ) : null}
                     <SimpleTable
@@ -9986,7 +10022,7 @@ export default function Home() {
             <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.2 }}>Chi tiết nhanh</Typography>
-                <Typography variant="body2" color="text.secondary">Popup ghim một order để xem trạng thái, tiến độ và action chính.</Typography>
+                <Typography variant="body2" color="text.secondary">Drawer ghim một order để xem queue state, tiến độ và action chính.</Typography>
               </Box>
               <IconButton onClick={() => setRenewalDetailDrawerOpen(false)} size="small">
                 <XCircle size={18} />
@@ -10016,19 +10052,19 @@ export default function Home() {
                         </Box>
                       </Box>
                       <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Ghi chú</Typography>
+                      <Typography variant="caption" color="text.secondary">Ghi chú queue</Typography>
                         <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
                           {selectedRenewalDetail.renewalNote || "Không có ghi chú"}
                         </Typography>
                       </Box>
                       <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary">Last error</Typography>
+                      <Typography variant="caption" color="text.secondary">Last error / fallback reason</Typography>
                         <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
                           {selectedRenewalDetail.renewalLastError || "Không có last_error"}
                         </Typography>
                       </Box>
                       <Box sx={{ mt: 1 }}>
-                        <Typography variant="caption" color="text.secondary">metadata.reason</Typography>
+                      <Typography variant="caption" color="text.secondary">metadata.reason</Typography>
                         <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13 }}>
                           {selectedRenewalDetail.renewalReason || "Không có reason"}
                         </Typography>
@@ -10281,7 +10317,7 @@ export default function Home() {
                   </>
                 ) : (
                   <Box sx={{ p: 2, borderRadius: 2, bgcolor: "rgba(59,130,246,0.04)", border: "1px dashed", borderColor: "divider" }}>
-                    <Typography variant="body2" color="text.secondary">Chưa chọn dòng nào. Bấm “Chi tiết” ở cột thao tác để mở popup này.</Typography>
+                            <Typography variant="body2" color="text.secondary">Chưa chọn dòng nào. Bấm “Chi tiết” ở cột thao tác để mở drawer trạng thái này.</Typography>
                   </Box>
                 )}
               </Stack>
@@ -10328,7 +10364,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Sự kiện nhóm hỗ trợ"
-                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của nhóm hỗ trợ."
+                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group hỗ trợ."
               />
               <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
                 <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
@@ -10705,7 +10741,7 @@ export default function Home() {
               {hiddenSetupView === "codes" ? (
                 <>
                   <div className="hint compact">
-                    Special Code chỉ dùng để reveal catalog, không phải mã. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>COMBO_LIFETIME</code> (legacy key vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
+                    Special Code chỉ dùng để reveal catalog, không phải mã. Bạn có thể giới hạn thời gian, số lượt và điều kiện như <code>COMBO_LIFETIME</code> (key cũ vẫn hỗ trợ <code>SVIP_LIFETIME</code>).
                   </div>
                   <div className="toolbar hidden-toolbar">
                     <TextField value={hiddenCodeQuery} onChange={(event) => setHiddenCodeQuery(event.target.value)} placeholder="Tìm theo mã, tên, rule, group..." size="small" fullWidth />
@@ -10901,7 +10937,7 @@ export default function Home() {
           <section className="panel">
             <PanelHead
               title="Mã"
-              subtitle="Danh sách mã được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong popup."
+              subtitle="Danh sách mã được tách theo trạng thái. Bấm mã để copy và đánh dấu đã gửi, bấm dòng để chỉnh sửa trong panel chi tiết."
               action={
                   <div className="panel-actions">
                   <Button variant="contained" size="small" onClick={openNewCouponModal} startIcon={<Plus size={16} />}>Thêm mã</Button>
@@ -11040,7 +11076,7 @@ export default function Home() {
                   </div>
                 }
               />
-              <div className="hint compact">Cấu hình bảo mật được tách vào popup để phần blacklist luôn gọn và dễ thao tác.</div>
+              <div className="hint compact">Cấu hình bảo mật được tách vào panel chi tiết để phần blacklist luôn gọn và dễ thao tác.</div>
               <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 220px 220px" }, p: 2 }}>
                 <TextField size="small" value={blacklistQuery} onChange={(event) => setBlacklistQuery(event.target.value)} placeholder="Tìm Telegram ID, username, tên, lý do..." />
                 <TextField select size="small" value={blacklistStatusFilter} onChange={(event) => setBlacklistStatusFilter(event.target.value as "all" | "active" | "inactive" | "reason")}>
@@ -11321,7 +11357,7 @@ export default function Home() {
           <MuiDialogShell
             open
             title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : comboSettingsVariant === "life" ? "Combo Trọn Đời" : "VIP 365 Ngày"}
-            subtitle="Bấm đổi tên hoặc đổi giá đúng card này. Dữ liệu legacy vẫn tương thích qua alias."
+            subtitle="Bấm đổi tên hoặc đổi giá đúng card này. Dữ liệu cũ vẫn tương thích qua alias."
             onClose={() => setComboSettingsOpen(false)}
             maxWidth="lg"
           >
@@ -12030,7 +12066,7 @@ export default function Home() {
         ) : null}
 
         {customerQuickLookupOpen ? (
-          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Tìm chậm theo Telegram ID hoặc tên, không tải toàn bộ đơn hàng khi mở popup." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
+          <MuiDialogShell open title="Tra cứu nhanh khách hàng" subtitle="Tìm chậm theo Telegram ID hoặc tên, không tải toàn bộ đơn hàng khi mở panel này." onClose={() => setCustomerQuickLookupOpen(false)} maxWidth="md">
             <Box sx={{ display: "grid", gap: 1.25 }}>
               <TextField
                 autoFocus
@@ -12394,7 +12430,7 @@ export default function Home() {
                     {!customerTimelineLoaded ? (
                       <Box sx={{ p: 2, borderRadius: 3, border: 1, borderColor: "divider", bgcolor: "rgba(59,130,246,0.04)" }}>
                         <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Lịch sử chưa tải</Typography>
-                        <Typography variant="body2" color="text.secondary">Mở tab Lịch sử để tải dữ liệu khi cần. Mặc định popup sẽ nhẹ hơn.</Typography>
+                        <Typography variant="body2" color="text.secondary">Mở tab Lịch sử để tải dữ liệu khi cần. Mặc định panel này sẽ nhẹ hơn.</Typography>
                       </Box>
                     ) : (
                       <>
