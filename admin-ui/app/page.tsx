@@ -1895,6 +1895,17 @@ const SUPPORT_GROUP_FIELDS: ConfigField[] = [
     ],
   },
   {
+    key: "SUPPORT_GROUP_VIEW_ONLY_ENABLED",
+    label: "Chỉ đọc trong group",
+    placeholder: "ON",
+    help: "Bật ON để member thường chỉ xem tin nhắn, không được gửi bất kỳ nội dung nào trong group.",
+    kind: "select",
+    options: [
+      { label: "Bật", value: "ON" },
+      { label: "Tắt", value: "OFF" },
+    ],
+  },
+  {
     key: "SUPPORT_GROUP_GRACE_DAYS",
     label: "Số ngày mute trước khi kick",
     placeholder: "14",

@@ -76,6 +76,11 @@ def support_group_mute_enabled():
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def support_group_view_only_enabled():
+    raw = str(db.get_config("SUPPORT_GROUP_VIEW_ONLY_ENABLED", "ON") or "ON").strip()
+    return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
+
+
 def is_support_group(chat_id):
     gid = support_group_id()
     return bool(gid and normalize_chat_id(chat_id) == gid)
@@ -493,10 +498,8 @@ async def mute_member(chat_id, user_id):
 
 async def unmute_member(chat_id, user_id):
     # View-only mode: member chỉ được xem tin nhắn, không có quyền gửi gì cả.
-    await bot.restrict_chat_member(
-        chat_id=chat_id,
-        user_id=int(user_id),
-        permissions=ChatPermissions(
+    if support_group_view_only_enabled():
+        permissions = ChatPermissions(
             can_send_messages=False,
             can_send_audios=False,
             can_send_documents=False,
@@ -507,5 +510,22 @@ async def unmute_member(chat_id, user_id):
             can_send_polls=False,
             can_send_other_messages=False,
             can_add_web_page_previews=False,
-        ),
+        )
+    else:
+        permissions = ChatPermissions(
+            can_send_messages=True,
+            can_send_audios=True,
+            can_send_documents=True,
+            can_send_photos=True,
+            can_send_videos=True,
+            can_send_video_notes=True,
+            can_send_voice_notes=True,
+            can_send_polls=True,
+            can_send_other_messages=True,
+            can_add_web_page_previews=True,
+        )
+    await bot.restrict_chat_member(
+        chat_id=chat_id,
+        user_id=int(user_id),
+        permissions=permissions,
     )
