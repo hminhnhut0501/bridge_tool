@@ -46,6 +46,31 @@ create index if not exists idx_renewal_kick_tasks_v2_state_due
 create index if not exists idx_renewal_kick_tasks_v2_user_order
   on public.renewal_kick_tasks_v2 (telegram_user_id, order_id);
 
+alter table public.renewal_kick_tasks_v2
+  drop constraint if exists renewal_kick_tasks_v2_task_state_check;
+
+alter table public.renewal_kick_tasks_v2
+  add constraint renewal_kick_tasks_v2_task_state_check
+  check (
+    task_state in (
+      'queued',
+      'running',
+      'waiting_confirm',
+      'retry_scheduled',
+      'partial_done',
+      'done',
+      'blocked',
+      'review_required',
+      'failed_terminal',
+      'migrated_legacy',
+      'blocked_active_order',
+      'retry_pending',
+      'pending_confirm',
+      'processing',
+      'error_retryable'
+    )
+  );
+
 create table if not exists public.renewal_kick_group_tasks_v2 (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.renewal_kick_tasks_v2(id) on delete cascade,
@@ -92,6 +117,27 @@ create index if not exists idx_renewal_kick_group_tasks_v2_user_order
 create index if not exists idx_renewal_kick_group_tasks_v2_task_id
   on public.renewal_kick_group_tasks_v2 (task_id);
 
+alter table public.renewal_kick_group_tasks_v2
+  drop constraint if exists renewal_kick_group_tasks_v2_group_state_check;
+
+alter table public.renewal_kick_group_tasks_v2
+  add constraint renewal_kick_group_tasks_v2_group_state_check
+  check (
+    group_state in (
+      'pending',
+      'selected',
+      'processing',
+      'waiting_confirm',
+      'kicked',
+      'retained',
+      'blocked_active_order',
+      'unmapped',
+      'retry_scheduled',
+      'review_required',
+      'failed_terminal'
+    )
+  );
+
 create table if not exists public.renewal_kick_attempts_v2 (
   id uuid primary key default gen_random_uuid(),
   task_id uuid not null references public.renewal_kick_tasks_v2(id) on delete cascade,
@@ -125,6 +171,25 @@ create index if not exists idx_renewal_kick_attempts_v2_order_user
 create index if not exists idx_renewal_kick_attempts_v2_group_state
   on public.renewal_kick_attempts_v2 (group_id, attempt_state);
 
+alter table public.renewal_kick_attempts_v2
+  drop constraint if exists renewal_kick_attempts_v2_attempt_state_check;
+
+alter table public.renewal_kick_attempts_v2
+  add constraint renewal_kick_attempts_v2_attempt_state_check
+  check (
+    attempt_state in (
+      'planned',
+      'claimed',
+      'kick_sent',
+      'confirm_passed',
+      'confirm_failed',
+      'retry_scheduled',
+      'review_required',
+      'aborted',
+      'failed_exception'
+    )
+  );
+
 create table if not exists public.renewal_kick_legacy_map_v2 (
   id uuid primary key default gen_random_uuid(),
   legacy_key text not null unique,
@@ -135,6 +200,13 @@ create table if not exists public.renewal_kick_legacy_map_v2 (
   migrated_at timestamptz not null default now(),
   metadata jsonb not null default '{}'::jsonb
 );
+
+alter table public.renewal_kick_legacy_map_v2
+  drop constraint if exists renewal_kick_legacy_map_v2_legacy_source_check;
+
+alter table public.renewal_kick_legacy_map_v2
+  add constraint renewal_kick_legacy_map_v2_legacy_source_check
+  check (legacy_source in ('support_events', 'old_task', 'manual', 'scheduler', 'worker', 'finalizer'));
 
 create or replace function public.touch_renewal_kick_tasks_v2_updated_at()
 returns trigger

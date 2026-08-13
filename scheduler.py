@@ -62,6 +62,90 @@ KICK_CONFIRMATION_DELAY_SECONDS = 30
 KICK_MAX_ATTEMPTS = 3
 KICK_CONFIRM_MAX_ATTEMPTS = 3
 
+RENEWAL_KICK_TASK_STATES = {
+    "queued",
+    "running",
+    "waiting_confirm",
+    "retry_scheduled",
+    "partial_done",
+    "done",
+    "blocked",
+    "review_required",
+    "failed_terminal",
+    "migrated_legacy",
+    "blocked_active_order",
+    "retry_pending",
+    "pending_confirm",
+    "processing",
+    "error_retryable",
+}
+RENEWAL_KICK_GROUP_STATES = {
+    "pending",
+    "selected",
+    "processing",
+    "waiting_confirm",
+    "kicked",
+    "retained",
+    "blocked_active_order",
+    "unmapped",
+    "retry_scheduled",
+    "review_required",
+    "failed_terminal",
+}
+RENEWAL_KICK_ATTEMPT_STATES = {
+    "planned",
+    "claimed",
+    "kick_sent",
+    "confirm_passed",
+    "confirm_failed",
+    "retry_scheduled",
+    "review_required",
+    "aborted",
+    "failed_exception",
+}
+RENEWAL_KICK_REASON_CODES = {
+    "kick_sent",
+    "kick_confirmed",
+    "confirm_pending",
+    "confirm_unknown",
+    "confirm_timeout",
+    "retry_limit_reached",
+    "group_unmapped",
+    "active_order_retained",
+    "bot_api_error",
+    "telegram_rate_limited",
+    "telegram_forbidden",
+    "user_not_found",
+    "chat_not_found",
+    "manual_kick_detected",
+    "already_kicked",
+    "already_review_required",
+    "legacy_ambiguous_state",
+}
+
+def normalize_renewal_kick_state(value):
+    raw = str(value or "").strip().lower()
+    aliases = {
+        "review": "review_required",
+        "needs_review": "review_required",
+        "need_review": "review_required",
+        "cần review": "review_required",
+        "cần xử lý": "review_required",
+        "review required": "review_required",
+        "chờ kick": "queued",
+        "đang kick": "processing",
+        "đang chờ telegram xác nhận": "waiting_confirm",
+        "chờ thử lại": "retry_scheduled",
+        "bị giữ bởi đơn active khác": "blocked_active_order",
+        "bị giữ lại": "retained",
+        "không map được group": "unmapped",
+    }
+    return aliases.get(raw, raw)
+
+def normalize_renewal_kick_reason(value):
+    raw = str(value or "").strip().lower().replace(" ", "_")
+    return raw if raw in RENEWAL_KICK_REASON_CODES else raw
+
 def now_local():
     timezone_name = str(db.get_config("BOT_TIMEZONE", "Asia/Ho_Chi_Minh") or "Asia/Ho_Chi_Minh").strip()
     try:
@@ -556,7 +640,10 @@ def split_scheduler_rows(rows, now, days_notice):
     return expired_rows, reminder_rows, expiring_user_ids
 
 def task_state_value(task):
-    return str((task or {}).get("state") or "").strip().lower()
+    state = (task or {}).get("state")
+    if state is None:
+        state = (task or {}).get("task_state")
+    return normalize_renewal_kick_state(state)
 
 async def enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
     current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
@@ -853,6 +940,7 @@ def renewal_kick_state(user_id, order_id, chat_id):
         ("renewal_kick_failed", "error"),
         ("renewal_kick_processing", "processing"),
         ("renewal_kick_queued", "queued"),
+        ("renewal_kick_review_required", "review_required"),
     ):
         event = latest_support_event(event_type, user_id, order_id, chat_id)
         if event:

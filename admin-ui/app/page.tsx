@@ -6816,7 +6816,7 @@ export default function Home() {
       "PENDING_CONFIRM": { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi lệnh kick, đang đợi Telegram phản hồi trạng thái." },
       "RETRY_PENDING": { label: "Chờ thử lại", tone: "info", hint: "Kick tạm lỗi, hệ thống sẽ thử lại sau backoff." },
       "BLOCKED": { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "User còn đơn active khác nên group được giữ lại." },
-      "REVIEW_REQUIRED": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
+      "REVIEW_REQUIRED": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
       "UNMAPPED_GROUP": { label: "Không map được group", tone: "error", hint: "Tên gói chưa map được sang group để kick." },
     };
     return map[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái kick hiện tại." };
