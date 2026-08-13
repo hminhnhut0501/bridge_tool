@@ -621,7 +621,7 @@ export type RenewalKickV2ReviewPayload = {
   task_id?: string;
   order_id?: string;
   telegram_user_id?: string;
-  action: "requeue" | "close";
+  action: "requeue" | "close" | "kick_now";
   reason?: string;
 };
 

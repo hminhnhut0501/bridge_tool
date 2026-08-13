@@ -36,6 +36,7 @@ import {
   Users,
   TrendingUp,
   XCircle,
+  Zap,
   ChevronRight,
   Copy,
 } from "lucide-react";
@@ -1403,6 +1404,12 @@ const RENEWAL_FIELDS: ConfigField[] = [
     label: "Giảm giá gia hạn legacy",
     placeholder: "10",
     help: "Key tương thích cũ. Nếu không dùng, đặt giống Giảm giá gia hạn sớm.",
+  },
+  {
+    key: "RENEWAL_AUTO_KICK_AFTER_MINUTES",
+    label: "Ngưỡng tự Kick ngay (phút)",
+    placeholder: "30",
+    help: "Đơn quá hạn từ số phút này trở lên sẽ được ưu tiên Kick ngay khi xử lý hàng loạt; thấp hơn sẽ đưa vào queue thường.",
   },
   {
     key: "MSG_REMINDER",
@@ -3566,14 +3573,17 @@ export default function Home() {
   const [renewalSettingsOpen, setRenewalSettingsOpen] = useState(false);
   const [renewalQuery, setRenewalQuery] = useState("");
   const [renewalFocusFilter, setRenewalFocusFilter] = useState<RenewalFocusFilter>("all");
+  const [renewalPanel, setRenewalPanel] = useState<"queue" | "audit">("queue");
   const [renewalLiveCheck, setRenewalLiveCheck] = useState(false);
   const [renewalAutoRefreshEnabled, setRenewalAutoRefreshEnabled] = useState(true);
   const [renewalAutoRefreshUntil, setRenewalAutoRefreshUntil] = useState(0);
+  const [renewalHeavyLoaded, setRenewalHeavyLoaded] = useState(false);
   const [renewalKickingOrderIds, setRenewalKickingOrderIds] = useState<string[]>([]);
   const [renewalKickStatusByOrder, setRenewalKickStatusByOrder] = useState<Record<string, { state: "pending" | "error"; message: string; updatedAt: number }>>({});
   const [renewalKickV2Snapshot, setRenewalKickV2Snapshot] = useState<{ tasks: RenewalKickV2TaskRow[]; groupTasks: RenewalKickV2GroupTaskRow[]; attempts: RenewalKickV2AttemptRow[] }>({ tasks: [], groupTasks: [], attempts: [] });
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
+  const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
   const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
@@ -3761,9 +3771,22 @@ export default function Home() {
 
   useEffect(() => {
     if (savedSecret) {
-      loadAll(savedSecret, { scope: tab });
+      loadAll(savedSecret, { scope: tab, mode: tab === "renewals" ? "light" : "full" });
     }
   }, [savedSecret, tab]);
+
+  useEffect(() => {
+    if (!savedSecret || tab !== "renewals") return;
+    if (renewalPanel !== "audit" && renewalTab !== "expired" && !renewalDetailDrawerOpen) return;
+    if (renewalHeavyLoaded) return;
+    void loadAll(savedSecret, { scope: "renewals", silent: true, resetPages: false, mode: "full" });
+  }, [savedSecret, tab, renewalPanel, renewalTab, renewalDetailDrawerOpen, renewalHeavyLoaded]);
+
+  useEffect(() => {
+    if (tab !== "renewals") {
+      setRenewalHeavyLoaded(false);
+    }
+  }, [tab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -4181,8 +4204,9 @@ export default function Home() {
     const needsHidden = !light && shouldLoad("setup", "coupons", "specialGroups");
     const needsBlacklist = !light && shouldLoad("security");
     const needsSupportEvents = (!light && shouldLoad("renewals", "supportGroup")) || scope === "overview";
-    const needsKickAudit = !light && shouldLoad("renewals");
-    const needsVipGroupAudit = !light && shouldLoad("renewals");
+    const needsRenewalHeavy = !light && shouldLoad("renewals") && (scope !== "renewals" || renewalTab === "expired" || renewalDetailDrawerOpen);
+    const needsKickAudit = needsRenewalHeavy;
+    const needsVipGroupAudit = needsRenewalHeavy;
     const needsVipMemberAudit = !light && shouldLoad("vipAudit", "renewals", "security");
     const needsActivityEvents = (!light && shouldLoad("analytics")) || scope === "overview";
     const needsCampaigns = shouldLoad("campaigns");
@@ -4247,6 +4271,9 @@ export default function Home() {
     );
 
     await Promise.all(tasks);
+    if (shouldLoad("renewals") && renewalTab === "expired" && !renewalHeavyLoaded) {
+      setRenewalHeavyLoaded(true);
+    }
     if (
       process.env.NODE_ENV !== "production" &&
       !demoDataInjected &&
@@ -5152,9 +5179,85 @@ export default function Home() {
     });
   }
 
-  async function liveCheckAndKickAllExpiredRows() {
-    await refreshKickAudit(true);
-    await bulkKickExpiredRowsHandler(renewalOpsRows.expired);
+  function renewalAutoKickAfterMinutes() {
+    const raw = getConfigValue(config, "RENEWAL_AUTO_KICK_AFTER_MINUTES", "30");
+    const parsed = Number.parseInt(String(raw || "30"), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  }
+
+  async function processExpiredRenewalsBatchHandler(rows: RenewalOpsRow[]) {
+    const candidates = rows.filter((row) => row.orderId && row.telegramId && (row.groupsToKick || []).length > 0);
+    if (!candidates.length) {
+      showNotice("error", "Không có dòng nào đủ điều kiện để xử lý hàng loạt.");
+      return;
+    }
+    const threshold = renewalAutoKickAfterMinutes();
+    const nowMs = Date.now();
+    const autoKickRows = candidates.filter((row) => {
+      const expireMs = safeDateMillis(row.expireAt || "");
+      if (!expireMs) return false;
+      return (nowMs - expireMs) >= threshold * 60 * 1000;
+    });
+    const queueRows = candidates.filter((row) => !autoKickRows.some((item) => item.orderId === row.orderId));
+    if (!window.confirm(`Xử lý hàng loạt ${candidates.length} đơn? Kick ngay ${autoKickRows.length}, đưa queue ${queueRows.length}.`)) return;
+    await runAction("bulk-process-renewals", async () => {
+      setRenewalKickingOrderIds((current) => Array.from(new Set([...current, ...candidates.map((row) => String(row.orderId || ""))].filter(Boolean))));
+      try {
+        let successCount = 0;
+        let errorCount = 0;
+        for (const row of autoKickRows) {
+          try {
+            const res = await reviewRenewalKickV2(savedSecret, {
+              order_id: String(row.orderId || ""),
+              telegram_user_id: row.telegramId,
+              action: "kick_now",
+              reason: `bulk_auto_kick_after_${threshold}_min`,
+            });
+            if (res?.data?.id) {
+              setRenewalKickV2Snapshot((current) => ({
+                ...current,
+                tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
+              }));
+            }
+            successCount += 1;
+          } catch (error) {
+            errorCount += 1;
+            console.error("Bulk auto kick error", row.orderId, error);
+          }
+        }
+        for (const row of queueRows) {
+          try {
+            const res = await reviewRenewalKickV2(savedSecret, {
+              order_id: String(row.orderId || ""),
+              telegram_user_id: row.telegramId,
+              action: "requeue",
+              reason: `bulk_queue_below_${threshold}_min`,
+            });
+            if (res?.data?.id) {
+              setRenewalKickV2Snapshot((current) => ({
+                ...current,
+                tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
+              }));
+            }
+            successCount += 1;
+          } catch (error) {
+            errorCount += 1;
+            console.error("Bulk queue error", row.orderId, error);
+          }
+        }
+        if (errorCount === 0) {
+          showNotice("ok", `Đã xử lý ${successCount} đơn: kick ngay ${autoKickRows.length}, queue ${queueRows.length}.`);
+        } else if (successCount > 0) {
+          showNotice("error", `Đã xử lý ${successCount} đơn, lỗi ${errorCount} đơn.`);
+        } else {
+          showNotice("error", `Không xử lý được đơn nào trong ${candidates.length} đơn.`);
+        }
+        setRenewalAutoRefreshUntil(Date.now() + 60000);
+        await refreshTabDelta(savedSecret, { scope: "renewals" });
+      } finally {
+        setRenewalKickingOrderIds((current) => current.filter((item) => !candidates.some((row) => String(row.orderId || "") === item)));
+      }
+    });
   }
 
   function openAdminReply(entry: { id: string; userId: string; fullName: string; username: string; title: string; detail: string; ticketId?: string; initialMessages?: SupportMessage[] }) {
@@ -6833,6 +6936,28 @@ export default function Home() {
     };
     return map[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái kick hiện tại." };
   }
+  const renewalTaskStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
+    DRAFT: { label: "Chờ kick", tone: "default", hint: "Task mới tạo, chưa vào hàng đợi worker." },
+    QUEUED: { label: "Đã xếp hàng kick", tone: "warning", hint: "Task đã vào queue và chờ worker lấy." },
+    PENDING: { label: "Chờ kick", tone: "default", hint: "Task đã được ghi nhận nhưng chưa tới lượt xử lý." },
+    RUNNING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
+    PROCESSING: { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
+    WAITING: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
+    PENDING_CONFIRM: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã kick xong bước đầu và đang đợi phản hồi Telegram." },
+    RETRY_PENDING: { label: "Chờ thử lại", tone: "warning", hint: "Đang chờ retry sau backoff." },
+    REVIEW_REQUIRED: { label: "Cần review", tone: "warning", hint: "Task đã hết retry, cần admin xử lý." },
+    BLOCKED: { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "Group bị giữ vì user còn đơn active khác." },
+    DONE: { label: "Đã kick xong", tone: "success", hint: "Kick đã hoàn tất và xác nhận xong." },
+    PARTIAL_DONE: { label: "Đã kick một phần", tone: "info", hint: "Một phần group đã xong." },
+    ERROR: { label: "Lỗi", tone: "error", hint: "Task gặp lỗi cần kiểm tra." },
+    FAILED: { label: "Lỗi", tone: "error", hint: "Task gặp lỗi cần kiểm tra." },
+    CANCELED: { label: "Lỗi", tone: "error", hint: "Task đã bị hủy." },
+    SKIPPED_ADMIN: { label: "Bỏ qua", tone: "default", hint: "Task đã được đóng thủ công." },
+  };
+  function renewalTaskStateMeta(status: string) {
+    const normalized = String(status || "").trim().toUpperCase();
+    return renewalTaskStateMetaMap[normalized] || { label: normalized || "-", tone: "default" as ChipProps["color"], hint: "Trạng thái task queue." };
+  }
   function renewalStatusLabel(status: string) {
     return renewalStatusMeta(status).label;
   }
@@ -6905,15 +7030,39 @@ export default function Home() {
     return { total, done, retained, pending, error, kicking };
   }
   function renewalTaskStateLabel(status: string) {
+    return renewalTaskStateMeta(status).label;
+  }
+  function renewalTaskStateTone(status: string) {
+    return renewalTaskStateMeta(status).tone;
+  }
+  function renewalTaskStateHint(status: string) {
+    return renewalTaskStateMeta(status).hint;
+  }
+  const renewalGroupStateMetaMap: Record<string, { label: string; tone: ChipProps["color"]; hint: string }> = {
+    PENDING: { label: "Chờ kick", tone: "default", hint: "Nhóm đã được tạo task nhưng chưa đến lượt xử lý." },
+    SELECTED: { label: "Đã chọn", tone: "warning", hint: "Nhóm đã được worker chọn để xử lý." },
+    PROCESSING: { label: "Đang kick", tone: "info", hint: "Worker đang gửi lệnh kick cho nhóm này." },
+    WAITING_CONFIRM: { label: "Đang chờ Telegram xác nhận", tone: "info", hint: "Đã gửi kick và đang đợi phản hồi." },
+    RETRY_SCHEDULED: { label: "Chờ thử lại", tone: "warning", hint: "Nhóm sẽ được xử lý lại sau backoff." },
+    REVIEW_REQUIRED: { label: "Cần review", tone: "warning", hint: "Đã hết retry hoặc gặp tình huống cần admin xem lại." },
+    KICKED: { label: "Đã kick xong", tone: "success", hint: "Nhóm đã bị kick và xác nhận xong." },
+    RETAINED: { label: "Bị giữ lại", tone: "info", hint: "Nhóm được giữ vì user còn quyền active." },
+    BLOCKED_ACTIVE_ORDER: { label: "Bị giữ bởi đơn active khác", tone: "info", hint: "Không kick vì user còn đơn active khác." },
+    UNMAPPED: { label: "Không map được group", tone: "error", hint: "Không xác định được group để kick." },
+    FAILED_TERMINAL: { label: "Lỗi", tone: "error", hint: "Nhóm bị dừng vì lỗi không retry nữa." },
+  };
+  function renewalGroupStateMeta(status: string) {
     const normalized = String(status || "").trim().toUpperCase();
-    if (normalized === "QUEUED") return "Queued";
-    if (normalized === "PROCESSING") return "Processing";
-    if (normalized === "PENDING_CONFIRM") return "Pending confirm";
-    if (normalized === "RETRY_PENDING") return "Retry pending";
-    if (normalized === "BLOCKED") return "Blocked";
-    if (normalized === "UNMAPPED_GROUP") return "Unmapped";
-    if (normalized === "REVIEW_REQUIRED") return "Review";
-    return normalized || "-";
+    return renewalGroupStateMetaMap[normalized] || { label: normalized || "-", tone: "warning" as ChipProps["color"], hint: "Trạng thái group hiện tại." };
+  }
+  function renewalGroupStateLabel(status: string) {
+    return renewalGroupStateMeta(status).label;
+  }
+  function renewalGroupStateTone(status: string) {
+    return renewalGroupStateMeta(status).tone;
+  }
+  function renewalGroupStateHint(status: string) {
+    return renewalGroupStateMeta(status).hint;
   }
   function supportCustomerName(item: SupportEvent) {
     const telegramId = String(item.telegram_user_id || "").trim();
@@ -6967,6 +7116,15 @@ export default function Home() {
     }
     return map;
   }, [renewalKickV2Snapshot.attempts]);
+  const renewalKickV2GroupStateByGroupTaskId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const groupTask of renewalKickV2Snapshot.groupTasks || []) {
+      const id = String(groupTask.id || "").trim();
+      if (!id) continue;
+      map.set(id, String(groupTask.group_state || "").trim());
+    }
+    return map;
+  }, [renewalKickV2Snapshot.groupTasks]);
   function supportKickStateLabel(item: SupportEvent) {
     const state = String(item.raw_data?.kick_state || item.raw_data?.state || "").trim().toLowerCase();
     if (!state) {
@@ -7163,7 +7321,7 @@ export default function Home() {
       groupDetails.length === 0
         ? "Chưa có audit kick gần nhất"
         : `Kick: ${kickedCount}/${groupDetails.length}` +
-          (pendingCount ? `, Chờ: ${pendingCount}` : "") +
+          (pendingCount ? `, Chờ xử lý: ${pendingCount}` : "") +
           (errorCount ? `, Lỗi: ${errorCount}` : "") +
           (retainedCount ? `, Giữ lại: ${retainedCount}` : "") +
           (isKickingNow ? ", Đang kick" : "");
@@ -7188,11 +7346,13 @@ export default function Home() {
     groupsToKick?: string[];
     groupsToReview?: string[];
     renewalStatus?: string;
+    taskState?: string;
     renewalNote?: string;
     renewalLastError?: string;
     renewalReason?: string;
+    expireAt?: string;
     renewalProgress?: { total: number; done: number; retained: number; pending: number; error: number; kicking: number };
-    renewalGroupDetails?: { groupId: string; groupName: string; status: string; note: string; auditId?: string }[];
+    renewalGroupDetails?: { groupId: string; groupName: string; status: string; state?: string; note: string; auditId?: string }[];
     renewalLatestKickAt?: string;
   };
   const renewalOpsRows = useMemo(() => {
@@ -7257,12 +7417,14 @@ export default function Home() {
         const reviewReason = renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.groupDetails.find((g) => g.status === "Cần xử lý" || g.status === "Lỗi" || g.status === "Không map được group")?.note || "";
         const groupDetails = renewalV2Task
           ? renewalV2GroupTasks.map((group) => {
-              const mappedStatus = renewalV2StatusLabel(group.group_state, "Chờ kick");
+              const groupState = String(group.group_state || "").trim().toUpperCase();
               return {
                 groupId: group.group_id,
                 groupName: group.group_name || group.group_id,
-                status: mappedStatus,
+                status: renewalGroupStateLabel(groupState),
+                state: groupState,
                 note: [
+                  renewalGroupStateHint(groupState),
                   group.last_error,
                   group.review_reason,
                   group.last_reason,
@@ -7283,9 +7445,11 @@ export default function Home() {
           orderId: item.order_id,
           planName: item.plan_name,
           customerName: renewalCustomerName(item),
+          expireAt: item.expire_at || "",
           groupsToKick,
           groupsToReview: groupDetails.filter((g) => g.status !== "Đã kick xong").map((g) => g.groupId),
           renewalStatus: displayStatus,
+          taskState: renewalV2Task?.task_state || "",
           renewalNote: renewalV2Task ? (String(renewalV2Task.metadata?.note || "") || renewalV2Task.last_reason || renewalV2Task.last_error || summary.note) : localKickState?.message || summary.note,
           renewalLastError: renewalV2Task ? (renewalV2Task.last_error || reviewReason) : localKickState?.message || reviewReason,
           renewalReason: reviewReason || summary.note,
@@ -7404,8 +7568,10 @@ export default function Home() {
   }, [renewalOpsRows.expired, renewalSelectedOrderKey]);
   const selectedRenewalAttempts = useMemo(() => {
     if (!renewalSelectedOrderKey) return [];
-    return renewalKickV2AttemptsByOrder.get(renewalSelectedOrderKey) || [];
-  }, [renewalSelectedOrderKey, renewalKickV2AttemptsByOrder]);
+    const attempts = renewalKickV2AttemptsByOrder.get(renewalSelectedOrderKey) || [];
+    if (renewalTimelineGroupStateFilter === "ALL") return attempts;
+    return attempts.filter((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) === renewalTimelineGroupStateFilter);
+  }, [renewalSelectedOrderKey, renewalKickV2AttemptsByOrder, renewalKickV2GroupStateByGroupTaskId, renewalTimelineGroupStateFilter]);
   const activityLogRows = activityLogResponse?.data || [];
   const activityLogSummary = activityLogResponse?.summary || { user: 0, bot: 0, today: 0 };
   const activityLogTotal = activityLogResponse?.total || 0;
@@ -8185,6 +8351,35 @@ export default function Home() {
         }));
       }
       showNotice("ok", `Đã đưa order ${orderId} vào queue kick v2.`);
+      setRenewalAutoRefreshUntil(Date.now() + 60000);
+      await refreshTabDelta(savedSecret, { scope: "renewals" });
+    });
+  }
+
+  async function kickNowRenewalKickV2Handler(telegramId: string, orderId: string, planName: string, customerName: string, groupsToKick: string[]) {
+    await runAction(`kick-now-renewal-kick-v2-${orderId}`, async () => {
+      const groupListText = groupsToKick.join(", ");
+      setRenewalKickStatusByOrder((current) => ({
+        ...current,
+        [orderId]: {
+          state: "pending",
+          message: `Ưu tiên kick ngay order ${orderId} · ${groupsToKick.length} nhóm${groupListText ? ` · ${groupListText}` : ""}`,
+          updatedAt: Date.now(),
+        },
+      }));
+      const res = await reviewRenewalKickV2(savedSecret, {
+        order_id: orderId,
+        telegram_user_id: telegramId,
+        action: "kick_now",
+        reason: `kick_now:${planName || "renewal"}`,
+      });
+      if (res?.data?.id) {
+        setRenewalKickV2Snapshot((current) => ({
+          ...current,
+          tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
+        }));
+      }
+      showNotice("ok", `Đã ưu tiên kick ngay order ${orderId}.`);
       setRenewalAutoRefreshUntil(Date.now() + 60000);
       await refreshTabDelta(savedSecret, { scope: "renewals" });
     });
@@ -9575,11 +9770,14 @@ export default function Home() {
               ))}
             </div>
             <section className="panel">
-	              <PanelHead
-	                title="Quản lý gia hạn"
-	                subtitle="Nhìn nhanh: còn hạn, hết hạn, cần kick. Dòng nào cần xử lý thì bấm ngay trên danh sách."
+              <PanelHead
+                title="Quản lý gia hạn"
+                subtitle="Nhìn nhanh: còn hạn, hết hạn, cần kick. Dòng nào cần xử lý thì bấm ngay trên danh sách."
                 action={
                   <div className="panel-actions">
+                    <Button variant="contained" size="small" onClick={() => void processExpiredRenewalsBatchHandler(currentRenewalOpsRows)} startIcon={<Zap size={16} />}>
+                      Xử lý hàng loạt
+                    </Button>
                     <Button variant="outlined" size="small" onClick={() => refreshKickAudit(renewalLiveCheck)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
 	                      {renewalLiveCheck ? "Kiểm tra live" : "Kiểm tra log"}
                     </Button>
@@ -9589,6 +9787,25 @@ export default function Home() {
               />
               <Box sx={{ display: "grid", gap: 1.25, p: 2, pb: 1 }}>
                 <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                  {[
+                    { key: "queue" as const, label: "Queue" },
+                    { key: "audit" as const, label: "Audit" },
+                  ].map((item) => (
+                    <Chip
+                      key={item.key}
+                      label={item.label}
+                      clickable
+                      color={renewalPanel === item.key ? "primary" : "default"}
+                      variant={renewalPanel === item.key ? "filled" : "outlined"}
+                      onClick={() => {
+                        setRenewalPanel(item.key);
+                        setRenewalPage(1);
+                      }}
+                      sx={{ fontWeight: 800, height: 28 }}
+                    />
+                  ))}
+                </Box>
                   {renewalTab === "expired" ? (
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                       {[
@@ -9617,6 +9834,11 @@ export default function Home() {
                       <Chip size="small" label={`Lỗi / review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
                     </Box>
                   ) : null}
+                  {renewalTab === "expired" ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      Quy tắc batch: quá hạn từ {renewalAutoKickAfterMinutes()} phút trở lên sẽ Kick ngay, thấp hơn sẽ đưa vào queue thường.
+                    </Typography>
+                  ) : null}
 	              </Box>
 	              <Tabs value={renewalTab} onChange={(_, next) => { setRenewalTab(next); setRenewalPage(1); }} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1 }}>
 	                <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
@@ -9626,7 +9848,7 @@ export default function Home() {
 	              </Tabs>
 	              <Box sx={{ px: 2, pb: 2 }}>
                   <Box sx={{ minWidth: 0 }}>
-                    {renewalTab === "expired" ? (
+                    {renewalPanel === "audit" && renewalTab === "expired" ? (
                       <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue kick / pending confirm / retry</Typography>
                         <Typography variant="caption" color="text.secondary">Dòng nào còn trạng thái mới sẽ hiển thị đúng theo task state, không còn chỉ là &quot;Chờ kick&quot;.</Typography>
@@ -9658,10 +9880,13 @@ export default function Home() {
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {(["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
-                                  <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void requeueRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `requeue-renewal-kick-v2-${row.orderId}`} startIcon={saving === `requeue-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Đưa lại queue ({groupsToKick.length})</Button>
+                                {renewalPanel === "queue" && (["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                  <>
+                                    <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void kickNowRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `kick-now-renewal-kick-v2-${row.orderId}`} startIcon={saving === `kick-now-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}>Kick ngay ({groupsToKick.length})</Button>
+                                    <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void requeueRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `requeue-renewal-kick-v2-${row.orderId}`} startIcon={saving === `requeue-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Đưa vào queue</Button>
+                                  </>
                                 ) : null}
-                                {status === "Cần review" ? (
+                                {renewalPanel === "audit" && status === "Cần review" ? (
                                   <>
                                     <Button
                                       variant="text"
@@ -9670,7 +9895,7 @@ export default function Home() {
                                       disabled={saving === `review-renewal-${row.orderId}-requeue`}
                                       startIcon={saving === `review-renewal-${row.orderId}-requeue` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
                                     >
-                                      Đưa lại queue
+                                      Đưa vào queue
                                     </Button>
                                     <Button
                                       variant="text"
@@ -9684,7 +9909,7 @@ export default function Home() {
                                     </Button>
                                   </>
                                 ) : null}
-                                {groupsToReview.length > 0 && ["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status) ? (
+                                {renewalPanel === "audit" && groupsToReview.length > 0 && ["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status) ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<ShieldCheck size={14} />}>Kiểm tra giữ lại</Button>
                                 ) : null}
                                 <Chip size="small" label={statusLabel} color={renewalStatusTone(status)} variant="outlined" sx={{ height: 24, fontWeight: 800 }} />
@@ -9791,8 +10016,8 @@ export default function Home() {
                           <Chip
                             key={group.groupId}
                             size="small"
-                            label={`${group.groupName} · ${renewalStatusLabel(group.status)}`}
-                            color={group.status === "Đã kick xong" ? "success" : ["Đang kick", "Đang chờ Telegram xác nhận", "Đã xếp hàng kick", "Chờ thử lại"].includes(group.status) ? "info" : ["Lỗi", "Không map được group"].includes(group.status) ? "error" : group.status === "Bị giữ lại" || group.status === "Bị giữ bởi đơn active khác" ? "info" : "warning"}
+                            label={`${group.groupName} · ${renewalGroupStateLabel(String((group as { state?: string }).state || group.status || ""))}`}
+                            color={renewalGroupStateTone(String((group as { state?: string }).state || group.status || ""))}
                             variant="outlined"
                           />
                         )) : <Typography variant="body2" color="text.secondary">Chưa có dữ liệu nhóm.</Typography>}
@@ -9800,8 +10025,15 @@ export default function Home() {
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>State queue</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {renewalTaskStateLabel(selectedRenewalDetail.renewalStatus || "")}
+                      <Chip
+                        size="small"
+                        label={renewalTaskStateLabel(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
+                        color={renewalTaskStateTone(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
+                        variant="outlined"
+                        sx={{ height: 24, width: "fit-content", fontWeight: 800 }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                        {renewalTaskStateHint(selectedRenewalDetail.taskState || selectedRenewalDetail.renewalStatus || "")}
                       </Typography>
                     </Box>
                     <Box>
@@ -9832,27 +10064,66 @@ export default function Home() {
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Timeline attempts</Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75, mb: 0.75 }}>
+                        {[
+                          { key: "ALL", label: "Tất cả" },
+                          ...Array.from(new Set((selectedRenewalAttempts.map((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "").filter(Boolean)))).sort().map((state) => ({
+                            key: state,
+                            label: renewalGroupStateLabel(state),
+                          })),
+                        ].map((item) => (
+                          <Chip
+                            key={item.key}
+                            size="small"
+                            label={item.label}
+                            clickable
+                            color={renewalTimelineGroupStateFilter === item.key ? "primary" : "default"}
+                            variant={renewalTimelineGroupStateFilter === item.key ? "filled" : "outlined"}
+                            onClick={() => setRenewalTimelineGroupStateFilter(item.key)}
+                            sx={{ height: 24, fontWeight: 800 }}
+                          />
+                        ))}
+                      </Box>
                       <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-                        {selectedRenewalAttempts.length ? selectedRenewalAttempts.map((attempt) => (
-                          <Box key={attempt.id} sx={{ p: 1, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "rgba(148,163,184,0.04)" }}>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                              <Typography sx={{ fontSize: 12.5, fontWeight: 800 }}>
-                                #{attempt.attempt_no} · {attempt.attempt_state} · {attempt.action} / {attempt.actor}
+                        {selectedRenewalAttempts.length ? selectedRenewalAttempts.map((attempt) => {
+                          const groupState = renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "";
+                          return (
+                            <Box key={attempt.id} sx={{ p: 1, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "rgba(148,163,184,0.04)" }}>
+                              <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+                                  <Typography sx={{ fontSize: 12.5, fontWeight: 800 }}>
+                                    #{attempt.attempt_no} · {attempt.attempt_state} · {attempt.action} / {attempt.actor}
+                                  </Typography>
+                                  {groupState ? (
+                                    <Chip
+                                      size="small"
+                                      label={renewalGroupStateLabel(groupState)}
+                                      color={renewalGroupStateTone(groupState)}
+                                      variant="outlined"
+                                      sx={{ height: 20, fontSize: 10.5, fontWeight: 800 }}
+                                    />
+                                  ) : null}
+                                </Box>
+                                <Typography variant="caption" color="text.secondary">
+                                  {dateText(attempt.started_at)}
+                                </Typography>
+                              </Box>
+                              {groupState ? (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
+                                  group_state: {renewalGroupStateHint(groupState)}
+                                </Typography>
+                              ) : null}
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35 }}>
+                                {attempt.reason_code || "no_reason"}{attempt.error_message ? ` · ${attempt.error_message}` : ""}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {dateText(attempt.started_at)}
-                              </Typography>
+                              {Object.keys(attempt.metadata || {}).length ? (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "pre-wrap" }}>
+                                  metadata: {JSON.stringify(attempt.metadata, null, 0)}
+                                </Typography>
+                              ) : null}
                             </Box>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                              {attempt.reason_code || "no_reason"}{attempt.error_message ? ` · ${attempt.error_message}` : ""}
-                            </Typography>
-                            {Object.keys(attempt.metadata || {}).length ? (
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "pre-wrap" }}>
-                                metadata: {JSON.stringify(attempt.metadata, null, 0)}
-                              </Typography>
-                            ) : null}
-                          </Box>
-                        )) : (
+                          );
+                        }) : (
                           <Typography variant="body2" color="text.secondary">Chưa có attempt nào trong v2.</Typography>
                         )}
                       </Stack>
@@ -9866,16 +10137,19 @@ export default function Home() {
                         <Button
                           variant="outlined"
                           size="small"
-                          startIcon={<RefreshCw size={14} />}
-                          disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-requeue`}
-                          onClick={() => void reviewRenewalTaskHandler(
-                            selectedRenewalDetail.orderId || "",
+                          startIcon={<Zap size={14} />}
+                          disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
+                          onClick={() => void requeueRenewalKickV2Handler(
                             selectedRenewalDetail.telegramId,
-                            "requeue",
-                            String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_requeue"),
+                            selectedRenewalDetail.orderId || "",
+                            selectedRenewalDetail.planName || "",
+                            selectedRenewalDetail.customerName || "",
+                            (selectedRenewalDetail.renewalGroupDetails || [])
+                              .filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status))
+                              .map((group) => group.groupId),
                           )}
                         >
-                          Đưa lại queue
+                          Đưa vào queue
                         </Button>
                       ) : null}
                       {selectedRenewalDetail.renewalStatus === "Cần review" ? (
@@ -9883,16 +10157,19 @@ export default function Home() {
                           <Button
                             variant="outlined"
                             size="small"
-                            startIcon={<RefreshCw size={14} />}
-                            disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-requeue`}
-                            onClick={() => void reviewRenewalTaskHandler(
+                            startIcon={<Zap size={14} />}
+                            disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
+                            onClick={() => void kickNowRenewalKickV2Handler(
                               selectedRenewalDetail.orderId || "",
                               selectedRenewalDetail.telegramId,
-                              "requeue",
-                              String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_requeue"),
+                              selectedRenewalDetail.planName || "",
+                              selectedRenewalDetail.customerName || "",
+                              (selectedRenewalDetail.renewalGroupDetails || [])
+                                .filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status))
+                                .map((group) => group.groupId),
                             )}
                           >
-                            Đưa lại queue
+                            Kick ngay
                           </Button>
                           <Button
                             variant="outlined"

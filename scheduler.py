@@ -1883,13 +1883,12 @@ async def check_expirations_professional():
                     logging.error("❌ Lỗi gửi nhắc license cho %s: %s", telegram_user_id, exc)
 
         logging.info(
-            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue=%s, queue_v2=%s, finalizer_v2=%s.",
+            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue_v2=%s, finalizer_v2=%s.",
             summary["expired"],
             summary["expired_notice"],
             summary["reminded"],
             summary["skipped_not_due"],
             summary["invalid"],
-            kick_queue_summary,
             kick_queue_v2_summary,
             kick_finalizer_v2_summary,
         )

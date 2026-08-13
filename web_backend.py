@@ -3646,7 +3646,7 @@ async def admin_renewal_kick_v2_review(request: Request):
     order_id = str(body.get("order_id") or "").strip()
     telegram_user_id = str(body.get("telegram_user_id") or "").strip()
     action = str(body.get("action") or "requeue").strip().lower()
-    if action not in {"requeue", "close"}:
+    if action not in {"requeue", "close", "kick_now"}:
         raise HTTPException(status_code=400, detail="Hành động review không hợp lệ.")
     try:
         tasks = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
@@ -3674,6 +3674,36 @@ async def admin_renewal_kick_v2_review(request: Request):
             "resolved_at": now,
             "review_reason": str(body.get("reason") or "closed_by_admin"),
             "metadata": {**(task.get("metadata") or {}), "reason": "closed_by_admin", "review_action": "close"},
+        })
+        return {"data": updated_task[0] if isinstance(updated_task, list) and updated_task else updated_task}
+
+    if action == "kick_now":
+        for group in related_groups:
+            current_state = str(group.get("group_state") or "").strip().lower()
+            if current_state in {"kicked", "retained", "blocked_active_order"}:
+                continue
+            try:
+                supabase_store.update_renewal_kick_group_task_v2(str(group.get("id")), {
+                    "group_state": "pending",
+                    "locked_at": None,
+                    "locked_by": None,
+                    "next_retry_at": now,
+                    "resolved_at": None,
+                    "review_reason": "",
+                    "last_reason": "kick_now",
+                    "metadata": {**(group.get("metadata") or {}), "reason": "kick_now", "review_action": "kick_now"},
+                })
+            except Exception:
+                continue
+
+        updated_task = supabase_store.update_renewal_kick_task_v2(str(task.get("id")), {
+            "task_state": "queued",
+            "priority": -100,
+            "review_reason": "",
+            "last_reason": "kick_now",
+            "last_transition_at": now,
+            "resolved_at": None,
+            "metadata": {**(task.get("metadata") or {}), "reason": "kick_now", "review_action": "kick_now", "priority": "urgent"},
         })
         return {"data": updated_task[0] if isinstance(updated_task, list) and updated_task else updated_task}
 
