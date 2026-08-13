@@ -1662,17 +1662,6 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         else:
             raise
     try:
-        try:
-            renewal_kick_tasks = supabase_store.list_renewal_kick_tasks(limit=5000)
-        except TypeError:
-            renewal_kick_tasks = supabase_store.list_renewal_kick_tasks(limit=5000)
-    except Exception as exc:
-        if is_missing_supabase_table_error(exc, "renewal_kick_tasks"):
-            warn_missing_table_once("renewal_kick_tasks", exc)
-            renewal_kick_tasks = []
-        else:
-            raise
-    try:
         renewal_kick_tasks_v2 = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "renewal_kick_tasks_v2"):
@@ -1785,45 +1774,25 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             latest_kick = latest_order_kick or latest_group_kick
             latest_fail = latest_event(support_events, "member_kick_failed", user_id, order_id, gid)
             latest_close = latest_event(support_events, "member_kick_closed", user_id, order_id, gid) or latest_event(support_events, "member_kick_closed", user_id, None, gid)
-            latest_kick_queue = latest_event(support_events, "renewal_kick_queued", user_id, order_id, gid)
-            latest_kick_processing = latest_event(support_events, "renewal_kick_processing", user_id, order_id, gid)
-            latest_kick_confirmed = latest_event(support_events, "renewal_kick_confirmed", user_id, order_id, gid)
-            latest_kick_failed = latest_event(support_events, "renewal_kick_failed", user_id, order_id, gid)
-            task_match = next((task for task in renewal_kick_tasks if str(task.get("order_id") or "") == order_id and str(task.get("group_id") or "") == gid), None)
-            task_state = str((task_match or {}).get("state") or "").strip().lower()
             v2_task = renewal_kick_v2_by_order.get(order_id)
             v2_group = next((item for item in renewal_kick_v2_groups_by_order.get(order_id, []) if str(item.get("group_id") or "") == gid), None)
             v2_task_state = str((v2_task or {}).get("task_state") or "").strip().lower()
             v2_group_state = str((v2_group or {}).get("group_state") or "").strip().lower()
 
             latest_kick_state = ""
-            for candidate in (latest_kick_confirmed, latest_close, latest_kick_failed, latest_fail, latest_kick_processing, latest_kick_queue, latest_kick, latest_order_kick, latest_group_kick):
-                raw_data = (candidate or {}).get("raw_data") or {}
-                if isinstance(raw_data, dict) and raw_data.get("kick_state"):
-                    latest_kick_state = str(raw_data.get("kick_state") or "").strip().lower()
-                    break
-            if not latest_kick_state:
-                if latest_kick_confirmed:
-                    latest_kick_state = "done"
-                if latest_close:
-                    latest_kick_state = "done"
-                elif latest_kick_failed:
-                    latest_kick_state = "error"
-                elif latest_fail:
-                    latest_kick_state = "error"
-                elif latest_kick_processing:
-                    latest_kick_state = "processing"
-                elif latest_kick_queue:
-                    latest_kick_state = "queued"
-            if task_state and task_state not in {"", "queued"}:
-                latest_kick_state = task_state
             if v2_group_state:
                 latest_kick_state = v2_group_state
             elif v2_task_state:
                 latest_kick_state = v2_task_state
+            elif latest_close:
+                latest_kick_state = "done"
+            elif latest_kick_failed or latest_fail:
+                latest_kick_state = "error"
+            elif latest_kick:
+                latest_kick_state = "done"
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
-            should_live_check = live and not latest_kick_state == "done" and (retained or latest_fail or not latest_kick or task_state in {"processing", "pending_confirm", "retry_pending"})
+            should_live_check = live and latest_kick_state not in {"done", "kicked"} and (retained or latest_fail or not latest_kick or latest_kick_state in {"processing", "pending_confirm", "retry_pending", "waiting_confirm", "retry_scheduled"})
             if should_live_check:
                 live_state = await member_live_state(gid, user_id)
 

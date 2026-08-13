@@ -741,28 +741,8 @@ async def enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expir
     current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
     if not current_group_ids or not supabase_store.enabled:
         return []
+    logging.info("⏭ Bỏ qua legacy renewal_kick_tasks cho order=%s; chỉ ghi v2.", order_id)
     task_rows = []
-    for gid in current_group_ids:
-        task = {
-            "order_id": order_id,
-            "telegram_user_id": user_id,
-            "group_id": gid,
-            "plan_name": plan_name,
-            "expire_at": expire_str,
-            "due_at": expire_str,
-            "state": "queued",
-            "attempt_count": 0,
-            "next_retry_at": now,
-            "metadata": {
-                "source": "scheduler_expired",
-                "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
-                "plan_name_raw": plan_name,
-            },
-        }
-        try:
-            task_rows.extend(supabase_store.upsert_renewal_kick_task(task) or [])
-        except Exception as exc:
-            logging.warning("⚠️ Không enqueue được renewal_kick_task order=%s group=%s: %s", order_id, gid, exc)
     try:
         parent_rows = supabase_store.upsert_renewal_kick_task_v2({
             "order_id": order_id,
@@ -1058,6 +1038,8 @@ async def process_due_renewal_kick_finalizer_v2(now, *, limit=300):
     return summary
 
 async def process_due_renewal_kick_tasks(now, *, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None, limit=500):
+    logging.info("⏭ Legacy process_due_renewal_kick_tasks() đã freeze; chỉ chạy v2.")
+    return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0}
     if not supabase_store.enabled:
         return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0}
     try:
