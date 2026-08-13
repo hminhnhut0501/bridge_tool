@@ -6925,7 +6925,7 @@ export default function Home() {
       "Cần xử lý": { label: "Cần xử lý", tone: "warning", hint: "Cần admin xem lại lý do và task state." },
       "review_required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
       "Review required": { label: "Cần review", tone: "warning", hint: "Task đã hết số lần retry, cần admin audit lý do và quyết định tiếp theo." },
-      "Chờ kick": { label: "Chờ kick", tone: "warning", hint: "Đang chờ worker hoặc dữ liệu kick tiếp theo." },
+      "Chờ kick": { label: "Chờ xử lý", tone: "warning", hint: "Đang chờ worker hoặc dữ liệu kick tiếp theo." },
       "Chờ audit": { label: "Chờ audit", tone: "warning", hint: "Đang chờ audit kick / reconcile trạng thái." },
       "QUEUED": { label: "Đã xếp hàng kick", tone: "info", hint: "Đã sinh task và đang chờ worker tới lượt." },
       "PROCESSING": { label: "Đang kick", tone: "info", hint: "Task đang được worker xử lý." },
@@ -7468,7 +7468,12 @@ export default function Home() {
             <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Quá {Math.abs(daysUntil(item.expire_at))} ngày</div></Fragment>,
             <Fragment key="status">
               <Stack spacing={0.75}>
-                <Chip size="small" label={renewalStatusLabel(displayStatus)} color={tone} variant="outlined" />
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                  <Chip size="small" label={renewalStatusLabel(displayStatus)} color={tone} variant="outlined" />
+                  {renewalV2Task ? (
+                    <Chip size="small" label={renewalTaskStateLabel(renewalV2Task.task_state)} color={renewalTaskStateTone(renewalV2Task.task_state)} variant="outlined" />
+                  ) : null}
+                </Box>
                 {summary.latestKickAt ? <div className="muted">{dateText(summary.latestKickAt)}</div> : null}
               </Stack>
             </Fragment>,
@@ -7539,10 +7544,11 @@ export default function Home() {
         if (renewalFocusFilter === "retained" && !["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status)) return false;
         if (renewalFocusFilter === "error" && !["Lỗi", "Không map được group", "Cần review"].includes(status)) return false;
         if (renewalFocusFilter === "review" && ["Đã kick xong"].includes(status)) return false;
+        if (renewalTimelineTaskStateFilter !== "ALL" && String(item.taskState || "").trim().toUpperCase() !== renewalTimelineTaskStateFilter) return false;
       }
       return true;
     });
-  }, [renewalFocusFilter, renewalOpsRows, renewalQuery, renewalTab]);
+  }, [renewalFocusFilter, renewalOpsRows, renewalQuery, renewalTab, renewalTimelineTaskStateFilter]);
   const expiredRenewalStats = useMemo(() => {
     return (renewalOpsRows.expired || []).reduce(
       (acc, row) => {
@@ -9829,6 +9835,37 @@ export default function Home() {
                           variant={renewalFocusFilter === item.key ? "filled" : "outlined"}
                           onClick={() => {
                             setRenewalFocusFilter(item.key as RenewalFocusFilter);
+                            setRenewalPage(1);
+                          }}
+                          sx={{ fontWeight: 800, height: 28 }}
+                        />
+                      ))}
+                      <Chip
+                        label="Task state"
+                        variant="outlined"
+                        color="default"
+                        sx={{ fontWeight: 800, height: 28 }}
+                      />
+                      {[
+                        { key: "ALL", label: "Tất cả task_state" },
+                        { key: "DRAFT", label: "Chờ xử lý" },
+                        { key: "QUEUED", label: "Đã xếp hàng kick" },
+                        { key: "RUNNING", label: "Đang kick" },
+                        { key: "PENDING_CONFIRM", label: "Đang chờ xác nhận" },
+                        { key: "RETRY_PENDING", label: "Chờ thử lại" },
+                        { key: "REVIEW_REQUIRED", label: "Cần review" },
+                        { key: "DONE", label: "Đã xong" },
+                        { key: "PARTIAL_DONE", label: "Đã kick một phần" },
+                        { key: "BLOCKED", label: "Bị giữ" },
+                      ].map((item) => (
+                        <Chip
+                          key={item.key}
+                          label={item.label}
+                          clickable
+                          color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"}
+                          variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"}
+                          onClick={() => {
+                            setRenewalTimelineTaskStateFilter(item.key);
                             setRenewalPage(1);
                           }}
                           sx={{ fontWeight: 800, height: 28 }}
