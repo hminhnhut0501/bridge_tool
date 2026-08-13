@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover - lightweight test fallback
         pass
 from dotenv import load_dotenv
 try:
-    from fastapi import Depends, FastAPI, Header, HTTPException, Request
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
 except ImportError:  # pragma: no cover - lightweight test fallback
     class _FallbackHTTPException(Exception):
@@ -40,6 +40,10 @@ except ImportError:  # pragma: no cover - lightweight test fallback
 
     class Request:  # minimal placeholder for import-time test stubs
         pass
+
+    class Response:  # minimal placeholder for import-time test stubs
+        def __init__(self):
+            self.headers = {}
 
     class FastAPI:  # pragma: no cover - lightweight test fallback
         def __init__(self, *args, **kwargs):
@@ -245,6 +249,7 @@ _webhook_reset_backoff_seconds = 0
 _webhook_startup_retry_task = None
 _marketing_stats_cache = {}
 _marketing_stats_cache_ttl_seconds = max(30, int(os.getenv("MARKETING_STATS_CACHE_TTL_SECONDS", "60") or "60"))
+_backend_commit = (os.getenv("BACKEND_COMMIT") or "").strip() or "508394b"
 
 
 async def _maybe_await(value):
@@ -614,6 +619,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def backend_commit_header_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if str(getattr(request, "url", "").path if getattr(request, "url", None) else "").startswith("/admin-api"):
+        response.headers["X-Backend-Commit"] = _backend_commit
+        response.headers["X-Backend-Build"] = _backend_commit
+    return response
 
 
 def require_admin(x_admin_secret: str | None = Header(default=None)):
@@ -2049,6 +2063,7 @@ async def shutdown():
 async def health():
     return {
         "ok": True,
+        "backend_commit": _backend_commit,
         "supabase": supabase_store.enabled,
         "webhook_url_configured": bool(os.getenv("WEBHOOK_URL")),
         "webhook_last_reset_reason": _last_webhook_reset_reason,
@@ -2060,7 +2075,20 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"ok": True, "service": "hang-cu-vip-backend"}
+    return {"ok": True, "service": "hang-cu-vip-backend", "backend_commit": _backend_commit}
+
+
+@app.get("/admin-api/build-info")
+async def admin_build_info():
+    return {
+        "ok": True,
+        "service": "hang-cu-vip-backend",
+        "backend_commit": _backend_commit,
+        "build": {
+            "commit": _backend_commit,
+            "source": "web_backend.py",
+        },
+    }
 
 
 @app.get("/admin-api/webhook-info", dependencies=[Depends(require_admin)])

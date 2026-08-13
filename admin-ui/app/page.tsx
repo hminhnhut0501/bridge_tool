@@ -3170,6 +3170,11 @@ function isLifetimePlanKey(planName: string) {
   return key === "FULL_LIFE" || key === "SVIP_LIFE" || key === "SELECT_GROUP_LIFE" || key.endsWith("_LIFE");
 }
 
+function is365DPlanKey(planName: string) {
+  const key = String(planName || "").trim().toUpperCase().replace(/\s+/g, "");
+  return key === "FULL_365D" || key === "SELECT_GROUP_365D" || key.endsWith("_365D");
+}
+
 function isLifetimeCouponPlan(planName: string) {
   return isLifetimePlanKey(planName);
 }
@@ -4725,7 +4730,7 @@ export default function Home() {
       ]);
       setFieldValues((current) => ({ ...current, SHOW_365D_PLANS: next ? "ON" : "OFF" }));
     });
-    showNotice("ok", next ? "Đã bật hiển thị gói VIP 365 ngày." : "Đã ẩn gói VIP 365 ngày.");
+    showNotice("ok", next ? "Đã bật hiển thị biến thể dài hạn." : "Đã ẩn biến thể dài hạn.");
   }
 
   function autoPaymentUiValue(key: string, fallback = "", legacyKey = "") {
@@ -6213,6 +6218,18 @@ export default function Home() {
   }, [groupNo, visibleGroups]);
   const activeSpecialGroups = useMemo(() => hiddenGroups.filter((item) => item.is_active).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [hiddenGroups]);
   const show365DPlans = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "SHOW_365D_PLANS", "OFF").toUpperCase());
+  const visiblePlanViFields = useMemo(
+    () => (show365DPlans ? PLAN_VI_FIELDS : PLAN_VI_FIELDS.filter((field) => !field.key.includes("365D"))),
+    [show365DPlans],
+  );
+  const visiblePlanEnFields = useMemo(
+    () => (show365DPlans ? PLAN_EN_FIELDS : PLAN_EN_FIELDS.filter((field) => !field.key.includes("365D"))),
+    [show365DPlans],
+  );
+  const visibleComboPriceFields = useMemo(
+    () => (show365DPlans ? COMBO_PRICE_FIELDS : COMBO_PRICE_FIELDS.filter((field) => !field.key.includes("365D"))),
+    [show365DPlans],
+  );
   const planKeyOptions = useMemo(() => [
     ...PLAN_KEY_OPTIONS,
     ...SELECTABLE_GROUP_COUPON_OPTIONS,
@@ -6509,6 +6526,26 @@ export default function Home() {
     if (!selectedCustomer) return [];
     return uniqueValues(selectedCustomer.paidOrders.map((item) => item.plan_name)).sort((a, b) => a.localeCompare(b));
   }, [selectedCustomer]);
+  useEffect(() => {
+    if (show365DPlans) return;
+    setManualOrderForm((current) => {
+      if (!is365DPlanKey(current.plan_key) && !is365DPlanKey(current.plan_name)) return current;
+      return {
+        ...current,
+        plan_key: "FULL_1M",
+        plan_name: manualPlanNameFromKey("FULL_1M"),
+        duration_days: current.plan_mode === "CUSTOM_DURATION" ? current.duration_days : "30",
+      };
+    });
+    setCustomerRenewForm((current) => {
+      if (!is365DPlanKey(current.plan_name)) return current;
+      const nextPlan = selectedCustomerRenewPlanOptions.find((plan) => !is365DPlanKey(plan)) || selectedCustomerRenewPlanOptions[0] || manualPlanNameFromKey("FULL_1M");
+      return {
+        ...current,
+        plan_name: nextPlan,
+      };
+    });
+  }, [manualPlanNameFromKey, selectedCustomerRenewPlanOptions, show365DPlans]);
   const filteredBlacklist = useMemo(() => {
     const q = blacklistQuery.trim().toLowerCase();
     return blacklist.filter((item) => {
@@ -8286,38 +8323,38 @@ export default function Home() {
 
   function planOptionLabel(value: string) {
     if (value === "FULL_1M") return "Combo - 30 ngày";
-    if (value === "FULL_365D") return "Combo - VIP 365 ngày";
+    if (value === "FULL_365D") return show365DPlans ? "Combo - VIP 365 ngày" : "Combo - gói ẩn";
     if (value === "FULL_LIFE") return "Combo - trọn đời";
     if (value === "SELECT_GROUP_1M") return "Khách tự chọn collection lẻ - 30 ngày";
-    if (value === "SELECT_GROUP_365D") return "Khách tự chọn collection lẻ - VIP 365 ngày";
+    if (value === "SELECT_GROUP_365D") return show365DPlans ? "Khách tự chọn collection lẻ - VIP 365 ngày" : "Khách tự chọn collection lẻ - gói ẩn";
     if (value === "SELECT_GROUP_LIFE") return "Khách tự chọn collection lẻ - trọn đời";
     const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "30 ngày" : match[2] === "365D" ? "VIP 365 ngày" : "trọn đời"}`;
+    return `${name} - ${match[2] === "1M" ? "30 ngày" : match[2] === "365D" ? (show365DPlans ? "VIP 365 ngày" : "gói ẩn") : "trọn đời"}`;
   }
 
   function priceOptionLabel(value: string) {
     if (value === "PRICE_COMBO_30D") return "Giá Combo - 30 ngày";
-    if (value === "PRICE_COMBO_365D") return "Giá Combo - VIP 365 ngày";
+    if (value === "PRICE_COMBO_365D") return show365DPlans ? "Giá Combo - VIP 365 ngày" : "Giá Combo - gói ẩn";
     if (value === "PRICE_COMBO_LIFE") return "Giá Combo - trọn đời";
     if (value === "PRICE_COMBO_30D_USD") return "Giá USD Combo - 30 ngày";
-    if (value === "PRICE_COMBO_365D_USD") return "Giá USD Combo - VIP 365 ngày";
+    if (value === "PRICE_COMBO_365D_USD") return show365DPlans ? "Giá USD Combo - VIP 365 ngày" : "Giá USD Combo - gói ẩn";
     if (value === "PRICE_COMBO_LIFE_USD") return "Giá USD Combo - trọn đời";
     const match = value.match(/^PRICE_G(\d+)_(1M|365D|LIFE)(_USD)?$/);
     if (!match) return value;
     const name = getConfigValue(config, `BTN_G${match[1]}`) || `Nhóm G${match[1]}`;
-    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : match[2] === "365D" ? "giá VIP 365 ngày" : "giá trọn đời"}${match[3] ? " (USD)" : " (VNĐ)"}`;
+    return `${name} - ${match[2] === "1M" ? "giá 30 ngày" : match[2] === "365D" ? (show365DPlans ? "giá VIP 365 ngày" : "giá gói ẩn") : "giá trọn đời"}${match[3] ? " (USD)" : " (VNĐ)"}`;
   }
 
   function manualPlanNameFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
-    if (value === "FULL_365D") return getConfigValue(config, "PLAN_COMBO_365D", getConfigValue(config, "PLAN_ALL_ACCESS_365D", "VIP 365 Ngày")) || "VIP 365 Ngày";
+    if (value === "FULL_365D") return show365DPlans ? getConfigValue(config, "PLAN_COMBO_365D", getConfigValue(config, "PLAN_ALL_ACCESS_365D", "VIP 365 Ngày")) || "VIP 365 Ngày" : "";
     if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_COMBO_LIFE", getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "Combo Trọn Đời")) || "Combo Trọn Đời";
     const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return "";
     const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : match[2] === "365D" ? "PLAN_COLLECTION_365D" : "PLAN_COLLECTION_LIFE";
-    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : match[2] === "365D" ? "VIP 365 Ngày" : "Collection Trọn Đời";
+    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : match[2] === "365D" ? (show365DPlans ? "VIP 365 Ngày" : "Collection Ẩn") : "Collection Trọn Đời";
     const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
     const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
     return `${prefix} - ${groupName}`;
@@ -8325,7 +8362,7 @@ export default function Home() {
 
   function manualPriceFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_COMBO_30D", "0");
-    if (value === "FULL_365D") return getConfigValue(config, "PRICE_COMBO_365D", "0");
+    if (value === "FULL_365D") return show365DPlans ? getConfigValue(config, "PRICE_COMBO_365D", "0") : "";
     if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_COMBO_LIFE", "0");
     const match = value.match(/^G(\d+)_(1M|365D|LIFE)$/);
     if (!match) return "";
@@ -9461,7 +9498,7 @@ export default function Home() {
             <section className="panel">
               <PanelHead
                 title="Công tắc hiển thị"
-                subtitle="Bật/tắt gói VIP 365 ngày trực tiếp tại đây để toàn bộ luồng tạo đơn / thanh toán / coupon dùng cùng một nguồn config."
+                subtitle="Ẩn hoặc hiện các biến thể dài hạn từ cùng một nguồn config để giữ menu gọn và tránh chọn nhầm."
               />
               <Box
                 sx={{
@@ -9478,10 +9515,10 @@ export default function Home() {
               >
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.2 }}>
-                    {show365DPlans ? "Gói VIP 365 ngày đang hiển thị" : "Gói VIP 365 ngày đang ẩn"}
+                    {show365DPlans ? "Gói dài hạn đang hiển thị" : "Gói dài hạn đang ẩn"}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Khi tắt, toàn bộ menu / tạo đơn / coupon sẽ bỏ qua 365 ngày để tránh tạo nhầm dữ liệu cho đơn cũ.
+                    Khi tắt, toàn bộ menu / tạo đơn / coupon sẽ bỏ qua biến thể 365 ngày để tránh tạo nhầm dữ liệu cho đơn cũ.
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -9491,7 +9528,7 @@ export default function Home() {
                     startIcon={<CheckCircle2 size={16} />}
                     disabled={show365DPlans || saving === "fields"}
                   >
-                    Bật 365
+                    Bật
                   </Button>
                   <Button
                     variant={!show365DPlans ? "contained" : "outlined"}
@@ -9500,7 +9537,7 @@ export default function Home() {
                     startIcon={<XCircle size={16} />}
                     disabled={!show365DPlans || saving === "fields"}
                   >
-                    Ẩn 365
+                    Ẩn
                   </Button>
                 </Box>
               </Box>
@@ -9546,7 +9583,7 @@ export default function Home() {
                     },
                   ...(show365DPlans ? [{
                       variant: "365d" as const,
-                      title: getConfigValue(config, "PLAN_COMBO_365D", "VIP 365 Ngày"),
+                      title: getConfigValue(config, "PLAN_COMBO_365D", "Gói dài hạn"),
                       aliases: String(getConfigValue(config, "PLAN_COMBO_365D_ALIASES", "All Access 365 Ngày, SVIP 365 Ngày, FULL 365D"))
                         .split(/[\n,;|]+/)
                         .map((item) => item.trim())
@@ -9597,7 +9634,7 @@ export default function Home() {
                             <Box sx={{ minWidth: 0 }}>
                               <Chip
                                 size="small"
-                                label={item.variant === "365d" ? "365 NGÀY" : item.variant === "life" ? "TRỌN ĐỜI" : "30 NGÀY"}
+                                label={item.variant === "365d" ? "DÀI HẠN" : item.variant === "life" ? "TRỌN ĐỜI" : "30 NGÀY"}
                                 color={item.variant === "365d" ? "secondary" : item.variant === "life" ? "primary" : "success"}
                                 variant="filled"
                                 sx={{ mb: 1, fontWeight: 900, letterSpacing: 0.4 }}
@@ -9615,7 +9652,7 @@ export default function Home() {
                               {item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 ? "Chưa cấu hình" : item.priceVnd}
                             </Typography>
                             <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 700 }}>
-                              {item.variant === "365d" ? "Giá chính cho luồng VIP 365 ngày" : item.variant === "life" ? "Giá chính cho trọn đời" : "Giá chính cho 30 ngày"}
+                              {item.variant === "365d" ? "Giá chính cho luồng dài hạn" : item.variant === "life" ? "Giá chính cho trọn đời" : "Giá chính cho 30 ngày"}
                             </Typography>
                           </Box>
                         </Box>
@@ -9624,7 +9661,7 @@ export default function Home() {
                           <Chip size="small" label={`VNĐ ${item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 ? "Chưa có giá" : item.priceVnd}`} variant="outlined" color={item.variant === "365d" ? "secondary" : "default"} sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
                           <Chip size="small" label={`USD ${item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0) <= 0 ? "Chưa có giá" : item.priceUsd}`} variant="outlined" color={item.variant === "365d" ? "secondary" : "default"} sx={{ bgcolor: "rgba(255,255,255,0.84)", fontWeight: 700 }} />
                           {item.variant === "365d" && Number(getConfigValue(config, "PRICE_COMBO_365D", "0") || 0) <= 0 && Number(getConfigValue(config, "PRICE_COMBO_365D_USD", "0") || 0) <= 0 ? (
-                            <Chip size="small" label="Thiếu giá VIP 365" color="warning" variant="outlined" sx={{ bgcolor: "rgba(255,251,235,0.95)", fontWeight: 800 }} />
+                            <Chip size="small" label="Thiếu giá dài hạn" color="warning" variant="outlined" sx={{ bgcolor: "rgba(255,251,235,0.95)", fontWeight: 800 }} />
                           ) : null}
                           {item.aliases.slice(0, 2).map((alias) => (
                             <Chip key={`${item.title}-${alias}`} size="small" label={alias} variant="outlined" sx={{ bgcolor: "rgba(255,255,255,0.84)", maxWidth: "100%", "& .MuiChip-label": { maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" } }} />
@@ -9683,7 +9720,7 @@ export default function Home() {
                           <span className="price-value">{formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_1M`, "0") || 0), "VND")}</span>
                         </div>
                         <div className="bento-price-row">
-                          <span className="price-label">Gói VIP 365 ngày</span>
+                          <span className="price-label">Gói dài hạn</span>
                           <span className="price-value">
                             {Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0) > 0
                               ? formatDisplayCurrency(Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0), "VND")
@@ -9696,7 +9733,7 @@ export default function Home() {
                         </div>
                         {Number(getConfigValue(config, `PRICE_G${item}_365D`, "0") || 0) <= 0 ? (
                           <div className="bento-price-row">
-                            <span className="price-label">VIP 365 ngày</span>
+                            <span className="price-label">Gói dài hạn</span>
                             <span className="price-value muted">Chưa cấu hình</span>
                           </div>
                         ) : null}
@@ -10777,7 +10814,7 @@ export default function Home() {
                 <Tab value="saleContent" label="Flash sale" />
               </Tabs>
             </section>
-            {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={PLAN_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
+            {botEnTab === "plans" ? <ConfigEditor title="Tên gói và nút mua tiếng Anh" subtitle="Không chứa giá. Giá USD PayPal được quản lý tập trung tại Nhóm & giá." fields={visiblePlanEnFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "groups" ? <ConfigEditor title="Mô tả collection tiếng Anh" subtitle="Chỉ chỉnh nội dung mô tả. Tên tiếng Anh và giá USD nằm tại Nhóm & giá." fields={groupEnContentFields} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "buttons" ? <ConfigEditor title="Nút bấm tiếng Anh" subtitle="Các key BTN_*_EN dành riêng cho khách tiếng Anh." fields={BUTTON_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
             {botEnTab === "messages" ? <ConfigEditor title="Tin nhắn tiếng Anh" subtitle="Các key MSG_*_EN dành riêng cho khách tiếng Anh, không gồm các tin tự động thanh toán đã gom về tab Tự động thanh toán." fields={VISIBLE_MESSAGE_EN_FIELDS} values={fieldValues} setValues={setFieldValues} onSave={saveFields} /> : null}
@@ -10849,10 +10886,8 @@ export default function Home() {
                         <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-line", lineHeight: 1.65 }}>
                           {[
                             "• `buy_full_1m` → mua Combo 30 ngày",
-                            "• `buy_full_365d` → mua VIP 365 ngày",
                             "• `buy_full_life` → mua Combo trọn đời",
                             "• `buy_G2_life` → mua collection nhóm 2 trọn đời",
-                            "• `buy_G2_365d` → mua collection nhóm 2 VIP 365 ngày",
                           ].join("\n")}
                         </Typography>
                       </Box>
@@ -10861,10 +10896,10 @@ export default function Home() {
                       <Typography sx={{ fontWeight: 900, mb: 0.75 }}>Biến giá / tên gói thường dùng</Typography>
                       <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-line", lineHeight: 1.65 }}>
                         {[
-                          "• `{BTN_BUY_COMBO_30D}` / `{BTN_BUY_COMBO_365D}` / `{BTN_BUY_COMBO_LIFE}`",
-                          "• `{PLAN_COMBO_30D}` / `{PLAN_COMBO_365D}` / `{PLAN_COMBO_LIFE}`",
-                          "• `{PRICE_COMBO_30D}` / `{PRICE_COMBO_365D}` / `{PRICE_COMBO_LIFE}`",
-                          "• `{PRICE_G2_1M}` / `{PRICE_G2_365D}` / `{PRICE_G2_LIFE}`",
+                          "• `{BTN_BUY_COMBO_30D}` / `{BTN_BUY_COMBO_LIFE}`",
+                          "• `{PLAN_COMBO_30D}` / `{PLAN_COMBO_LIFE}`",
+                          "• `{PRICE_COMBO_30D}` / `{PRICE_COMBO_LIFE}`",
+                          "• `{PRICE_G2_1M}` / `{PRICE_G2_LIFE}`",
                           "• `{SALE_LABEL_PRICE_COMBO_30D}` để hiện label sale nếu có",
                         ].join("\n")}
                       </Typography>
@@ -11335,7 +11370,7 @@ export default function Home() {
         {comboSettingsOpen ? (
           <MuiDialogShell
             open
-            title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : comboSettingsVariant === "life" ? "Combo Trọn Đời" : "VIP 365 Ngày"}
+            title={comboSettingsVariant === "30d" ? "Combo 30 Ngày" : comboSettingsVariant === "life" ? "Combo Trọn Đời" : "Gói dài hạn"}
             subtitle="Bấm đổi tên hoặc đổi giá đúng card này. Dữ liệu cũ vẫn tương thích qua alias."
             onClose={() => setComboSettingsOpen(false)}
             maxWidth="lg"
@@ -11355,14 +11390,14 @@ export default function Home() {
             </Box>
             {comboSettingsTab === "price" ? (
               <ConfigEditor
-                title={comboSettingsVariant === "30d" ? "Cài đặt giá Combo 30 ngày" : comboSettingsVariant === "life" ? "Cài đặt giá Combo trọn đời" : "Cài đặt giá VIP 365 ngày"}
+                title={comboSettingsVariant === "30d" ? "Cài đặt giá Combo 30 ngày" : comboSettingsVariant === "life" ? "Cài đặt giá Combo trọn đời" : "Cài đặt giá gói dài hạn"}
                 subtitle="Giá VNĐ dùng PayOS/VietQR, giá USD dùng PayPal."
                 fields={
                   comboSettingsVariant === "30d"
-                    ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_30D", "PRICE_COMBO_30D_USD"].includes(field.key))
+                    ? visibleComboPriceFields.filter((field) => ["PRICE_COMBO_30D", "PRICE_COMBO_30D_USD"].includes(field.key))
                     : comboSettingsVariant === "life"
-                      ? COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_LIFE", "PRICE_COMBO_LIFE_USD"].includes(field.key))
-                      : COMBO_PRICE_FIELDS.filter((field) => ["PRICE_COMBO_365D", "PRICE_COMBO_365D_USD"].includes(field.key))
+                      ? visibleComboPriceFields.filter((field) => ["PRICE_COMBO_LIFE", "PRICE_COMBO_LIFE_USD"].includes(field.key))
+                      : visibleComboPriceFields.filter((field) => ["PRICE_COMBO_365D", "PRICE_COMBO_365D_USD"].includes(field.key))
                 }
                 values={fieldValues}
                 setValues={setFieldValues}
@@ -11370,15 +11405,15 @@ export default function Home() {
               />
             ) : (
               <ConfigEditor
-                title={comboSettingsVariant === "30d" ? "Đổi tên Combo 30 ngày" : comboSettingsVariant === "life" ? "Đổi tên Combo trọn đời" : "Đổi tên VIP 365 ngày"}
+                title={comboSettingsVariant === "30d" ? "Đổi tên Combo 30 ngày" : comboSettingsVariant === "life" ? "Đổi tên Combo trọn đời" : "Đổi tên gói dài hạn"}
                 subtitle="Sửa tên hiển thị và alias tương thích. Dữ liệu cũ vẫn chạy bằng alias legacy."
                 fields={
-                  PLAN_VI_FIELDS.filter((field) =>
+                  visiblePlanViFields.filter((field) =>
                     comboSettingsVariant === "30d"
                       ? ["PLAN_COMBO_30D", "PLAN_COMBO_30D_ALIASES"].includes(field.key)
                       : comboSettingsVariant === "life"
                         ? ["PLAN_COMBO_LIFE", "PLAN_COMBO_LIFE_ALIASES"].includes(field.key)
-                        : ["PLAN_COMBO_365D", "PLAN_COMBO_365D_ALIASES"].includes(field.key),
+                        : show365DPlans && ["PLAN_COMBO_365D", "PLAN_COMBO_365D_ALIASES"].includes(field.key),
                   )
                 }
                 values={fieldValues}
@@ -11456,10 +11491,10 @@ export default function Home() {
                 />
                 <TextField className="field" label="Telegram group ID" value={groupId} onChange={(event) => setGroupId(event.target.value)} placeholder={getConfigValue(config, `ID_G${groupNo}`) || "VD: -1001234567890"} fullWidth size="small" sx={popupFieldSx} />
                 <TextField className="field" label="Giá VNĐ 30 ngày" value={groupPrice1m} onChange={(event) => setGroupPrice1m(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice1m(roundMoneyInput(groupPrice1m, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_1M`) || "VD: 99000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
-                <TextField className="field" label="Giá VNĐ VIP 365 ngày" value={groupPrice365} onChange={(event) => setGroupPrice365(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice365(roundMoneyInput(groupPrice365, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_365D`) || "VD: 199000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
+                {show365DPlans ? <TextField className="field" label="Giá VNĐ VIP 365 ngày" value={groupPrice365} onChange={(event) => setGroupPrice365(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPrice365(roundMoneyInput(groupPrice365, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_365D`) || "VD: 199000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" /> : null}
                 <TextField className="field" label="Giá VNĐ trọn đời" value={groupPriceLife} onChange={(event) => setGroupPriceLife(normalizeMoneyInput(event.target.value, "VND"))} onBlur={() => setGroupPriceLife(roundMoneyInput(groupPriceLife, "VND"))} placeholder={getConfigValue(config, `PRICE_G${groupNo}_LIFE`) || "VD: 299000"} fullWidth size="small" sx={popupFieldSx} inputMode="numeric" />
                 <TextField className="field" label="Giá USD 30 ngày" value={groupPrice1mUsd} onChange={(event) => setGroupPrice1mUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice1mUsd(roundMoneyInput(groupPrice1mUsd, "USD"))} placeholder="VD: 4.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
-                <TextField className="field" label="Giá USD VIP 365 ngày" value={groupPrice365Usd} onChange={(event) => setGroupPrice365Usd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice365Usd(roundMoneyInput(groupPrice365Usd, "USD"))} placeholder="VD: 9.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
+                {show365DPlans ? <TextField className="field" label="Giá USD VIP 365 ngày" value={groupPrice365Usd} onChange={(event) => setGroupPrice365Usd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPrice365Usd(roundMoneyInput(groupPrice365Usd, "USD"))} placeholder="VD: 9.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" /> : null}
                 <TextField className="field" label="Giá USD trọn đời" value={groupPriceLifeUsd} onChange={(event) => setGroupPriceLifeUsd(normalizeMoneyInput(event.target.value, "USD"))} onBlur={() => setGroupPriceLifeUsd(roundMoneyInput(groupPriceLifeUsd, "USD"))} placeholder="VD: 14.99" fullWidth size="small" sx={popupFieldSx} inputMode="decimal" />
               </div>
             </Box>
@@ -11665,8 +11700,8 @@ export default function Home() {
               <div className="form-grid two">
                 <TextField className="field" label="Tên trang" value={menuForm.page_id} onChange={(event) => setMenuForm({ ...menuForm, page_id: event.target.value })} placeholder={menuLanguage === "en" ? "VD: main_menu_en, support_page_en" : "VD: main_menu, support_page"} fullWidth size="small" sx={popupFieldSx} helperText={menuLanguage === "en" ? "Trang tiếng Anh bắt buộc có hậu tố _en." : "Trang tiếng Việt không được dùng hậu tố _en."} />
                 <TextField className="field" label="Ảnh cover" value={menuForm.image_url} onChange={(event) => setMenuForm({ ...menuForm, image_url: event.target.value })} placeholder="File ID Telegram hoặc URL ảnh" fullWidth size="small" sx={popupFieldSx} />
-                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_COMBO_30D}, {PRICE_G2_365D}, {SALE_LABEL_PRICE_COMBO_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
-                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua Combo => buy_full_1m | Hỗ trợ => nav:support_page\\nMua G2 VIP 365 ngày => buy_G2_365d"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Cú pháp nhanh: `nav:page_id` để chuyển trang, `buy_*` để mua, ví dụ {`{PRICE_G2_LIFE}`}</span>} />
+                <TextField className="field wide" label="Nội dung trang" value={menuForm.body} onChange={(event) => setMenuForm({ ...menuForm, body: event.target.value })} placeholder="Nhập nội dung HTML. Có thể dùng {PRICE_COMBO_30D}, {PRICE_G2_LIFE}, {SALE_LABEL_PRICE_COMBO_30D}..." fullWidth multiline minRows={8} sx={popupFieldSx} />
+                <TextField className="field wide" label="Nút bấm" value={menuForm.layout} onChange={(event) => setMenuForm({ ...menuForm, layout: event.target.value })} placeholder={"Mỗi dòng là một hàng nút. Ví dụ:\\nMua Combo => buy_full_1m | Hỗ trợ => nav:support_page\\nMua gói đặc biệt => buy_G2_life"} fullWidth multiline minRows={5} sx={popupFieldSx} helperText={<span>Cú pháp nhanh: `nav:page_id` để chuyển trang, `buy_*` để mua, ví dụ {`{PRICE_G2_LIFE}`}</span>} />
               </div>
             </Box>
           </MuiDialogShell>

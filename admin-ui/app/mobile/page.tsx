@@ -49,6 +49,11 @@ function isLifetimePlanKey(value: string) {
   return String(value || "").toUpperCase() === "FULL_LIFE";
 }
 
+function is365DPlanKey(value: string) {
+  const key = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  return key === "FULL_365D" || key === "SELECT_GROUP_365D" || key.endsWith("_365D");
+}
+
 function MobileListCard({
   title,
   meta,
@@ -178,6 +183,20 @@ export default function MobileAdminPage() {
     "FULL_LIFE",
     ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
   ], [configuredGroups]);
+
+  useEffect(() => {
+    const storedShow365 = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "SHOW_365D_PLANS", "OFF").toUpperCase());
+    if (storedShow365) return;
+    setManualForm((current) => {
+      if (!is365DPlanKey(current.plan_key) && !is365DPlanKey(current.plan_name)) return current;
+      return {
+        ...current,
+        plan_key: "FULL_1M",
+        plan_name: manualPlanNameFromKey("FULL_1M"),
+        duration_days: current.plan_mode === "CUSTOM_DURATION" ? current.duration_days : "30",
+      };
+    });
+  }, [config]);
 
   function manualPlanNameFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
