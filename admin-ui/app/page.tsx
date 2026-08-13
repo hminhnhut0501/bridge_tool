@@ -7123,16 +7123,23 @@ export default function Home() {
     if (ageMinutes >= 60) return "warning";
     return "default";
   }
+  function renewalTaskIsStale(task: RenewalKickV2TaskRow | null) {
+    if (!task) return false;
+    const ms = safeDateMillis(task.last_transition_at || task.updated_at || task.created_at);
+    if (!ms) return false;
+    return (Date.now() - ms) / 60000 >= 15;
+  }
   function renewalQueuePhaseLabel(task: RenewalKickV2TaskRow | null, attempts: RenewalKickV2AttemptRow[]) {
     if (!task) return "";
     const state = String(task.task_state || "").trim().toUpperCase();
     const hasAttempts = attempts.length > 0;
-    if (["DRAFT", "PENDING"].includes(state)) return hasAttempts ? "Đang chờ worker" : "Đã xếp hàng";
-    if (state === "QUEUED" && !hasAttempts) return "Đã xếp hàng";
-    if (state === "QUEUED" && hasAttempts) return "Đang chờ worker";
+    const stale = renewalTaskIsStale(task);
+    if (["DRAFT", "PENDING"].includes(state)) return hasAttempts ? (stale ? "Kẹt chờ worker" : "Đang chờ worker") : "Đã xếp hàng";
+    if (state === "QUEUED" && !hasAttempts) return stale ? "Kẹt chờ worker" : "Đã xếp hàng";
+    if (state === "QUEUED" && hasAttempts) return stale ? "Kẹt chờ worker" : "Đang chờ worker";
     if (["RUNNING", "PROCESSING"].includes(state)) return "Đang xử lý";
-    if (["WAITING", "PENDING_CONFIRM"].includes(state)) return "Đang chờ xác nhận";
-    if (state === "RETRY_PENDING") return "Chờ thử lại";
+    if (["WAITING", "PENDING_CONFIRM"].includes(state)) return stale ? "Kẹt chờ xác nhận" : "Đang chờ xác nhận";
+    if (state === "RETRY_PENDING") return stale ? "Kẹt chờ thử lại" : "Chờ thử lại";
     if (state === "REVIEW_REQUIRED") return "Cần review";
     if (state === "BLOCKED") return "Bị giữ";
     if (state === "DONE") return "Đã xong";
@@ -10014,7 +10021,8 @@ export default function Home() {
                           sx={{ fontWeight: 800, height: 28 }}
                         />
                       ))}
-                      <Chip size="small" label={`Chờ worker: ${expiredRenewalStats.pending}`} variant="outlined" color="warning" />
+                      <Chip size="small" label={`Đã xếp hàng: ${expiredRenewalTaskStateStats.queued}`} variant="outlined" color="info" />
+                      <Chip size="small" label={`Đang chờ worker: ${expiredRenewalTaskStateStats.pending}`} variant="outlined" color="warning" />
                       <Chip size="small" label={`Đang kick: ${expiredRenewalStats.kicking}`} variant="outlined" color="info" />
                       <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
                       <Chip size="small" label={`Cần review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
@@ -10055,7 +10063,7 @@ export default function Home() {
                         const isSelected = row?.orderId && String(row.orderId) === renewalSelectedOrderKey;
                         if (isSelected) return { bgcolor: "rgba(59, 130, 246, 0.08)" };
                         if (row?.renewalStatus === "Đã kick xong") return { bgcolor: "rgba(16, 185, 129, 0.04)" };
-                        if (["Đang kick", "Đang chờ xác nhận", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
+                        if (["Đang kick", "Đang chờ xác nhận", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại", "Kẹt chờ worker", "Kẹt chờ xác nhận", "Kẹt chờ thử lại"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(6, 182, 212, 0.04)" };
                         if (["Lỗi", "Không map được group", "Cần review"].includes(String(row?.renewalStatus || ""))) return { bgcolor: "rgba(239, 68, 68, 0.04)" };
                         return row?.flags.isImportant ? { bgcolor: "rgba(245, 158, 11, 0.06)" } : row?.flags.isNew ? { bgcolor: "rgba(59, 130, 246, 0.04)" } : {};
                       }}
@@ -10073,7 +10081,7 @@ export default function Home() {
                             {renewalTab === "soon" ? <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void openCustomerRenewFromLookup(row.telegramId); }} startIcon={<RefreshCw size={14} />}>Gia hạn</Button> : null}
                             {renewalTab === "expired" && row.orderId ? (
                               <>
-                                {renewalPanel === "queue" && (["Cần review", "Lỗi", "Không map được group", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại", "Đang chờ xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
+                                {renewalPanel === "queue" && (["Cần review", "Lỗi", "Không map được group", "Đã xếp hàng", "Đang chờ worker", "Chờ thử lại", "Đang chờ xác nhận", "Kẹt chờ worker", "Kẹt chờ xác nhận", "Kẹt chờ thử lại"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
                                   <>
                                     <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void kickNowRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `kick-now-renewal-kick-v2-${row.orderId}`} startIcon={saving === `kick-now-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}>Kick ngay ({groupsToKick.length})</Button>
                                     <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void requeueRenewalKickV2Handler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `requeue-renewal-kick-v2-${row.orderId}`} startIcon={saving === `requeue-renewal-kick-v2-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Đưa vào queue</Button>

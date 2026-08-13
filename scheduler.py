@@ -62,6 +62,8 @@ KICK_CONFIRMATION_DELAY_SECONDS = 30
 KICK_MAX_ATTEMPTS = 3
 KICK_CONFIRM_MAX_ATTEMPTS = 3
 RENEWAL_KICK_V2_LOCK_MINUTES = 5
+RENEWAL_KICK_V2_STALE_QUEUE_MINUTES = 10
+RENEWAL_KICK_V2_STALE_CONFIRM_MINUTES = 15
 
 RENEWAL_KICK_TASK_STATES = {
     "queued",
@@ -670,6 +672,13 @@ def renewal_kick_v2_lock_expired(task, now, *, lock_minutes=RENEWAL_KICK_V2_LOCK
         return True
     return now - locked_at >= timedelta(minutes=lock_minutes)
 
+def renewal_kick_v2_task_age_minutes(task, now):
+    for key in ("updated_at", "last_transition_at", "queued_at", "created_at", "due_at", "first_due_at"):
+        parsed = parse_expire_datetime((task or {}).get(key))
+        if parsed:
+            return max(0, int((now - parsed).total_seconds() // 60))
+    return None
+
 def summarize_renewal_kick_groups_v2(group_tasks):
     kicked = [item for item in group_tasks if group_task_state_value(item) == "kicked"]
     retained = [item for item in group_tasks if group_task_state_value(item) == "retained"]
@@ -835,10 +844,26 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
         next_retry_at = parse_expire_datetime(task.get("next_retry_at"))
         if state not in {"pending", "selected", "retry_scheduled", "processing", "waiting_confirm"}:
             continue
+        age_minutes = renewal_kick_v2_task_age_minutes(task, now)
+        stale_confirm = age_minutes is not None and age_minutes >= RENEWAL_KICK_V2_STALE_CONFIRM_MINUTES
+        if state in {"waiting_confirm", "processing"} and stale_confirm:
+            try:
+                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                    "group_state": "review_required",
+                    "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_error": "stale_confirm_timeout",
+                    "review_reason": "stale_confirm_timeout",
+                    "metadata": {**(task.get("metadata") or {}), "reason": "stale_confirm_timeout"},
+                })
+                summary["review"] += 1
+            except Exception:
+                summary["error"] += 1
+            continue
         locked_by = str(task.get("locked_by") or "").strip()
         if locked_by and locked_by != "scheduler_v2" and not renewal_kick_v2_lock_expired(task, now):
             continue
-        if next_retry_at and next_retry_at > now:
+        stale_queue = age_minutes is not None and age_minutes >= RENEWAL_KICK_V2_STALE_QUEUE_MINUTES
+        if next_retry_at and next_retry_at > now and not stale_queue:
             continue
         order_id = str(task.get("order_id") or "")
         user_id = str(task.get("telegram_user_id") or "")

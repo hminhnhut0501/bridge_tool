@@ -139,6 +139,26 @@ class FakeStore:
         self.renewal_kick_legacy_map_v2.append(row)
         return [row]
 
+    def list_renewal_kick_tasks_v2(self, limit=1000):
+        return list(self.renewal_kick_tasks_v2)[:limit]
+
+    def list_due_renewal_kick_group_tasks_v2(self, limit=1000):
+        return list(self.renewal_kick_group_tasks_v2)[:limit]
+
+    def update_renewal_kick_task_v2(self, task_id, payload):
+        for row in self.renewal_kick_tasks_v2:
+            if str(row.get("id")) == str(task_id):
+                row.update(payload)
+                return [row]
+        return []
+
+    def update_renewal_kick_group_task_v2(self, task_id, payload):
+        for row in self.renewal_kick_group_tasks_v2:
+            if str(row.get("id")) == str(task_id):
+                row.update(payload)
+                return [row]
+        return []
+
     def order_to_sheet_row(self, order):
         return [
             order.get("order_id", ""),
@@ -290,6 +310,31 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task["review_reason"], "no_group_map")
         self.assertEqual(task["last_error"], "no_group_map")
         self.assertEqual(task["metadata"].get("reason"), "no_group_map")
+
+    async def test_stale_confirm_task_moves_to_review(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        self.store.renewal_kick_group_tasks_v2 = [{
+            "id": "group-1",
+            "task_id": "task-1",
+            "order_id": "old",
+            "telegram_user_id": "42",
+            "group_id": "-100444",
+            "group_name": "Hang Cú Asia",
+            "plan_name": "VIP 30 Ngày - Hang Cú Asia",
+            "group_state": "waiting_confirm",
+            "attempt_count": 1,
+            "confirm_count": 1,
+            "next_retry_at": "2026-07-16 08:45:00",
+            "last_transition_at": "2026-07-16 08:40:00",
+            "created_at": "2026-07-16 08:30:00",
+            "metadata": {},
+        }]
+
+        summary = await scheduler.process_due_renewal_kick_group_tasks_v2(now)
+
+        self.assertEqual(summary["review"], 1)
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["group_state"], "review_required")
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["last_error"], "stale_confirm_timeout")
 
     async def test_expired_vip_kicks_only_expired_group_when_other_group_active(self):
         now = datetime(2026, 5, 25, 12, 0, 0)
