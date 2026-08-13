@@ -54,9 +54,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Bộ nhớ tạm để tránh 1 ngày Bot gửi 2 lần tin nhắc cho cùng 1 người
 notified_users = set()
 recent_kicks = {}
-# Quét hạn dùng thường xuyên hơn để kick sát thời điểm hết hạn.
-# Nếu để quá thưa, đơn đã quá hạn có thể nằm ở trạng thái "chờ kick" quá lâu.
-SCHEDULER_DEFAULT_INTERVAL_SECONDS = 60
+# Quét hạn dùng theo nhịp thưa hơn để giảm tải.
+# Vẫn có thể đẩy thủ công từ admin nếu cần xử lý ngay.
+SCHEDULER_DEFAULT_INTERVAL_SECONDS = 8 * 60 * 60
 SCHEDULER_MIN_INTERVAL_SECONDS = 60
 KICK_CONFIRMATION_DELAY_SECONDS = 30
 KICK_MAX_ATTEMPTS = 3
@@ -2061,7 +2061,7 @@ async def main():
             if kicked_at < kick_cutoff:
                 recent_kicks.pop(key, None)
             
-        # 3 tiếng/vòng để giảm request Supabase/Telegram; cần chạy ngay có thể dùng lệnh admin quét hạn.
+        # Mặc định 8 tiếng/vòng để giảm request Supabase/Telegram; cần chạy ngay có thể dùng lệnh admin quét hạn.
         interval_seconds = config_int(
             "SCHEDULER_INTERVAL_SECONDS",
             SCHEDULER_DEFAULT_INTERVAL_SECONDS,
