@@ -7728,8 +7728,10 @@ export default function Home() {
   }, [currentRenewalOpsRows, renewalPage, totalRenewalPages]);
   const selectedRenewalDetail = useMemo(() => {
     if (!renewalSelectedOrderKey) return null;
-    return renewalOpsRows.expired.find((item) => String(item.orderId || "") === renewalSelectedOrderKey) || null;
-  }, [renewalOpsRows.expired, renewalSelectedOrderKey]);
+    return Object.values(renewalOpsRows)
+      .flat()
+      .find((item) => String((item as { orderId?: string }).orderId || "") === renewalSelectedOrderKey) || null;
+  }, [renewalOpsRows, renewalSelectedOrderKey]) as RenewalOpsRow | null;
   const selectedRenewalAttempts = useMemo(() => {
     if (!renewalSelectedOrderKey) return [];
     const attempts = renewalKickV2AttemptsByOrder.get(renewalSelectedOrderKey) || [];
