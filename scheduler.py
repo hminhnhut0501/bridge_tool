@@ -776,6 +776,7 @@ async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, ex
                     "confirm_count": 0,
                     "first_due_at": expire_str,
                     "next_retry_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                     "metadata": {
                         "source": "scheduler_expired",
                         "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
