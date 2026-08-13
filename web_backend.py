@@ -1670,7 +1670,11 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         else:
             raise
     try:
-        renewal_kick_group_tasks_v2 = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=5000)
+        renewal_kick_group_tasks_v2 = supabase_store._request(
+            "GET",
+            "renewal_kick_group_tasks_v2",
+            params={"select": "*", "order": "updated_at.desc", "limit": "5000"},
+        )
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "renewal_kick_group_tasks_v2"):
             warn_missing_table_once("renewal_kick_group_tasks_v2", exc)
@@ -3666,7 +3670,11 @@ async def admin_renewal_kick_v2_review(request: Request):
         raise HTTPException(status_code=400, detail="Hành động review không hợp lệ.")
     try:
         tasks = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
-        group_tasks = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=5000)
+        group_tasks = supabase_store._request(
+            "GET",
+            "renewal_kick_group_tasks_v2",
+            params={"select": "*", "order": "updated_at.desc", "limit": "5000"},
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Không đọc được dữ liệu review v2: {exc}")
 
@@ -3687,7 +3695,7 @@ async def admin_renewal_kick_v2_review(request: Request):
             "review_reason": str(body.get("reason") or "closed_by_admin"),
             "metadata": {**(task.get("metadata") or {}), "reason": "closed_by_admin", "review_action": "close"},
         })
-        return {"data": updated_task}
+        return {"data": updated_task[0] if isinstance(updated_task, list) and updated_task else updated_task}
 
     for group in related_groups:
         current_state = str(group.get("group_state") or "").strip().lower()
@@ -3712,7 +3720,7 @@ async def admin_renewal_kick_v2_review(request: Request):
         "resolved_at": None,
         "metadata": {**(task.get("metadata") or {}), "reason": "review_requeued", "review_action": "requeue"},
     })
-    return {"data": updated_task}
+    return {"data": updated_task[0] if isinstance(updated_task, list) and updated_task else updated_task}
 
 
 @app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])

@@ -8163,83 +8163,30 @@ export default function Home() {
 
   async function retryKickUserHandler(telegramId: string, orderId: string, planName: string, customerName: string, groupsToKick: string[]) {
     await runAction(`retry-kick-${orderId}`, async () => {
-      let successCount = 0;
-      let errorCount = 0;
-      let lastKickAuditRows: KickAuditRow[] | null = null;
       const groupListText = groupsToKick.join(", ");
-      if (groupsToKick.length > 0) {
-        showNotice("ok", `Đang kick order ${orderId} · ${groupsToKick.length} nhóm · ${groupListText}`);
-      }
       setRenewalKickStatusByOrder((current) => ({
         ...current,
         [orderId]: {
           state: "pending",
-          message: `Đang chờ Telegram xác nhận · order ${orderId} · ${groupsToKick.length} nhóm${groupListText ? ` · ${groupListText}` : ""}`,
+          message: `Đưa order ${orderId} vào v2 queue · ${groupsToKick.length} nhóm${groupListText ? ` · ${groupListText}` : ""}`,
           updatedAt: Date.now(),
         },
       }));
-      for (const groupId of groupsToKick) {
-        try {
-          const res = await kickAuditMember(savedSecret, {
-            telegram_user_id: telegramId,
-            order_id: orderId,
-            group_id: groupId,
-            plan_name: planName,
-            customer_name: customerName,
-          });
-          lastKickAuditRows = res.data || lastKickAuditRows;
-          successCount++;
-        } catch (err) {
-          console.error("Retry kick error for group", groupId, err);
-          const message = err instanceof Error ? err.message : "Không xác định";
-          const detail = `Order ${orderId} · group ${groupId} · ${message}`;
-          showNotice("error", `Lỗi kick nhóm ${groupId} · order ${orderId}: ${message}`);
-          setRenewalKickStatusByOrder((current) => ({
-            ...current,
-            [orderId]: {
-              state: "error",
-              message: detail,
-              updatedAt: Date.now(),
-            },
-          }));
-          errorCount++;
-        }
-      }
-      if (errorCount === 0 && successCount > 0) {
-        showNotice("ok", `Đã kick thành công order ${orderId} khỏi ${successCount} nhóm.`);
-        setRenewalKickStatusByOrder((current) => ({
+      const res = await reviewRenewalKickV2(savedSecret, {
+        order_id: orderId,
+        telegram_user_id: telegramId,
+        action: "requeue",
+        reason: `retry_kick:${planName || "renewal"}`,
+      });
+      if (res?.data?.id) {
+        setRenewalKickV2Snapshot((current) => ({
           ...current,
-          [orderId]: {
-            state: "pending",
-            message: `Đã kick xong API · đang chờ Telegram xác nhận lại trạng thái cho order ${orderId}`,
-            updatedAt: Date.now(),
-          },
-        }));
-      } else if (successCount > 0) {
-        showNotice("error", `Đã kick thành công order ${orderId} khỏi ${successCount} nhóm. Lỗi ${errorCount} nhóm.`);
-      } else {
-        showNotice("error", `Lỗi kick lại order ${orderId} cho ${groupsToKick.length} nhóm. Vui lòng kiểm tra log.`);
-      }
-      if (lastKickAuditRows?.length) {
-        setKickAudit((current) => {
-          const next = [...current];
-          for (const updated of lastKickAuditRows || []) {
-            const idx = next.findIndex((item) => item.audit_id === updated.audit_id);
-            if (idx >= 0) next[idx] = updated;
-          }
-          return next;
-        });
-        setRenewalKickStatusByOrder((current) => ({
-          ...current,
-          [orderId]: {
-            state: "pending",
-            message: `Đã nhận phản hồi API cho order ${orderId} · đang chờ Telegram xác nhận`,
-            updatedAt: Date.now(),
-          },
+          tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
         }));
       }
+      showNotice("ok", `Đã đưa order ${orderId} vào v2 queue để kick lại.`);
       setRenewalAutoRefreshUntil(Date.now() + 60000);
-      await refreshKickAudit(true);
+      await refreshTabDelta(savedSecret, { scope: "renewals" });
     });
   }
 
