@@ -210,6 +210,7 @@ import {
   getHiddenRedemptions,
   getKickAudit,
   getRenewalKickV2,
+  reviewRenewalKickV2,
   getVipGroupAudit,
   getVipMemberAudit,
   getMenuPages,
@@ -6953,6 +6954,19 @@ export default function Home() {
     }
     return map;
   }, [renewalKickV2Snapshot.groupTasks]);
+  const renewalKickV2AttemptsByOrder = useMemo(() => {
+    const map = new Map<string, RenewalKickV2AttemptRow[]>();
+    for (const attempt of renewalKickV2Snapshot.attempts || []) {
+      const orderId = String(attempt.order_id || "");
+      if (!orderId) continue;
+      if (!map.has(orderId)) map.set(orderId, []);
+      map.get(orderId)!.push(attempt);
+    }
+    for (const rows of map.values()) {
+      rows.sort((a, b) => (safeDateMillis(b.started_at) ?? 0) - (safeDateMillis(a.started_at) ?? 0));
+    }
+    return map;
+  }, [renewalKickV2Snapshot.attempts]);
   function supportKickStateLabel(item: SupportEvent) {
     const state = String(item.raw_data?.kick_state || item.raw_data?.state || "").trim().toLowerCase();
     if (!state) {
@@ -7388,6 +7402,10 @@ export default function Home() {
     if (!renewalSelectedOrderKey) return null;
     return renewalOpsRows.expired.find((item) => String(item.orderId || "") === renewalSelectedOrderKey) || null;
   }, [renewalOpsRows.expired, renewalSelectedOrderKey]);
+  const selectedRenewalAttempts = useMemo(() => {
+    if (!renewalSelectedOrderKey) return [];
+    return renewalKickV2AttemptsByOrder.get(renewalSelectedOrderKey) || [];
+  }, [renewalSelectedOrderKey, renewalKickV2AttemptsByOrder]);
   const activityLogRows = activityLogResponse?.data || [];
   const activityLogSummary = activityLogResponse?.summary || { user: 0, bot: 0, today: 0 };
   const activityLogTotal = activityLogResponse?.total || 0;
@@ -8222,6 +8240,26 @@ export default function Home() {
       }
       setRenewalAutoRefreshUntil(Date.now() + 60000);
       await refreshKickAudit(true);
+    });
+  }
+
+  async function reviewRenewalTaskHandler(orderId: string, telegramId: string, action: "requeue" | "close", reason = "") {
+    await runAction(`review-renewal-${orderId}-${action}`, async () => {
+      const res = await reviewRenewalKickV2(savedSecret, {
+        order_id: orderId,
+        telegram_user_id: telegramId,
+        action,
+        reason,
+      });
+      if (res?.data?.id) {
+        setRenewalKickV2Snapshot((current) => ({
+          ...current,
+          tasks: mergeById(current.tasks, [res.data as RenewalKickV2TaskRow], "id"),
+        }));
+      }
+      showNotice("ok", action === "requeue" ? `Đã đưa order ${orderId} quay lại queue review.` : `Đã đóng review cho order ${orderId}.`);
+      setRenewalAutoRefreshUntil(Date.now() + 30000);
+      await refreshTabDelta(savedSecret, { scope: "renewals" });
     });
   }
 
@@ -9676,6 +9714,29 @@ export default function Home() {
                                 {(["Cần xử lý", "Cần review", "Lỗi", "Không map được group", "Đã xếp hàng kick", "Chờ thử lại", "Đang chờ Telegram xác nhận"].includes(status) || renewalFocusFilter === "review") && groupsToKick.length > 0 ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); void retryKickUserHandler(row.telegramId, row.orderId as string, row.planName || "", row.customerName || "", groupsToKick); }} disabled={saving === `retry-kick-${row.orderId}`} startIcon={saving === `retry-kick-${row.orderId}` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}>Xử lý ({groupsToKick.length})</Button>
                                 ) : null}
+                                {status === "Cần review" ? (
+                                  <>
+                                    <Button
+                                      variant="text"
+                                      size="small"
+                                      onClick={(event) => { event.stopPropagation(); void reviewRenewalTaskHandler(String(row.orderId || ""), row.telegramId, "requeue", String(row.renewalReason || row.renewalLastError || "review_requeue")); }}
+                                      disabled={saving === `review-renewal-${row.orderId}-requeue`}
+                                      startIcon={saving === `review-renewal-${row.orderId}-requeue` ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+                                    >
+                                      Đưa lại queue
+                                    </Button>
+                                    <Button
+                                      variant="text"
+                                      size="small"
+                                      color="error"
+                                      onClick={(event) => { event.stopPropagation(); void reviewRenewalTaskHandler(String(row.orderId || ""), row.telegramId, "close", String(row.renewalReason || row.renewalLastError || "review_closed")); }}
+                                      disabled={saving === `review-renewal-${row.orderId}-close`}
+                                      startIcon={saving === `review-renewal-${row.orderId}-close` ? <Loader2 size={14} className="spin" /> : <XCircle size={14} />}
+                                    >
+                                      Đóng review
+                                    </Button>
+                                  </>
+                                ) : null}
                                 {groupsToReview.length > 0 && ["Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(status) ? (
                                   <Button variant="text" size="small" onClick={(event) => { event.stopPropagation(); setRenewalSelectedOrderKey(String(row.orderId || "")); setRenewalDetailDrawerOpen(true); }} startIcon={<ShieldCheck size={14} />}>Kiểm tra giữ lại</Button>
                                 ) : null}
@@ -9796,6 +9857,33 @@ export default function Home() {
                         {renewalTaskStateLabel(selectedRenewalDetail.renewalStatus || "")}
                       </Typography>
                     </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Timeline attempts</Typography>
+                      <Stack spacing={0.75} sx={{ mt: 0.75 }}>
+                        {selectedRenewalAttempts.length ? selectedRenewalAttempts.map((attempt) => (
+                          <Box key={attempt.id} sx={{ p: 1, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "rgba(148,163,184,0.04)" }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+                              <Typography sx={{ fontSize: 12.5, fontWeight: 800 }}>
+                                #{attempt.attempt_no} · {attempt.attempt_state} · {attempt.action} / {attempt.actor}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {dateText(attempt.started_at)}
+                              </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                              {attempt.reason_code || "no_reason"}{attempt.error_message ? ` · ${attempt.error_message}` : ""}
+                            </Typography>
+                            {Object.keys(attempt.metadata || {}).length ? (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, whiteSpace: "pre-wrap" }}>
+                                metadata: {JSON.stringify(attempt.metadata, null, 0)}
+                              </Typography>
+                            ) : null}
+                          </Box>
+                        )) : (
+                          <Typography variant="body2" color="text.secondary">Chưa có attempt nào trong v2.</Typography>
+                        )}
+                      </Stack>
+                    </Box>
                     {selectedRenewalDetail.renewalLatestKickAt ? (
                       <Typography variant="caption" color="text.secondary">Cập nhật gần nhất: {dateText(selectedRenewalDetail.renewalLatestKickAt)}</Typography>
                     ) : null}
@@ -9817,6 +9905,39 @@ export default function Home() {
                         >
                           Kick lại
                         </Button>
+                      ) : null}
+                      {selectedRenewalDetail.renewalStatus === "Cần review" ? (
+                        <>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<RefreshCw size={14} />}
+                            disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-requeue`}
+                            onClick={() => void reviewRenewalTaskHandler(
+                              selectedRenewalDetail.orderId || "",
+                              selectedRenewalDetail.telegramId,
+                              "requeue",
+                              String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_requeue"),
+                            )}
+                          >
+                            Đưa lại queue
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="error"
+                            startIcon={<XCircle size={14} />}
+                            disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-close`}
+                            onClick={() => void reviewRenewalTaskHandler(
+                              selectedRenewalDetail.orderId || "",
+                              selectedRenewalDetail.telegramId,
+                              "close",
+                              String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_closed"),
+                            )}
+                          >
+                            Đóng review
+                          </Button>
+                        </>
                       ) : null}
                       <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
                     </Box>

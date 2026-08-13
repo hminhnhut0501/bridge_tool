@@ -617,6 +617,14 @@ export type RenewalKickV2AttemptRow = {
   metadata: Record<string, unknown>;
 };
 
+export type RenewalKickV2ReviewPayload = {
+  task_id?: string;
+  order_id?: string;
+  telegram_user_id?: string;
+  action: "requeue" | "close";
+  reason?: string;
+};
+
 export type VipGroupAuditRow = {
   audit_id: string;
   customer_name: string;
@@ -1196,6 +1204,13 @@ export async function getRenewalKickV2(secret: string, updatedAfter?: string) {
     group_tasks: RenewalKickV2GroupTaskRow[];
     attempts: RenewalKickV2AttemptRow[];
   }>(`/admin-api/renewal-kick-v2${params.toString() ? `?${params.toString()}` : ""}`, secret);
+}
+
+export async function reviewRenewalKickV2(secret: string, payload: RenewalKickV2ReviewPayload) {
+  return request<{ data: RenewalKickV2TaskRow }>(`/admin-api/renewal-kick-v2/review`, secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getVipGroupAudit(secret: string, live = false, updatedAfter?: string) {

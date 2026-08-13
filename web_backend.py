@@ -3655,6 +3655,66 @@ async def admin_renewal_kick_v2(updated_after: str | None = None):
     return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts}
 
 
+@app.post("/admin-api/renewal-kick-v2/review", dependencies=[Depends(require_admin)])
+async def admin_renewal_kick_v2_review(request: Request):
+    body = await request.json()
+    task_id = str(body.get("task_id") or "").strip()
+    order_id = str(body.get("order_id") or "").strip()
+    telegram_user_id = str(body.get("telegram_user_id") or "").strip()
+    action = str(body.get("action") or "requeue").strip().lower()
+    if action not in {"requeue", "close"}:
+        raise HTTPException(status_code=400, detail="Hành động review không hợp lệ.")
+    try:
+        tasks = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
+        group_tasks = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=5000)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không đọc được dữ liệu review v2: {exc}")
+
+    task = None
+    if task_id:
+        task = next((row for row in tasks if str(row.get("id") or "") == task_id), None)
+    if not task and order_id:
+        task = next((row for row in tasks if str(row.get("order_id") or "") == order_id and (not telegram_user_id or str(row.get("telegram_user_id") or "") == telegram_user_id)), None)
+    if not task:
+        raise HTTPException(status_code=404, detail="Không tìm thấy renewal task v2.")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    related_groups = [row for row in group_tasks if str(row.get("task_id") or "") == str(task.get("id") or "")]
+    if action == "close":
+        updated_task = supabase_store.update_renewal_kick_task_v2(str(task.get("id")), {
+            "task_state": "failed_terminal",
+            "resolved_at": now,
+            "review_reason": str(body.get("reason") or "closed_by_admin"),
+            "metadata": {**(task.get("metadata") or {}), "reason": "closed_by_admin", "review_action": "close"},
+        })
+        return {"data": updated_task}
+
+    for group in related_groups:
+        current_state = str(group.get("group_state") or "").strip().lower()
+        if current_state in {"kicked", "retained", "blocked_active_order"}:
+            continue
+        try:
+            supabase_store.update_renewal_kick_group_task_v2(str(group.get("id")), {
+                "group_state": "retry_scheduled",
+                "next_retry_at": now,
+                "resolved_at": None,
+                "review_reason": str(body.get("reason") or "review_requeue"),
+                "metadata": {**(group.get("metadata") or {}), "reason": "review_requeue"},
+            })
+        except Exception:
+            continue
+
+    updated_task = supabase_store.update_renewal_kick_task_v2(str(task.get("id")), {
+        "task_state": "queued",
+        "review_reason": "",
+        "last_reason": "review_requeued",
+        "last_transition_at": now,
+        "resolved_at": None,
+        "metadata": {**(task.get("metadata") or {}), "reason": "review_requeued", "review_action": "requeue"},
+    })
+    return {"data": updated_task}
+
+
 @app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])
 async def admin_vip_group_audit(live: bool = False, updated_after: str | None = None):
     try:
