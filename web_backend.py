@@ -3691,8 +3691,16 @@ async def admin_renewal_kick_v2_review(request: Request):
         task = next((row for row in tasks if str(row.get("id") or "") == task_id), None)
     if not task and order_id:
         task = next((row for row in tasks if str(row.get("order_id") or "") == order_id and (not telegram_user_id or str(row.get("telegram_user_id") or "") == telegram_user_id)), None)
+    if not task and order_id and telegram_user_id:
+        task = next((row for row in tasks if str(row.get("order_id") or "") == telegram_user_id and str(row.get("telegram_user_id") or "") == order_id), None)
     if not task:
-        raise HTTPException(status_code=404, detail="Không tìm thấy renewal task v2.")
+        lookup_hint = {
+            "task_id": task_id,
+            "order_id": order_id,
+            "telegram_user_id": telegram_user_id,
+            "task_count": len(tasks),
+        }
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy renewal task v2. lookup={lookup_hint}")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     related_groups = [row for row in group_tasks if str(row.get("task_id") or "") == str(task.get("id") or "")]

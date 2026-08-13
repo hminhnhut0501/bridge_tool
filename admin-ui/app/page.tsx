@@ -10296,8 +10296,8 @@ export default function Home() {
                               startIcon={<Zap size={14} />}
                               disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`}
                               onClick={() => void kickNowRenewalKickV2Handler(
-                                selectedRenewalDetail.orderId || "",
                                 selectedRenewalDetail.telegramId,
+                                selectedRenewalDetail.orderId || "",
                                 selectedRenewalDetail.planName || "",
                                 selectedRenewalDetail.customerName || "",
                                 (selectedRenewalDetail.renewalGroupDetails || [])
