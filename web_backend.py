@@ -3599,6 +3599,46 @@ async def admin_kick_audit(live: bool = False, updated_after: str | None = None)
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách kiểm tra kick: {exc}")
 
 
+@app.get("/admin-api/renewal-kick-v2", dependencies=[Depends(require_admin)])
+async def admin_renewal_kick_v2(updated_after: str | None = None):
+    try:
+        tasks = supabase_store.list_renewal_kick_tasks_v2(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_tasks_v2"):
+            warn_missing_table_once("renewal_kick_tasks_v2", exc)
+            return {"data": [], "group_tasks": [], "attempts": []}
+        raise HTTPException(status_code=500, detail=f"Không đọc được renewal_kick_tasks_v2: {exc}")
+
+    try:
+        group_tasks = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=5000)
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_group_tasks_v2"):
+            warn_missing_table_once("renewal_kick_group_tasks_v2", exc)
+            group_tasks = []
+        else:
+            raise HTTPException(status_code=500, detail=f"Không đọc được renewal_kick_group_tasks_v2: {exc}")
+
+    try:
+        attempts = supabase_store._request(
+            "GET",
+            "renewal_kick_attempts_v2",
+            params={"select": "*", "order": "started_at.desc", "limit": "2000"},
+        )
+    except Exception as exc:
+        if is_missing_supabase_table_error(exc, "renewal_kick_attempts_v2"):
+            warn_missing_table_once("renewal_kick_attempts_v2", exc)
+            attempts = []
+        else:
+            raise HTTPException(status_code=500, detail=f"Không đọc được renewal_kick_attempts_v2: {exc}")
+
+    if updated_after:
+        tasks = [row for row in tasks if str(row.get("updated_at") or row.get("last_transition_at") or "") >= updated_after]
+        group_tasks = [row for row in group_tasks if str(row.get("updated_at") or row.get("last_transition_at") or "") >= updated_after]
+        attempts = [row for row in attempts if str(row.get("started_at") or "") >= updated_after]
+
+    return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts}
+
+
 @app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])
 async def admin_vip_group_audit(live: bool = False, updated_after: str | None = None):
     try:
