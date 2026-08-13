@@ -670,6 +670,73 @@ def renewal_kick_v2_lock_expired(task, now, *, lock_minutes=RENEWAL_KICK_V2_LOCK
         return True
     return now - locked_at >= timedelta(minutes=lock_minutes)
 
+def summarize_renewal_kick_groups_v2(group_tasks):
+    kicked = [item for item in group_tasks if group_task_state_value(item) == "kicked"]
+    retained = [item for item in group_tasks if group_task_state_value(item) == "retained"]
+    blocked = [item for item in group_tasks if group_task_state_value(item) == "blocked_active_order"]
+    review = [item for item in group_tasks if group_task_state_value(item) == "review_required"]
+    pending = [item for item in group_tasks if group_task_state_value(item) in {"pending", "selected", "processing", "waiting_confirm", "retry_scheduled"}]
+    failed = [item for item in group_tasks if group_task_state_value(item) == "failed_terminal"]
+    return {
+        "total": len(group_tasks),
+        "kicked": len(kicked),
+        "retained": len(retained),
+        "blocked": len(blocked),
+        "review": len(review),
+        "pending": len(pending),
+        "failed": len(failed),
+    }
+
+def finalize_renewal_kick_task_v2_from_groups(task, group_tasks, now):
+    summary = summarize_renewal_kick_groups_v2(group_tasks)
+    active = summary["pending"]
+    if summary["review"] > 0:
+        next_state = "review_required"
+        terminal_reason = "group_review_required"
+    elif summary["failed"] > 0 and summary["kicked"] == 0 and active == 0:
+        next_state = "failed_terminal"
+        terminal_reason = "group_failed_terminal"
+    elif summary["blocked"] > 0 and summary["kicked"] == 0 and active == 0:
+        next_state = "blocked"
+        terminal_reason = "blocked_active_order"
+    elif active > 0:
+        next_state = "partial_done" if summary["kicked"] > 0 else "running"
+        terminal_reason = ""
+    elif summary["kicked"] > 0 and summary["pending"] == 0:
+        if summary["retained"] > 0 or summary["blocked"] > 0:
+            next_state = "partial_done"
+            terminal_reason = "partial_completion"
+        else:
+            next_state = "done"
+            terminal_reason = "all_groups_kicked"
+    elif summary["retained"] > 0 and summary["kicked"] == 0 and summary["blocked"] == 0:
+        next_state = "done"
+        terminal_reason = "retained_only"
+    else:
+        next_state = "review_required"
+        terminal_reason = "ambiguous_terminal_state"
+    payload = {
+        "task_state": next_state,
+        "total_groups": summary["total"],
+        "kicked_groups": summary["kicked"],
+        "retained_groups": summary["retained"],
+        "pending_groups": summary["pending"],
+        "error_groups": summary["failed"] + summary["blocked"],
+        "review_groups": summary["review"],
+        "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S") if next_state in {"done", "blocked", "review_required", "failed_terminal"} else None,
+        "completed_at": now.strftime("%Y-%m-%d %H:%M:%S") if next_state == "done" else None,
+        "last_reason": terminal_reason,
+        "terminal_reason": terminal_reason,
+        "review_reason": terminal_reason if next_state == "review_required" else "",
+        "metadata": {
+            **(task.get("metadata") or {}),
+            "reconciled_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "reconciled_source": "finalizer_v2",
+        },
+    }
+    return next_state, payload
+
 async def enqueue_expired_renewal_kick_tasks(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
     current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
     if not current_group_ids or not supabase_store.enabled:
@@ -947,6 +1014,46 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                 })
                 summary["error"] += 1
         except Exception:
+            summary["error"] += 1
+    return summary
+
+async def process_due_renewal_kick_finalizer_v2(now, *, limit=300):
+    if not supabase_store.enabled:
+        return {"finalized": 0, "review": 0, "done": 0, "blocked": 0, "partial_done": 0, "error": 0}
+    try:
+        tasks = supabase_store.list_renewal_kick_tasks_v2(limit=limit)
+        group_rows = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=1000)
+    except Exception as exc:
+        if "renewal_kick_tasks_v2" in str(exc).lower():
+            return {"finalized": 0, "review": 0, "done": 0, "blocked": 0, "partial_done": 0, "error": 0}
+        raise
+
+    summary = {"finalized": 0, "review": 0, "done": 0, "blocked": 0, "partial_done": 0, "error": 0}
+    active_states = {"queued", "running", "waiting_confirm", "retry_scheduled", "partial_done", "review_required"}
+    for task in tasks:
+        state = task_state_value(task)
+        if state not in active_states:
+            continue
+        task_id = task.get("id")
+        if not task_id:
+            continue
+        try:
+            related_groups = [item for item in group_rows if str(item.get("task_id") or "") == str(task_id)]
+            if not related_groups:
+                continue
+            next_state, payload = finalize_renewal_kick_task_v2_from_groups(task, related_groups, now)
+            supabase_store.update_renewal_kick_task_v2(task_id, payload)
+            summary["finalized"] += 1
+            if next_state == "done":
+                summary["done"] += 1
+            elif next_state == "blocked":
+                summary["blocked"] += 1
+            elif next_state == "partial_done":
+                summary["partial_done"] += 1
+            elif next_state == "review_required":
+                summary["review"] += 1
+        except Exception as exc:
+            logging.warning("⚠️ Không finalize được renewal_kick_tasks_v2 %s: %s", task_id, exc)
             summary["error"] += 1
     return summary
 
@@ -1785,6 +1892,7 @@ async def check_expirations_professional():
             user_cache=user_membership_cache,
             plan_group_cache=plan_group_cache,
         )
+        kick_finalizer_v2_summary = await process_due_renewal_kick_finalizer_v2(now)
 
         # Pass 2: xử lý PAID reminder.
         for offset, row in reminder_rows:
@@ -2012,7 +2120,7 @@ async def check_expirations_professional():
                     logging.error("❌ Lỗi gửi nhắc license cho %s: %s", telegram_user_id, exc)
 
         logging.info(
-            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue=%s, queue_v2=%s.",
+            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue=%s, queue_v2=%s, finalizer_v2=%s.",
             summary["expired"],
             summary["expired_notice"],
             summary["reminded"],
@@ -2020,6 +2128,7 @@ async def check_expirations_professional():
             summary["invalid"],
             kick_queue_summary,
             kick_queue_v2_summary,
+            kick_finalizer_v2_summary,
         )
 
     except Exception as e:

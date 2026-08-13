@@ -1565,6 +1565,36 @@ class SupabaseStore:
             prefer="resolution=merge-duplicates,return=representation",
         )
 
+    def list_renewal_kick_tasks_v2(self, *, state=None, due_before=None, limit=200):
+        params = {"select": "*", "order": "updated_at.asc", "limit": str(limit)}
+        if state:
+            params["task_state"] = f"eq.{_clean_text(state)}"
+        if due_before is not None:
+            params["due_at"] = f"lte.{_parse_datetime(due_before) or due_before}"
+        return self._cached_request("GET", "renewal_kick_tasks_v2", params=params)
+
+    def update_renewal_kick_task_v2(self, task_id, payload):
+        return self._request(
+            "PATCH",
+            "renewal_kick_tasks_v2",
+            params={"id": f"eq.{_clean_text(task_id)}"},
+            json=payload,
+            prefer="return=representation",
+        )
+
+    def get_renewal_kick_task_v2(self, order_id, telegram_user_id):
+        rows = self._request(
+            "GET",
+            "renewal_kick_tasks_v2",
+            params={
+                "select": "*",
+                "order_id": f"eq.{_clean_text(order_id)}",
+                "telegram_user_id": f"eq.{_clean_text(telegram_user_id)}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
     def upsert_renewal_kick_group_task_v2(self, payload):
         row = {
             "order_id": _clean_text(payload.get("order_id")),
