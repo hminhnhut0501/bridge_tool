@@ -739,62 +739,82 @@ def finalize_renewal_kick_task_v2_from_groups(task, group_tasks, now):
 
 async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
     current_group_ids = cached_plan_group_ids(plan_name, plan_group_cache)
-    if not current_group_ids or not supabase_store.enabled:
+    if not supabase_store.enabled:
         return []
     logging.info("⏭ Bỏ qua legacy renewal_kick_tasks cho order=%s; chỉ ghi v2.", order_id)
     task_rows = []
     try:
+        no_group_map = not current_group_ids
         parent_rows = supabase_store.upsert_renewal_kick_task_v2({
             "order_id": order_id,
             "telegram_user_id": user_id,
             "plan_name": plan_name,
-            "task_state": "queued",
-            "priority": 0,
+            "task_state": "review_required" if no_group_map else "queued",
+            "priority": -100 if no_group_map else 0,
             "due_at": expire_str,
             "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "total_groups": len(current_group_ids),
             "pending_groups": len(current_group_ids),
+            "review_groups": 1 if no_group_map else 0,
+            "review_reason": "no_group_map" if no_group_map else "",
+            "last_reason": "no_group_map" if no_group_map else "",
+            "last_error": "no_group_map" if no_group_map else "",
             "metadata": {
                 "source": "scheduler_expired",
                 "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "plan_name_raw": plan_name,
+                "reason": "no_group_map" if no_group_map else "scheduler_expired",
             },
         }) or []
         parent_task_id = parent_rows[0]["id"] if parent_rows else None
         if parent_task_id:
-            for gid in current_group_ids:
-                group_rows = supabase_store.upsert_renewal_kick_group_task_v2({
-                    "task_id": parent_task_id,
-                    "order_id": order_id,
-                    "telegram_user_id": user_id,
-                    "group_id": gid,
-                    "group_name": gid,
-                    "group_no": gid,
-                    "plan_name": plan_name,
-                    "group_state": "pending",
-                    "attempt_count": 0,
-                    "confirm_count": 0,
-                    "first_due_at": expire_str,
-                    "next_retry_at": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "metadata": {
-                        "source": "scheduler_expired",
-                        "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "plan_name_raw": plan_name,
-                    },
-                }) or []
-                if group_rows:
-                    supabase_store.upsert_renewal_kick_legacy_map_v2({
-                        "legacy_key": renewal_kick_group_key(order_id, user_id, gid),
+            if current_group_ids:
+                for gid in current_group_ids:
+                    group_rows = supabase_store.upsert_renewal_kick_group_task_v2({
                         "task_id": parent_task_id,
-                        "group_task_id": group_rows[0]["id"],
-                        "legacy_source": "scheduler",
-                        "legacy_ref": order_id,
+                        "order_id": order_id,
+                        "telegram_user_id": user_id,
+                        "group_id": gid,
+                        "group_name": gid,
+                        "group_no": gid,
+                        "plan_name": plan_name,
+                        "group_state": "pending",
+                        "attempt_count": 0,
+                        "confirm_count": 0,
+                        "first_due_at": expire_str,
+                        "next_retry_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                         "metadata": {
-                            "plan_name": plan_name,
-                            "group_id": gid,
+                            "source": "scheduler_expired",
+                            "queued_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+                            "plan_name_raw": plan_name,
                         },
-                    })
+                    }) or []
+                    if group_rows:
+                        supabase_store.upsert_renewal_kick_legacy_map_v2({
+                            "legacy_key": renewal_kick_group_key(order_id, user_id, gid),
+                            "task_id": parent_task_id,
+                            "group_task_id": group_rows[0]["id"],
+                            "legacy_source": "scheduler",
+                            "legacy_ref": order_id,
+                            "metadata": {
+                                "plan_name": plan_name,
+                                "group_id": gid,
+                            },
+                        })
+            else:
+                supabase_store.upsert_renewal_kick_legacy_map_v2({
+                    "legacy_key": renewal_kick_group_key(order_id, user_id, "__NO_GROUP_MAP__"),
+                    "task_id": parent_task_id,
+                    "group_task_id": None,
+                    "legacy_source": "scheduler",
+                    "legacy_ref": order_id,
+                    "metadata": {
+                        "plan_name": plan_name,
+                        "group_id": "",
+                        "reason": "no_group_map",
+                    },
+                })
     except Exception as exc:
         logging.warning("⚠️ Không enqueue được renewal_kick_tasks_v2 order=%s: %s", order_id, exc)
     return task_rows
