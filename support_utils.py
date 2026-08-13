@@ -492,11 +492,12 @@ async def mute_member(chat_id, user_id):
 
 
 async def unmute_member(chat_id, user_id):
+    # View-only mode: member chỉ được xem tin nhắn, không có quyền gửi gì cả.
     await bot.restrict_chat_member(
         chat_id=chat_id,
         user_id=int(user_id),
         permissions=ChatPermissions(
-            can_send_messages=True,
+            can_send_messages=False,
             can_send_audios=False,
             can_send_documents=False,
             can_send_photos=False,
