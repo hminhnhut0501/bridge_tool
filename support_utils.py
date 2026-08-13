@@ -81,6 +81,36 @@ def support_group_view_only_enabled():
     return raw.upper() in {"ON", "TRUE", "YES", "1", "BẬT", "BAT"}
 
 
+def support_group_read_only_permissions():
+    return ChatPermissions(
+        can_send_messages=False,
+        can_send_audios=False,
+        can_send_documents=False,
+        can_send_photos=False,
+        can_send_videos=False,
+        can_send_video_notes=False,
+        can_send_voice_notes=False,
+        can_send_polls=False,
+        can_send_other_messages=False,
+        can_add_web_page_previews=False,
+    )
+
+
+def support_group_full_permissions():
+    return ChatPermissions(
+        can_send_messages=True,
+        can_send_audios=True,
+        can_send_documents=True,
+        can_send_photos=True,
+        can_send_videos=True,
+        can_send_video_notes=True,
+        can_send_voice_notes=True,
+        can_send_polls=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+    )
+
+
 def is_support_group(chat_id):
     gid = support_group_id()
     return bool(gid and normalize_chat_id(chat_id) == gid)
@@ -481,36 +511,14 @@ async def mute_member(chat_id, user_id):
     await bot.restrict_chat_member(
         chat_id=chat_id,
         user_id=int(user_id),
-        permissions=ChatPermissions(
-            can_send_messages=False,
-            can_send_audios=False,
-            can_send_documents=False,
-            can_send_photos=False,
-            can_send_videos=False,
-            can_send_video_notes=False,
-            can_send_voice_notes=False,
-            can_send_polls=False,
-            can_send_other_messages=False,
-            can_add_web_page_previews=False,
-        ),
+        permissions=support_group_read_only_permissions(),
     )
 
 
 async def unmute_member(chat_id, user_id):
     # View-only mode: member chỉ được xem tin nhắn, không có quyền gửi gì cả.
     if support_group_view_only_enabled():
-        permissions = ChatPermissions(
-            can_send_messages=False,
-            can_send_audios=False,
-            can_send_documents=False,
-            can_send_photos=False,
-            can_send_videos=False,
-            can_send_video_notes=False,
-            can_send_voice_notes=False,
-            can_send_polls=False,
-            can_send_other_messages=False,
-            can_add_web_page_previews=False,
-        )
+        permissions = support_group_read_only_permissions()
     else:
         permissions = ChatPermissions(
             can_send_messages=True,
@@ -529,3 +537,25 @@ async def unmute_member(chat_id, user_id):
         user_id=int(user_id),
         permissions=permissions,
     )
+
+
+async def lock_support_group_read_only(chat_id=None):
+    target_chat_id = normalize_chat_id(chat_id or support_group_id())
+    if not target_chat_id:
+        raise ValueError("Thiếu SUPPORT_GROUP_ID để khóa quyền hàng loạt.")
+    await bot.set_chat_permissions(
+        chat_id=target_chat_id,
+        permissions=support_group_read_only_permissions(),
+    )
+    return target_chat_id
+
+
+async def unlock_support_group_read_write(chat_id=None):
+    target_chat_id = normalize_chat_id(chat_id or support_group_id())
+    if not target_chat_id:
+        raise ValueError("Thiếu SUPPORT_GROUP_ID để mở lại quyền group.")
+    await bot.set_chat_permissions(
+        chat_id=target_chat_id,
+        permissions=support_group_full_permissions(),
+    )
+    return target_chat_id

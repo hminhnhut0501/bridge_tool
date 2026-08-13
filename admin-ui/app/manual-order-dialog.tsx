@@ -2,7 +2,7 @@
 
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
-import { Loader2, Plus, RefreshCw, Send, Ticket } from "lucide-react";
+import { Loader2, Plus, RefreshCw } from "lucide-react";
 import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
 import { MuiDialogShell } from "./dashboard-components";
 import { dateTimePreviewText, isLifetimeText, resolveOrderLabel } from "./dashboard-helpers";
@@ -74,6 +74,90 @@ function isLifetimePlan(value: string) {
   return isLifetimeText(value);
 }
 
+function ResultActionCard({
+  title,
+  subtitle,
+  value,
+  emptyText,
+  actionLabel,
+  onAction,
+  saving,
+  onCopy,
+  copyLabel,
+  accent,
+  compact,
+}: {
+  title: string;
+  subtitle: string;
+  value: string;
+  emptyText: string;
+  actionLabel: string;
+  onAction: () => void | Promise<void>;
+  saving: boolean;
+  onCopy: () => void | Promise<void>;
+  copyLabel: string;
+  accent: "info" | "primary";
+  compact: boolean;
+}) {
+  const hasValue = Boolean(value);
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 3,
+        borderColor: accent === "info" ? "rgba(14,165,233,0.22)" : "rgba(37,99,235,0.22)",
+        bgcolor: accent === "info" ? "rgba(236,254,255,0.76)" : "rgba(239,246,255,0.76)",
+      }}
+    >
+      <CardContent sx={{ p: compact ? 1.5 : 2, display: "grid", gap: 1.15 }}>
+        <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{title}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>{subtitle}</Typography>
+          </Box>
+          <Chip size="small" label={hasValue ? "Sẵn sàng" : "Chưa có"} color={hasValue ? accent : "default"} variant={hasValue ? "filled" : "outlined"} sx={{ fontWeight: 800 }} />
+        </Box>
+
+        {hasValue ? (
+          <TextField
+            value={value}
+            slotProps={{ input: { readOnly: true } }}
+            fullWidth
+            multiline
+            minRows={compact ? 4 : 5}
+            sx={{
+              "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.9)" },
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              borderRadius: 2.5,
+              border: "1px dashed",
+              borderColor: "rgba(148,163,184,0.24)",
+              bgcolor: "rgba(255,255,255,0.74)",
+              p: 2,
+              textAlign: "center",
+              color: "text.secondary",
+            }}
+          >
+            {emptyText}
+          </Box>
+        )}
+
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button variant="contained" onClick={() => void onAction()} disabled={saving} startIcon={saving ? <RefreshCw size={16} className="spin" /> : <RefreshCw size={16} />}>
+            {hasValue ? actionLabel.replace(/^Tạo /, "Gen lại ") : actionLabel}
+          </Button>
+          <Button variant="outlined" onClick={() => void onCopy()} disabled={!hasValue} startIcon={<Plus size={16} />}>
+            {copyLabel}
+          </Button>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ManualOrderResultPanel({
   result,
   onGenerateActiveCode,
@@ -83,15 +167,11 @@ export function ManualOrderResultPanel({
   compact = false,
 }: ManualOrderResultPanelProps) {
   const orderLabel = resolveOrderLabel(result);
-  const mainButtonLabel = result.manual_order_text ? "Gen lại active" : "Tạo link active code";
-  const joinButtonLabel = result.manual_order_join_text ? "Gen lại join" : "Tạo link tham gia nhóm";
   const activeButtonLabel = result.manual_order_message_button_label || "Tạo link active code";
   const joinCardButtonLabel = result.manual_order_join_button_label || "Tạo link tham gia nhóm";
-  const activeMinRows = compact ? 3 : 4;
-  const joinMinRows = compact ? 2 : 3;
   return (
-    <Stack spacing={compact ? 1.5 : 2}>
-      <Alert severity="info" variant="outlined" sx={{ alignItems: "center" }}>
+    <Stack spacing={compact ? 1.25 : 1.75}>
+      <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
           <strong>Hiển thị:</strong>
           <Typography component="span" sx={{ fontWeight: 800 }}>{orderLabel.displayLabel || result.plan_name}</Typography>
@@ -101,50 +181,42 @@ export function ManualOrderResultPanel({
         </Box>
       </Alert>
 
-      <Box sx={{ display: "grid", gap: 1.25 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{result.manual_order_message_title || "Tin active code"}</Typography>
-        {!result.manual_order_text ? (
-          <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
-            <CardContent sx={{ p: compact ? 1.5 : 2, textAlign: "center" }}>
-              <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có active code cho đơn này.</Typography>
-              <Button variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={<RefreshCw size={16} />}>
-                {activeButtonLabel}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <TextField value={result.manual_order_text || ""} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={activeMinRows} />
-        )}
-      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.25,
+          gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+          alignItems: "stretch",
+        }}
+      >
+        <ResultActionCard
+          title={result.manual_order_message_title || "Tin nhắn active code"}
+          subtitle={result.manual_order_message_subtitle || "Nội dung bot trả để khách dùng active code."}
+          value={result.manual_order_text || ""}
+          emptyText="Chưa có active code cho đơn này."
+          actionLabel={activeButtonLabel}
+          onAction={onGenerateActiveCode}
+          saving={saving}
+          onCopy={() => onCopy(result.manual_order_text || "", "tin nhắn active code")}
+          copyLabel="Copy nhanh"
+          accent="info"
+          compact={compact}
+        />
 
-      <Box sx={{ display: "grid", gap: 1 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "text.secondary" }}>{result.manual_order_join_title || "Link tham gia nhóm"}</Typography>
-        {!result.manual_order_join_text ? (
-          <Card variant="outlined" sx={{ borderStyle: "dashed", bgcolor: "background.default" }}>
-            <CardContent sx={{ p: compact ? 1.5 : 2, textAlign: "center" }}>
-              <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.5 }}>Chưa có link tham gia nhóm cho đơn này.</Typography>
-              <Button variant="contained" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={<Plus size={16} />}>
-                {joinCardButtonLabel}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <TextField value={stripHtml(result.manual_order_join_text || "")} slotProps={{ input: { readOnly: true } }} fullWidth multiline minRows={joinMinRows} />
-        )}
+        <ResultActionCard
+          title={result.manual_order_join_title || "Link tham gia nhóm"}
+          subtitle={result.manual_order_join_subtitle || "Nội dung join group đã gộp sẵn để gửi khách."}
+          value={stripHtml(result.manual_order_join_text || "")}
+          emptyText="Chưa có link tham gia nhóm cho đơn này."
+          actionLabel={joinCardButtonLabel}
+          onAction={onGenerateJoinLink}
+          saving={saving}
+          onCopy={() => onCopy(result.manual_order_join_text || "", "link tham gia nhóm")}
+          copyLabel="Copy nhanh"
+          accent="primary"
+          compact={compact}
+        />
       </Box>
-
-      <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-        <Button size={compact ? "small" : "medium"} variant="contained" onClick={() => void onGenerateActiveCode()} disabled={saving} startIcon={<Ticket size={14} />}>
-          {mainButtonLabel}
-        </Button>
-        <Button size={compact ? "small" : "medium"} variant="outlined" onClick={() => void onGenerateJoinLink()} disabled={saving} startIcon={<Send size={14} />}>
-          {joinButtonLabel}
-        </Button>
-      </Box>
-
-      <Button size="small" variant="text" onClick={() => void onCopy(result.manual_order_text || result.manual_order_join_text || "", "manual text")} sx={{ justifyContent: "flex-start", px: 0 }}>
-        Copy nhanh
-      </Button>
     </Stack>
   );
 }

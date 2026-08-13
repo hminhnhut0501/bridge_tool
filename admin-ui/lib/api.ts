@@ -1342,6 +1342,18 @@ export async function checkSupportGroup(secret: string) {
   return request<{ data: SupportGroupCheck }>("/admin-api/support-group-check", secret);
 }
 
+export async function lockSupportGroupReadOnly(secret: string) {
+  return request<{ data: { ok: boolean; group_id: string; mode: string } }>("/admin-api/support-group-lock-read-only", secret, {
+    method: "POST",
+  });
+}
+
+export async function unlockSupportGroupReadWrite(secret: string) {
+  return request<{ data: { ok: boolean; group_id: string; mode: string } }>("/admin-api/support-group-unlock-read-write", secret, {
+    method: "POST",
+  });
+}
+
 export async function getWebhookInfo(secret: string) {
   return request<{ data: WebhookInfo; meta: WebhookInfoMeta }>("/admin-api/webhook-info", secret);
 }

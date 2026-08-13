@@ -181,6 +181,8 @@ try:
         support_group_enabled,
         support_group_id,
         support_group_name,
+        lock_support_group_read_only,
+        unlock_support_group_read_write,
         add_support_join_button,
         support_inbox_group_id,
         support_inbox_group_name,
@@ -212,6 +214,12 @@ except ImportError:  # pragma: no cover - lightweight test fallback
 
     def support_group_name():
         return ""
+
+    async def lock_support_group_read_only(*args, **kwargs):
+        return None
+
+    async def unlock_support_group_read_write(*args, **kwargs):
+        return None
 from vip_group_audit_utils import build_vip_group_audit_rows, build_vip_member_risk_rows
 from stats_marketing_utils import build_marketing_stats_response
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items
@@ -1527,7 +1535,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             "support_error": support_error,
             "activation_code": activation_code,
         }),
-            "manual_order_join_text": "" if skip_join_link or fast_mode else build_manual_order_join_message_text({
+            "manual_order_join_text": "" if skip_join_link or fast_mode else build_manual_order_delivery_text({
                 "order_id": order_id,
                 "telegram_user_id": telegram_user_id,
                 "full_name": full_name or telegram_user_id,
@@ -4464,3 +4472,33 @@ async def admin_support_group_check():
     except Exception as exc:
         result["invite_link"]["message"] = explain_support_invite_error(exc, gid)
     return {"data": result}
+
+
+@app.post("/admin-api/support-group-lock-read-only", dependencies=[Depends(require_admin)])
+async def admin_support_group_lock_read_only():
+    db.reload_config(force=False)
+    gid = support_group_id()
+    if not gid:
+        raise HTTPException(status_code=400, detail="SUPPORT_GROUP_ID đang trống.")
+    if not support_group_enabled():
+        raise HTTPException(status_code=400, detail="Support group đang tắt.")
+    try:
+        locked_chat_id = await lock_support_group_read_only(gid)
+        return {"data": {"ok": True, "group_id": mask_chat_id(locked_chat_id), "mode": "read_only"}}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=explain_support_invite_error(exc, gid, "SUPPORT_GROUP_ID"))
+
+
+@app.post("/admin-api/support-group-unlock-read-write", dependencies=[Depends(require_admin)])
+async def admin_support_group_unlock_read_write():
+    db.reload_config(force=False)
+    gid = support_group_id()
+    if not gid:
+        raise HTTPException(status_code=400, detail="SUPPORT_GROUP_ID đang trống.")
+    if not support_group_enabled():
+        raise HTTPException(status_code=400, detail="Support group đang tắt.")
+    try:
+        unlocked_chat_id = await unlock_support_group_read_write(gid)
+        return {"data": {"ok": True, "group_id": mask_chat_id(unlocked_chat_id), "mode": "read_write"}}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=explain_support_invite_error(exc, gid, "SUPPORT_GROUP_ID"))

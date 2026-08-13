@@ -170,6 +170,8 @@ import {
   WebhookInfoMeta,
   checkSupportGroup,
   cancelCampaign,
+  lockSupportGroupReadOnly,
+  unlockSupportGroupReadWrite,
   channelPostAction,
   createChannelPost,
   createCampaign,
@@ -5046,6 +5048,26 @@ export default function Home() {
     });
   }
 
+  async function lockSupportGroupReadOnlyAction() {
+    if (!savedSecret) return;
+    if (!window.confirm("Khóa toàn bộ quyền member thường trong group hỗ trợ về read-only?")) return;
+    await runAction("support-group-lock-read-only", async () => {
+      const res = await lockSupportGroupReadOnly(savedSecret);
+      showNotice("ok", `Đã khóa read-only cho ${res.data.group_id}.`);
+      await runSupportGroupCheck();
+    });
+  }
+
+  async function unlockSupportGroupReadWriteAction() {
+    if (!savedSecret) return;
+    if (!window.confirm("Mở lại quyền gửi cơ bản cho member thường trong group hỗ trợ?")) return;
+    await runAction("support-group-unlock-read-write", async () => {
+      const res = await unlockSupportGroupReadWrite(savedSecret);
+      showNotice("ok", `Đã mở lại quyền cơ bản cho ${res.data.group_id}.`);
+      await runSupportGroupCheck();
+    });
+  }
+
   function escapeCsvCell(value: unknown) {
     const text = String(value ?? "");
     if (/[",\n\r;]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
@@ -6266,7 +6288,7 @@ export default function Home() {
     ...configuredGroups.flatMap((item) => [`G${item}_1M`, ...(show365DPlans ? [`G${item}_365D`] : []), `G${item}_LIFE`]),
   ], [configuredGroups, show365DPlans]);
   const manualPlanKeyOptions = useMemo(() => [
-    ...discountPlanKeyOptions,
+    ...discountPlanKeyOptions.filter((value) => !is365DPlanKey(value)),
     "CUSTOM",
   ], [discountPlanKeyOptions]);
   const customDurationEnabled = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "MANUAL_CUSTOM_DURATION_ENABLED", "ON").toUpperCase());
@@ -10212,6 +10234,8 @@ export default function Home() {
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSupportGroupSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
+                    <Button variant="outlined" size="small" onClick={() => void lockSupportGroupReadOnlyAction()} startIcon={<ShieldCheck size={16} />}>Khóa quyền hàng loạt</Button>
+                    <Button variant="text" size="small" onClick={() => void unlockSupportGroupReadWriteAction()} startIcon={<RefreshCw size={16} />}>Mở lại quyền</Button>
                     <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
                   </div>
                 }

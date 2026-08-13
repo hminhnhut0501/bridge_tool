@@ -180,6 +180,34 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(result["data"], dict)
         self.assertEqual(result["data"]["task_state"], "queued")
 
+    async def test_manual_order_join_text_uses_delivery_template(self):
+        original_safe_db_config = web_backend.safe_db_config
+        try:
+            web_backend.safe_db_config = lambda key, default="": (
+                "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}"
+                if key == "MANUAL_ORDER_DELIVERY_TEMPLATE"
+                else default
+            )
+            text = web_backend.build_manual_order_delivery_text({
+                "order_id": "o1",
+                "telegram_user_id": "42",
+                "full_name": "Tester",
+                "plan_name": "VIP 30 Ngày - Prime",
+                "expire_at": "2026-08-13 12:00:00",
+                "links_text": "LINKS",
+                "partial_text": "PARTIAL",
+                "support_text": "SUPPORT",
+                "support_group_name": "Nhóm hỗ trợ",
+                "support_link": "https://t.me/+abc",
+            })
+        finally:
+            web_backend.safe_db_config = original_safe_db_config
+
+        self.assertIn("Đã được xác minh", text)
+        self.assertIn("LINKS", text)
+        self.assertIn("PARTIAL", text)
+        self.assertIn("SUPPORT", text)
+
 
 if __name__ == "__main__":
     unittest.main()
