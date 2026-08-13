@@ -9952,20 +9952,18 @@ export default function Home() {
                   </div>
                 }
               />
-              <Box sx={{ px: 2, pt: 1.25 }}>
-                <Alert
-                  severity={renewalV2BackendProbe.ok ? "success" : "error"}
-                  variant="outlined"
-                  sx={{ alignItems: "center" }}
-                  action={<Button size="small" variant="text" onClick={() => void probeRenewalKickV2Backend()}>Kiểm tra backend</Button>}
-                >
-                  <strong>renewal_kick_v2</strong> {renewalV2BackendProbe.ok ? "đang sẵn sàng" : "đang lỗi/thiếu route"}.
-                  <span style={{ marginLeft: 6 }}>{renewalV2BackendProbe.message}</span>
-                </Alert>
-              </Box>
-              <Box sx={{ display: "grid", gap: 1, px: 2, pt: 1.25, pb: 1 }}>
+              <Box sx={{ px: 2, pt: 1.25, pb: 1, display: "grid", gap: 0.75 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, alignItems: "center", justifyContent: "space-between" }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, alignItems: "center" }}>
+                    <Chip size="small" label={renewalV2BackendProbe.ok ? "v2 backend OK" : "v2 backend lỗi"} color={renewalV2BackendProbe.ok ? "success" : "error"} variant="outlined" />
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                      {renewalV2BackendProbe.message}
+                    </Typography>
+                  </Box>
+                  <Button size="small" variant="text" onClick={() => void probeRenewalKickV2Backend()}>Kiểm tra backend</Button>
+                </Box>
                 <TextField value={renewalQuery} onChange={(event) => { setRenewalQuery(event.target.value); setRenewalPage(1); }} placeholder="Tìm tên khách, Telegram ID, gói, order..." size="small" fullWidth />
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.6 }}>
                   {[
                     { key: "queue" as const, label: "Queue" },
                     { key: "audit" as const, label: "Audit" },
@@ -9973,54 +9971,6 @@ export default function Home() {
                     <Chip key={item.key} label={item.label} clickable color={renewalPanel === item.key ? "primary" : "default"} variant={renewalPanel === item.key ? "filled" : "outlined"} onClick={() => { setRenewalPanel(item.key); setRenewalPage(1); }} sx={{ fontWeight: 800, height: 28 }} />
                   ))}
                 </Box>
-                {renewalTab === "expired" ? (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.6 }}>
-                    {[
-                      { key: "all", label: "Tất cả" },
-                      { key: "chokick", label: "Chờ xử lý" },
-                      { key: "review", label: "Cần review" },
-                      { key: "kicked", label: "Đã xong" },
-                      { key: "error", label: "Lỗi / thiếu map" },
-                    ].map((item) => (
-                      <Chip
-                        key={item.key}
-                        label={item.label}
-                        clickable
-                        color={renewalFocusFilter === item.key ? "primary" : "default"}
-                        variant={renewalFocusFilter === item.key ? "filled" : "outlined"}
-                        onClick={() => { setRenewalFocusFilter(item.key as RenewalFocusFilter); setRenewalPage(1); }}
-                        sx={{ fontWeight: 800, height: 28 }}
-                      />
-                    ))}
-                    <Chip label="Task state" variant="outlined" color="default" sx={{ fontWeight: 800, height: 28 }} />
-                    {[
-                      { key: "ALL", label: "Tất cả task_state" },
-                      { key: "DRAFT", label: "Đã xếp hàng" },
-                      { key: "QUEUED", label: "Đã xếp hàng" },
-                      { key: "RUNNING", label: "Đang chờ worker" },
-                      { key: "PROCESSING", label: "Đang chờ worker" },
-                      { key: "WAITING", label: "Đang chờ xác nhận" },
-                      { key: "PENDING_CONFIRM", label: "Đang chờ xác nhận" },
-                      { key: "RETRY_PENDING", label: "Chờ thử lại" },
-                      { key: "REVIEW_REQUIRED", label: "Cần review" },
-                      { key: "DONE", label: "Đã xong" },
-                      { key: "PARTIAL_DONE", label: "Đã kick một phần" },
-                      { key: "BLOCKED", label: "Bị giữ" },
-                    ].map((item) => (
-                      <Chip key={item.key} label={item.label} clickable color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"} variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"} onClick={() => { setRenewalTimelineTaskStateFilter(item.key); setRenewalPage(1); }} sx={{ fontWeight: 800, height: 28 }} />
-                    ))}
-                    <Chip size="small" label={`Đã xếp hàng: ${expiredRenewalTaskStateStats.QUEUED}`} variant="outlined" color="info" />
-                    <Chip size="small" label={`Đang chờ worker: ${expiredRenewalTaskStateStats.RUNNING + expiredRenewalTaskStateStats.PENDING_CONFIRM + expiredRenewalTaskStateStats.RETRY_PENDING}`} variant="outlined" color="warning" />
-                    <Chip size="small" label={`Đã xong: ${expiredRenewalStats.done}`} variant="outlined" color="success" />
-                    <Chip size="small" label={`Cần review: ${expiredRenewalStats.error}`} variant="outlined" color="error" />
-                    <Chip size="small" label={renewalV2BackendProbe.ok ? "v2 backend OK" : `v2 backend ${renewalV2BackendProbe.status || "ERR"}`} variant="outlined" color={renewalV2BackendProbe.ok ? "success" : "error"} title={`${renewalV2BackendProbe.message}${renewalV2BackendProbe.checkedAt ? ` · ${dateTimePreviewText(new Date(renewalV2BackendProbe.checkedAt).toISOString(), "")}` : ""}`} />
-                  </Box>
-                ) : null}
-                {renewalTab === "expired" ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    Quy tắc batch: quá hạn từ {renewalAutoKickAfterMinutes()} phút trở lên sẽ Kick ngay, thấp hơn sẽ đưa vào queue thường.
-                  </Typography>
-                ) : null}
               </Box>
               <Tabs value={renewalTab} onChange={(_, next) => { setRenewalTab(next); setRenewalPage(1); }} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1 }}>
                 <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
@@ -10031,8 +9981,8 @@ export default function Home() {
               <Box sx={{ px: 2, pb: 2 }}>
                 {renewalPanel === "audit" && renewalTab === "expired" ? (
                   <Box sx={{ mb: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Queue / task / retry</Typography>
-                    <Typography variant="caption" color="text.secondary">Mỗi dòng hiển thị đúng task state hiện tại, không còn gói chung vào một nhãn legacy.</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>Task / retry</Typography>
+                    <Typography variant="caption" color="text.secondary">Mỗi dòng hiển thị đúng task state hiện tại, không còn gói chung vào một nhãn cũ.</Typography>
                   </Box>
                 ) : null}
                 <SimpleTable
@@ -10168,7 +10118,7 @@ export default function Home() {
                         {[
                           { key: "all", label: "Tất cả" },
                           { key: "review", label: "Cần review" },
-                          { key: "chokick", label: "Chờ xử lý" },
+                          { key: "chokick", label: "Đã xếp hàng" },
                           { key: "kicked", label: "Đã xong" },
                           { key: "error", label: "Lỗi / thiếu map" },
                         ].map((item) => (

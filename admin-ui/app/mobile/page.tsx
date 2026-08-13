@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -184,6 +184,18 @@ export default function MobileAdminPage() {
     ...configuredGroups.flatMap((item) => [`G${item}_1M`, `G${item}_LIFE`]),
   ], [configuredGroups]);
 
+  const manualPlanNameFromKey = useCallback((value: string) => {
+    if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
+    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_COMBO_LIFE", getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "Combo Trọn Đời")) || "Combo Trọn Đời";
+    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
+    if (!match) return "";
+    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
+    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : "Collection Trọn Đời";
+    const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
+    const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
+    return `${prefix} - ${groupName}`;
+  }, [config]);
+
   useEffect(() => {
     const storedShow365 = ["ON", "1", "TRUE", "YES"].includes(getConfigValue(config, "SHOW_365D_PLANS", "OFF").toUpperCase());
     if (storedShow365) return;
@@ -196,19 +208,7 @@ export default function MobileAdminPage() {
         duration_days: current.plan_mode === "CUSTOM_DURATION" ? current.duration_days : "30",
       };
     });
-  }, [config]);
-
-  function manualPlanNameFromKey(value: string) {
-    if (value === "FULL_1M") return getConfigValue(config, "PLAN_COMBO_30D", getConfigValue(config, "PLAN_ALL_ACCESS_30D", "Combo 30 Ngày")) || "Combo 30 Ngày";
-    if (value === "FULL_LIFE") return getConfigValue(config, "PLAN_COMBO_LIFE", getConfigValue(config, "PLAN_ALL_ACCESS_LIFE", "Combo Trọn Đời")) || "Combo Trọn Đời";
-    const match = value.match(/^G(\d+)_(1M|LIFE)$/);
-    if (!match) return "";
-    const prefixKey = match[2] === "1M" ? "PLAN_COLLECTION_30D" : "PLAN_COLLECTION_LIFE";
-    const fallbackPrefix = match[2] === "1M" ? "Collection 30 Ngày" : "Collection Trọn Đời";
-    const prefix = getConfigValue(config, prefixKey, fallbackPrefix) || fallbackPrefix;
-    const groupName = getConfigValue(config, `BTN_G${match[1]}`) || `G${match[1]}`;
-    return `${prefix} - ${groupName}`;
-  }
+  }, [config, manualPlanNameFromKey]);
 
   function manualPriceFromKey(value: string) {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
