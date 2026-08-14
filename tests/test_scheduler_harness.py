@@ -251,5 +251,16 @@ class SchedulerHarnessTests(unittest.IsolatedAsyncioTestCase):
             ["renewal_kick_processing", "member_kicked", "member_kick_closed", "renewal_kick_confirmed"],
         )
 
+    def test_renewal_worker_only_runs_in_four_windows(self):
+        scheduler.db.config["RENEWAL_WORKER_ACTIVE_TIMES"] = "00:00,06:00,12:00,18:00"
+        scheduler.db.config["RENEWAL_WORKER_WINDOW_MINUTES"] = "15"
+
+        assert scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 0, 0, 0))
+        assert scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 6, 14, 59))
+        assert scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 12, 0, 0))
+        assert scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 18, 10, 0))
+        assert not scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 1, 0, 0))
+        assert not scheduler.renewal_worker_allowed_now(datetime(2026, 8, 14, 6, 16, 0))
+
 if __name__ == "__main__":
     unittest.main()

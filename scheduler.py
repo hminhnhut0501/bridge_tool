@@ -58,6 +58,10 @@ recent_kicks = {}
 # Vẫn có thể đẩy thủ công từ admin nếu cần xử lý ngay.
 SCHEDULER_DEFAULT_INTERVAL_SECONDS = 8 * 60 * 60
 SCHEDULER_MIN_INTERVAL_SECONDS = 60
+RENEWAL_WORKER_DEFAULT_INTERVAL_SECONDS = 15 * 60
+RENEWAL_WORKER_MIN_INTERVAL_SECONDS = 60
+RENEWAL_WORKER_DEFAULT_WINDOWS = "00:00,06:00,12:00,18:00"
+RENEWAL_WORKER_WINDOW_MINUTES = 15
 KICK_CONFIRMATION_DELAY_SECONDS = 30
 KICK_MAX_ATTEMPTS = 3
 KICK_CONFIRM_MAX_ATTEMPTS = 3
@@ -165,6 +169,34 @@ def parse_int_config(key, default=0, minimum=0):
         return max(minimum, int(float(str(db.get_config(key, default) or default).strip())))
     except (TypeError, ValueError):
         return max(minimum, int(default))
+
+def parse_time_list_config(raw):
+    values = []
+    for item in re.split(r"[\n,;| ]+", str(raw or "").strip()):
+        token = item.strip()
+        if not token:
+            continue
+        try:
+            values.append(datetime.strptime(token, "%H:%M").time())
+        except ValueError:
+            continue
+    return values
+
+def renewal_worker_allowed_now(now=None):
+    local_now = now or now_local()
+    scheduled_times = parse_time_list_config(
+        db.get_config("RENEWAL_WORKER_ACTIVE_TIMES", RENEWAL_WORKER_DEFAULT_WINDOWS) or RENEWAL_WORKER_DEFAULT_WINDOWS
+    )
+    if not scheduled_times:
+        scheduled_times = parse_time_list_config(RENEWAL_WORKER_DEFAULT_WINDOWS)
+    window_minutes = parse_int_config("RENEWAL_WORKER_WINDOW_MINUTES", RENEWAL_WORKER_WINDOW_MINUTES, minimum=1)
+    current_time = local_now.time().replace(second=0, microsecond=0)
+    for scheduled_time in scheduled_times:
+        start_dt = datetime.combine(local_now.date(), scheduled_time)
+        end_dt = start_dt + timedelta(minutes=window_minutes)
+        if start_dt <= local_now < end_dt:
+            return True
+    return False
 
 
 def license_plan_config(plan_code):
@@ -2050,7 +2082,10 @@ async def main():
     await asyncio.sleep(config_int("SCHEDULER_INITIAL_DELAY_SECONDS", 10, minimum=0))
     
     while True:
-        await check_expirations_professional()
+        if renewal_worker_allowed_now():
+            await check_expirations_professional()
+        else:
+            logging.info("⏭ Bỏ qua vòng quét gia hạn ngoài khung giờ cho phép (00:00, 06:00, 12:00, 18:00).")
         
         # Cuối ngày dọn dẹp RAM xóa các record của ngày hôm trước
         today_str = now_local().strftime("%Y-%m-%d")
@@ -2061,12 +2096,19 @@ async def main():
             if kicked_at < kick_cutoff:
                 recent_kicks.pop(key, None)
             
-        # Mặc định 8 tiếng/vòng để giảm request Supabase/Telegram; cần chạy ngay có thể dùng lệnh admin quét hạn.
-        interval_seconds = config_int(
-            "SCHEDULER_INTERVAL_SECONDS",
-            SCHEDULER_DEFAULT_INTERVAL_SECONDS,
-            minimum=SCHEDULER_MIN_INTERVAL_SECONDS,
-        )
+        # Worker gia hạn chỉ nên thức trong 4 khung giờ/ngày; ngoài khung giờ thì ngủ dài hơn để tiết kiệm tài nguyên.
+        if renewal_worker_allowed_now():
+            interval_seconds = config_int(
+                "RENEWAL_WORKER_INTERVAL_SECONDS",
+                RENEWAL_WORKER_MIN_INTERVAL_SECONDS,
+                minimum=RENEWAL_WORKER_MIN_INTERVAL_SECONDS,
+            )
+        else:
+            interval_seconds = config_int(
+                "RENEWAL_WORKER_SLEEP_SECONDS",
+                RENEWAL_WORKER_DEFAULT_INTERVAL_SECONDS,
+                minimum=RENEWAL_WORKER_MIN_INTERVAL_SECONDS,
+            )
         logging.info("💤 Hoàn tất chu kỳ quét. Scheduler nghỉ %s giây trước vòng tiếp theo.", interval_seconds)
         await asyncio.sleep(interval_seconds)
 
