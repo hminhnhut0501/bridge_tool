@@ -508,7 +508,7 @@ export default function MobileAdminPage() {
         plan_name: manualResult.plan_name,
         expire_at: manualResult.expire_at,
       });
-      setManualResult((current) => current ? { ...current, links_text: res.data.links_text, support_text: res.data.support_text, support_link: res.data.support_link, support_error: res.data.support_error, manual_order_join_text: res.data.manual_order_join_text } : current);
+      setManualResult((current) => current ? { ...current, links_text: res.data.links_text, support_text: res.data.support_text, support_link: res.data.support_link, support_error: res.data.support_error, manual_order_delivery_text: res.data.manual_order_delivery_text } : current);
       setCopyNote("Đã gen link join group.");
     } catch (error) {
       console.error(error);

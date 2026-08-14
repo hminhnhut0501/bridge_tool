@@ -180,7 +180,7 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(result["data"], dict)
         self.assertEqual(result["data"]["task_state"], "queued")
 
-    async def test_manual_order_join_text_uses_delivery_template(self):
+    async def test_manual_order_delivery_text_uses_delivery_template(self):
         original_safe_db_config = web_backend.safe_db_config
         try:
             web_backend.safe_db_config = lambda key, default="": (
@@ -214,8 +214,8 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         original_safe_support_group_name = web_backend.safe_support_group_name
         try:
             web_backend.safe_db_config = lambda key, default="": (
-                "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
-                if key == "MANUAL_ORDER_MESSAGE_TEMPLATE"
+                "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{links_text}\n\n{support_text}"
+                if key == "MANUAL_ORDER_DELIVERY_TEMPLATE"
                 else default
             )
             web_backend.safe_support_group_name = lambda default="Nhóm hỗ trợ": "Nhóm hỗ trợ"

@@ -810,10 +810,7 @@ export type ManualOrderResult = {
   bot_link_button_label?: string;
   manual_order_message_subtitle?: string;
   manual_order_message_button_label?: string;
-  manual_order_join_title?: string;
-  manual_order_join_subtitle?: string;
-  manual_order_join_button_label?: string;
-  manual_order_join_text?: string;
+  manual_order_delivery_text?: string;
   bot_link_success_text?: string;
   bot_link_processing_text?: string;
   manual_order_text: string;
@@ -1013,7 +1010,7 @@ export async function createManualOrder(secret: string, payload: ManualOrderPayl
 }
 
 export async function generateManualJoinLink(secret: string, payload: { order_id: string; telegram_user_id: string; plan_name: string; full_name?: string; expire_at?: string }) {
-  return request<{ data: { links_text: string; support_text: string; support_link: string | null; support_error: string; manual_order_join_text: string } }>("/admin-api/manual-orders/gen-join", secret, {
+  return request<{ data: { links_text: string; support_text: string; support_link: string | null; support_error: string; manual_order_delivery_text: string } }>("/admin-api/manual-orders/gen-join", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });

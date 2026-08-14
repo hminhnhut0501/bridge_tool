@@ -1133,16 +1133,6 @@ def normalize_manual_order_link_template(value: str):
     return normalize_bot_link_template(value, default_payload="act_{code}")
 
 
-def normalize_manual_order_join_template(value: str):
-    template = str(value or "").strip()
-    default_template = "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}"
-    if not template:
-        return default_template
-    if any(signal in template for signal in ("{success_text}", "actmsg_", "Đơn của bạn đã được xác minh")):
-        return default_template
-    return template
-
-
 def build_manual_activation_url(code: str):
     template = normalize_manual_order_link_template(safe_db_config("MANUAL_ORDER_LINK_TEMPLATE", "") or "")
     return template.replace("{code}", str(code or "").strip())
@@ -1173,23 +1163,11 @@ def build_manual_order_message_url(code: str):
     return template.replace("{code}", str(code or "").strip())
 
 
-def build_manual_order_join_message_text(context: dict[str, object]):
-    text = render_manual_order_message_text(
-        normalize_manual_order_join_template(safe_db_config("MANUAL_ORDER_JOIN_TEMPLATE", "") or ""),
-        {
-            **context,
-            "activation_url": context.get("activation_url", ""),
-            "message_url": context.get("message_url", ""),
-            "links_text": context.get("links_text", ""),
-            "support_text": context.get("support_text", ""),
-        },
-    )
-    support_link = str(context.get("support_link", "") or "").strip()
-    support_group_name = str(context.get("support_group_name", "") or "").strip()
-    if support_link and support_link not in text:
-        support_block = f"💬 {support_group_name or safe_support_group_name()}:\n{support_link}"
-        text = f"{text}\n\n{support_block}".strip()
-    return strip_html_text(text)
+def get_manual_order_common_template():
+    delivery_template = str(safe_db_config("MANUAL_ORDER_DELIVERY_TEMPLATE", "") or "").strip()
+    if delivery_template:
+        return delivery_template
+    return "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}"
 
 
 def build_manual_order_delivery_text(context: dict[str, object]):
@@ -1198,12 +1176,14 @@ def build_manual_order_delivery_text(context: dict[str, object]):
     partial_text = str(context.get("partial_text", "") or "").strip()
     support_text = str(context.get("support_text", "") or "").strip()
     links_text = str(context.get("links_text", "") or "").strip()
-    default_text = "{success_text}\n\n{order_text}\n\n{links_text}\n\n{partial_text}\n\n{support_text}"
-    template = str(safe_db_config("MANUAL_ORDER_DELIVERY_TEMPLATE", default_text) or default_text).strip()
+    template = get_manual_order_common_template()
     text = render_manual_order_message_text(template, {
         **context,
         "success_text": success_text,
         "order_text": order_text,
+        "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
+        "activation_url": str(context.get("activation_url", "") or "").strip(),
+        "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
         "links_text": links_text,
         "partial_text": partial_text,
         "support_text": support_text,
@@ -1338,14 +1318,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
     paid_at = now_local()
     order_id = str(int(time.time() * 1000))
     sale_id = str(body.get("sale_id") or "MANUAL").strip().upper()
-    message_template = str(safe_db_config(
-        "MANUAL_ORDER_MESSAGE_TEMPLATE",
-        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
-    ) or "").strip()
-    join_template = str(safe_db_config(
-        "MANUAL_ORDER_JOIN_TEMPLATE",
-        "{order_text}\n\n{bot_link_title}\n{links_text}\n\n{bot_link_subtitle}\n\n{support_text}",
-    ) or "").strip()
     mark("render_defaults")
     try:
         write_started_at = time.perf_counter()
@@ -1519,26 +1491,19 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "support_error": support_error,
         "support_text": support_text,
         "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
-        "manual_order_message_title": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_TITLE", "💬 Tin nhắn active code", {}),
-        "manual_order_join_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
         "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
-        "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung xác nhận đơn.", {}),
-        "manual_order_join_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
         "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Gen active code", {}),
-        "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Gen lại tin active code", {}),
-        "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Gen lại tin tham gia nhóm", {}),
         "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
         "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
-            "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {
-                "order_id": order_id,
-                "telegram_user_id": telegram_user_id,
-                "full_name": full_name or telegram_user_id,
-                "plan_name": plan_name,
-                "expire_at": expire_at.isoformat(timespec="seconds"),
-                "order_text": order_text,
+        "manual_order_text": "" if skip_active_code else build_manual_order_delivery_text({
+            "order_id": order_id,
+            "telegram_user_id": telegram_user_id,
+            "full_name": full_name or telegram_user_id,
+            "plan_name": plan_name,
+            "expire_at": expire_at.isoformat(timespec="seconds"),
+            "order_text": order_text,
             "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
             "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
-            "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
             "activation_url": activation_url,
             "message_url": build_manual_order_message_url(activation_code) if activation_code else "",
             "links_text": links_text,
@@ -1548,23 +1513,6 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             "support_error": support_error,
             "activation_code": activation_code,
         }),
-            "manual_order_join_text": "" if skip_join_link or fast_mode else build_manual_order_join_message_text({
-                "order_id": order_id,
-                "telegram_user_id": telegram_user_id,
-                "full_name": full_name or telegram_user_id,
-                "plan_name": plan_name,
-                "expire_at": expire_at.isoformat(timespec="seconds"),
-                "order_text": order_text,
-                "bot_link_title": render_activation_text("MANUAL_ORDER_JOIN_LINK_TITLE", "💬 Link tham gia nhóm", {}),
-                "bot_link_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
-                "activation_url": activation_url,
-                "message_url": "",
-                "links_text": links_text,
-                "support_text": support_text,
-                "support_group_name": safe_support_group_name(),
-                "support_link": support_link,
-                "support_error": support_error,
-            }),
     }
 
 
@@ -2605,11 +2553,6 @@ async def admin_generate_manual_active_code(request: Request):
     if timing_enabled:
         print(f"[manual-order-timing] gen_active_code order_id={order_id} supabase_write_ms={((time.perf_counter() - write_started_at) * 1000):.1f}")
 
-    message_template = str(safe_db_config(
-        "MANUAL_ORDER_MESSAGE_TEMPLATE",
-        "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}",
-    ) or "").strip()
-
     order_text = render_manual_order_info_text({
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
@@ -2649,7 +2592,7 @@ async def admin_generate_manual_active_code(request: Request):
             },
         )
 
-    manual_order_text = render_manual_order_message_text(message_template, {
+    manual_order_text = build_manual_order_delivery_text({
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
         "full_name": full_name or telegram_user_id,
@@ -2658,7 +2601,6 @@ async def admin_generate_manual_active_code(request: Request):
         "order_text": order_text,
         "success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
         "bot_link_title": render_activation_text("MANUAL_ORDER_LINK_TITLE", "🔗 Active code", {}),
-        "bot_link_subtitle": render_activation_text("MANUAL_ORDER_LINK_SUBTITLE", "Nhấn vào link bên dưới để mở bot và nhận link nhóm riêng.", {}),
         "activation_url": activation_url,
         "message_url": build_manual_order_message_url(activation_code),
         "links_text": "",
@@ -2749,7 +2691,7 @@ async def admin_generate_manual_join_link(request: Request):
     })
     
     activation_url = build_manual_activation_url(activation_code)
-    manual_order_join_text = build_manual_order_delivery_text({
+    manual_order_delivery_text = build_manual_order_delivery_text({
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
         "full_name": full_name or telegram_user_id,
@@ -2774,8 +2716,7 @@ async def admin_generate_manual_join_link(request: Request):
             "support_text": support_text,
             "support_link": support_link,
             "support_error": support_error,
-            "manual_order_join_text": strip_html_text(manual_order_join_text),
-            "manual_order_delivery_text": strip_html_text(manual_order_join_text),
+            "manual_order_delivery_text": strip_html_text(manual_order_delivery_text),
         }
     }
 
@@ -3172,10 +3113,6 @@ async def admin_config():
     for row in rows or []:
         if canonical_config_key(row.get("key")) == "MANUAL_ORDER_LINK_TEMPLATE":
             row["value"] = normalize_manual_order_link_template(row.get("value"))
-        if canonical_config_key(row.get("key")) == "MANUAL_ORDER_JOIN_TEMPLATE":
-            row["value"] = normalize_manual_order_join_template(row.get("value"))
-        if canonical_config_key(row.get("key")) == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
-            row["value"] = normalize_manual_order_link_template(row.get("value"))
         if canonical_config_key(row.get("key")) == "IMG_ME":
             img_me_row = row
     if img_me_row is not None:
@@ -3338,10 +3275,6 @@ async def admin_set_config(key: str, request: Request):
     value = body.get("value", "")
     if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
         value = normalize_manual_order_link_template(value)
-    if normalized_key == "MANUAL_ORDER_JOIN_TEMPLATE":
-        value = normalize_manual_order_join_template(value)
-    if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
-        value = normalize_manual_order_link_template(value)
     if normalized_key == "IMG_ME":
         ok, _reason = await _validate_img_me_value(value)
         if not ok:
@@ -3367,10 +3300,6 @@ async def admin_set_config_batch(request: Request):
         normalized_item = dict(item)
         normalized_key = canonical_config_key(normalized_item.get("key"))
         if normalized_key == "MANUAL_ORDER_LINK_TEMPLATE":
-            normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
-        if normalized_key == "MANUAL_ORDER_JOIN_TEMPLATE":
-            normalized_item["value"] = normalize_manual_order_join_template(normalized_item.get("value", ""))
-        if normalized_key == "MANUAL_ORDER_MESSAGE_LINK_TEMPLATE":
             normalized_item["value"] = normalize_manual_order_link_template(normalized_item.get("value", ""))
         if normalized_key == "IMG_ME":
             ok, _reason = await _validate_img_me_value(normalized_item.get("value", ""))

@@ -8698,7 +8698,7 @@ export default function Home() {
           support_text: res.data.support_text,
           support_link: res.data.support_link,
           support_error: res.data.support_error,
-          manual_order_join_text: res.data.manual_order_join_text,
+          manual_order_delivery_text: res.data.manual_order_delivery_text,
         };
       });
       void loadAll(savedSecret, { silent: true, resetPages: false, scope: "customers" }).catch((err) => {

@@ -207,14 +207,14 @@ export function ManualOrderResultPanel({
         />
 
         <ResultActionCard
-          title={result.manual_order_join_title || "Link nhóm"}
-          subtitle={result.manual_order_join_subtitle || "Nội dung link nhóm."}
-          value={stripHtmlPreserveSpacing((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_join_text || "")}
-          emptyText="Chưa có link nhóm."
+          title={result.manual_order_message_title || "Tin trả khách"}
+          subtitle={result.manual_order_message_subtitle || "Nội dung gửi khách."}
+          value={stripHtmlPreserveSpacing((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_text || "")}
+          emptyText="Chưa có tin trả khách."
           actionLabel={joinCardButtonLabel}
           onAction={onGenerateJoinLink}
           saving={saving}
-          onCopy={() => onCopy(((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_join_text || ""), "tin bot trả khi xác minh xong")}
+          onCopy={() => onCopy(((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_text || ""), "tin bot trả khi xác minh xong")}
           copyLabel={joinCopyLabel}
           accent="primary"
           compact={compact}
