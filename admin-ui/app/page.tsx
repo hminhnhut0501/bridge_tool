@@ -757,6 +757,7 @@ type ConfigField = {
   help: string;
   kind?: "input" | "textarea" | "select" | "multiselect";
   options?: { label: string; value: string }[];
+  group?: string;
 };
 
 const DEFAULT_GROUP_COUNT = 20;
@@ -2134,21 +2135,17 @@ function renderInboxReplyPreview(template: string, context: Record<string, strin
 const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_INFO_TEMPLATE",
+    group: "1. Nội dung chính",
     label: "Khối thông tin đơn",
     placeholder: "🧾 Đơn hàng: {order_id}\\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\\n📦 Gói: {plan_name}\\n⏳ Hạn dùng: {expire_at}",
     help: "Dùng trong cả 2 tin. Biến: {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}.",
     kind: "textarea",
   },
-  { key: "MANUAL_ORDER_LINK_TEMPLATE", label: "Deep link bot", placeholder: "https://t.me/hangcuvipbot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá.", },
-  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", label: "Tin bot báo hợp lệ", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", label: "Tin bot đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_INVALID_TEXT", label: "Tin mã không hợp lệ", placeholder: "❌ Mã kích hoạt không hợp lệ hoặc đã bị vô hiệu hoá.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_LINK_USED_TEXT", label: "Tin mã đã dùng", placeholder: "ℹ️ Mã này đã được sử dụng. Nếu cần, admin hãy tạo lại link mới.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_LINK_WRONG_USER_TEXT", label: "Tin sai Telegram ID", placeholder: "❌ Mã này không dành cho tài khoản Telegram hiện tại.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_LINK_EXPIRED_TEXT", label: "Tin mã hết hạn", placeholder: "⏰ Mã kích hoạt đã hết hạn. Vui lòng liên hệ admin.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_LINK_FAIL_TEXT", label: "Tin tạo link thất bại", placeholder: "❌ Bot chưa tạo được link nhóm. Vui lòng thử lại sau.", help: "Biến: không cần placeholder." },
-  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", label: "Template chung tin tạo đơn", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}", help: "Template chung duy nhất cho mọi tin tạo đơn. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Dùng khi cần chèn khối hỗ trợ vào tin trả khách.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_TEMPLATE", group: "1. Nội dung chính", label: "Link bot", placeholder: "https://t.me/hangcuvipbot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá." },
+  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", group: "2. Tin trả khách", label: "Template chung", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}", help: "Template chung duy nhất cho mọi tin trả khách. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", group: "2. Tin trả khách", label: "Trạng thái thành công", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", group: "2. Tin trả khách", label: "Trạng thái đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", group: "2. Tin trả khách", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Dùng khi cần chèn khối hỗ trợ vào tin trả khách.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -12694,44 +12691,61 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
     <section className="panel">
       <PanelHead title={title} subtitle={`${subtitle} Bấm vào từng mục để chỉnh sửa và lưu riêng.`} />
       <div className="config-list">
-        {fields.map((field) => (
-          <ButtonBase
-            key={field.key}
-            onClick={() => openField(field)}
-            sx={{
-              width: "100%",
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) auto",
-              gap: 1,
-              alignItems: "start",
-              px: 2,
-              py: 1.5,
-              borderRadius: 4,
-              border: 1,
-              borderColor: "divider",
-              bgcolor: "background.paper",
-              textAlign: "left",
-            }}
-          >
-            <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-              <strong>{field.label}</strong>
-              <span className="muted">{field.help}</span>
+        {(() => {
+          const groupedFields = fields.reduce<Record<string, ConfigField[]>>((acc, field) => {
+            const group = field.group || "Khác";
+            if (!acc[group]) acc[group] = [];
+            acc[group].push(field);
+            return acc;
+          }, {});
+          return Object.entries(groupedFields).map(([group, groupFields]) => (
+            <Box key={group} sx={{ display: "grid", gap: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "text.secondary", px: 0.5 }}>
+                {group}
+              </Typography>
+              <Box sx={{ display: "grid", gap: 1 }}>
+                {groupFields.map((field) => (
+                  <ButtonBase
+                    key={field.key}
+                    onClick={() => openField(field)}
+                    sx={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 1fr) auto",
+                      gap: 1,
+                      alignItems: "start",
+                      px: 2,
+                      py: 1.5,
+                      borderRadius: 4,
+                      border: 1,
+                      borderColor: "divider",
+                      bgcolor: "background.paper",
+                      textAlign: "left",
+                    }}
+                  >
+                    <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
+                      <strong>{field.label}</strong>
+                      <span className="muted">{field.help}</span>
+                    </Box>
+                    <Pencil size={17} />
+                    <Box
+                      sx={{
+                        gridColumn: "1 / -1",
+                        minWidth: 0,
+                        fontWeight: 700,
+                        color: values[field.key] ? "text.primary" : "text.secondary",
+                        lineHeight: 1.45,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {displayFieldValue(field)}
+                    </Box>
+                  </ButtonBase>
+                ))}
+              </Box>
             </Box>
-            <Pencil size={17} />
-            <Box
-              sx={{
-                gridColumn: "1 / -1",
-                minWidth: 0,
-                fontWeight: 700,
-                color: values[field.key] ? "text.primary" : "text.secondary",
-                lineHeight: 1.45,
-                overflowWrap: "anywhere",
-              }}
-            >
-              {displayFieldValue(field)}
-            </Box>
-          </ButtonBase>
-        ))}
+          ));
+        })()}
       </div>
       {editingField ? (
         <MuiDialogShell
