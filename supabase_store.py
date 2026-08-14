@@ -4,11 +4,25 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-import requests
-from dotenv import load_dotenv
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    requests = None
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    def load_dotenv(*args, **kwargs):
+        return False
+
 from bot_links import normalize_bot_link_template
 
 load_dotenv()
+
+
+def _require_requests():
+    if requests is None:
+        raise RuntimeError("requests is required for Supabase HTTP access in runtime, but is missing in this environment.")
 
 
 def _clean_text(value):

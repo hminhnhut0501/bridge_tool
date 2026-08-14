@@ -1,7 +1,13 @@
 import os
 import time
 import re
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency for test/runtime bootstrap
+    def load_dotenv(*args, **kwargs):
+        return False
+
 from supabase_store import supabase_store
 from bot_links import normalize_bot_link_template
 from config_aliases import canonical_config_key, canonicalize_config_rows, config_lookup_keys, config_write_items, normalize_config_key as normalize_config_key_alias

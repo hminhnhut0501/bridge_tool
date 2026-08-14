@@ -8,8 +8,16 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_DOWN
 from zoneinfo import ZoneInfo
 
-import requests
-from dotenv import load_dotenv
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    requests = None
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    def load_dotenv(*args, **kwargs):
+        return False
 
 from database import db
 from supabase_store import supabase_store
@@ -17,6 +25,11 @@ from bot_links import bot_base_url
 from license_utils import license_backend_url
 
 load_dotenv()
+
+
+def _require_requests():
+    if requests is None:
+        raise RuntimeError("requests is required for payment runtime operations, but is missing in this environment.")
 
 PAYOS_CLIENT_ID = os.getenv("PAYOS_CLIENT_ID")
 PAYOS_API_KEY = os.getenv("PAYOS_API_KEY")

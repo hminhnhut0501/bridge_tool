@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from new_core.expiry import days_until_expire, is_order_active, is_order_expired
 from new_core.kick import classify_kick_state, should_queue_kick
@@ -42,6 +42,13 @@ class NewCoreTests(unittest.TestCase):
 
         self.assertFalse(is_order_active(order, now, parser=parse_dt))
         self.assertFalse(is_order_expired(order, now, parser=parse_dt))
+
+    def test_order_expiry_handles_timezone_aware_parser_values(self):
+        now = datetime(2026, 8, 14, 12, 0, 0, tzinfo=timezone.utc)
+        order = {"status": "PAID", "plan_name": "VIP 30 Ngày", "expire_at": "2026-08-14T11:59:59+00:00"}
+
+        self.assertTrue(is_order_expired(order, now, parser=parse_dt))
+        self.assertFalse(is_order_active(order, now, parser=parse_dt))
 
     def test_plan_expired_order_actions_returns_queue_and_reconcile(self):
         now = datetime(2026, 8, 14, 12, 0, 0)

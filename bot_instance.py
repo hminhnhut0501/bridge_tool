@@ -1,6 +1,11 @@
 import os
 import time
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    def load_dotenv(*args, **kwargs):
+        return False
 
 load_dotenv()
 

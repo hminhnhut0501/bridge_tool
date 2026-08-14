@@ -22,7 +22,12 @@ except ImportError:  # pragma: no cover - lightweight test fallback
 
     class Update:  # minimal placeholder for import-time test stubs
         pass
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency for import-time safety
+    def load_dotenv(*args, **kwargs):
+        return False
+
 try:
     from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
@@ -851,6 +856,10 @@ def now_local():
     return datetime.now(backend_timezone())
 
 
+def now_local_naive():
+    return datetime.now(backend_timezone()).replace(tzinfo=None)
+
+
 def parse_manual_expire_at(value: str | None):
     raw = str(value or "").strip()
     if not raw:
@@ -1654,7 +1663,7 @@ async def build_group_membership_audit_rows(group_id: str, csv_text: str, group_
     from scheduler import parse_expire_datetime
 
     db.reload_config(force=False)
-    now = now_local().replace(tzinfo=None)
+    now = now_local_naive()
     selected_group_id = normalize_chat_id(group_id)
     selected_group_name = str(group_name or "").strip() or group_label_for_chat_id(selected_group_id)
     csv_rows = parse_group_audit_csv(csv_text)
@@ -1779,7 +1788,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
     from scheduler import parse_expire_datetime, plan_group_ids, user_active_group_ids
 
     db.reload_config(force=False)
-    now = now_local().replace(tzinfo=None)
+    now = now_local_naive()
     try:
         orders = supabase_store.list_scheduler_orders(limit=5000, updated_after=updated_after)
     except TypeError:
@@ -3814,7 +3823,7 @@ async def admin_renewal_kick_v2(updated_after: str | None = None):
         orders = []
         parse_expire_datetime = lambda value: None  # type: ignore
 
-    view = build_renewal_admin_view(orders, tasks, group_tasks, attempts, now_local(), parser=parse_expire_datetime)
+    view = build_renewal_admin_view(orders, tasks, group_tasks, attempts, now_local_naive(), parser=parse_expire_datetime)
     return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts, "view": view}
 
 

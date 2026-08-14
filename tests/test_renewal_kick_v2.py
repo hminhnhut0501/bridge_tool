@@ -42,6 +42,9 @@ class FakeStore:
     def list_scheduler_orders(self, limit=5000, updated_after=None):
         return list(self.orders)
 
+    def list_orders(self, limit=5000, updated_after=None, created_at_gte=None, created_at_lt=None):
+        return list(self.orders)
+
     def order_to_sheet_row(self, order):
         return [
             order.get("order_id") or "",
@@ -156,6 +159,7 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         }]
         web_backend.supabase_store = store
         scheduler.supabase_store = store
+        kick_state_service.supabase_store = store
 
         state, _ = scheduler.renewal_kick_state_v2("42", "o1", "-100111")
 
@@ -328,7 +332,7 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("data", result)
         self.assertEqual(result["data"]["counts"]["orders"], 1)
         self.assertNotIn("support_events", result["data"]["counts"])
-        self.assertNotIn("recent_notifications", result["data"])
+        self.assertIn("recent_notifications", result["data"])
 
     async def test_admin_notifications_no_longer_need_support_events(self):
         store = FakeStore(
