@@ -52,6 +52,12 @@ except ImportError:  # pragma: no cover - lightweight test fallback
         def add_middleware(self, *args, **kwargs):
             return None
 
+        def middleware(self, *args, **kwargs):
+            def decorator(func):
+                self._routes.append(("middleware", args, kwargs, func))
+                return func
+            return decorator
+
         def get(self, *args, **kwargs):
             def decorator(func):
                 self._routes.append(("get", args, kwargs, func))
@@ -1041,7 +1047,8 @@ def safe_db_config(key: str, default: str = ""):
 
 def safe_support_group_name(default: str = "Nhóm hỗ trợ"):
     try:
-        return support_group_name()
+        value = str(support_group_name() or "").strip()
+        return value or default
     except Exception:
         return default
 
@@ -1099,6 +1106,7 @@ def render_manual_order_message_text(template: str, context: dict[str, object]):
         "bot_link_subtitle": context.get("bot_link_subtitle", ""),
         "activation_url": context.get("activation_url", ""),
         "links_text": context.get("links_text", ""),
+        "partial_text": context.get("partial_text", ""),
         "support_text": context.get("support_text", ""),
         "support_group_name": context.get("support_group_name", ""),
         "support_link": context.get("support_link", ""),

@@ -203,7 +203,7 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         finally:
             web_backend.safe_db_config = original_safe_db_config
 
-        self.assertIn("Đã được xác minh", text)
+        self.assertIn("Đơn của bạn đã được xác minh", text)
         self.assertIn("LINKS", text)
         self.assertIn("PARTIAL", text)
         self.assertIn("SUPPORT", text)
@@ -211,12 +211,14 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
     async def test_manual_active_code_includes_support_text_when_available(self):
         original_safe_db_config = web_backend.safe_db_config
         original_create_support_invite_link = web_backend.create_support_invite_link
+        original_safe_support_group_name = web_backend.safe_support_group_name
         try:
             web_backend.safe_db_config = lambda key, default="": (
                 "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
                 if key == "MANUAL_ORDER_MESSAGE_TEMPLATE"
                 else default
             )
+            web_backend.safe_support_group_name = lambda default="Nhóm hỗ trợ": "Nhóm hỗ trợ"
 
             async def fake_create_support_invite_link(_user_id):
                 return "https://t.me/+support", ""
@@ -233,9 +235,10 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         finally:
             web_backend.safe_db_config = original_safe_db_config
             web_backend.create_support_invite_link = original_create_support_invite_link
+            web_backend.safe_support_group_name = original_safe_support_group_name
 
-        self.assertIn("SUPPORT", result["data"]["manual_order_text"])
         self.assertIn("Nhóm hỗ trợ", result["data"]["manual_order_text"])
+        self.assertIn("https://t.me/+support", result["data"]["manual_order_text"])
 
 
 if __name__ == "__main__":
