@@ -225,13 +225,19 @@ export default function MobileAdminPage() {
     });
   }, [config, manualPlanNameFromKey]);
 
-  function manualPriceFromKey(value: string) {
+  const manualPriceFromKey = useCallback((value: string) => {
     if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
     if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
-  }
+  }, [config]);
+
+  const resolveDefaultManualAmount = useCallback((planKey: string, currency: string, fallbackAmount = "") => {
+    const rawPrice = manualPriceFromKey(planKey);
+    if (rawPrice) return rawPrice;
+    return fallbackAmount || "0";
+  }, [manualPriceFromKey]);
 
   function hiddenGroupDurationLabel(group: HiddenGroup, durationKey: string) {
     return String(durationKey).toUpperCase() === "LIFE" ? "Trọn đời" : `${group.duration_1m_days || 30} Ngày`;
@@ -362,9 +368,10 @@ export default function MobileAdminPage() {
         full_name: selectedCustomer?.name && selectedCustomer.name !== "-" ? selectedCustomer.name : current.full_name,
         plan_key: nextPlanKey,
         plan_name: latestLabel?.techLabel || current.plan_name,
+        amount: resolveDefaultManualAmount(nextPlanKey, current.payment_currency, current.amount),
       };
     });
-  }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel]);
+  }, [savedSecret, selectedCustomer, selectedCustomerOrderLabel, resolveDefaultManualAmount]);
 
   function openManualDrawerFromCustomer(customer?: CustomerSearchResult | null) {
     setMobileTab("manual");
@@ -379,6 +386,11 @@ export default function MobileAdminPage() {
         full_name: customer.name && customer.name !== "-" ? customer.name : current.full_name,
         plan_key: targetOrder?.plan_name && ["FULL_1M", "FULL_LIFE"].includes(String(targetOrder.plan_name)) ? String(targetOrder.plan_name) : current.plan_key,
         plan_name: latestLabel?.techLabel || current.plan_name,
+        amount: resolveDefaultManualAmount(
+          targetOrder?.plan_name && ["FULL_1M", "FULL_LIFE"].includes(String(targetOrder.plan_name)) ? String(targetOrder.plan_name) : current.plan_key,
+          current.payment_currency,
+          current.amount,
+        ),
       }));
     }
     setManualDrawerOpen(true);
