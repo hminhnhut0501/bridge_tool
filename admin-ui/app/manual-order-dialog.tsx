@@ -109,11 +109,11 @@ function ResultActionCard({
         bgcolor: accent === "info" ? "rgba(236,254,255,0.76)" : "rgba(239,246,255,0.76)",
       }}
     >
-      <CardContent sx={{ p: compact ? 1.5 : 2, display: "grid", gap: 1.15 }}>
+      <CardContent sx={{ p: compact ? 1.25 : 2, display: "grid", gap: compact ? 0.9 : 1.15 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>{title}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>{subtitle}</Typography>
+            <Typography sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: compact ? 15 : 16 }}>{title}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, lineHeight: 1.35 }}>{subtitle}</Typography>
           </Box>
           <Chip size="small" label={hasValue ? "Sẵn sàng" : "Chưa có"} color={hasValue ? accent : "default"} variant={hasValue ? "filled" : "outlined"} sx={{ fontWeight: 800 }} />
         </Box>
@@ -124,7 +124,7 @@ function ResultActionCard({
             slotProps={{ input: { readOnly: true } }}
             fullWidth
             multiline
-            minRows={compact ? 4 : 5}
+            minRows={compact ? 3 : 5}
             sx={{
               "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.9)" },
             }}
@@ -136,7 +136,7 @@ function ResultActionCard({
               border: "1px dashed",
               borderColor: "rgba(148,163,184,0.24)",
               bgcolor: "rgba(255,255,255,0.74)",
-              p: 2,
+              p: compact ? 1.5 : 2,
               textAlign: "center",
               color: "text.secondary",
             }}
@@ -145,14 +145,14 @@ function ResultActionCard({
           </Box>
         )}
 
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+        <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
           <Button variant="contained" onClick={() => void onAction()} disabled={saving} startIcon={saving ? <RefreshCw size={16} className="spin" /> : <RefreshCw size={16} />}>
             {hasValue ? actionLabel.replace(/^Tạo /, "Gen lại ") : actionLabel}
           </Button>
           <Button variant="outlined" onClick={() => void onCopy()} disabled={!hasValue} startIcon={<Plus size={16} />}>
             {copyLabel}
           </Button>
-        </Stack>
+        </Box>
       </CardContent>
     </Card>
   );
@@ -170,7 +170,7 @@ export function ManualOrderResultPanel({
   const activeButtonLabel = "Gen lại tin active code";
   const joinCardButtonLabel = "Gen lại tin tham gia nhóm";
   return (
-    <Stack spacing={compact ? 1.25 : 1.75}>
+    <Stack spacing={compact ? 1 : 1.75}>
       <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
           <strong>Hiển thị:</strong>
@@ -184,7 +184,7 @@ export function ManualOrderResultPanel({
       <Box
         sx={{
           display: "grid",
-          gap: 1.25,
+          gap: compact ? 1 : 1.25,
           gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
           alignItems: "stretch",
         }}
@@ -274,9 +274,39 @@ export function ManualOrderDialog({
         </>
       }
     >
-      <Box sx={{ maxHeight: { xs: "100dvh", md: "78vh" }, overflowY: "auto", pr: 0.5 }}>
-        <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, mb: 2 }}>
-          <Stack spacing={2}>
+      <Box sx={{ maxHeight: { xs: "100dvh", md: "78vh" }, overflowY: "auto", pr: { xs: 0, md: 0.5 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+            mb: 1.25,
+          }}
+        >
+          <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+            <CardContent sx={{ p: 1.1 }}>
+              <Typography variant="caption" color="text.secondary">Khách</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15, wordBreak: "break-word" }}>{form.full_name || "Chưa chọn"}</Typography>
+              <Typography variant="caption" color="text.secondary">Telegram: {form.telegram_user_id || "-"}</Typography>
+            </CardContent>
+          </Card>
+          <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+            <CardContent sx={{ p: 1.1 }}>
+              <Typography variant="caption" color="text.secondary">Gói</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15, wordBreak: "break-word" }}>{planName}</Typography>
+              <Typography variant="caption" color="text.secondary">{manualExpiryPreview}</Typography>
+            </CardContent>
+          </Card>
+          <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+            <CardContent sx={{ p: 1.1 }}>
+              <Typography variant="caption" color="text.secondary">Kiểu</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{form.expiry_mode === "date" ? "Hết hạn theo ngày" : "Theo số ngày"}</Typography>
+              <Typography variant="caption" color="text.secondary">{form.payment_provider || "MANUAL"} · {form.payment_currency || "VND"}</Typography>
+            </CardContent>
+          </Card>
+        </Box>
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, mb: 1.5 }}>
+          <Stack spacing={1.5}>
             <TextField label="Telegram ID" value={form.telegram_user_id} onChange={(event) => setForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
             <TextField label="Tên khách" value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị để dễ quản lý" size="small" />
             <TextField select label="Gói lưu vào đơn" value={form.plan_key} onChange={(event) => onChangePlanKey(event.target.value)} size="small" helperText="Chọn gói thường hoặc Tùy chỉnh thời hạn.">
@@ -319,7 +349,7 @@ export function ManualOrderDialog({
             <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
           </Stack>
 
-          <Stack spacing={2}>
+          <Stack spacing={1.5}>
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
               <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
               <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
@@ -358,7 +388,7 @@ export function ManualOrderDialog({
         </Box>
 
         {result ? (
-          <Box sx={{ mt: 3, pt: 3, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 2 }}>
+          <Box sx={{ mt: 2, pt: 2, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 1.5 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
             <ManualOrderResultPanel
               result={result}

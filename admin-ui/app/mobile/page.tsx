@@ -28,7 +28,7 @@ import {
 import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "../dashboard-components";
-import { dateText, dateTextMobileCompact, dateTimePreviewText, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { dateText, dateTextMobileCompact, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
 import { ManualOrderDialog, ManualOrderResultPanel, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
@@ -43,6 +43,19 @@ function miniStatusChipLabel(order: Order) {
   const active = isOrderActive(order);
   if (order.status === "PAID" && active) return "Active";
   return String(order.status || "-");
+}
+
+function miniOrderLine(order: Order) {
+  const expireAt = dateTextMobileCompact(order.expire_at);
+  const createdAt = dateTextMobileCompact(order.created_at);
+  const days = daysUntil(order.expire_at);
+  const note = orderNoteText(order);
+  const daysText = days === -9999 ? "Không rõ hạn" : days >= 0 ? `Còn ${days} ngày` : `Quá ${Math.abs(days)} ngày`;
+  return {
+    createdAt,
+    expireLine: expireAt === "-" ? daysText : `${expireAt} · ${daysText}`,
+    noteLine: note ? `Note: ${note}` : "Note: Không có note",
+  };
 }
 
 function isLifetimePlanKey(value: string) {
@@ -168,6 +181,8 @@ export default function MobileAdminPage() {
   const totalLogPages = Math.max(1, Math.ceil(filteredActivityLog.length / logPageSize));
   const pagedActivityLog = useMemo(() => filteredActivityLog.slice((Math.min(logPage, totalLogPages) - 1) * logPageSize, Math.min(logPage, totalLogPages) * logPageSize), [filteredActivityLog, logPage, totalLogPages]);
   const uniqueCustomerCount = useMemo(() => new Set(orders.map((item) => String(item.telegram_user_id || "").trim()).filter(Boolean)).size, [orders]);
+  const paidActiveCount = useMemo(() => orders.filter((item) => item.status === "PAID" && isOrderActive(item)).length, [orders]);
+  const paidExpiredCount = useMemo(() => orders.filter((item) => item.status === "PAID" && !isOrderActive(item)).length, [orders]);
   const selectedCustomerOrderLabel = useMemo(() => {
     const activeOrder = selectedCustomer?.activeOrders?.[0] || null;
     const latestPaidOrder = selectedCustomer?.paidOrders?.[0] || null;
@@ -505,11 +520,11 @@ export default function MobileAdminPage() {
 
         <Box sx={{ px: 1.5, pt: 1.5, display: "grid", gap: 1.5 }}>
         {refreshing ? <Chip label="Đang tải dữ liệu..." size="small" variant="outlined" /> : null}
-        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{orders.length}</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">PAID</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{orders.filter((item) => item.status === "PAID").length}</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{uniqueCustomerCount}</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Log</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{activityLog.length}</Typography></CardContent></Card>
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" } }}>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{orders.length}</Typography><Typography variant="caption" color="text.secondary">Tổng dữ liệu đang tải</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">PAID còn hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidActiveCount}</Typography><Typography variant="caption" color="text.secondary">Sẵn sàng dùng</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">PAID hết hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidExpiredCount}</Typography><Typography variant="caption" color="text.secondary">Cần xử lý</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{uniqueCustomerCount}</Typography><Typography variant="caption" color="text.secondary">Unique Telegram</Typography></CardContent></Card>
         </Box>
 
         {copyNote ? <Alert severity={copyNote.includes("thất bại") ? "error" : "success"} variant="outlined">{copyNote}</Alert> : null}
@@ -579,9 +594,9 @@ export default function MobileAdminPage() {
               <Tab value="paid" label={`PAID (${sortedOrders.filter((item) => item.status === "PAID").length})`} />
               <Tab value="other" label={`Khác (${sortedOrders.filter((item) => item.status !== "PAID").length})`} />
             </Tabs>
-            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
-              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Đang hiển thị</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{filteredOrders.length}</Typography></CardContent></Card>
-              <Card variant="outlined"><CardContent sx={{ p: 1.5 }}><Typography variant="caption" color="text.secondary">Trang</Typography><Typography sx={{ fontWeight: 900, fontSize: 24 }}>{Math.min(orderPage, totalOrderPages)}/{totalOrderPages}</Typography></CardContent></Card>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" } }}>
+              <Card variant="outlined"><CardContent sx={{ p: 1.25, minHeight: 84, display: "grid", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Đang hiển thị</Typography><Typography sx={{ fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{filteredOrders.length}</Typography></CardContent></Card>
+              <Card variant="outlined"><CardContent sx={{ p: 1.25, minHeight: 84, display: "grid", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Trang</Typography><Typography sx={{ fontWeight: 900, fontSize: 22, lineHeight: 1 }}>{Math.min(orderPage, totalOrderPages)}/{totalOrderPages}</Typography></CardContent></Card>
             </Box>
             <Stack spacing={1}>
               {pagedOrders.map((order) => (
@@ -597,7 +612,7 @@ export default function MobileAdminPage() {
                       <Chip size="small" label={dateTextMobileCompact(order.created_at)} variant="outlined" />
                     </>
                   )}
-                  detail={`Hạn: ${dateTimePreviewText(order.expire_at)} · còn ${daysUntil(order.expire_at)} ngày · Note: ${orderNoteText(order) || "Không có note"}`}
+                  detail={`${miniOrderLine(order).expireLine} · ${miniOrderLine(order).noteLine}`}
                   actions={(
                     <>
                       <Button size="small" variant="outlined" onClick={() => setManualForm((current) => ({ ...current, telegram_user_id: order.telegram_user_id, full_name: displayText(order.full_name) || current.full_name, plan_name: order.plan_name, plan_key: current.plan_key }))}>Prefill tạo đơn</Button>
