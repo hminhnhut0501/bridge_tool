@@ -226,8 +226,8 @@ export default function MobileAdminPage() {
   }, [config, manualPlanNameFromKey]);
 
   const manualPriceFromKey = useCallback((value: string) => {
-    if (value === "FULL_1M") return getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0");
-    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0");
+    if (value === "FULL_1M") return getConfigValue(config, "PRICE_COMBO_30D", getConfigValue(config, "PRICE_ALL_ACCESS_30D", "0"));
+    if (value === "FULL_LIFE") return getConfigValue(config, "PRICE_COMBO_LIFE", getConfigValue(config, "PRICE_ALL_ACCESS_LIFE", "0"));
     const match = value.match(/^G(\d+)_(1M|LIFE)$/);
     if (!match) return "";
     return getConfigValue(config, `PRICE_G${match[1]}_${match[2]}`, "0");
