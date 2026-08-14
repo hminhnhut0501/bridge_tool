@@ -78,6 +78,26 @@ class SupportInviteModeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(fake_bot.unban_calls), 0)
         self.assertEqual(len(fake_bot.invite_calls), 1)
 
+    async def test_force_mode_ignores_disabled_flag_but_still_creates_link(self):
+        fake_bot = FakeBot()
+        calls = []
+        support_utils.db = FakeDb({
+            "SUPPORT_GROUP_ENABLED": "OFF",
+            "SUPPORT_GROUP_MODE": "group",
+            "SUPPORT_GROUP_ID": "-1001234567890",
+            "SUPPORT_GROUP_NAME": "Nhóm hỗ trợ",
+        })
+        support_utils.bot = fake_bot
+        support_utils.unmute_member = lambda *args, **kwargs: calls.append((args, kwargs))
+
+        link, error = await support_utils.create_support_invite_link("42", force=True)
+
+        self.assertEqual(error, "")
+        self.assertEqual(link, "https://t.me/+-1001234567890")
+        self.assertEqual(len(fake_bot.unban_calls), 1)
+        self.assertEqual(len(fake_bot.invite_calls), 1)
+        self.assertEqual(len(calls), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

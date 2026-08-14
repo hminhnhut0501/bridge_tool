@@ -1398,7 +1398,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
 
     if not skip_join_link and not fast_mode:
         links_started_at = time.perf_counter()
-        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id, force=True))
         try:
             links_text, group_names, failed_groups, invite_results = await build_invite_links(user_id, plan_name)
         except Exception as exc:
@@ -2621,7 +2621,7 @@ async def admin_generate_manual_active_code(request: Request):
     support_link, support_error = None, ""
     support_text = ""
     try:
-        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id, force=True))
     except Exception as exc:
         if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
             raise
@@ -2701,7 +2701,7 @@ async def admin_generate_manual_join_link(request: Request):
     from modules.mod_coupon import build_invite_links
 
     try:
-        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id, force=True))
     except Exception as exc:
         if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
             raise

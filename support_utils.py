@@ -442,8 +442,8 @@ def is_lifetime_plan(plan_name):
     return "TRỌN ĐỜI" in upper or "LIFE" in upper
 
 
-async def create_support_invite_link(user_id):
-    if not support_group_enabled():
+async def create_support_invite_link(user_id, *, force: bool = False):
+    if not force and not support_group_enabled():
         return None, ""
 
     gid = support_group_id()

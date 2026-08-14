@@ -220,7 +220,7 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
             )
             web_backend.safe_support_group_name = lambda default="Nhóm hỗ trợ": "Nhóm hỗ trợ"
 
-            async def fake_create_support_invite_link(_user_id):
+            async def fake_create_support_invite_link(_user_id, force=False):
                 return "https://t.me/+support", ""
 
             web_backend.create_support_invite_link = fake_create_support_invite_link
