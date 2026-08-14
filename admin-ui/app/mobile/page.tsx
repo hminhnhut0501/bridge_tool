@@ -239,6 +239,34 @@ export default function MobileAdminPage() {
     return fallbackAmount || "0";
   }, [manualPriceFromKey]);
 
+  useEffect(() => {
+    const telegramId = displayText(manualForm.telegram_user_id).trim();
+    const currentName = displayText(manualForm.full_name).trim();
+    if (!savedSecret || telegramId.length < 2 || currentName) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchCustomers(savedSecret, telegramId, 1)
+        .then((res) => {
+          if (cancelled) return;
+          const foundName = displayText(res.data?.[0]?.name || "").trim();
+          if (!foundName || foundName === "-") return;
+          setManualForm((current) => {
+            const latestTelegramId = displayText(current.telegram_user_id).trim();
+            const latestName = displayText(current.full_name).trim();
+            if (latestTelegramId !== telegramId || latestName) return current;
+            return { ...current, full_name: foundName };
+          });
+        })
+        .catch((error) => {
+          if (!cancelled) console.warn("⚠️ Không tự điền tên khách từ Telegram ID:", error);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [manualForm.telegram_user_id, manualForm.full_name, savedSecret]);
+
   function hiddenGroupDurationLabel(group: HiddenGroup, durationKey: string) {
     return String(durationKey).toUpperCase() === "LIFE" ? "Trọn đời" : `${group.duration_1m_days || 30} Ngày`;
   }
