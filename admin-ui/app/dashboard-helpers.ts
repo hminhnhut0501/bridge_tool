@@ -37,12 +37,14 @@ export function formatMoneyInputDisplay(value: string | number | null | undefine
 
 export function parseMoneyInputValue(value: string, currency: string) {
   const normalizedCurrency = normalizeRevenueCurrency(currency);
-  const cleaned = String(value || "").replace(/[^\d.,-]/g, "").replace(/,/g, ".");
-  if (!cleaned) return "";
   if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
+    const cleaned = String(value || "").replace(/[^\d.,-]/g, "").replace(/,/g, ".");
+    if (!cleaned) return "";
     const match = cleaned.match(/^-?\d*(?:\.\d{0,2})?/);
     return match ? match[0] : "";
   }
+  const cleaned = String(value || "").replace(/[^\d-]/g, "");
+  if (!cleaned) return "";
   const match = cleaned.match(/^-?\d*/);
   return match ? match[0] : "";
 }
