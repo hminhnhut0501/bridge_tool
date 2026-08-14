@@ -678,6 +678,46 @@ export type KickAuditPayload = {
   customer_name?: string;
 };
 
+export type GroupMembershipAuditRow = {
+  audit_id: string;
+  row_index: number;
+  group_id: string;
+  group_name: string;
+  telegram_user_id: string;
+  customer_name: string;
+  username: string;
+  order_id: string;
+  plan_name: string;
+  expire_at: string;
+  verdict: "NO_ORDER" | "KEEP_ACTIVE" | "REVIEW_ACTIVE_OTHER" | "EXPIRED_SHOULD_KICK" | "REVIEW_REQUIRED" | string;
+  verdict_label: string;
+  needs_action: boolean;
+  reason: string;
+  active_order_count: number;
+  expired_order_count: number;
+  active_order_ids: string[];
+  expired_order_ids: string[];
+  live_checked: boolean;
+  live_present: boolean | null;
+  live_status: string;
+  live_error: string;
+};
+
+export type GroupMembershipAuditPreview = {
+  summary: {
+    group_id: string;
+    group_name: string;
+    total_csv_rows: number;
+    matched_rows: number;
+    expired_rows: number;
+    active_rows: number;
+    no_order_rows: number;
+    review_rows: number;
+    kickable_rows: number;
+  };
+  rows: GroupMembershipAuditRow[];
+};
+
 export type BroadcastCampaign = {
   id: string;
   title: string;
@@ -1227,6 +1267,16 @@ export async function getVipMemberAudit(secret: string, live = false, riskType: 
 
 export async function kickAuditMember(secret: string, payload: KickAuditPayload) {
   return request<{ data: KickAuditRow[] }>("/admin-api/kick-audit/kick", secret, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function previewGroupMembershipAudit(
+  secret: string,
+  payload: { group_id: string; group_name?: string; csv_text: string; live?: boolean },
+) {
+  return request<{ data: GroupMembershipAuditPreview }>("/admin-api/group-membership-audit/preview", secret, {
     method: "POST",
     body: JSON.stringify(payload),
   });

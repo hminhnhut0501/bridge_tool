@@ -157,6 +157,7 @@ import {
   BlacklistEntry,
   Coupon,
   KickAuditRow,
+  GroupMembershipAuditPreview,
   LicenseRecord,
   LicenseSession,
   LicenseAuditEvent,
@@ -229,6 +230,7 @@ import {
   getWebhookInfo,
   kickAuditMember,
   cleanupVipInviteLinks,
+  previewGroupMembershipAudit,
   pauseCampaign,
   previewCampaign,
   regenerateActivationCode,
@@ -3581,6 +3583,16 @@ export default function Home() {
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
   const [renewalTimelineTaskStateFilter, setRenewalTimelineTaskStateFilter] = useState("ALL");
+  const [groupAuditModalOpen, setGroupAuditModalOpen] = useState(false);
+  const [groupAuditGroupId, setGroupAuditGroupId] = useState("");
+  const [groupAuditGroupName, setGroupAuditGroupName] = useState("");
+  const [groupAuditCsvText, setGroupAuditCsvText] = useState("");
+  const [groupAuditFileName, setGroupAuditFileName] = useState("");
+  const [groupAuditLive, setGroupAuditLive] = useState(false);
+  const [groupMembershipAudit, setGroupMembershipAudit] = useState<GroupMembershipAuditPreview | null>(null);
+  const [groupMembershipAuditLoading, setGroupMembershipAuditLoading] = useState(false);
+  const [groupMembershipAuditError, setGroupMembershipAuditError] = useState("");
+  const groupAuditFileRef = useRef<HTMLInputElement | null>(null);
   const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
   const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
@@ -3683,6 +3695,15 @@ export default function Home() {
     if (!paymentSchema?.routing?.length) return PAYMENT_ROUTING_FIELDS;
     return paymentSchema.routing;
   }, [paymentSchema]);
+  const configuredGroupOptions = useMemo(() => {
+    return Array.from({ length: 100 }, (_, index) => {
+      const groupNo = String(index + 1);
+      const groupId = String(getConfigValue(config, `ID_G${groupNo}`, "") || "").trim();
+      const groupName = String(getConfigValue(config, `BTN_G${groupNo}`, "") || "").trim();
+      if (!groupId || !groupName) return null;
+      return { groupNo, groupId, groupName };
+    }).filter(Boolean) as Array<{ groupNo: string; groupId: string; groupName: string }>;
+  }, [config]);
   const notificationEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ENABLED", "ON");
   const notificationOrdersEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ORDERS_ENABLED", "ON");
   const notificationPrivateMessagesEnabled = configIsOn(config, "ADMIN_NOTIFICATION_PRIVATE_MESSAGES_ENABLED", "ON");
@@ -4941,6 +4962,56 @@ export default function Home() {
       setKickAudit(res.data);
       if (live) showNotice("ok", "Đã kiểm tra live trạng thái kick trong group.");
     });
+  }
+
+  function openGroupMembershipAuditModal() {
+    setGroupMembershipAudit(null);
+    setGroupMembershipAuditError("");
+    if (!groupAuditGroupId && configuredGroupOptions.length) {
+      setGroupAuditGroupId(configuredGroupOptions[0].groupId);
+      setGroupAuditGroupName(configuredGroupOptions[0].groupName);
+    }
+    setGroupAuditModalOpen(true);
+  }
+
+  async function handleGroupAuditFileChange(file: File | null) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setGroupAuditCsvText(text);
+      setGroupAuditFileName(file.name);
+      setGroupMembershipAuditError("");
+    } catch (error) {
+      setGroupMembershipAuditError(error instanceof Error ? error.message : String(error || "Không đọc được file CSV."));
+    }
+  }
+
+  async function runGroupMembershipAuditPreview() {
+    if (!savedSecret) return;
+    if (!groupAuditGroupId.trim()) {
+      setGroupMembershipAuditError("Vui lòng chọn group trước khi đối soát.");
+      return;
+    }
+    if (!groupAuditCsvText.trim()) {
+      setGroupMembershipAuditError("Vui lòng upload CSV trước khi chạy đối soát.");
+      return;
+    }
+    setGroupMembershipAuditError("");
+    setGroupMembershipAuditLoading(true);
+    try {
+      const res = await previewGroupMembershipAudit(savedSecret, {
+        group_id: groupAuditGroupId.trim(),
+        group_name: groupAuditGroupName.trim(),
+        csv_text: groupAuditCsvText,
+        live: groupAuditLive,
+      });
+      setGroupMembershipAudit(res.data);
+      showNotice("ok", `Đã đối soát ${res.data.summary.matched_rows}/${res.data.summary.total_csv_rows} dòng CSV.`);
+    } catch (error) {
+      setGroupMembershipAuditError(error instanceof Error ? error.message : String(error || "Không chạy được đối soát CSV."));
+    } finally {
+      setGroupMembershipAuditLoading(false);
+    }
   }
 
   async function probeRenewalKickV2Backend() {
@@ -9978,6 +10049,9 @@ export default function Home() {
                     <Button variant="outlined" size="small" onClick={() => void processExpiredRenewalsBatchHandler(currentRenewalOpsRows, "queue")} startIcon={<RefreshCw size={16} />}>
                       Xếp hàng batch
                     </Button>
+                    <Button variant="outlined" size="small" onClick={openGroupMembershipAuditModal} startIcon={<FileText size={16} />}>
+                      Đối soát CSV group
+                    </Button>
                     <Button variant="outlined" size="small" onClick={() => refreshKickAudit(renewalLiveCheck)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
                       {renewalLiveCheck ? "Kiểm tra live" : "Kiểm tra log"}
                     </Button>
@@ -10071,6 +10145,116 @@ export default function Home() {
             </section>
           </div>
         ) : null}
+
+        <MuiDialogShell
+          open={groupAuditModalOpen}
+          title="Đối soát CSV group"
+          subtitle="Upload danh sách member thực tế của group để tìm các user đã hết hạn nhưng vẫn còn nằm trong group."
+          onClose={() => setGroupAuditModalOpen(false)}
+          maxWidth="lg"
+        >
+          <Box sx={{ display: "grid", gap: 1.25 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.2fr 1fr" }, gap: 1 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="group-audit-select-label">Group đã chọn</InputLabel>
+                <Select
+                  labelId="group-audit-select-label"
+                  label="Group đã chọn"
+                  value={groupAuditGroupId}
+                  onChange={(event) => {
+                    const nextGroupId = String(event.target.value || "").trim();
+                    setGroupAuditGroupId(nextGroupId);
+                    const selected = configuredGroupOptions.find((item) => item.groupId === nextGroupId);
+                    if (selected) setGroupAuditGroupName(selected.groupName);
+                  }}
+                >
+                  {configuredGroupOptions.map((group) => (
+                    <MenuItem key={group.groupNo} value={group.groupId}>
+                      {group.groupNo}. {group.groupName} · {group.groupId}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                label="Tên group"
+                value={groupAuditGroupName}
+                onChange={(event) => setGroupAuditGroupName(event.target.value)}
+                placeholder="Có thể để trống nếu chọn từ danh sách"
+                size="small"
+                fullWidth
+              />
+            </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr auto" }, gap: 1, alignItems: "center" }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => groupAuditFileRef.current?.click()}
+                startIcon={<FileText size={16} />}
+              >
+                Chọn file CSV
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                {groupAuditFileName || "Chưa chọn file"}
+              </Typography>
+            </Box>
+            <input
+              ref={groupAuditFileRef}
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null;
+                void handleGroupAuditFileChange(file);
+                event.currentTarget.value = "";
+              }}
+            />
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
+              <Button
+                variant="contained"
+                onClick={() => void runGroupMembershipAuditPreview()}
+                disabled={groupMembershipAuditLoading}
+                startIcon={groupMembershipAuditLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+              >
+                {groupMembershipAuditLoading ? "Đang đối soát..." : "Chạy đối soát"}
+              </Button>
+              <Button
+                variant={groupAuditLive ? "contained" : "outlined"}
+                onClick={() => setGroupAuditLive((current) => !current)}
+                size="small"
+              >
+                {groupAuditLive ? "Live ON" : "Live OFF"}
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                CSV phải có cột ID, Name, Username. Backend sẽ trả các dòng cần kick trước.
+              </Typography>
+            </Box>
+            {groupMembershipAuditError ? <Alert severity="error">{groupMembershipAuditError}</Alert> : null}
+            {groupMembershipAudit ? (
+              <Box sx={{ display: "grid", gap: 1 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                  <Chip size="small" label={`Tổng CSV: ${groupMembershipAudit.summary.total_csv_rows}`} />
+                  <Chip size="small" color="warning" label={`Cần kick: ${groupMembershipAudit.summary.kickable_rows}`} />
+                  <Chip size="small" color="success" label={`Đang active: ${groupMembershipAudit.summary.active_rows}`} />
+                  <Chip size="small" color="error" label={`Không có đơn: ${groupMembershipAudit.summary.no_order_rows}`} />
+                  <Chip size="small" color="info" label={`Cần review: ${groupMembershipAudit.summary.review_rows}`} />
+                </Box>
+                <SimpleTable
+                  headers={["Tên", "Telegram ID", "Username", "Đơn", "Gói", "Hết hạn", "Kết luận", "Lý do"]}
+                  rows={groupMembershipAudit.rows.map((item) => [
+                    <Fragment key={`group-audit-name-${item.audit_id}`}><strong>{item.customer_name || "-"}</strong><div className="muted">#{item.row_index}</div></Fragment>,
+                    item.telegram_user_id || "-",
+                    item.username || "-",
+                    <Fragment key={`group-audit-order-${item.audit_id}`}><strong>{item.order_id || "-"}</strong><div className="muted">Active: {item.active_order_count} · Expired: {item.expired_order_count}</div></Fragment>,
+                    item.plan_name || "-",
+                    item.expire_at ? dateText(item.expire_at) : "-",
+                    <Chip key={`group-audit-verdict-${item.audit_id}`} size="small" label={item.verdict_label} color={item.needs_action ? "warning" : "success"} variant="outlined" sx={{ height: 24, fontWeight: 800 }} />,
+                    <Fragment key={`group-audit-reason-${item.audit_id}`}><strong>{item.reason || "-"}</strong><div className="muted">{item.live_checked ? `Live: ${item.live_status || "-"}` : "Chưa live"}</div></Fragment>,
+                  ])}
+                />
+              </Box>
+            ) : null}
+          </Box>
+        </MuiDialogShell>
 
         <Drawer
           anchor="right"

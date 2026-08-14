@@ -1,4 +1,6 @@
 import asyncio
+import csv
+import io
 import inspect
 import importlib
 import hashlib
@@ -1603,6 +1605,178 @@ def group_label_for_chat_id(chat_id):
         if gid and gid == target:
             return hidden_group.get("name") or hidden_group.get("id") or target
     return target or "-"
+
+
+def _extract_csv_field(row, *keys):
+    for key in keys:
+        if key in row and str(row.get(key) or "").strip():
+            return str(row.get(key) or "").strip()
+    lowered = {str(k).strip().lower(): k for k in row.keys()}
+    for key in keys:
+        normalized = str(key).strip().lower()
+        if normalized in lowered and str(row.get(lowered[normalized]) or "").strip():
+            return str(row.get(lowered[normalized]) or "").strip()
+    return ""
+
+
+def parse_group_audit_csv(csv_text: str):
+    content = str(csv_text or "").strip()
+    if not content:
+        return []
+    reader = csv.DictReader(io.StringIO(content))
+    rows = []
+    for idx, raw_row in enumerate(reader, start=1):
+        if not isinstance(raw_row, dict):
+            continue
+        telegram_user_id = _extract_csv_field(raw_row, "ID", "Telegram ID", "telegram_user_id", "telegram id", "user_id")
+        name = _extract_csv_field(raw_row, "Name", "name", "Khách", "Customer", "full_name")
+        username = _extract_csv_field(raw_row, "Username", "username", "user", "handle")
+        if not telegram_user_id and not name and not username:
+            continue
+        rows.append({
+            "row_index": idx,
+            "telegram_user_id": telegram_user_id,
+            "name": name,
+            "username": username,
+            "raw": raw_row,
+        })
+    return rows
+
+
+def _order_is_active(order, now):
+    from scheduler import parse_expire_datetime
+
+    if str(order.get("status") or "").strip().upper() not in {"PAID", "ACTIVE"}:
+        return False
+    expire_at = parse_expire_datetime(order.get("expire_at"))
+    if expire_at is None:
+        return bool(str(order.get("plan_name") or "").strip())
+    return expire_at > now
+
+
+async def build_group_membership_audit_rows(group_id: str, csv_text: str, group_name: str = "", live: bool = False):
+    from scheduler import parse_expire_datetime
+
+    db.reload_config(force=False)
+    now = now_local().replace(tzinfo=None)
+    selected_group_id = normalize_chat_id(group_id)
+    selected_group_name = str(group_name or "").strip() or group_label_for_chat_id(selected_group_id)
+    csv_rows = parse_group_audit_csv(csv_text)
+    if not csv_rows:
+        return {
+            "summary": {
+                "group_id": selected_group_id,
+                "group_name": selected_group_name,
+                "total_csv_rows": 0,
+                "matched_rows": 0,
+                "expired_rows": 0,
+                "active_rows": 0,
+                "no_order_rows": 0,
+                "review_rows": 0,
+                "kickable_rows": 0,
+            },
+            "rows": [],
+        }
+
+    try:
+        orders = supabase_store.list_scheduler_orders(limit=5000)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không đọc được đơn hàng để đối soát group: {exc}")
+
+    orders_by_user: dict[str, list[dict]] = {}
+    for order in orders:
+        user_id = str(order.get("telegram_user_id") or "").strip()
+        if not user_id:
+            continue
+        orders_by_user.setdefault(user_id, []).append(order)
+    for user_orders in orders_by_user.values():
+        user_orders.sort(
+            key=lambda item: (
+                parse_expire_datetime(item.get("expire_at")) or datetime.min,
+                str(item.get("updated_at") or item.get("paid_at") or item.get("created_at") or ""),
+            ),
+            reverse=True,
+        )
+
+    rows = []
+    summary = {
+        "group_id": selected_group_id,
+        "group_name": selected_group_name,
+        "total_csv_rows": len(csv_rows),
+        "matched_rows": 0,
+        "expired_rows": 0,
+        "active_rows": 0,
+        "no_order_rows": 0,
+        "review_rows": 0,
+        "kickable_rows": 0,
+    }
+
+    for item in csv_rows:
+        user_id = normalize_chat_id(item.get("telegram_user_id"))
+        user_orders = orders_by_user.get(user_id, [])
+        active_orders = [order for order in user_orders if _order_is_active(order, now)]
+        expired_orders = [order for order in user_orders if not _order_is_active(order, now)]
+        latest_active = active_orders[0] if active_orders else None
+        latest_expired = expired_orders[0] if expired_orders else None
+        live_state = {"checked": False, "present": None, "status": "", "error": ""}
+        should_live_check = live and bool(user_id)
+        if should_live_check:
+            live_state = await member_live_state(selected_group_id, user_id)
+
+        if not user_orders:
+            summary["no_order_rows"] += 1
+            verdict = "NO_ORDER"
+            verdict_label = "Không có đơn"
+            needs_action = True
+            reason = "Không tìm thấy đơn nào của Telegram ID này."
+        elif active_orders:
+            summary["active_rows"] += 1
+            verdict = "KEEP_ACTIVE"
+            verdict_label = "Đang active"
+            needs_action = False
+            reason = "Có gói active nên chưa cần kick."
+        elif expired_orders:
+            summary["expired_rows"] += 1
+            verdict = "EXPIRED_SHOULD_KICK"
+            verdict_label = "Cần kick"
+            needs_action = True
+            reason = "Đã hết hạn và không còn gói active nào."
+            summary["kickable_rows"] += 1
+        else:
+            summary["review_rows"] += 1
+            verdict = "REVIEW_REQUIRED"
+            verdict_label = "Cần review"
+            needs_action = True
+            reason = "Không xác định được trạng thái đơn."
+
+        rows.append({
+            "audit_id": f"{selected_group_id}:{user_id}:{item.get('row_index')}",
+            "row_index": item.get("row_index"),
+            "group_id": selected_group_id,
+            "group_name": selected_group_name,
+            "telegram_user_id": user_id,
+            "customer_name": item.get("name") or (latest_active or latest_expired or {}).get("full_name") or user_id or "-",
+            "username": item.get("username") or "",
+            "order_id": (latest_active or latest_expired or {}).get("order_id") or "",
+            "plan_name": (latest_active or latest_expired or {}).get("plan_name") or "",
+            "expire_at": (latest_active or latest_expired or {}).get("expire_at") or "",
+            "verdict": verdict,
+            "verdict_label": verdict_label,
+            "needs_action": needs_action,
+            "reason": reason,
+            "active_order_count": len(active_orders),
+            "expired_order_count": len(expired_orders),
+            "active_order_ids": [str(order.get("order_id") or "") for order in active_orders if str(order.get("order_id") or "").strip()],
+            "expired_order_ids": [str(order.get("order_id") or "") for order in expired_orders if str(order.get("order_id") or "").strip()],
+            "live_checked": bool(live_state.get("checked")),
+            "live_present": live_state.get("present"),
+            "live_status": live_state.get("status") or "",
+            "live_error": live_state.get("error") or "",
+        })
+        summary["matched_rows"] += 1
+
+    rows.sort(key=lambda row: (not row["needs_action"], row["verdict"], row["customer_name"], row["telegram_user_id"]))
+    return {"summary": summary, "rows": rows}
 
 
 def resolve_order_display_label(order, support_events):
@@ -3612,6 +3786,26 @@ async def admin_kick_audit(live: bool = False, updated_after: str | None = None)
     except Exception as exc:
         print(f"⚠️ Không dựng được danh sách kiểm tra kick: {exc}")
         raise HTTPException(status_code=500, detail=f"Không dựng được danh sách kiểm tra kick: {exc}")
+
+
+@app.post("/admin-api/group-membership-audit/preview", dependencies=[Depends(require_admin)])
+async def admin_group_membership_audit_preview(request: Request):
+    body = await request.json()
+    group_id = str(body.get("group_id") or "").strip()
+    group_name = str(body.get("group_name") or "").strip()
+    csv_text = str(body.get("csv_text") or "").strip()
+    live = bool(body.get("live"))
+    if not group_id:
+        raise HTTPException(status_code=400, detail="Cần chọn group để đối soát.")
+    if not csv_text:
+        raise HTTPException(status_code=400, detail="Cần upload file CSV để đối soát.")
+    try:
+        return {"data": await build_group_membership_audit_rows(group_id, csv_text, group_name=group_name, live=live)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"⚠️ Không dựng được đối soát group từ CSV: {exc}")
+        raise HTTPException(status_code=500, detail=f"Không dựng được đối soát group từ CSV: {exc}")
 
 
 @app.get("/admin-api/renewal-kick-v2", dependencies=[Depends(require_admin)])
