@@ -1520,8 +1520,8 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
         "manual_order_message_subtitle": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_SUBTITLE", "Dùng link này để mở bot và nhận toàn bộ nội dung xác nhận đơn.", {}),
         "manual_order_join_subtitle": render_activation_text("MANUAL_ORDER_JOIN_LINK_SUBTITLE", "Dùng tin này để gửi khách toàn bộ link tham gia nhóm trong đơn.", {}),
         "bot_link_button_label": render_activation_text("MANUAL_ORDER_LINK_BUTTON_LABEL", "Gen active code", {}),
-        "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Copy tin active code", {}),
-        "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Copy tin tham gia", {}),
+        "manual_order_message_button_label": render_activation_text("MANUAL_ORDER_MESSAGE_LINK_BUTTON_LABEL", "Gen lại tin active code", {}),
+        "manual_order_join_button_label": render_activation_text("MANUAL_ORDER_JOIN_LINK_BUTTON_LABEL", "Gen lại tin tham gia nhóm", {}),
         "bot_link_success_text": render_activation_text("MANUAL_ORDER_LINK_SUCCESS_TEXT", "✅ Đơn của bạn đã được xác minh.", {}),
         "bot_link_processing_text": render_activation_text("MANUAL_ORDER_LINK_PROCESSING_TEXT", "⏳ Bot đang xác minh đơn và tạo link nhóm...", {}),
             "manual_order_text": "" if skip_active_code else render_manual_order_message_text(message_template, {

@@ -167,8 +167,8 @@ export function ManualOrderResultPanel({
   compact = false,
 }: ManualOrderResultPanelProps) {
   const orderLabel = resolveOrderLabel(result);
-  const activeButtonLabel = result.manual_order_message_button_label || "Tạo link active code";
-  const joinCardButtonLabel = result.manual_order_join_button_label || "Tạo link tham gia nhóm";
+  const activeButtonLabel = "Gen lại tin active code";
+  const joinCardButtonLabel = "Gen lại tin tham gia nhóm";
   return (
     <Stack spacing={compact ? 1.25 : 1.75}>
       <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
