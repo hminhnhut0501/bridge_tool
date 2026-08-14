@@ -158,7 +158,7 @@ export default function MobileAdminPage() {
     expire_at: "",
     coupon_code: "",
     payment_currency: "VND",
-    payment_provider: "PAYOS",
+    payment_provider: "MANUAL",
     note: "",
   });
 
