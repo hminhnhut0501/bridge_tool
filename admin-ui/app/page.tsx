@@ -2134,18 +2134,14 @@ function renderInboxReplyPreview(template: string, context: Record<string, strin
 
 const ORDER_FIELDS: ConfigField[] = [
   {
-    key: "MANUAL_ORDER_INFO_TEMPLATE",
-    group: "1. Nội dung chính",
-    label: "Khối thông tin đơn",
-    placeholder: "🧾 Đơn hàng: {order_id}\\n👤 Khách hàng: {full_name} - ID: {telegram_user_id}\\n📦 Gói: {plan_name}\\n⏳ Hạn dùng: {expire_at}",
-    help: "Dùng trong cả 2 tin. Biến: {order_id}, {telegram_user_id}, {full_name}, {plan_name}, {expire_at}.",
+    key: "MANUAL_ORDER_DELIVERY_TEMPLATE",
+    group: "1. Template chính",
+    label: "Template chung tin trả khách",
+    placeholder:
+      "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}\\n\\n{bot_link_title}\\n{activation_url}\\n{bot_link_subtitle}",
+    help: "Chỉ chỉnh 1 template duy nhất cho toàn bộ luồng tạo đơn. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}, {bot_link_title}, {activation_url}, {bot_link_subtitle}.",
     kind: "textarea",
   },
-  { key: "MANUAL_ORDER_LINK_TEMPLATE", group: "1. Nội dung chính", label: "Link bot", placeholder: "https://t.me/hangcuvipbot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá." },
-  { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", group: "2. Tin trả khách", label: "Template chung", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}", help: "Template chung duy nhất cho mọi tin trả khách. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", group: "3. Nâng cao", label: "Trạng thái thành công", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", group: "3. Nâng cao", label: "Trạng thái đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", group: "3. Nâng cao", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Dùng khi cần chèn khối hỗ trợ vào tin trả khách.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
