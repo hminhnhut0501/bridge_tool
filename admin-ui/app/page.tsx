@@ -2143,9 +2143,9 @@ const ORDER_FIELDS: ConfigField[] = [
   },
   { key: "MANUAL_ORDER_LINK_TEMPLATE", group: "1. Nội dung chính", label: "Link bot", placeholder: "https://t.me/hangcuvipbot?start=act_{code}", help: "Biến: {code}. Prefix act_ sẽ được tự chuẩn hoá." },
   { key: "MANUAL_ORDER_DELIVERY_TEMPLATE", group: "2. Tin trả khách", label: "Template chung", placeholder: "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}", help: "Template chung duy nhất cho mọi tin trả khách. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", group: "2. Tin trả khách", label: "Trạng thái thành công", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
-  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", group: "2. Tin trả khách", label: "Trạng thái đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
-  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", group: "2. Tin trả khách", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Dùng khi cần chèn khối hỗ trợ vào tin trả khách.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_SUCCESS_TEXT", group: "3. Nâng cao", label: "Trạng thái thành công", placeholder: "✅ Đơn của bạn đã được xác minh.", help: "Biến: không cần placeholder. Chỉ dùng khi bot xác minh thành công.", kind: "textarea" },
+  { key: "MANUAL_ORDER_LINK_PROCESSING_TEXT", group: "3. Nâng cao", label: "Trạng thái đang xử lý", placeholder: "⏳ Bot đang xác minh đơn và tạo link nhóm...", help: "Biến: không cần placeholder. Bot trả ngay khi khách bấm link.", kind: "textarea" },
+  { key: "MANUAL_ORDER_SUPPORT_TEMPLATE", group: "3. Nâng cao", label: "Khối hỗ trợ", placeholder: "💬 {support_group_name}:\\n{support_link}", help: "Biến: {support_group_name}, {support_link}. Dùng khi cần chèn khối hỗ trợ vào tin trả khách.", kind: "textarea" },
 ];
 
 const CURRENCY_FIELDS: ConfigField[] = [
@@ -12651,6 +12651,7 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
   const [editingField, setEditingField] = useState<ConfigField | null>(null);
   const [draftValue, setDraftValue] = useState("");
   const [savingField, setSavingField] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   function displayFieldValue(field: ConfigField) {
     const currentValue = String(values[field.key] || "").trim();
@@ -12700,9 +12701,33 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
           }, {});
           return Object.entries(groupedFields).map(([group, groupFields]) => (
             <Box key={group} sx={{ display: "grid", gap: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "text.secondary", px: 0.5 }}>
-                {group}
-              </Typography>
+              {group === "3. Nâng cao" ? (
+                <ButtonBase
+                  onClick={() => setAdvancedOpen((value) => !value)}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    px: 1,
+                    py: 0.75,
+                    borderRadius: 2,
+                    bgcolor: "rgba(59,130,246,0.04)",
+                    border: 1,
+                    borderColor: "rgba(59,130,246,0.18)",
+                    textAlign: "left",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "text.secondary" }}>
+                    {group}
+                  </Typography>
+                  <Chip size="small" label={advancedOpen ? "Thu gọn" : "Mở rộng"} variant="outlined" />
+                </ButtonBase>
+              ) : (
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "text.secondary", px: 0.5 }}>
+                  {group}
+                </Typography>
+              )}
+              {group === "3. Nâng cao" && !advancedOpen ? null : (
               <Box sx={{ display: "grid", gap: 1 }}>
                 {groupFields.map((field) => (
                   <ButtonBase
@@ -12743,6 +12768,7 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
                   </ButtonBase>
                 ))}
               </Box>
+              )}
             </Box>
           ));
         })()}
