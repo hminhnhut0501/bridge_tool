@@ -1208,6 +1208,11 @@ def build_manual_order_delivery_text(context: dict[str, object]):
         "partial_text": partial_text,
         "support_text": support_text,
     })
+    support_link = str(context.get("support_link", "") or "").strip()
+    support_group_name = str(context.get("support_group_name", "") or "").strip()
+    if support_link and support_link not in text:
+        support_block = f"💜 {support_group_name or safe_support_group_name()}:\n{support_link}"
+        text = f"{text}\n\n{support_block}".strip()
     return strip_html_text(text)
 
 
