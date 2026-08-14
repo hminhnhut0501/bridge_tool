@@ -2744,7 +2744,7 @@ async def admin_generate_manual_join_link(request: Request):
     })
     
     activation_url = build_manual_activation_url(activation_code)
-    manual_order_join_text = build_manual_order_join_message_text({
+    manual_order_join_text = build_manual_order_delivery_text({
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
         "full_name": full_name or telegram_user_id,
@@ -2770,6 +2770,7 @@ async def admin_generate_manual_join_link(request: Request):
             "support_link": support_link,
             "support_error": support_error,
             "manual_order_join_text": strip_html_text(manual_order_join_text),
+            "manual_order_delivery_text": strip_html_text(manual_order_join_text),
         }
     }
 

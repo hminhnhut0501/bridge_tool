@@ -74,6 +74,18 @@ function isLifetimePlan(value: string) {
   return isLifetimeText(value);
 }
 
+function stripHtmlPreserveSpacing(value: string) {
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function ResultActionCard({
   title,
   subtitle,
@@ -208,12 +220,12 @@ export function ManualOrderResultPanel({
         <ResultActionCard
           title={result.manual_order_join_title || "Link nhóm"}
           subtitle={result.manual_order_join_subtitle || "Nội dung link nhóm."}
-          value={stripHtml(result.manual_order_join_text || "")}
+          value={stripHtmlPreserveSpacing((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_join_text || "")}
           emptyText="Chưa có link nhóm."
           actionLabel={joinCardButtonLabel}
           onAction={onGenerateJoinLink}
           saving={saving}
-          onCopy={() => onCopy(result.manual_order_join_text || "", "link tham gia nhóm")}
+          onCopy={() => onCopy(((result as ManualOrderResult & { manual_order_delivery_text?: string }).manual_order_delivery_text || result.manual_order_join_text || ""), "tin bot trả khi xác minh xong")}
           copyLabel={joinCopyLabel}
           accent="primary"
           compact={compact}
