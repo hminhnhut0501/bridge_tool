@@ -2135,11 +2135,11 @@ function renderInboxReplyPreview(template: string, context: Record<string, strin
 const ORDER_FIELDS: ConfigField[] = [
   {
     key: "MANUAL_ORDER_DELIVERY_TEMPLATE",
-    group: "1. Template chính",
-    label: "Template chung tin trả khách",
+    group: "Template chính",
+    label: "Template chung",
     placeholder:
-      "{success_text}\\n\\n{order_text}\\n\\n{links_text}\\n\\n{partial_text}\\n\\n{support_text}\\n\\n{bot_link_title}\\n{activation_url}\\n{bot_link_subtitle}",
-    help: "Chỉ chỉnh 1 template duy nhất cho toàn bộ luồng tạo đơn. Biến: {success_text}, {order_text}, {links_text}, {partial_text}, {support_text}, {bot_link_title}, {activation_url}, {bot_link_subtitle}.",
+      "{success_text}\\n\\n{order_text}\\n\\n{bot_link_title}\\n{activation_url}\\n{bot_link_subtitle}\\n\\n{links_text}\\n\\n{support_text}\\n\\n{partial_text}",
+    help: "1 template cho toàn bộ luồng tạo đơn. Biến: {success_text}, {order_text}, {bot_link_title}, {activation_url}, {bot_link_subtitle}, {links_text}, {support_text}, {partial_text}.",
     kind: "textarea",
   },
 ];
@@ -12893,6 +12893,16 @@ function ConfigEditor({ title, subtitle, fields, values, setValues, onSave }: { 
             <Typography variant="caption" color="text.secondary">
               Key kỹ thuật: {editingField.key}
             </Typography>
+            {editingField.key === "MANUAL_ORDER_DELIVERY_TEMPLATE" ? (
+              <Box sx={{ display: "grid", gap: 0.75, p: 1.5, borderRadius: 3, border: 1, borderColor: "rgba(59,130,246,0.18)", bgcolor: "rgba(59,130,246,0.04)" }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Preview mẫu
+                </Typography>
+                <Box sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "text.primary", fontSize: 14 }}>
+                  {"✅ Đơn của bạn đã được xác minh.\n\n🧾 Đơn hàng: 1786676601042\n👤 Khách hàng: Sun - ID: 8087677602\n📦 Gói: Combo 30 Ngày\n⏳ Hạn dùng: 13:58 13/09/2026\n\n👉 Prime:\nhttps://t.me/+OxXYOK8MSgtINDVI\n👉 Boy:\nhttps://t.me/+VWxRDCANu_g2N2ZI\n👉 Real:\nhttps://t.me/+kqdR9TMsaTAyZDII\n👉 Asia:\nhttps://t.me/+0pgjQCURwqM4NjQ1\n\n💜 Group hỗ trợ - bảo hành:\nhttps://t.me/+TR5NZzIKTWthZDBI\n\n<i> Lưu ý: Link mời chỉ nhận tham gia được 1 lần, không chia sẻ link với người khác </i>"}
+                </Box>
+              </Box>
+            ) : null}
           </Stack>
           <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end", pt: 1 }}>
             <Button variant="outlined" onClick={() => setEditingField(null)}>
