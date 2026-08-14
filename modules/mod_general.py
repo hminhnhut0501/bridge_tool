@@ -19,6 +19,7 @@ from helpers import bot_unavailable_reason, bot_timezone, check_protection, clea
 from helpers import bot_runtime_state
 from message_classifier_utils import classify_private_message
 from support_utils import create_support_invite_link
+from legacy_support_boundary import record_support_event_legacy
 from i18n import get_user_language, localized_default, set_user_language, t
 from modules.mod_engine import build_dynamic_keyboard, page_exists, render_page, send_with_html_fallback 
 from sale_utils import build_sale_announcement
@@ -734,7 +735,8 @@ async def deliver_activation_order(message: Message, code: str):
             links_text, group_names, failed_groups, invite_results = links_result
             if failed_groups or not group_names:
                 try:
-                    supabase_store.record_support_event(
+                    record_support_event_legacy(
+                        supabase_store,
                         "manual_activation_link_failed",
                         telegram_user_id,
                         full_name=activation.get("full_name", ""),
@@ -799,7 +801,8 @@ async def deliver_activation_order(message: Message, code: str):
                 )
             render_context["support_text"] = support_text
             try:
-                supabase_store.record_support_event(
+                record_support_event_legacy(
+                    supabase_store,
                     "manual_activation_link_generated",
                     telegram_user_id,
                     full_name=activation.get("full_name", ""),

@@ -343,7 +343,6 @@ export type DashboardSummary = {
   orders_paid: number;
   orders_pending: number;
   activation_codes: number;
-  support_events: number;
   activity_events: number;
   coupons: number;
   hidden_groups: number;
@@ -356,7 +355,6 @@ export type DashboardSummary = {
 export type OverviewDashboard = {
   recent_orders: Array<Record<string, unknown>>;
   recent_user_activity: Array<Record<string, unknown>>;
-  recent_notifications: Array<Record<string, unknown>>;
   expiring_customers: Array<Record<string, unknown>>;
   health_alerts: Array<{ title: string; detail: string; tone: "good" | "warning" | "bad" }>;
   priority_alerts: Array<{ title: string; detail: string; tone: "warning" | "bad" }>;
@@ -365,7 +363,6 @@ export type OverviewDashboard = {
     orders: number;
     paid_orders: number;
     pending_orders: number;
-    support_events: number;
     activity_events: number;
   };
 };
@@ -1240,6 +1237,10 @@ export async function getRenewalKickV2(secret: string, updatedAfter?: string) {
     data: RenewalKickV2TaskRow[];
     group_tasks: RenewalKickV2GroupTaskRow[];
     attempts: RenewalKickV2AttemptRow[];
+    view?: {
+      rows: Array<Record<string, unknown>>;
+      summary: Record<string, number>;
+    };
   }>(`/admin-api/renewal-kick-v2${params.toString() ? `?${params.toString()}` : ""}`, secret);
 }
 

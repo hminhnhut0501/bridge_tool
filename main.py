@@ -37,6 +37,12 @@ except:
     except: scheduler_worker = None
 
 try:
+    from order_expiry_workers import expiration_scanner_worker, order_expired_reconcile_worker
+except:
+    expiration_scanner_worker = None
+    order_expired_reconcile_worker = None
+
+try:
     from modules.mod_coupon import coupon_cleanup_worker
 except:
     coupon_cleanup_worker = None
@@ -107,6 +113,12 @@ async def main():
     if scheduler_worker:
         create_background_task(scheduler_worker(), name="scheduler_worker", context="main")
         print("⏰ [Worker] Đã kích hoạt Scheduler (Quét hết hạn)")
+    if expiration_scanner_worker:
+        create_background_task(expiration_scanner_worker(), name="expiration_scanner_worker", context="main")
+        print("⏳ [Worker] Đã kích hoạt Expiration Scanner")
+    if order_expired_reconcile_worker:
+        create_background_task(order_expired_reconcile_worker(), name="order_expired_reconcile_worker", context="main")
+        print("♻️ [Worker] Đã kích hoạt Order Expired Reconcile")
 
     if coupon_cleanup_worker:
         create_background_task(coupon_cleanup_worker(), name="coupon_cleanup_worker", context="main")

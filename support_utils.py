@@ -11,6 +11,7 @@ from database import db
 from i18n import t
 from i18n import get_user_language
 from supabase_store import supabase_store
+from legacy_support_boundary import record_support_event_legacy
 
 
 def escape_html(text):
@@ -419,20 +420,8 @@ async def record_support_message(ticket_id, direction, *, telegram_message_id=No
     return supabase_store.create_support_message(data)
 
 def record_support_event(event_type, telegram_user_id=None, **kwargs):
-    if not supabase_store.enabled:
-        return
     try:
-        if telegram_user_id and (not kwargs.get("full_name") or not kwargs.get("username")):
-            identity = supabase_store.get_user_identity(telegram_user_id)
-            if identity:
-                kwargs.setdefault("username", identity.get("username") or "")
-                kwargs.setdefault("full_name", identity.get("full_name") or "")
-                if not kwargs.get("username") and identity.get("username"):
-                    kwargs["username"] = identity.get("username")
-                if not kwargs.get("full_name") and identity.get("full_name"):
-                    kwargs["full_name"] = identity.get("full_name")
-
-        supabase_store.record_support_event(event_type, telegram_user_id, **kwargs)
+        record_support_event_legacy(supabase_store, event_type, telegram_user_id, **kwargs)
     except Exception as exc:
         print(f"⚠️ Không ghi được support event {event_type}: {exc}")
 

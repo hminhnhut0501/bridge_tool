@@ -117,6 +117,10 @@ except ImportError:  # pragma: no cover - lightweight test fallback
 
     HTTPException = _FallbackHTTPException
 
+from order_expiry_service import order_is_active as service_order_is_active, days_until_order_expire as service_days_until_order_expire
+from kick_audit_service import order_display_name
+from new_core.state import normalize_kick_state, normalize_order_state
+from renewal_admin_view_service import build_renewal_admin_view
 from bot_links import normalize_bot_link_template
 try:
     from bot_instance import bot, dp, set_commands
@@ -239,6 +243,7 @@ except ImportError:  # pragma: no cover - lightweight test fallback
         return None
 from manual_order_helpers import should_skip_manual_active_code
 from admin_notification_utils import admin_notification_from_support_event
+from legacy_support_boundary import read_support_events_legacy
 from payment import PAYMENT_PROVIDER_SCHEMA, payment_manager
 from duration_model import duration_days_from_key, is_lifetime_key, normalize_duration_key
 from license_utils import (
@@ -957,20 +962,11 @@ def resolve_manual_order_duration_days(plan_name: str | None, duration_days: int
 
 
 def order_is_active(order):
-    if str(order.get("status") or "").upper() != "PAID":
-        return False
-    if order_is_lifetime(order.get("plan_name")):
-        return True
-    expire_at = order_datetime(order.get("expire_at"))
-    return bool(expire_at and expire_at >= now_local())
+    return service_order_is_active(order, now_local(), parser=order_datetime)
 
 
 def days_until_order_expire(order):
-    expire_at = order_datetime(order.get("expire_at"))
-    if not expire_at:
-        return 999999
-    delta = expire_at - now_local()
-    return int(delta.total_seconds() // 86400)
+    return service_days_until_order_expire(order, now_local(), parser=order_datetime)
 
 
 def build_customer_search_summary(query: str, limit: int = 30):
@@ -1439,7 +1435,7 @@ async def build_manual_order_result(body: dict[str, object]) -> dict[str, object
             print(f"⚠️ Bỏ qua lưu activation code vì thiếu bảng/env Supabase: {exc}")
 
     try:
-        supabase_store.record_support_event(
+        record_support_event(
             "manual_order_created",
             telegram_user_id,
             full_name=full_name,
@@ -1779,24 +1775,6 @@ async def build_group_membership_audit_rows(group_id: str, csv_text: str, group_
     return {"summary": summary, "rows": rows}
 
 
-def resolve_order_display_label(order, support_events):
-    user_id = str(order.get("telegram_user_id") or "")
-    direct = str(order.get("full_name") or "").strip()
-    if direct and direct != "-":
-        return direct
-    for event in support_events:
-        if str(event.get("telegram_user_id") or "") != user_id:
-            continue
-        name = str(event.get("full_name") or event.get("username") or "").strip()
-        if name and name != "-":
-            return name
-    return user_id
-
-
-def order_display_name(order, support_events):
-    return resolve_order_display_label(order, support_events)
-
-
 async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="", chat_id_filter="", updated_after: str | None = None):
     from scheduler import parse_expire_datetime, plan_group_ids, user_active_group_ids
 
@@ -1860,6 +1838,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
         display_name = str(order.get("full_name") or "").strip() or user_id or order_id or "-"
         raw_expire_at = order.get("expire_at")
         expire_at = parse_expire_datetime(raw_expire_at)
+        normalized_order = normalize_order_state(order, now, parser=parse_expire_datetime)
         if raw_expire_at and not expire_at:
             rows.append({
                 "audit_id": f"{order_id}:INVALID_EXPIRE_AT",
@@ -1880,7 +1859,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "live_present": None,
             })
             continue
-        if not expire_at or expire_at > now:
+        if normalized_order.state != "expired":
             continue
 
         current_group_ids = [normalize_chat_id(item) for item in plan_group_ids(plan_name)]
@@ -1933,13 +1912,11 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
             v2_group_state = str((v2_group or {}).get("group_state") or "").strip().lower()
             latest_kick = bool(v2_task_state in {"done", "partial_done"} or v2_group_state in {"kicked", "retained"})
 
-            latest_kick_state = ""
-            if v2_group_state:
-                latest_kick_state = v2_group_state
-            elif v2_task_state:
-                latest_kick_state = v2_task_state
-            elif latest_kick:
-                latest_kick_state = "kicked"
+            latest_kick_state = normalize_kick_state(
+                renewal_task=v2_task,
+                group_task=v2_group,
+                support_event_state="done" if latest_kick else "none",
+            )
 
             live_state = {"checked": False, "present": None, "status": "", "error": ""}
             should_live_check = live and latest_kick_state not in {"done", "kicked"} and (retained or not latest_kick or latest_kick_state in {"processing", "pending_confirm", "retry_pending", "waiting_confirm", "retry_scheduled"})
@@ -1951,60 +1928,39 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 if retained
                 else "DONE"
                 if latest_kick_state == "done"
-                or latest_kick_state == "kicked"
                 else "ERROR"
-                if latest_kick_state == "error"
-                or latest_kick_state == "failed_terminal"
+                if latest_kick_state == "failed_terminal"
                 else "PROCESSING"
                 if latest_kick_state == "processing"
                 else "PENDING_CONFIRM"
-                if latest_kick_state == "pending_confirm"
-                or latest_kick_state == "waiting_confirm"
-                else "RETRY_PENDING"
-                if latest_kick_state == "retry_pending"
-                or latest_kick_state == "retry_scheduled"
+                if latest_kick_state == "waiting_confirm"
                 else "BLOCKED"
-                if latest_kick_state == "blocked_active_order"
-                or latest_kick_state == "blocked"
+                if latest_kick_state == "blocked"
                 else "REVIEW_REQUIRED"
                 if latest_kick_state == "review_required"
-                else "UNMAPPED_GROUP"
-                if latest_kick_state == "unmapped_group"
-                else "QUEUED"
-                if latest_kick_state == "queued"
-                else "KICKED"
-                if latest_kick
-                else "WAITING_KICK"
+                else "UNKNOWN"
             )
             status_label = (
                 "Còn quyền active"
                 if retained
                 else "Đã kick xong"
-                if latest_kick_state in {"done", "kicked"}
+                if latest_kick_state == "done"
                 else "Lỗi kick"
-                if latest_kick_state in {"error", "failed_terminal"}
+                if latest_kick_state == "failed_terminal"
                 else "Đang kick"
-                if latest_kick_state in {"processing", "running"}
-                else "Đã xếp hàng kick"
-                if latest_kick_state in {"queued", "pending"}
+                if latest_kick_state == "processing"
                 else "Đang chờ Telegram xác nhận"
-                if latest_kick_state in {"pending_confirm", "waiting_confirm"}
-                else "Chờ thử lại"
-                if latest_kick_state in {"retry_pending", "retry_scheduled"}
+                if latest_kick_state == "waiting_confirm"
                 else "Bị giữ bởi đơn active khác"
-                if latest_kick_state in {"blocked_active_order", "blocked"}
+                if latest_kick_state == "blocked"
                 else "Cần review"
                 if latest_kick_state == "review_required"
-                else "Không map được group"
-                if latest_kick_state == "unmapped_group"
-                else "Đã kick"
-                if latest_kick
-                else "Chờ kick"
+                else "Chưa rõ"
             )
-            needs_action = not retained and latest_kick_state not in {"done", "kicked"} and latest_kick_state != "error" and not latest_kick
-            if latest_kick_state in {"error", "queued", "processing", "pending_confirm", "retry_pending", "blocked_active_order", "review_required", "unmapped_group", "waiting_confirm", "retry_scheduled", "blocked", "failed_terminal"}:
+            needs_action = not retained and latest_kick_state not in {"done", "failed_terminal"} and not latest_kick
+            if latest_kick_state in {"processing", "waiting_confirm", "blocked", "review_required"}:
                 needs_action = True
-            if latest_kick_state in {"done", "kicked"}:
+            if latest_kick_state == "done":
                 needs_action = False
 
             if live_state["checked"]:
@@ -2042,7 +1998,7 @@ async def build_kick_audit_rows(live=False, order_id_filter="", user_id_filter="
                 "live_checked": live_state["checked"],
                 "live_status": live_state["status"],
                 "live_present": live_state["present"],
-                "kick_state": latest_kick_state or ("done" if latest_kick else ""),
+                "kick_state": latest_kick_state or ("done" if latest_kick else "none"),
                 "retained_reason": (
                     f"Còn {len(retained_orders)} đơn active khác giữ group"
                     if retained and retained_orders
@@ -2104,6 +2060,12 @@ async def start_background_workers():
         scheduler_worker = None
 
     try:
+        from order_expiry_workers import expiration_scanner_worker, order_expired_reconcile_worker
+    except Exception:
+        expiration_scanner_worker = None
+        order_expired_reconcile_worker = None
+
+    try:
         from processor import binance_pay_polling_worker
     except Exception:
         binance_pay_polling_worker = None
@@ -2137,6 +2099,10 @@ async def start_background_workers():
         create_background_task(maintenance_worker(), name="maintenance_worker", context="web_backend")
     if scheduler_worker:
         create_background_task(scheduler_worker(), name="scheduler_worker", context="web_backend")
+    if expiration_scanner_worker:
+        create_background_task(expiration_scanner_worker(), name="expiration_scanner_worker", context="web_backend")
+    if order_expired_reconcile_worker:
+        create_background_task(order_expired_reconcile_worker(), name="order_expired_reconcile_worker", context="web_backend")
     if binance_pay_polling_worker:
         create_background_task(binance_pay_polling_worker(), name="binance_pay_polling_worker", context="web_backend")
     if coupon_cleanup_worker:
@@ -2424,7 +2390,6 @@ async def admin_dashboard_summary():
                 "orders_paid": supabase_store.count_rows("orders", params={"status": "eq.PAID"}),
                 "orders_pending": supabase_store.count_rows("orders", params={"status": "eq.PENDING"}),
                 "activation_codes": supabase_store.count_rows("order_activation_codes"),
-                "support_events": supabase_store.count_rows("support_events"),
                 "activity_events": supabase_store.count_rows("analytics_events"),
                 "coupons": supabase_store.count_rows("coupons"),
                 "hidden_groups": supabase_store.count_rows("hidden_groups"),
@@ -2444,7 +2409,6 @@ async def admin_dashboard_overview():
     try:
         now = now_local()
         orders = supabase_store.list_orders(limit=50)
-        support_events = supabase_store.list_support_events(limit=25)
         activity_events = supabase_store.list_analytics_events(limit=25)
 
         recent_orders = [
@@ -2492,36 +2456,6 @@ async def admin_dashboard_overview():
             if len(recent_user_activity) >= 10:
                 break
         recent_notifications = []
-        for event in support_events:
-            if event.get("event_type") not in {
-                "manual_order_created",
-                "manual_activation_link_generated",
-                "manual_activation_link_failed",
-                "activation_link_cleanup_done",
-                "activation_link_cleanup_failed",
-                "expired_notice_sent",
-                "renewal_reminder_sent",
-                "member_kicked",
-                "member_muted",
-                "member_unmuted",
-                "support_joined",
-                "support_left",
-                "vip_joined",
-                "vip_left",
-            }:
-                continue
-            recent_notifications.append({
-                "id": event.get("id"),
-                "event_type": event.get("event_type"),
-                "telegram_user_id": event.get("telegram_user_id"),
-                "full_name": event.get("full_name"),
-                "plan_name": event.get("plan_name"),
-                "order_id": event.get("order_id"),
-                "raw_data": event.get("raw_data") or {},
-                "created_at": event.get("created_at"),
-            })
-            if len(recent_notifications) >= 10:
-                break
         expiring_customers = []
         for order in orders:
             if _backend_text(order.get("status")).upper() != "PAID":
@@ -2566,7 +2500,6 @@ async def admin_dashboard_overview():
                     "orders": len(orders),
                     "paid_orders": paid_order_count,
                     "pending_orders": pending_order_count,
-                    "support_events": len(support_events),
                     "activity_events": len(activity_events),
                 },
             }
@@ -2607,21 +2540,50 @@ async def admin_marketing_stats(range: str = "month"):
 async def admin_notifications(limit: int = 20):
     try:
         safe_limit = max(1, min(100, int(limit or 20)))
-        rows = supabase_store.list_support_events(limit=min(100, max(50, safe_limit * 4)))
+        order_rows = supabase_store.list_orders(limit=min(100, max(50, safe_limit * 4)))
+        activity_rows = supabase_store.list_analytics_events(limit=min(100, max(50, safe_limit * 4)))
         notifications = []
         order_count = 0
         message_count = 0
-        for event in rows:
-            item = admin_notification_from_support_event(event)
-            if not item:
+
+        for order in order_rows:
+            status = _backend_text(order.get("status")).upper()
+            if status not in {"PAID", "PENDING"}:
                 continue
-            notifications.append(item)
-            if item["kind"] == "order":
-                order_count += 1
-            else:
-                message_count += 1
+            notifications.append({
+                "id": f"order-{order.get('order_id')}",
+                "kind": "order",
+                "title": "Đơn đã thanh toán" if status == "PAID" else "Đơn đang chờ",
+                "detail": " • ".join([_backend_text(order.get("full_name")) or "Khách ẩn danh", _backend_text(order.get("plan_name"))]) or _backend_text(order.get("order_id")),
+                "created_at": _backend_text(order.get("created_at")),
+                "telegram_user_id": _backend_text(order.get("telegram_user_id")),
+                "order_id": _backend_text(order.get("order_id")),
+                "raw_data": {"status": status, "source": "orders"},
+            })
+            order_count += 1
             if len(notifications) >= safe_limit:
                 break
+
+        if len(notifications) < safe_limit:
+            for event in activity_rows:
+                payload = event.get("payload") or {}
+                chat_type = _backend_text(payload.get("chat_type")).lower()
+                if chat_type in {"group", "supergroup", "channel"}:
+                    continue
+                event_name = _backend_text(event.get("event_name")) or _backend_text(payload.get("event_type")) or "event"
+                notifications.append({
+                    "id": f"activity-{event.get('id')}",
+                    "kind": "message",
+                    "title": _backend_humanize_event_type(event_name),
+                    "detail": _backend_text(payload.get("message_text")) or _backend_text(payload.get("source_ref")) or _backend_text(payload.get("activation_code")) or "-",
+                    "created_at": _backend_text(event.get("created_at")),
+                    "telegram_user_id": _backend_text(event.get("telegram_user_id")),
+                    "order_id": "",
+                    "raw_data": payload,
+                })
+                message_count += 1
+                if len(notifications) >= safe_limit:
+                    break
         return {
             "data": {
                 "notifications": notifications,
@@ -2652,7 +2614,7 @@ async def admin_delete_order(order_id: str):
     data = supabase_store.delete_order(order_id)
     try:
         plan_label = display_plan_name(order.get("plan_name"), order.get("telegram_user_id"))
-        supabase_store.record_support_event(
+        record_support_event(
             "order_deleted",
             order.get("telegram_user_id"),
             full_name=order.get("full_name"),
@@ -3237,7 +3199,7 @@ async def license_delivery(request: Request):
             print(f"⚠️ Cannot persist bot delivery notification for order {order_id}: {exc}")
 
     try:
-        supabase_store.record_support_event(
+        record_support_event(
             "license_delivery_notified",
             telegram_user_id,
             order_id=order_id,
@@ -3699,10 +3661,9 @@ async def admin_delete_blacklist(telegram_user_id: str):
 
 
 @app.get("/admin-api/support-events", dependencies=[Depends(require_admin)])
-async def admin_support_events(limit: int = 1000, updated_after: str | None = None):
+async def admin_support_events(limit: int = 1000, updated_after: str | None = None, query: str = ""):
     try:
-        safe_limit = max(1, min(int(limit or 1000), 2000))
-        return {"data": supabase_store.list_support_events(limit=safe_limit, updated_after=updated_after)}
+        return read_support_events_legacy(supabase_store, limit=limit, updated_after=updated_after, query=query)
     except Exception as exc:
         if is_missing_supabase_table_error(exc, "support_events"):
             warn_missing_table_once("support_events", exc)
@@ -3845,7 +3806,16 @@ async def admin_renewal_kick_v2(updated_after: str | None = None):
         group_tasks = [row for row in group_tasks if str(row.get("updated_at") or row.get("last_transition_at") or "") >= updated_after]
         attempts = [row for row in attempts if str(row.get("started_at") or "") >= updated_after]
 
-    return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts}
+    try:
+        from scheduler import parse_expire_datetime
+
+        orders = supabase_store.list_scheduler_orders(limit=5000, updated_after=updated_after) if hasattr(supabase_store, "list_scheduler_orders") else []
+    except Exception:
+        orders = []
+        parse_expire_datetime = lambda value: None  # type: ignore
+
+    view = build_renewal_admin_view(orders, tasks, group_tasks, attempts, now_local(), parser=parse_expire_datetime)
+    return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts, "view": view}
 
 
 @app.post("/admin-api/renewal-kick-v2/review", dependencies=[Depends(require_admin)])
@@ -4236,7 +4206,7 @@ async def admin_activity_log(
 
     def fetch_support(offset: int):
         if offset >= MAX_FETCH: return []
-        rows = supabase_store.list_support_events_page(limit=min(chunk_size, MAX_FETCH - offset), offset=offset)
+        rows = supabase_store.list_support_events(limit=min(chunk_size, MAX_FETCH - offset), updated_after=updated_after_value)
         if not updated_after_value:
             return rows
         return [row for row in rows if _backend_text(row.get("created_at")) > updated_after_value]
@@ -4378,7 +4348,7 @@ async def admin_reply_to_customer(request: Request):
         sent = await bot.send_message(chat_id=int(telegram_user_id), text=text, disable_web_page_preview=True)
     except Exception as exc:
         try:
-            supabase_store.record_support_event(
+            record_support_event(
                 "admin_reply_failed",
                 telegram_user_id,
                 full_name=full_name,
@@ -4420,7 +4390,7 @@ async def admin_reply_to_customer(request: Request):
                     "updated_at": datetime.now().isoformat(),
                 },
             )
-        supabase_store.record_support_event(
+        record_support_event(
             "admin_reply_sent",
             telegram_user_id,
             full_name=full_name,

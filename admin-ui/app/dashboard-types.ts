@@ -86,3 +86,47 @@ export type RenewalKickV2AttemptRow = {
   finished_at: string | null;
   metadata: Record<string, unknown>;
 };
+
+export type RenewalAdminViewGroupRow = {
+  group_id: string;
+  group_name: string;
+  group_state: string;
+  status: string;
+  latest_error: string;
+};
+
+export type RenewalAdminViewRow = {
+  order_id: string;
+  telegram_user_id: string;
+  customer_name: string;
+  plan_name: string;
+  expire_at: string;
+  task_state: string;
+  kick_state: string;
+  status: string;
+  status_label: string;
+  needs_action: boolean;
+  task_id: string;
+  group_count: number;
+  kicked_count: number;
+  blocked_count: number;
+  review_count: number;
+  pending_count: number;
+  latest_kick_at: string;
+  latest_error: string;
+  groups: RenewalAdminViewGroupRow[];
+  attempt_count: number;
+  reason: string;
+};
+
+export type RenewalAdminView = {
+  rows: RenewalAdminViewRow[];
+  summary: {
+    total: number;
+    needs_action: number;
+    done: number;
+    review: number;
+    blocked: number;
+    processing: number;
+  };
+};

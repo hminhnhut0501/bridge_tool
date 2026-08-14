@@ -159,6 +159,13 @@ class FakeStore:
                 return [row]
         return []
 
+    def insert_renewal_kick_attempt_v2(self, payload):
+        if not hasattr(self, "renewal_kick_attempts_v2"):
+            self.renewal_kick_attempts_v2 = []
+        row = {**payload, "id": payload.get("id") or f"attempt-{len(self.renewal_kick_attempts_v2) + 1}"}
+        self.renewal_kick_attempts_v2.append(row)
+        return [row]
+
     def order_to_sheet_row(self, order):
         return [
             order.get("order_id", ""),
@@ -244,6 +251,19 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(expired, [])
         self.assertEqual([row[0] for _, row in reminders], ["custom-1d"])
+        self.assertEqual(users, {"42"})
+
+    def test_overdue_paid_rows_are_treated_as_expired(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        rows = [[
+            "expired-paid-1", "42", "User", "All Access - Tùy chỉnh",
+            "0", "PAID", "", "2026-07-15 09:00:00",
+        ]]
+
+        expired, reminders, users = scheduler.split_scheduler_rows(rows, now, 3)
+
+        self.assertEqual([row[0] for _, row in expired], ["expired-paid-1"])
+        self.assertEqual(reminders, [])
         self.assertEqual(users, {"42"})
 
     async def test_custom_group_expiry_kicks_only_entitled_group(self):
@@ -335,6 +355,86 @@ class SchedulerLogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary["review"], 1)
         self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["group_state"], "review_required")
         self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["last_error"], "stale_confirm_timeout")
+
+    async def test_stale_queued_task_is_claimed_and_kicked(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        self.store.renewal_kick_group_tasks_v2 = [{
+            "id": "group-1",
+            "task_id": "task-1",
+            "order_id": "old",
+            "telegram_user_id": "42",
+            "group_id": "-100444",
+            "group_name": "Hang Cú Asia",
+            "plan_name": "VIP 30 Ngày - Hang Cú Asia",
+            "group_state": "pending",
+            "attempt_count": 0,
+            "confirm_count": 0,
+            "next_retry_at": "2026-07-16 08:30:00",
+            "created_at": "2026-07-16 08:20:00",
+            "last_transition_at": "2026-07-16 08:20:00",
+            "metadata": {},
+        }]
+
+        summary = await scheduler.process_due_renewal_kick_group_tasks_v2(now)
+
+        self.assertEqual(summary["processing"], 1)
+        self.assertEqual(self.bot.kicked, [("-100444", "42")])
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["group_state"], "waiting_confirm")
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["locked_by"], "scheduler_v2")
+
+    async def test_active_order_blocks_group_task_in_worker(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        self.store.renewal_kick_group_tasks_v2 = [{
+            "id": "group-1",
+            "task_id": "task-1",
+            "order_id": "old",
+            "telegram_user_id": "42",
+            "group_id": "-100444",
+            "group_name": "Hang Cú Asia",
+            "plan_name": "VIP 30 Ngày - Hang Cú Asia",
+            "group_state": "pending",
+            "attempt_count": 0,
+            "confirm_count": 0,
+            "next_retry_at": "2026-07-16 08:30:00",
+            "created_at": "2026-07-16 08:20:00",
+            "last_transition_at": "2026-07-16 08:20:00",
+            "metadata": {},
+        }]
+        self.store.orders = [{
+            "order_id": "active-1",
+            "telegram_user_id": "42",
+            "full_name": "User",
+            "plan_name": "VIP 30 Ngày - Hang Cú Asia",
+            "status": "PAID",
+            "expire_at": "2026-08-16 09:00:00",
+        }]
+
+        summary = await scheduler.process_due_renewal_kick_group_tasks_v2(
+            now,
+            user_cache={"42": {"active_group_ids": {"-100444"}}},
+        )
+
+        self.assertEqual(summary["blocked"], 1)
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["group_state"], "blocked_active_order")
+        self.assertEqual(self.bot.kicked, [])
+
+    async def test_queued_expired_order_creates_v2_parent_and_groups(self):
+        now = datetime(2026, 7, 16, 9, 0, 0)
+        expired_groups, errors = await scheduler.process_vip_kicks_for_expired_order(
+            "42",
+            "old",
+            "VIP 30 Ngày - Hang Cú Asia",
+            "2026-07-15 09:00:00",
+            [["old", "42", "User", "VIP 30 Ngày - Hang Cú Asia", "0", "EXPIRED", "", "2026-07-15 09:00:00"]],
+            now,
+        )
+
+        self.assertEqual(expired_groups, ["-100444"])
+        self.assertEqual(errors, [])
+        self.assertEqual(len(self.store.renewal_kick_tasks_v2), 1)
+        self.assertEqual(len(self.store.renewal_kick_group_tasks_v2), 1)
+        self.assertEqual(self.store.renewal_kick_tasks_v2[0]["task_state"], "queued")
+        self.assertEqual(self.store.renewal_kick_group_tasks_v2[0]["group_state"], "pending")
 
     async def test_expired_vip_kicks_only_expired_group_when_other_group_active(self):
         now = datetime(2026, 5, 25, 12, 0, 0)

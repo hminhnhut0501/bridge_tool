@@ -136,7 +136,7 @@ import { dayKey, getConfigValue, groupConfigKeys, groupOrders, hasAnyGroupConfig
 import { MuiDialogShell, OrdersTable as MuiOrdersTable, Pagination as MuiPagination, PanelHead, SimpleTable as MuiSimpleTable, SupportThreadPanel, statusChipSx } from "./dashboard-components";
 import { Metric } from "./metric-card";
 import { TrendChart as MuiTrendChart } from "./dashboard-components";
-import type { OrderPeriod, RenewalKickV2AttemptRow, RenewalKickV2GroupTaskRow, RenewalKickV2TaskRow } from "./dashboard-types";
+import type { OrderPeriod, RenewalAdminView, RenewalAdminViewRow, RenewalKickV2AttemptRow, RenewalKickV2GroupTaskRow, RenewalKickV2TaskRow } from "./dashboard-types";
 import { AnalyticsSection, OrdersSection } from "./dashboard-sections";
 import { CustomersSection } from "./customers-section";
 import { CampaignsSection } from "./campaigns-section";
@@ -648,7 +648,7 @@ const sidebarTabSx = {
 const sidebarTabLabelSx = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 } as const;
 const sidebarTabChipSx = { height: 22, fontSize: "0.7rem", fontWeight: 800, bgcolor: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.10)" } as const;
 
-type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system" | "license" | "payment";
+type Tab = "overview" | "analytics" | "setup" | "orders" | "customers" | "activityLog" | "campaigns" | "channelPosts" | "renewals" | "groupAudit" | "supportGroup" | "content" | "autoPayment" | "botVi" | "botEn" | "botTools" | "specialGroups" | "menuBot" | "coupons" | "activationCodes" | "security" | "vipAudit" | "sales" | "system" | "license" | "payment";
 type ContentSubTab = "bot" | "payment" | "currency" | "admin";
 type BotUiSubTab = "plans" | "buttons" | "messages" | "saleContent" | "groups";
 type BotToolsSubTab = "groupReplies" | "alerts";
@@ -3579,6 +3579,7 @@ export default function Home() {
   const [renewalKickingOrderIds, setRenewalKickingOrderIds] = useState<string[]>([]);
   const [renewalKickStatusByOrder, setRenewalKickStatusByOrder] = useState<Record<string, { state: "pending" | "error"; message: string; updatedAt: number }>>({});
   const [renewalKickV2Snapshot, setRenewalKickV2Snapshot] = useState<{ tasks: RenewalKickV2TaskRow[]; groupTasks: RenewalKickV2GroupTaskRow[]; attempts: RenewalKickV2AttemptRow[] }>({ tasks: [], groupTasks: [], attempts: [] });
+  const [renewalAdminView, setRenewalAdminView] = useState<RenewalAdminView>({ rows: [], summary: { total: 0, needs_action: 0, done: 0, review: 0, blocked: 0, processing: 0 } });
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
@@ -3594,7 +3595,6 @@ export default function Home() {
   const [groupMembershipAuditError, setGroupMembershipAuditError] = useState("");
   const groupAuditFileRef = useRef<HTMLInputElement | null>(null);
   const [supportGroupSettingsOpen, setSupportGroupSettingsOpen] = useState(false);
-  const [supportTab, setSupportTab] = useState<SupportSubTab>("all");
   const [supportPage, setSupportPage] = useState(1);
   const [securitySettingsOpen, setSecuritySettingsOpen] = useState(false);
   const [systemSettingsOpen, setSystemSettingsOpen] = useState(false);
@@ -4381,6 +4381,19 @@ export default function Home() {
             tasks: (data.data || []) as RenewalKickV2TaskRow[],
             groupTasks: (data.group_tasks || []) as RenewalKickV2GroupTaskRow[],
             attempts: (data.attempts || []) as RenewalKickV2AttemptRow[],
+          });
+          const viewRows = Array.isArray(data.view?.rows) ? (data.view?.rows as RenewalAdminViewRow[]) : [];
+          const viewSummary = data.view?.summary || {};
+          setRenewalAdminView({
+            rows: viewRows,
+            summary: {
+              total: Number(viewSummary.total || 0),
+              needs_action: Number(viewSummary.needs_action || 0),
+              done: Number(viewSummary.done || 0),
+              review: Number(viewSummary.review || 0),
+              blocked: Number(viewSummary.blocked || 0),
+              processing: Number(viewSummary.processing || 0),
+            },
           });
         })
       );
@@ -6254,7 +6267,6 @@ export default function Home() {
     ordersPaid: dashboardSummary?.orders_paid ?? metrics.paid,
     ordersPending: dashboardSummary?.orders_pending ?? metrics.pending,
     activationCodes: dashboardSummary?.activation_codes ?? activationCodes.length,
-    supportEvents: dashboardSummary?.support_events ?? supportEvents.length,
     activityEvents: dashboardSummary?.activity_events ?? activityEvents.length,
     coupons: dashboardSummary?.coupons ?? coupons.length,
     hiddenGroups: dashboardSummary?.hidden_groups ?? hiddenGroups.length,
@@ -6262,7 +6274,7 @@ export default function Home() {
     blacklist: dashboardSummary?.blacklist_active ?? blacklist.filter((item) => item.is_active).length,
     campaigns: dashboardSummary?.broadcast_campaigns ?? campaigns.length,
     channelPosts: dashboardSummary?.channel_posts ?? channelPosts.length,
-  }), [activationCodes.length, activityEvents.length, blacklist, campaigns.length, channelPosts.length, coupons.length, dashboardSummary, hiddenCodes.length, hiddenGroups.length, metrics, orders.length, supportEvents.length]);
+  }), [activationCodes.length, activityEvents.length, blacklist, campaigns.length, channelPosts.length, coupons.length, dashboardSummary, hiddenCodes.length, hiddenGroups.length, metrics, orders.length]);
   const todayStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "today"))), [orders]);
   const monthStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "month"))), [orders]);
   const yearStats = useMemo(() => orderStats(orders.filter((item) => isWithinPeriod(item.created_at, "year"))), [orders]);
@@ -6943,12 +6955,6 @@ export default function Home() {
     }
     return map;
   }, [supportEvents]);
-  const supportGroupId = useMemo(() => normalizeChatId(getConfigValue(config, "SUPPORT_GROUP_ID")), [config]);
-  const supportGroupEvents = useMemo(() => {
-    if (!supportGroupId) return [];
-    return supportEvents.filter((item) => normalizeChatId(item.chat_id) === supportGroupId);
-  }, [supportEvents, supportGroupId]);
-  const supportGroupTodayEvents = useMemo(() => supportGroupEvents.filter((item) => isTodayDate(item.created_at)), [supportGroupEvents]);
   const renewalReminderEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "renewal_reminder_sent"), [supportEvents]);
   const latestReminderByOrder = useMemo(() => {
     const map = new Map<string, SupportEvent>();
@@ -6963,7 +6969,6 @@ export default function Home() {
     return map;
   }, [renewalReminderEvents]);
   const expiredNoticeEvents = useMemo(() => supportEvents.filter((item) => item.event_type === "expired_notice_sent"), [supportEvents]);
-  const supportKickedToday = useMemo(() => supportGroupTodayEvents.filter((item) => item.event_type === "member_kicked"), [supportGroupTodayEvents]);
   const uniqueKickedEvents = useMemo(() => {
     const map = new Map<string, SupportEvent>();
     for (const item of supportEvents.filter((event) => event.event_type === "member_kicked")) {
@@ -7269,20 +7274,6 @@ export default function Home() {
   function renewalGroupStateHint(status: string) {
     return renewalGroupStateMeta(status).hint;
   }
-  function supportCustomerName(item: SupportEvent) {
-    const telegramId = String(item.telegram_user_id || "").trim();
-    const raw = item.raw_data || {};
-    return (
-      displayText(item.full_name) ||
-      displayText(item.username) ||
-      displayText(raw.full_name) ||
-      displayText(raw.Full_Name) ||
-      supportNameById.get(telegramId) ||
-      customerNameById.get(telegramId) ||
-      telegramId ||
-      "-"
-    );
-  }
   const renewalKickV2TaskByOrder = useMemo(() => {
     const map = new Map<string, RenewalKickV2TaskRow>();
     for (const task of renewalKickV2Snapshot.tasks || []) {
@@ -7330,41 +7321,14 @@ export default function Home() {
     }
     return map;
   }, [renewalKickV2Snapshot.groupTasks]);
-  function supportKickStateLabel(item: SupportEvent) {
-    const state = String(item.raw_data?.kick_state || item.raw_data?.state || "").trim().toLowerCase();
-    if (!state) {
-      if (item.event_type === "member_kick_closed") return "done";
-      if (item.event_type === "member_kick_failed") return "error";
-      if (item.event_type === "member_kick_skipped_admin") return "skipped_admin";
-      if (item.event_type === "member_kicked") return "pending";
-      return "";
-    }
-    if (state === "done") return "done";
-    if (state === "error" || state === "failed") return "error";
-    if (state === "skipped_admin") return "skipped_admin";
-    if (state === "pending" || state === "running" || state === "waiting") return "pending";
-    return state;
-  }
-  function supportKickStateChipColor(state: string): ChipProps["color"] {
-    if (state === "done") return "success";
-    if (state === "error") return "error";
-    if (state === "skipped_admin") return "info";
-    if (state === "pending") return "warning";
-    return "default";
-  }
   const supportEventRows = useMemo(() => {
-    const filtered = supportGroupEvents.filter((item) => {
-      if (supportTab === "joined") return item.event_type === "support_joined";
-      if (supportTab === "left") return item.event_type === "support_left";
-      if (supportTab === "muted") return item.event_type === "member_muted";
-      if (supportTab === "kicked") return item.event_type === "member_kicked";
-      return true;
-    });
-    return filtered.map((item) => [
+    return [...supportEvents]
+      .sort((a, b) => (safeDateMillis(b.created_at) ?? 0) - (safeDateMillis(a.created_at) ?? 0))
+      .map((item) => [
       <Tooltip key={`${item.id}-type-tip`} title={tooltipLabel(supportEventLabel(item.event_type), item.event_type)} arrow>
         <span>{supportEventLabel(item.event_type)}</span>
       </Tooltip>,
-      supportCustomerName(item),
+      displayText(item.full_name) || displayText(item.username) || supportNameById.get(String(item.telegram_user_id || "").trim()) || String(item.telegram_user_id || "") || "-",
       item.telegram_user_id || "-",
       <Tooltip key={`${item.id}-chat-tip`} title={tooltipLabel(groupDisplayLabel(item.chat_title, item.chat_id), item.chat_id)} arrow>
         <span>{groupDisplayLabel(item.chat_title, item.chat_id)}</span>
@@ -7374,18 +7338,8 @@ export default function Home() {
         item.raw_data?.old_status ? `Cũ: ${item.raw_data.old_status}` : "",
         item.raw_data?.new_status ? `Mới: ${item.raw_data.new_status}` : "",
         item.raw_data?.reason ? `Lý do: ${String(item.raw_data.reason)}` : "",
-        item.raw_data?.kick_state ? `Kick state: ${String(item.raw_data.kick_state)}` : "",
       ].filter(Boolean).join(" • ") || "-", item.event_type)} arrow>
         <Box component="span" sx={{ display: "inline-grid", gap: 0.25 }}>
-          {supportKickStateLabel(item) ? (
-            <Chip
-              size="small"
-              label={`Kick: ${supportKickStateLabel(item)}`}
-              color={supportKickStateChipColor(supportKickStateLabel(item))}
-              variant="outlined"
-              sx={{ height: 20, fontSize: 10.5, fontWeight: 800, width: "fit-content" }}
-            />
-          ) : null}
           {item.raw_data?.old_status || item.raw_data?.new_status ? (
             <Chip size="small" label={`${friendlyDetailText(String(item.raw_data?.old_status || "-"))} → ${friendlyDetailText(String(item.raw_data?.new_status || "-"))}`} color="info" variant="outlined" sx={{ height: 20, fontSize: 10.5, fontWeight: 800, width: "fit-content" }} />
           ) : null}
@@ -7393,7 +7347,7 @@ export default function Home() {
         </Box>
       </Tooltip>,
     ]);
-  }, [supportGroupEvents, supportTab, supportCustomerName]);
+  }, [supportEvents, supportNameById]);
   const supportEventHeaders = useMemo(() => ["Loại", "Khách", "Telegram ID", "Group", "Giờ", "Chi tiết"], []);
   const totalSupportPages = Math.max(1, Math.ceil(supportEventRows.length / SUPPORT_PAGE_SIZE));
   const pagedSupportRows = useMemo(() => {
@@ -7419,6 +7373,55 @@ export default function Home() {
     const diff = daysUntil(rawExpire);
     if (event.event_type === "expired_notice_sent" || diff < 0) return "Expired";
     return `T-${diff}`;
+  }
+
+  function renewalRowFromAdminView(item: RenewalAdminViewRow): RenewalOpsRow {
+    const groupsToKick = (item.groups || []).filter((group) => !["done"].includes(String(group.status || "").trim().toLowerCase())).map((group) => group.group_id).filter(Boolean);
+    const groupsToReview = (item.groups || []).filter((group) => !["done"].includes(String(group.status || "").trim().toLowerCase())).map((group) => group.group_id).filter(Boolean);
+    return {
+      key: `expired-${item.order_id}`,
+      telegramId: String(item.telegram_user_id || "").trim(),
+      orderId: item.order_id,
+      planName: item.plan_name,
+      customerName: item.customer_name,
+      expireAt: item.expire_at,
+      groupsToKick,
+      groupsToReview,
+      renewalStatus: item.status_label,
+      taskState: item.task_state,
+      renewalNote: item.reason || item.latest_error || "",
+      renewalLastError: item.latest_error || "",
+      renewalReason: item.reason || "",
+      renewalProgress: {
+        total: item.group_count || 0,
+        done: item.kicked_count || 0,
+        retained: 0,
+        pending: item.pending_count || 0,
+        error: item.blocked_count || 0,
+        kicking: item.review_count || 0,
+      },
+      renewalGroupDetails: (item.groups || []).map((group) => ({
+        groupId: group.group_id,
+        groupName: group.group_name || group.group_id,
+        status: group.status === "done" ? "Đã kick xong" : group.status === "blocked" ? "Bị giữ bởi đơn active khác" : group.status === "review_required" ? "Cần review" : group.status === "processing" ? "Đang chờ worker" : "Chờ kick",
+        state: group.group_state,
+        note: group.latest_error || "",
+        auditId: group.group_id,
+      })),
+      renewalLatestKickAt: item.latest_kick_at,
+      flags: renewalRowFlags(String(item.telegram_user_id || "")),
+      searchText: `${item.customer_name} ${item.telegram_user_id} ${item.plan_name} ${item.order_id}`.toLowerCase(),
+      cells: [
+        <Fragment key="customer">
+          {telegramChatLink(item.customer_name, String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
+          <div className="muted">{item.telegram_user_id || "-"}</div>
+        </Fragment>,
+        <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
+        <Fragment key="expire"><strong>{dateText(item.expire_at)}</strong><div className="muted">Theo state contract</div></Fragment>,
+        <Fragment key="status"><strong>{item.status_label}</strong><div className="muted">{item.reason || item.latest_error || "-"}</div></Fragment>,
+        <Chip key="progress" size="small" label={`${item.kicked_count || 0}/${item.group_count || 0}`} color={item.needs_action ? "warning" : "success"} variant="outlined" />,
+      ] as ReactNode[],
+    };
   }
 
   const kickAuditByOrder = useMemo(() => {
@@ -7598,122 +7601,7 @@ export default function Home() {
           item.raw_data?.expire_at ? dateText(String(item.raw_data.expire_at)) : "-",
         ] as ReactNode[],
       })),
-      expired: expiredRenewalOrders.map((item) => {
-        const summary = expiredKickSummary(item);
-        const localKickState = renewalKickStatusByOrder[String(item.order_id || "")] || null;
-        const renewalV2Task = renewalKickV2TaskByOrder.get(String(item.order_id || "")) || null;
-        const renewalV2GroupTasks = renewalKickV2GroupTasksByOrder.get(String(item.order_id || "")) || [];
-        const displayStatus = renewalV2Task
-          ? renewalV2StatusLabel(renewalV2Task.task_state, summary.status)
-          : localKickState?.state === "error"
-            ? "Lỗi kick"
-            : localKickState?.state === "pending"
-              ? "Chờ xác nhận"
-              : summary.status;
-        const tone = renewalV2Task
-          ? renewalV2StatusTone(renewalV2Task.task_state, summary.status)
-          : localKickState?.state === "error"
-            ? "error"
-            : localKickState?.state === "pending"
-              ? "info"
-              : renewalStatusTone(summary.status);
-        const progress = renewalV2Task ? renewalV2Progress(renewalV2Task) : renewalProgressText(summary);
-        const progressDone = progress.total > 0 ? Math.round(((progress.done + progress.retained) / progress.total) * 100) : 0;
-        const taskAgeText = renewalTaskAgeText(renewalV2Task);
-        const taskAgeTone = renewalTaskAgeTone(renewalV2Task);
-        const queuePhaseLabel = renewalQueuePhaseLabel(renewalV2Task, renewalKickV2AttemptsByOrder.get(String(item.order_id || "")) || []);
-        const reviewReason = renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.groupDetails.find((g) => g.status === "Cần review" || g.status === "Lỗi" || g.status === "Không map được group")?.note || "";
-        const groupDetails = renewalV2Task
-          ? renewalV2GroupTasks.map((group) => {
-              const groupState = String(group.group_state || "").trim().toUpperCase();
-              return {
-                groupId: group.group_id,
-                groupName: group.group_name || group.group_id,
-                status: renewalGroupStateLabel(groupState),
-                state: groupState,
-                note: [
-                  renewalGroupStateHint(groupState),
-                  group.last_error,
-                  group.review_reason,
-                  group.last_reason,
-                  group.terminal_reason,
-                  String(group.metadata?.reason || ""),
-                  String(group.metadata?.note || ""),
-                ].map((value) => String(value || "").trim()).find(Boolean) || "",
-                auditId: group.id,
-              };
-            })
-          : summary.groupDetails;
-        const groupsToKick = renewalV2Task
-          ? renewalV2GroupTasks.filter((group) => !["DONE", "PARTIAL_DONE", "SKIPPED_ADMIN"].includes(String(group.group_state || "").trim().toUpperCase())).map((group) => group.group_id)
-          : summary.groupDetails.filter((g) => ["Lỗi", "Đang chờ worker", "Đã xếp hàng", "Chờ thử lại", "Đang chờ xác nhận", "Cần review"].includes(g.status)).map((g) => g.groupId);
-        return {
-          key: `expired-${item.order_id}`,
-          telegramId: String(item.telegram_user_id || "").trim(),
-          orderId: item.order_id,
-          planName: item.plan_name,
-          customerName: renewalCustomerName(item),
-          expireAt: item.expire_at || "",
-          groupsToKick,
-          groupsToReview: groupDetails.filter((g) => g.status !== "Đã kick xong").map((g) => g.groupId),
-          renewalStatus: displayStatus,
-          taskState: renewalV2Task?.task_state || "",
-          renewalNote: renewalV2Task ? (String(renewalV2Task.metadata?.note || "") || renewalV2Task.last_reason || renewalV2Task.last_error || summary.note) : localKickState?.message || summary.note,
-          renewalLastError: renewalV2Task ? (renewalV2Task.last_error || reviewReason) : localKickState?.message || reviewReason,
-          renewalReason: reviewReason || summary.note,
-          renewalProgress: progress,
-          renewalGroupDetails: groupDetails,
-          renewalLatestKickAt: renewalV2Task?.updated_at || summary.latestKickAt,
-          searchText: `${renewalCustomerName(item)} ${item.telegram_user_id || ""} ${item.plan_name || ""} ${item.order_id || ""} ${summary.groups.join(" ")} ${summary.note} ${renewalV2Task ? JSON.stringify(renewalV2Task.metadata || {}) : ""}`.toLowerCase(),
-          flags: renewalRowFlags(String(item.telegram_user_id || ""), { unreminded: !["Đã kick xong", "Chờ xác nhận", "Đã xếp hàng", "Đang kick", "Đang chờ worker", "Cần review"].includes(displayStatus) }),
-          cells: [
-            <Fragment key="customer">
-              {telegramChatLink(renewalCustomerName(item), String(item.telegram_user_id || "").trim(), undefined, "var(--ink)")}
-              <div className="muted">{item.telegram_user_id || "-"}</div>
-            </Fragment>,
-            <Fragment key="plan"><strong>{resolveOrderLabel({ plan_name: item.plan_name }).displayLabel}</strong><div className="muted">Đơn {item.order_id || "-"}</div></Fragment>,
-            <Fragment key="status">
-              <Stack spacing={0.75}>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                  <Chip size="small" label={queuePhaseLabel || renewalStatusLabel(displayStatus)} color={renewalQueuePhaseTone(queuePhaseLabel || renewalStatusLabel(displayStatus))} variant="outlined" />
-                  {renewalV2Task ? (
-                    <Chip size="small" label={renewalTaskStateLabel(renewalV2Task.task_state)} color={renewalTaskStateTone(renewalV2Task.task_state)} variant="outlined" />
-                  ) : null}
-                </Box>
-                <div className="muted">
-                  {item.expire_at ? `Hạn ${dateText(item.expire_at)}` : "-"}
-                  {taskAgeText ? ` · Tuổi task ${taskAgeText}` : ""}
-                </div>
-                {summary.latestKickAt ? <div className="muted">Cập nhật {dateText(summary.latestKickAt)}</div> : null}
-              </Stack>
-            </Fragment>,
-            <Box key="progress" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-              <Typography variant="caption" sx={{ color: "text.secondary", lineHeight: 1.2 }}>
-                {progressDone}% · {progress.done}/{progress.total} xong · {progress.kicking} đang chờ worker · {progress.pending} chờ xử lý · {progress.error} lỗi
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.35 }}>
-                {groupDetails.slice(0, 2).map((g, i) => (
-                  <Tooltip key={i} title={g.note || "Không có ghi chú"} arrow placement="top">
-                    <Chip
-                      size="small"
-                      label={`${g.groupName} · ${g.status}`}
-                      color={g.status === "Đã kick xong" ? "success" : g.status === "Đang kick" ? "info" : g.status === "Lỗi" ? "error" : g.status === "Cần review" ? "warning" : "warning"}
-                      variant="outlined"
-                      sx={{ height: 20, fontSize: 11, maxWidth: 190 }}
-                    />
-                  </Tooltip>
-                ))}
-                {groupDetails.length > 2 ? <Chip size="small" label={`+${groupDetails.length - 2}`} variant="outlined" sx={{ height: 20, fontSize: 11 }} /> : null}
-              </Box>
-              {!groupDetails.length ? (
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  {renewalV2Task ? renewalV2ReasonText(renewalV2Task) : summary.note}
-                </Typography>
-              ) : null}
-            </Box>,
-          ] as ReactNode[],
-        };
-      }),
+      expired: renewalAdminView.rows.map(renewalRowFromAdminView) as RenewalOpsRow[],
       lifetime: lifetimeRenewalOrders.map((item) => ({
         key: `lifetime-${item.order_id}`,
         telegramId: String(item.telegram_user_id || "").trim(),
@@ -7731,7 +7619,7 @@ export default function Home() {
         ] as ReactNode[],
       })),
     } satisfies Record<RenewalSubTab, RenewalOpsRow[]>;
-  }, [expiringSoon, latestReminderByOrder, renewalNoticeEvents, expiredRenewalOrders, lifetimeRenewalOrders, kickAudit, uniqueKickedEvents, renewalCustomerName, renewalKickingOrderIds, renewalKickV2TaskByOrder, renewalKickV2GroupTasksByOrder]);
+  }, [expiringSoon, latestReminderByOrder, renewalNoticeEvents, expiredRenewalOrders, lifetimeRenewalOrders, kickAudit, uniqueKickedEvents, renewalCustomerName, renewalKickingOrderIds, renewalKickV2TaskByOrder, renewalKickV2GroupTasksByOrder, renewalAdminView.rows]);
   const currentRenewalOpsRows = useMemo(() => {
     const source = (renewalOpsRows[renewalTab] || []) as RenewalOpsRow[];
     const q = renewalQuery.trim().toLowerCase();
@@ -7890,19 +7778,6 @@ export default function Home() {
       .slice(0, 10);
   }, [activityEvents, dashboardOverview?.recent_user_activity]);
   const overviewRecentNotifications = useMemo(() => {
-    if (dashboardOverview?.recent_notifications?.length) {
-      return dashboardOverview.recent_notifications.map((item) => ({
-        key: `support-${String(item.id || "")}`,
-        kind: "bot" as const,
-        title: supportEventLabel(String(item.event_type || "")),
-        detail: (() => {
-          const raw = item as { full_name?: string; plan_name?: string; order_id?: string; raw_data?: { reason?: string } };
-          return [String(raw.full_name || ""), String(raw.plan_name || ""), String(raw.order_id || "")].filter(Boolean).join(" • ") || String(raw.raw_data?.reason || "-");
-        })(),
-        createdAt: String((item as { created_at?: string }).created_at || ""),
-        userId: String((item as { telegram_user_id?: string }).telegram_user_id || ""),
-      }));
-    }
     const userEvents = activityEvents
       .filter((event) => {
         const chatType = payloadText(event.payload || {}, "chat_type").toLowerCase();
@@ -7922,33 +7797,8 @@ export default function Home() {
           userId: event.telegram_user_id || payloadText(payload, "user_id") || "",
         };
       });
-    const botEvents = supportEvents
-      .filter((event) => [
-        "manual_order_created",
-        "manual_activation_link_generated",
-        "manual_activation_link_failed",
-        "activation_link_cleanup_done",
-        "activation_link_cleanup_failed",
-        "expired_notice_sent",
-        "renewal_reminder_sent",
-        "member_kicked",
-        "member_muted",
-        "member_unmuted",
-        "support_joined",
-        "support_left",
-        "vip_joined",
-        "vip_left",
-      ].includes(event.event_type))
-      .map((event) => ({
-        key: `support-${event.id}`,
-        kind: "bot" as const,
-        title: supportEventLabel(event.event_type),
-        detail: [event.full_name, event.plan_name, event.order_id].filter(Boolean).join(" • ") || event.raw_data?.reason || "-",
-        createdAt: event.created_at,
-        userId: event.telegram_user_id || "",
-      }));
-    return [...userEvents, ...botEvents].sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0)).slice(0, 10);
-  }, [activityEvents, dashboardOverview?.recent_notifications, supportEvents]);
+    return userEvents.sort((a, b) => (safeDateMillis(b.createdAt) ?? 0) - (safeDateMillis(a.createdAt) ?? 0)).slice(0, 10);
+  }, [activityEvents]);
   const overviewExpiringCustomers = useMemo(() => {
     if (dashboardOverview?.expiring_customers?.length) {
       return dashboardOverview.expiring_customers.map((item) => {
@@ -7994,9 +7844,8 @@ export default function Home() {
     if (expiringSoon.length) rows.push({ title: "Khách sắp hết hạn", detail: `${expiringSoon.length} khách cần nhắc gia hạn`, tone: "warning" });
     if (metrics.pending) rows.push({ title: "Đơn đang chờ", detail: `${metrics.pending} đơn chưa chốt trạng thái`, tone: "warning" });
     if (missingCore.length) rows.push({ title: "Thiếu cấu hình", detail: missingCore.join(" • "), tone: "bad" });
-    if (supportGroupEvents.length && supportGroupTodayEvents.length) rows.push({ title: "Nhóm hỗ trợ", detail: `${supportGroupTodayEvents.length} sự kiện hôm nay`, tone: "warning" });
     return rows.slice(0, 4);
-  }, [dashboardOverview?.priority_alerts, expiringSoon.length, metrics.pending, missingCore, supportGroupEvents.length, supportGroupTodayEvents.length]);
+  }, [dashboardOverview?.priority_alerts, expiringSoon.length, metrics.pending, missingCore]);
 
   const visibleAdminNotifications = useMemo(() => {
     return adminNotifications.filter((item) => {
@@ -8165,7 +8014,6 @@ export default function Home() {
     setSupportInboxSeenIds((current) => uniqueValues([...current, item.unreadKey || item.id]));
     closeSupportInboxMenu();
     selectTab("supportGroup");
-    setSupportTab("all");
     if (item.telegram_user_id) setQuery(item.telegram_user_id);
     openAdminReply({
       id: item.id,
@@ -8177,7 +8025,7 @@ export default function Home() {
       ticketId: item.ticket_id,
       initialMessages: item.messages,
     });
-  }, [closeSupportInboxMenu, openAdminReply, selectTab, setQuery, setSupportTab]);
+  }, [closeSupportInboxMenu, openAdminReply, selectTab, setQuery]);
 
   const openNotificationItem = useCallback((item: AdminNotificationItem) => {
     setNotificationSeenIds((current) => uniqueValues([...current, item.id]));
@@ -8202,7 +8050,6 @@ export default function Home() {
     }
 
     selectTab("supportGroup");
-    setSupportTab("all");
     if (item.telegram_user_id) {
       setQuery(item.telegram_user_id);
     }
@@ -8216,7 +8063,7 @@ export default function Home() {
         detail: item.detail,
       });
     }
-  }, [closeNotificationMenu, openAdminReply, openOrderEditor, orders, selectTab, setOrderPage, setQuery, setSupportTab]);
+  }, [closeNotificationMenu, openAdminReply, openOrderEditor, orders, selectTab, setOrderPage, setQuery]);
 
   const notificationChipText = useCallback((item: AdminNotificationItem) => {
     const chips: string[] = [];
@@ -8313,14 +8160,10 @@ export default function Home() {
   }, [playSupportInboxSound, unreadSupportInboxCount]);
 
   const actionableFeed = useMemo(() => {
-    if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_notifications?.length || dashboardOverview?.recent_user_activity?.length) {
+    if (dashboardOverview?.priority_alerts?.length || dashboardOverview?.recent_orders?.length || dashboardOverview?.recent_user_activity?.length) {
       const overview = dashboardOverview!;
       const feed: { type: string; id: string; priority: number; title: string; detail: string; time: string; tone: "critical" | "warning" | "good" }[] = [];
       overview.priority_alerts.forEach((item, idx) => feed.push({ type: "alert", id: `summary-alert-${idx}`, priority: item.tone === "bad" ? 10 : 8, title: item.title, detail: item.detail, time: new Date().toISOString(), tone: item.tone === "bad" ? "critical" : "warning" }));
-      overview.recent_notifications.slice(0, 5).forEach((item, idx) => {
-        const raw = item as { event_type?: string; full_name?: string; plan_name?: string; order_id?: string; created_at?: string };
-        feed.push({ type: "bot", id: `summary-bot-${idx}`, priority: 4, title: supportEventLabel(String(raw.event_type || "")), detail: [String(raw.full_name || ""), String(raw.plan_name || ""), String(raw.order_id || "")].filter(Boolean).join(" • ") || "-", time: String(raw.created_at || new Date().toISOString()), tone: "good" });
-      });
       overview.recent_orders.slice(0, 5).forEach((item, idx) => {
         const raw = item as { order_id?: string; full_name?: string; plan_name?: string; created_at?: string };
         feed.push({ type: "order", id: `summary-order-${idx}`, priority: 2, title: `Đơn mới: ${String(raw.order_id || "")}`, detail: `${String(raw.full_name || "Khách ẩn danh")} • ${resolveOrderLabel({ plan_name: raw.plan_name }).displayLabel}`, time: String(raw.created_at || new Date().toISOString()), tone: "good" });
@@ -8353,7 +8196,7 @@ export default function Home() {
     });
 
     return feed.sort((a, b) => b.priority - a.priority || (safeDateMillis(b.time) ?? 0) - (safeDateMillis(a.time) ?? 0));
-  }, [missingCore, webhookMeta, webhook, botScheduleStatus, orders, expiringSoon]);
+  }, [missingCore, webhookMeta, webhook, botScheduleStatus, orders, expiringSoon, dashboardOverview?.priority_alerts, dashboardOverview?.recent_orders, dashboardOverview?.recent_user_activity]);
 
   const activityStream = useMemo(() => {
     if (dashboardOverview?.recent_user_activity?.length) {
@@ -8406,10 +8249,6 @@ export default function Home() {
   useEffect(() => {
     setRenewalPage(1);
   }, [renewalTab]);
-
-  useEffect(() => {
-    setSupportPage(1);
-  }, [supportTab]);
 
   useEffect(() => {
     setCouponPage(1);
@@ -9431,6 +9270,7 @@ export default function Home() {
               <Tab value="campaigns" icon={<Megaphone size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Campaign</span><Chip size="small" label={String(summaryCounts.campaigns)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="channelPosts" icon={<Send size={16} />} iconPosition="start" label={<Box sx={sidebarTabLabelSx}><span>Đăng channel</span><Chip size="small" label={String(summaryCounts.channelPosts)} sx={sidebarTabChipSx} variant="outlined" /></Box>} />
               <Tab value="renewals" icon={<RefreshCw size={16} />} iconPosition="start" label={ui("Gia hạn", "Renewals")} />
+              <Tab value="groupAudit" icon={<FileText size={16} />} iconPosition="start" label="Đối soát group" />
             </Tabs>
           </Box>
           <Box>
@@ -10030,7 +9870,7 @@ export default function Home() {
               {[
                 { key: "soon" as RenewalSubTab, label: "Sắp hết hạn", value: String(expiringSoon.length), accent: "amber" as const, note: "5 ngày tới" },
                 { key: "reminded" as RenewalSubTab, label: "Đã thông báo", value: String(renewalNoticeEvents.length), accent: "cyan" as const, note: "Nhắc / báo hết hạn" },
-                { key: "expired" as RenewalSubTab, label: "Đã hết hạn", value: String(expiredRenewalOrders.length), accent: "rose" as const, note: "Theo queue/task state" },
+                { key: "expired" as RenewalSubTab, label: "Đã hết hạn", value: String(renewalAdminView.summary.total || expiredRenewalOrders.length), accent: "rose" as const, note: "Theo view-model chuẩn" },
               ].map((item) => (
                 <ButtonBase key={item.key} onClick={() => { setRenewalTab(item.key); setRenewalPage(1); }} sx={{ display: "block", textAlign: "inherit", borderRadius: 4 }}>
                   <Metric label={item.label} value={item.value} accent={item.accent} note={item.note} icon={<Activity size={16} />} />
@@ -10048,9 +9888,6 @@ export default function Home() {
                     </Button>
                     <Button variant="outlined" size="small" onClick={() => void processExpiredRenewalsBatchHandler(currentRenewalOpsRows, "queue")} startIcon={<RefreshCw size={16} />}>
                       Xếp hàng batch
-                    </Button>
-                    <Button variant="outlined" size="small" onClick={openGroupMembershipAuditModal} startIcon={<FileText size={16} />}>
-                      Đối soát CSV group
                     </Button>
                     <Button variant="outlined" size="small" onClick={() => refreshKickAudit(renewalLiveCheck)} disabled={saving === "kick-audit-live"} startIcon={saving === "kick-audit-live" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>
                       {renewalLiveCheck ? "Kiểm tra live" : "Kiểm tra log"}
@@ -10082,7 +9919,7 @@ export default function Home() {
               <Tabs value={renewalTab} onChange={(_, next) => { setRenewalTab(next); setRenewalPage(1); }} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1 }}>
                 <Tab value="soon" label={`Sắp hết hạn (${expiringSoon.length})`} />
                 <Tab value="reminded" label={`Đã thông báo (${renewalNoticeEvents.length})`} />
-                <Tab value="expired" label={`Đã hết hạn (${expiredRenewalOrders.length})`} />
+                <Tab value="expired" label={`Đã hết hạn (${renewalAdminView.summary.total || expiredRenewalOrders.length})`} />
                 <Tab value="lifetime" label={`Trọn đời (${lifetimeRenewalOrders.length})`} />
               </Tabs>
               <Box sx={{ px: 2, pb: 2 }}>
@@ -10142,6 +9979,34 @@ export default function Home() {
                 />
                 <Pagination page={renewalPage} totalPages={totalRenewalPages} totalItems={currentRenewalOpsRows.length} onPage={setRenewalPage} label="dòng" />
               </Box>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "groupAudit" ? (
+          <div className="stack">
+            <section className="panel">
+              <PanelHead
+                title="Đối soát CSV group"
+                subtitle="Tab nhẹ riêng cho đối soát user thực tế trong group với CSV ID, Name, Username. Renewals sẽ không còn phải tải nặng phần này."
+                action={
+                  <div className="panel-actions">
+                    <Button variant="contained" size="small" startIcon={<FileText size={16} />} onClick={openGroupMembershipAuditModal}>
+                      Mở đối soát CSV
+                    </Button>
+                  </div>
+                }
+              />
+              <div style={{ display: "grid", gap: 12, padding: "0 16px 16px" }}>
+                <Alert severity="info" variant="outlined">
+                  Chỉ cần upload file CSV, chọn group và bấm chạy đối soát. Kết quả sẽ trả ra các user còn nằm trong group sau khi hết hạn.
+                </Alert>
+                <div className="grid">
+                  <Metric label="Mục tiêu" value="CSV đối soát group" accent="blue" icon={<FileText size={16} />} />
+                  <Metric label="Input" value="ID · Name · Username" accent="cyan" icon={<Users size={16} />} />
+                  <Metric label="Output" value="User còn trong group" accent="rose" icon={<ShieldCheck size={16} />} />
+                </div>
+              </div>
             </section>
           </div>
         ) : null}
@@ -10400,54 +10265,17 @@ export default function Home() {
 
         {tab === "supportGroup" ? (
           <div className="stack">
-            <div className="grid">
-              <Metric label="Join hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_joined").length)} accent="emerald" icon={<Plus size={16} />} />
-              <Metric label="Rời hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "support_left").length)} accent="rose" icon={<TrendingUp size={16} />} />
-              <Metric label="Mute hôm nay" value={String(supportGroupTodayEvents.filter((item) => item.event_type === "member_muted").length)} accent="amber" icon={<XCircle size={16} />} />
-              <Metric label="Kick hôm nay" value={String(supportKickedToday.length)} accent="violet" note="member_kicked / member_kick_closed" icon={<ShieldCheck size={16} />} />
-              <Metric label="Sự kiện nhóm hỗ trợ" value={String(supportGroupEvents.length)} accent="blue" icon={<Activity size={16} />} />
-              <Metric label="Tên group hỗ trợ" value={getConfigValue(config, "SUPPORT_GROUP_NAME", "Nhóm hỗ trợ")} accent="cyan" icon={<Users size={16} />} />
-              <Metric label="Mode hỗ trợ" value={String(getConfigValue(config, "SUPPORT_GROUP_MODE", "group")).toUpperCase()} accent="indigo" icon={<Settings size={16} />} />
-            </div>
             <section className="panel">
               <PanelHead
-                title="Khu vực hỗ trợ"
-                subtitle="Chỉ hiển thị sự kiện của group hỗ trợ theo SUPPORT_GROUP_ID. Không trộn với inbox tin nhắn bot."
+                title="Nhật ký hỗ trợ"
+                subtitle="Màn log thuần của support_events. Chỉ xem sự kiện thô, không tính trạng thái hay suy luận kick."
                 action={
                   <div className="panel-actions">
                     <Button variant="outlined" size="small" onClick={() => setSupportGroupSettingsOpen(true)} startIcon={<Settings size={16} />}>Cài đặt</Button>
-                    <Button variant="outlined" size="small" onClick={() => void lockSupportGroupReadOnlyAction()} startIcon={<ShieldCheck size={16} />}>Khóa quyền hàng loạt</Button>
-                    <Button variant="text" size="small" onClick={() => void unlockSupportGroupReadWriteAction()} startIcon={<RefreshCw size={16} />}>Mở lại quyền</Button>
-                    <Button variant="contained" size="small" onClick={runSupportGroupCheck} disabled={saving === "support-check"} startIcon={saving === "support-check" ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}>Kiểm tra</Button>
+                    <Button variant="outlined" size="small" onClick={() => void loadAll(savedSecret, { silent: true, scope: "all" })} startIcon={<RefreshCw size={16} />}>Làm mới</Button>
                   </div>
                 }
               />
-              {supportCheck ? (
-                <SimpleTable
-                  headers={["Hạng mục", "Trạng thái", "Chi tiết"]}
-                  rows={[
-                    ["Cấu hình", supportCheck.enabled ? "ON" : "OFF", `${supportCheck.group_name || "-"} / ${supportCheck.group_id || "chưa có ID"}`],
-                    ["Telegram getChat", supportCheck.get_chat.ok ? "OK" : "Lỗi", supportCheck.get_chat.message || "-"],
-                    ["Bot trong group", supportCheck.bot_member.ok ? "OK" : "Lỗi", supportCheck.bot_member.message || "-"],
-                    ["Tạo link mời", supportCheck.invite_link.ok ? "OK" : "Lỗi", supportCheck.invite_link.message || "-"],
-                  ]}
-                />
-              ) : (
-                <div className="muted">Bấm kiểm tra sau khi lưu ID group chăm sóc khách hàng.</div>
-              )}
-            </section>
-            <section className="panel">
-              <PanelHead
-                title="Sự kiện nhóm hỗ trợ"
-                subtitle="Theo tab để dễ lọc, chỉ hiển thị dữ liệu của group hỗ trợ."
-              />
-              <Tabs value={supportTab} onChange={(_, next) => setSupportTab(next)} variant="scrollable" scrollButtons="auto" textColor="inherit" indicatorColor="primary" sx={{ px: 2, py: 1.5 }}>
-                <Tab value="all" label={`Tất cả (${supportGroupEvents.length})`} />
-                <Tab value="joined" label={`Đã tham gia (${supportGroupEvents.filter((item) => item.event_type === "support_joined").length})`} />
-                <Tab value="left" label={`Đã rời (${supportGroupEvents.filter((item) => item.event_type === "support_left").length})`} />
-                <Tab value="muted" label={`Đã tắt tiếng (${supportGroupEvents.filter((item) => item.event_type === "member_muted").length})`} />
-                <Tab value="kicked" label={`Đã kick (${supportGroupEvents.filter((item) => item.event_type === "member_kicked").length})`} />
-              </Tabs>
               <SimpleTable headers={supportEventHeaders} rows={pagedSupportRows} />
               <Pagination page={supportPage} totalPages={totalSupportPages} totalItems={supportEventRows.length} onPage={setSupportPage} label="sự kiện" />
             </section>

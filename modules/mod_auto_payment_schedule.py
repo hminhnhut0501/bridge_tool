@@ -8,6 +8,7 @@ from aiogram import Router
 
 from database import db
 from supabase_store import supabase_store
+from legacy_support_boundary import record_support_event_legacy
 router = Router()
 _LAST_SCHEDULE_STATE = {"vi": {"new": None, "returning": None}, "en": {"new": None, "returning": None}}
 
@@ -266,7 +267,8 @@ def apply_auto_payment_schedule(now=None):
     _LAST_SCHEDULE_STATE["en"]["returning"] = en_returning_active
     if supabase_store.enabled and state_changed:
         try:
-            supabase_store.record_support_event(
+            record_support_event_legacy(
+                supabase_store,
                 "auto_payment_schedule_toggled",
                 None,
                 raw_data={

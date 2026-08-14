@@ -6,6 +6,7 @@ from types import SimpleNamespace
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
 import scheduler
+import kick_state_service
 import web_backend
 
 
@@ -60,6 +61,30 @@ class FakeStore:
     def list_renewal_kick_tasks_v2(self, limit=5000):
         return list(self.tasks)
 
+    def list_due_renewal_kick_group_tasks_v2(self, limit=5000):
+        return list(self.group_tasks)
+
+    def list_analytics_events(self, limit=25):
+        return []
+
+    def list_support_events(self, limit=1000, updated_after=None):
+        raise AssertionError("support_events should not be used in this phase")
+
+    def count_rows(self, table, params=None):
+        if table != "orders":
+            return 0
+        if params and params.get("status") == "eq.PAID":
+            return sum(1 for order in self.orders if str(order.get("status") or "").upper() == "PAID")
+        if params and params.get("status") == "eq.PENDING":
+            return sum(1 for order in self.orders if str(order.get("status") or "").upper() == "PENDING")
+        return len(self.orders)
+
+    def get_renewal_kick_task_v2(self, order_id, telegram_user_id):
+        for task in self.tasks:
+            if str(task.get("order_id")) == str(order_id) and str(task.get("telegram_user_id")) == str(telegram_user_id):
+                return task
+        return None
+
     def _request(self, method, table, params=None):
         if table == "renewal_kick_group_tasks_v2":
             return list(self.group_tasks)
@@ -111,6 +136,49 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
                 next_state, payload = scheduler.finalize_renewal_kick_task_v2_from_groups({"metadata": {}}, groups, now)
                 self.assertEqual(next_state, expected)
                 self.assertEqual(payload["task_state"], expected)
+
+    async def test_renewal_kick_state_prefers_v2_over_support_events(self):
+        store = FakeStore(
+            tasks=[{
+                "id": "t1",
+                "order_id": "o1",
+                "telegram_user_id": "42",
+                "task_state": "done",
+            }],
+            group_tasks=[],
+        )
+        store.events = [{
+            "event_type": "member_kick_failed",
+            "telegram_user_id": "42",
+            "order_id": "o1",
+            "chat_id": "-100111",
+            "created_at": "2026-08-13T11:00:00",
+        }]
+        web_backend.supabase_store = store
+        scheduler.supabase_store = store
+
+        state, _ = scheduler.renewal_kick_state_v2("42", "o1", "-100111")
+
+        self.assertEqual(state, "done")
+
+    async def test_support_events_alone_no_longer_define_kick_state(self):
+        store = FakeStore(tasks=[], group_tasks=[])
+        store.events = [{
+            "event_type": "member_kick_closed",
+            "telegram_user_id": "42",
+            "order_id": "o1",
+            "chat_id": "-100111",
+            "created_at": "2026-08-13T11:00:00",
+        }]
+        web_backend.supabase_store = store
+        scheduler.supabase_store = store
+        kick_state_service.supabase_store = store
+
+        state, payload = scheduler.renewal_kick_state_v2("42", "o1", "-100111")
+
+        self.assertEqual(state, "none")
+        self.assertIsNone(payload)
+        self.assertFalse(kick_state_service.is_kick_finalized("42", "o1", "-100111"))
 
     async def test_build_kick_audit_rows_uses_v2_task_and_group_state(self):
         store = FakeStore(
@@ -239,6 +307,50 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("Nhóm hỗ trợ", result["data"]["manual_order_text"])
         self.assertIn("https://t.me/+support", result["data"]["manual_order_text"])
+
+    async def test_dashboard_overview_does_not_depend_on_support_events(self):
+        store = FakeStore(
+            orders=[{
+                "order_id": "o1",
+                "telegram_user_id": "42",
+                "full_name": "Tester",
+                "plan_name": "VIP 30 Ngày - Prime",
+                "amount": 100,
+                "status": "PAID",
+                "created_at": "2026-08-13T12:00:00",
+                "expire_at": "2026-08-15T12:00:00",
+            }],
+        )
+        web_backend.supabase_store = store
+
+        result = await web_backend.admin_dashboard_overview()
+
+        self.assertIn("data", result)
+        self.assertEqual(result["data"]["counts"]["orders"], 1)
+        self.assertNotIn("support_events", result["data"]["counts"])
+        self.assertNotIn("recent_notifications", result["data"])
+
+    async def test_admin_notifications_no_longer_need_support_events(self):
+        store = FakeStore(
+            orders=[{
+                "order_id": "o1",
+                "telegram_user_id": "42",
+                "full_name": "Tester",
+                "plan_name": "VIP 30 Ngày - Prime",
+                "status": "PAID",
+                "created_at": "2026-08-13T12:00:00",
+            }],
+            tasks=[],
+            group_tasks=[],
+            attempts=[],
+        )
+        web_backend.supabase_store = store
+
+        result = await web_backend.admin_notifications(limit=10)
+
+        self.assertIn("data", result)
+        self.assertGreaterEqual(result["data"]["counts"]["total"], 1)
+        self.assertEqual(result["data"]["counts"]["orders"], 1)
 
 
 if __name__ == "__main__":
