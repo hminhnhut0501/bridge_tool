@@ -2559,6 +2559,11 @@ async def admin_generate_manual_active_code(request: Request):
     if not order_id or not telegram_user_id or not plan_name:
         raise HTTPException(status_code=400, detail="Thiếu thông tin đơn hàng.")
 
+    try:
+        user_id = int(telegram_user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Telegram ID phải là số.")
+
     activation_code = generate_activation_code()
     activation_url = build_manual_activation_url(activation_code)
 
@@ -2600,6 +2605,37 @@ async def admin_generate_manual_active_code(request: Request):
         "expire_at": expire_at_str,
     })
 
+    support_link, support_error = None, ""
+    support_text = ""
+    try:
+        support_link, support_error = await _maybe_await(create_support_invite_link(user_id))
+    except Exception as exc:
+        if not (is_missing_supabase_table_error(exc, "support_events") or is_missing_supabase_runtime_error(exc)):
+            raise
+        print(f"⚠️ Bỏ qua tạo support link vì thiếu bảng/env Supabase: {exc}")
+        support_link, support_error = None, ""
+
+    if support_link:
+        support_text = render_manual_order_support_text("💬 {support_group_name}:\n{support_link}", {
+            "order_id": order_id,
+            "telegram_user_id": telegram_user_id,
+            "full_name": full_name,
+            "plan_name": plan_name,
+            "expire_at": expire_at_str,
+            "support_group_name": safe_support_group_name(),
+            "support_link": support_link,
+            "support_error": "",
+        })
+    elif support_error:
+        support_text = render_activation_text(
+            "MANUAL_ORDER_SUPPORT_ERROR_TEMPLATE",
+            "💬 {support_group_name}: Không tạo được link hỗ trợ ({support_error})",
+            {
+                "support_group_name": safe_support_group_name(),
+                "support_error": support_error,
+            },
+        )
+
     manual_order_text = render_manual_order_message_text(message_template, {
         "order_id": order_id,
         "telegram_user_id": telegram_user_id,
@@ -2613,10 +2649,10 @@ async def admin_generate_manual_active_code(request: Request):
         "activation_url": activation_url,
         "message_url": build_manual_order_message_url(activation_code),
         "links_text": "",
-        "support_text": "",
+        "support_text": support_text,
         "support_group_name": safe_support_group_name(),
-        "support_link": "",
-        "support_error": "",
+        "support_link": support_link,
+        "support_error": support_error,
         "activation_code": activation_code,
     })
     if timing_enabled:

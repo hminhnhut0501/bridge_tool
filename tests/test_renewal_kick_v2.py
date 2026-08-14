@@ -208,6 +208,35 @@ class RenewalKickV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("PARTIAL", text)
         self.assertIn("SUPPORT", text)
 
+    async def test_manual_active_code_includes_support_text_when_available(self):
+        original_safe_db_config = web_backend.safe_db_config
+        original_create_support_invite_link = web_backend.create_support_invite_link
+        try:
+            web_backend.safe_db_config = lambda key, default="": (
+                "{success_text}\n\n{order_text}\n\n{bot_link_title}\n{activation_url}\n\n{bot_link_subtitle}\n\n{support_text}"
+                if key == "MANUAL_ORDER_MESSAGE_TEMPLATE"
+                else default
+            )
+
+            async def fake_create_support_invite_link(_user_id):
+                return "https://t.me/+support", ""
+
+            web_backend.create_support_invite_link = fake_create_support_invite_link
+            result = await web_backend.admin_generate_manual_active_code(FakeRequest({
+                "order_id": "o1",
+                "telegram_user_id": "42",
+                "full_name": "Tester",
+                "plan_name": "VIP 30 Ngày - Prime",
+                "expire_at": "2026-08-13 12:00:00",
+                "expire_at_iso": "2026-08-13T12:00:00",
+            }))
+        finally:
+            web_backend.safe_db_config = original_safe_db_config
+            web_backend.create_support_invite_link = original_create_support_invite_link
+
+        self.assertIn("SUPPORT", result["data"]["manual_order_text"])
+        self.assertIn("Nhóm hỗ trợ", result["data"]["manual_order_text"])
+
 
 if __name__ == "__main__":
     unittest.main()
