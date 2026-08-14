@@ -7,17 +7,6 @@ import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
 import { MuiDialogShell } from "./dashboard-components";
 import { dateTimePreviewText, formatMoneyInputDisplay, isLifetimeText, parseMoneyInputValue, resolveOrderLabel } from "./dashboard-helpers";
 
-function stripHtml(value: string) {
-  return String(value || "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .trim();
-}
-
 export type ManualOrderFormState = {
   telegram_user_id: string;
   full_name: string;
@@ -179,10 +168,10 @@ export function ManualOrderResultPanel({
   compact = false,
 }: ManualOrderResultPanelProps) {
   const orderLabel = resolveOrderLabel(result);
-  const activeButtonLabel = "Gen lại tin active code";
-  const joinCardButtonLabel = "Gen lại tin tham gia nhóm";
-  const activeCopyLabel = "Copy tin";
-  const joinCopyLabel = "Copy link";
+  const activeButtonLabel = "Gen lại";
+  const joinCardButtonLabel = "Gen lại";
+  const activeCopyLabel = "Copy";
+  const joinCopyLabel = "Copy";
   return (
       <Stack spacing={compact ? 0.9 : 1.75}>
       <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
