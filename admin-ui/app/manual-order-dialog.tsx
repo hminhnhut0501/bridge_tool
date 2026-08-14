@@ -109,11 +109,11 @@ function ResultActionCard({
         bgcolor: accent === "info" ? "rgba(236,254,255,0.76)" : "rgba(239,246,255,0.76)",
       }}
     >
-      <CardContent sx={{ p: compact ? 1.25 : 2, display: "grid", gap: compact ? 0.9 : 1.15 }}>
+      <CardContent sx={{ p: compact ? 1.1 : 2, display: "grid", gap: compact ? 0.8 : 1.15 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: compact ? 15 : 16 }}>{title}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, lineHeight: 1.35 }}>{subtitle}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.2, lineHeight: 1.3 }}>{subtitle}</Typography>
           </Box>
           <Chip size="small" label={hasValue ? "Sẵn sàng" : "Chưa có"} color={hasValue ? accent : "default"} variant={hasValue ? "filled" : "outlined"} sx={{ fontWeight: 800 }} />
         </Box>
@@ -124,7 +124,7 @@ function ResultActionCard({
             slotProps={{ input: { readOnly: true } }}
             fullWidth
             multiline
-            minRows={compact ? 3 : 5}
+            minRows={compact ? 2 : 5}
             sx={{
               "& .MuiInputBase-root": { bgcolor: "rgba(255,255,255,0.9)" },
             }}
@@ -136,7 +136,7 @@ function ResultActionCard({
               border: "1px dashed",
               borderColor: "rgba(148,163,184,0.24)",
               bgcolor: "rgba(255,255,255,0.74)",
-              p: compact ? 1.5 : 2,
+              p: compact ? 1.25 : 2,
               textAlign: "center",
               color: "text.secondary",
             }}
@@ -172,7 +172,7 @@ export function ManualOrderResultPanel({
   const activeCopyLabel = "Copy tin";
   const joinCopyLabel = "Copy link";
   return (
-    <Stack spacing={compact ? 1 : 1.75}>
+      <Stack spacing={compact ? 0.9 : 1.75}>
       <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
           <strong>Hiển thị:</strong>
@@ -186,16 +186,16 @@ export function ManualOrderResultPanel({
       <Box
         sx={{
           display: "grid",
-          gap: compact ? 1 : 1.25,
+          gap: compact ? 0.9 : 1.25,
           gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
           alignItems: "stretch",
         }}
       >
         <ResultActionCard
-          title={result.manual_order_message_title || "Tin nhắn active code"}
-          subtitle={result.manual_order_message_subtitle || "Nội dung bot trả để khách dùng active code."}
+          title={result.manual_order_message_title || "Tin active"}
+          subtitle={result.manual_order_message_subtitle || "Nội dung gửi khách."}
           value={result.manual_order_text || ""}
-          emptyText="Chưa có active code cho đơn này."
+          emptyText="Chưa có tin active."
           actionLabel={activeButtonLabel}
           onAction={onGenerateActiveCode}
           saving={saving}
@@ -206,10 +206,10 @@ export function ManualOrderResultPanel({
         />
 
         <ResultActionCard
-          title={result.manual_order_join_title || "Link tham gia nhóm"}
-          subtitle={result.manual_order_join_subtitle || "Nội dung join group đã gộp sẵn để gửi khách."}
+          title={result.manual_order_join_title || "Link nhóm"}
+          subtitle={result.manual_order_join_subtitle || "Nội dung link nhóm."}
           value={stripHtml(result.manual_order_join_text || "")}
-          emptyText="Chưa có link tham gia nhóm cho đơn này."
+          emptyText="Chưa có link nhóm."
           actionLabel={joinCardButtonLabel}
           onAction={onGenerateJoinLink}
           saving={saving}
@@ -280,38 +280,38 @@ export function ManualOrderDialog({
         <Box
           sx={{
             display: "grid",
-            gap: 1,
+            gap: 0.85,
             gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            mb: 1.25,
+            mb: 1,
           }}
         >
           <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
-            <CardContent sx={{ p: 1.1 }}>
+            <CardContent sx={{ p: 1 }}>
               <Typography variant="caption" color="text.secondary">Khách</Typography>
               <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15, wordBreak: "break-word" }}>{form.full_name || "Chưa chọn"}</Typography>
               <Typography variant="caption" color="text.secondary">Telegram: {form.telegram_user_id || "-"}</Typography>
             </CardContent>
           </Card>
           <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
-            <CardContent sx={{ p: 1.1 }}>
+            <CardContent sx={{ p: 1 }}>
               <Typography variant="caption" color="text.secondary">Gói</Typography>
               <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15, wordBreak: "break-word" }}>{planName}</Typography>
               <Typography variant="caption" color="text.secondary">{manualExpiryPreview}</Typography>
             </CardContent>
           </Card>
           <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
-            <CardContent sx={{ p: 1.1 }}>
+            <CardContent sx={{ p: 1 }}>
               <Typography variant="caption" color="text.secondary">Kiểu</Typography>
               <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{form.expiry_mode === "date" ? "Hết hạn theo ngày" : "Theo số ngày"}</Typography>
               <Typography variant="caption" color="text.secondary">{form.payment_provider || "MANUAL"} · {form.payment_currency || "VND"}</Typography>
             </CardContent>
           </Card>
         </Box>
-        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, mb: 1.5 }}>
-          <Stack spacing={1.5}>
-            <TextField label="Telegram ID" value={form.telegram_user_id} onChange={(event) => setForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách. Không dùng username @." />
-            <TextField label="Tên khách" value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị để dễ quản lý" size="small" />
-            <TextField select label="Gói lưu vào đơn" value={form.plan_key} onChange={(event) => onChangePlanKey(event.target.value)} size="small" helperText="Chọn gói thường hoặc Tùy chỉnh thời hạn.">
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, mb: 1.25 }}>
+          <Stack spacing={1.1}>
+            <TextField label="Telegram ID" value={form.telegram_user_id} onChange={(event) => setForm((current) => ({ ...current, telegram_user_id: event.target.value }))} placeholder="VD: 7344961485" size="small" helperText="ID số của khách." />
+            <TextField label="Tên khách" value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} placeholder="Tên hiển thị" size="small" />
+            <TextField select label="Gói lưu vào đơn" value={form.plan_key} onChange={(event) => onChangePlanKey(event.target.value)} size="small" helperText="Gói thường hoặc tùy chỉnh.">
               {planOptions.map((item) => (
                 <MenuItem key={item} value={item}>
                   {item === "CUSTOM" ? "Tự nhập tên gói" : item === "CUSTOM_DURATION" ? "Tùy chỉnh thời hạn" : manualPlanKeyOptions.includes(item) ? manualPlanNameFromKey(item) : item}
@@ -327,14 +327,14 @@ export function ManualOrderDialog({
                 {form.entitlement_type === "GROUP_COLLECTION" ? (
                   <TextField select label="Group / Collection" value={form.entitlement_key} onChange={(event) => setForm((current) => ({ ...current, entitlement_key: event.target.value }))} size="small" required>
                     <MenuItem value="">
-                      <em>Chọn group</em>
+                    <em>Chọn</em>
                     </MenuItem>
                     {configuredGroups.map((item) => <MenuItem key={item} value={`G${item}`}>Group {item}</MenuItem>)}
                   </TextField>
                 ) : null}
               </>
             ) : null}
-            <TextField select label="Special Group" value={form.special_group_id} onChange={(event) => onChangeSpecialGroup(event.target.value, form.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn Special Group riêng. Khi chọn, ô gói thường sẽ tự chuyển sang Special." : "Chưa có Special Group đang hoạt động."}>
+            <TextField select label="Special Group" value={form.special_group_id} onChange={(event) => onChangeSpecialGroup(event.target.value, form.special_group_duration)} size="small" helperText={activeSpecialGroups.length ? "Chọn Special Group." : "Chưa có Special Group."}>
               <MenuItem value="">
                 <em>Không dùng Special Group</em>
               </MenuItem>
@@ -343,7 +343,7 @@ export function ManualOrderDialog({
               ))}
             </TextField>
             {form.special_group_id ? (
-              <TextField select label="Hạn Special Group" value={form.special_group_duration} onChange={(event) => onChangeSpecialGroup(form.special_group_id, event.target.value)} size="small" helperText="Dùng để khớp đúng token plan và giá của special group.">
+                <TextField select label="Hạn Special Group" value={form.special_group_duration} onChange={(event) => onChangeSpecialGroup(form.special_group_id, event.target.value)} size="small" helperText="Khớp giá và token.">
                 <MenuItem value="1M">30 ngày</MenuItem>
                 <MenuItem value="LIFE">Trọn đời</MenuItem>
               </TextField>
@@ -351,9 +351,9 @@ export function ManualOrderDialog({
             <TextField label="Mã / ghi chú" value={form.coupon_code} onChange={(event) => setForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="VD: MANUAL_ADMIN" size="small" />
           </Stack>
 
-          <Stack spacing={1.5}>
+          <Stack spacing={1.1}>
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-              <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ tự làm tròn số nguyên." />
+              <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ." />
               <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
                 const nextCurrency = event.target.value;
                 const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;
@@ -368,7 +368,7 @@ export function ManualOrderDialog({
                 <MenuItem value="USDT">USDT</MenuItem>
               </TextField>
             </Box>
-            <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ để ghi nhận báo cáo và đối soát, không đổi flow cấp quyền chính.">
+            <TextField select label="Phương thức thanh toán" value={form.payment_provider} onChange={(event) => setForm((current) => ({ ...current, payment_provider: event.target.value }))} size="small" helperText="Chỉ ghi nhận đối soát.">
               <MenuItem value="MANUAL">Thủ công</MenuItem>
               <MenuItem value="PAYOS">PayOS / VietQR</MenuItem>
               <MenuItem value="PAYPAL">PayPal</MenuItem>
@@ -382,15 +382,15 @@ export function ManualOrderDialog({
               {form.expiry_mode === "days" ? (
                 <TextField label="Số ngày sử dụng" value={form.duration_days} onChange={(event) => setForm((current) => ({ ...current, duration_days: event.target.value }))} placeholder={form.plan_mode === "CUSTOM_DURATION" ? "1" : "30"} inputMode="numeric" size="small" helperText={manualExpiryPreview} />
               ) : (
-                <TextField label="Ngày hết hạn cụ thể" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
+                <TextField label="Ngày hết hạn" type="datetime-local" value={form.expire_at} onChange={(event) => setForm((current) => ({ ...current, expire_at: event.target.value }))} size="small" slotProps={{ inputLabel: { shrink: true } }} helperText={manualExpiryPreview} />
               )}
             </Box>
-            <TextField label="Ghi chú nội bộ cho đơn" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="Ví dụ: khách VIP cũ, gia hạn thủ công..." size="small" multiline minRows={2} />
+            <TextField label="Ghi chú" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="Ghi chú nội bộ" size="small" multiline minRows={2} />
           </Stack>
         </Box>
 
         {result ? (
-          <Box sx={{ mt: 2, pt: 2, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 1.5 }}>
+          <Box sx={{ mt: 1.75, pt: 1.5, borderTop: "2px solid", borderColor: "primary.main", display: "grid", gap: 1.25 }}>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>Kết quả tạo đơn</Typography>
             <ManualOrderResultPanel
               result={result}

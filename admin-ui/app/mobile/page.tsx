@@ -521,16 +521,16 @@ export default function MobileAdminPage() {
         <Box sx={{ px: { xs: 1.25, sm: 1.5 }, pt: 1.25, display: "grid", gap: 1.25 }}>
         {refreshing ? <Chip label="Đang tải dữ liệu..." size="small" variant="outlined" /> : null}
         <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" } }}>
-          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{orders.length}</Typography><Typography variant="caption" color="text.secondary">Tổng dữ liệu đang tải</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">PAID còn hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidActiveCount}</Typography><Typography variant="caption" color="text.secondary">Sẵn sàng dùng</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">PAID hết hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidExpiredCount}</Typography><Typography variant="caption" color="text.secondary">Cần xử lý</Typography></CardContent></Card>
-          <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{uniqueCustomerCount}</Typography><Typography variant="caption" color="text.secondary">Unique Telegram</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 88, display: "grid", alignContent: "start", gap: 0.2 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{orders.length}</Typography><Typography variant="caption" color="text.secondary">Tổng</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 88, display: "grid", alignContent: "start", gap: 0.2 }}><Typography variant="caption" color="text.secondary">PAID còn hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidActiveCount}</Typography><Typography variant="caption" color="text.secondary">Sẵn sàng</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 88, display: "grid", alignContent: "start", gap: 0.2 }}><Typography variant="caption" color="text.secondary">PAID hết hạn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{paidExpiredCount}</Typography><Typography variant="caption" color="text.secondary">Cần xử lý</Typography></CardContent></Card>
+          <Card><CardContent sx={{ p: 1.25, minHeight: 88, display: "grid", alignContent: "start", gap: 0.2 }}><Typography variant="caption" color="text.secondary">Khách</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{uniqueCustomerCount}</Typography><Typography variant="caption" color="text.secondary">Unique</Typography></CardContent></Card>
         </Box>
 
         {copyNote ? <Alert severity={copyNote.includes("thất bại") ? "error" : "success"} variant="outlined">{copyNote}</Alert> : null}
 
         {mobileTab === "lookup" ? (
-          <AppSection title="Tra cứu" subtitle="Telegram ID, tên, hoặc từ khóa gói." accent="violet">
+          <AppSection title="Tra cứu" subtitle="ID, tên, hoặc gói." accent="violet">
             <Stack spacing={1}>
               <TextField size="small" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Ví dụ: 7508222302, @username, tên khách" fullWidth />
               {customerLoading ? <Chip icon={<Loader2 size={14} className="spin" />} label="Đang tra cứu" /> : null}
@@ -559,7 +559,7 @@ export default function MobileAdminPage() {
                   detail={selectedCustomer.latestExpireOrder ? `Gói gần nhất: ${resolveOrderLabel(selectedCustomer.latestExpireOrder).displayLabel}` : "Gói gần nhất: -"}
                   actions={(
                     <>
-                      <Button variant="outlined" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<Plus size={16} />}>Dùng để tạo đơn</Button>
+                      <Button variant="outlined" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<Plus size={16} />}>Tạo đơn</Button>
                       <Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>
                     </>
                   )}
@@ -572,12 +572,12 @@ export default function MobileAdminPage() {
         {mobileTab === "manual" ? (
           <AppSection
             title="Tạo đơn"
-            subtitle="Mở drawer, tạo order, rồi lấy active code / join link."
+            subtitle="Mở drawer, tạo order, lấy active code / join link."
             accent="blue"
             action={<Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>}
           >
             <Stack spacing={1}>
-              <Alert severity="info" variant="outlined">Mở drawer để tạo đơn theo cùng luồng với PC, nhưng tối ưu cho màn nhỏ.</Alert>
+              <Alert severity="info" variant="outlined">Mở drawer để tạo đơn nhanh trên mobile.</Alert>
             </Stack>
           </AppSection>
         ) : null}
@@ -585,7 +585,7 @@ export default function MobileAdminPage() {
         {mobileTab === "orders" ? (
         <AppSection
           title="Đơn hàng"
-          subtitle="Hiển thị responsive, giữ đúng data source với PC."
+          subtitle="Responsive, cùng data source với PC."
           action={<AppToolbar><Button size="small" variant="outlined" onClick={() => void refreshAll()} startIcon={<RefreshCw size={14} />}>Tải lại</Button></AppToolbar>}
           accent="blue"
         >
@@ -630,7 +630,7 @@ export default function MobileAdminPage() {
         {mobileTab === "logs" ? (
         <AppSection
           title="Nhật ký"
-          subtitle="Bộ lọc và hiển thị bám theo tab Nhật ký của PC."
+          subtitle="Bộ lọc và hiển thị theo PC."
           accent="violet"
         >
           <Stack spacing={1}>
@@ -685,7 +685,7 @@ export default function MobileAdminPage() {
         ) : null}
 
         {manualResult ? (
-          <AppSection title="Kết quả tạo đơn" subtitle="Đồng bộ với PC để đối soát và copy nhanh." accent="emerald">
+          <AppSection title="Kết quả tạo đơn" subtitle="Đồng bộ với PC." accent="emerald">
             <ManualOrderResultPanel
               result={manualResult}
               onGenerateActiveCode={submitActiveCode}
