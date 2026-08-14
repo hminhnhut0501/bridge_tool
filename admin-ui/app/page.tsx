@@ -120,8 +120,10 @@ import {
   orderMoney,
   orderNoteText,
   resolveOrderLabel,
+  formatMoneyInputDisplay,
   payloadText,
   providerRevenueFormat,
+  parseMoneyInputValue,
   safeDateMillis,
   statusClass,
   logEntryTypeLabel,
@@ -6030,7 +6032,7 @@ export default function Home() {
   }
 
   function orderEditorAmountPreview() {
-    const raw = Number(String(orderEditorForm.amount || "").replace(/,/g, "."));
+    const raw = Number(String(orderEditorForm.amount || "").replace(/,/g, ""));
     if (!Number.isFinite(raw)) return "-";
     const fallbackCurrency = selectedOrderForEditor ? inferOrderCurrency(selectedOrderForEditor) : "VND";
     const currency = normalizeRevenueCurrency(orderEditorForm.payment_currency || fallbackCurrency);
@@ -6038,14 +6040,7 @@ export default function Home() {
   }
 
   function normalizeOrderEditorAmountInput(value: string, currency: string) {
-    const normalizedCurrency = normalizeRevenueCurrency(currency);
-    const cleaned = String(value || "").replace(/[^\d.,-]/g, "").replace(/,/g, ".");
-    if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
-      const match = cleaned.match(/^-?\d*(?:\.\d{0,2})?/);
-      return match ? match[0] : "";
-    }
-    const match = cleaned.match(/^-?\d*/);
-    return match ? match[0] : "";
+    return parseMoneyInputValue(value, currency);
   }
 
   function normalizeMoneyInput(value: string, currency: string) {
@@ -6056,7 +6051,7 @@ export default function Home() {
     const normalizedCurrency = normalizeRevenueCurrency(currency);
     const text = String(value || "").trim();
     if (!text) return "";
-    const numeric = Number(text.replace(/,/g, "."));
+    const numeric = Number(text.replace(/,/g, ""));
     if (!Number.isFinite(numeric)) return value;
     if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
       return String(Math.round(numeric * 100) / 100);
@@ -6069,7 +6064,7 @@ export default function Home() {
     if (currency !== "VND") return;
     const text = String(orderEditorForm.amount || "").trim();
     if (!text) return;
-    const numeric = Number(text.replace(/,/g, "."));
+    const numeric = Number(text.replace(/,/g, ""));
     if (!Number.isFinite(numeric)) return;
     setOrderEditorForm((current) => ({ ...current, amount: String(Math.round(numeric)) }));
   }
@@ -6087,7 +6082,7 @@ export default function Home() {
       payment_currency: String(orderEditorForm.payment_currency || "VND").toUpperCase(),
       note: nextNote,
     };
-    if (String(orderEditorForm.amount || "").trim() !== "") payload.amount = Number(String(orderEditorForm.amount).replace(/,/g, "."));
+    if (String(orderEditorForm.amount || "").trim() !== "") payload.amount = Number(String(orderEditorForm.amount).replace(/,/g, ""));
     if (orderEditorForm.expire_at) payload.expire_at = orderEditorForm.expire_at;
     if (orderEditorForm.paid_at) payload.paid_at = orderEditorForm.paid_at;
     await runAction(`order-edit-${orderEditorOrderId}`, async () => {
@@ -6140,7 +6135,7 @@ export default function Home() {
   async function saveCustomerRenewal() {
     if (!selectedCustomer) return;
     const planName = customerRenewForm.plan_name.trim();
-    const amount = Number(customerRenewForm.amount);
+    const amount = Number(String(customerRenewForm.amount || "").replace(/,/g, ""));
     const days = Number(customerRenewForm.duration_days);
     if (!planName) {
       showNotice("error", "Vui lòng chọn đúng gói.");
@@ -11810,10 +11805,10 @@ export default function Home() {
                 />
                 <TextField
                   label="Số tiền"
-                  value={orderEditorForm.amount}
+                  value={formatMoneyInputDisplay(orderEditorForm.amount, orderEditorForm.payment_currency)}
                   onChange={(event) => setOrderEditorForm((current) => ({
                     ...current,
-                    amount: normalizeMoneyInput(event.target.value, current.payment_currency || orderEditorForm.payment_currency),
+                    amount: parseMoneyInputValue(event.target.value, current.payment_currency || orderEditorForm.payment_currency),
                   }))}
                   onBlur={() => setOrderEditorForm((current) => ({ ...current, amount: roundMoneyInput(current.amount, current.payment_currency) }))}
                   size="small"
@@ -12425,8 +12420,8 @@ export default function Home() {
               </Alert>
               <TextField
                 label="Số tiền thanh toán"
-                value={customerRenewForm.amount}
-                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, amount: normalizeMoneyInput(event.target.value, current.payment_currency) }))}
+                value={formatMoneyInputDisplay(customerRenewForm.amount, customerRenewForm.payment_currency)}
+                onChange={(event) => setCustomerRenewForm((current) => ({ ...current, amount: parseMoneyInputValue(event.target.value, current.payment_currency) }))}
                 onBlur={() => setCustomerRenewForm((current) => ({ ...current, amount: roundMoneyInput(current.amount, current.payment_currency) }))}
                 placeholder="99000"
                 fullWidth

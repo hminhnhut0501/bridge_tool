@@ -28,7 +28,7 @@ import {
 import type { ActivityLogEntry, ConfigRow, CustomerSearchResult, HiddenGroup, ManualOrderResult, Order } from "@/lib/api";
 import { createManualOrder, generateManualActiveCode, generateManualJoinLink, getActivityLog, getConfig, getDashboardOverview, getHiddenGroups, getOrders, searchCustomers } from "@/lib/api";
 import { AppSection, AppToolbar, Pagination, SimpleTable, statusChipSx } from "../dashboard-components";
-import { dateText, dateTextMobileCompact, daysUntil, dayKey, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive, displayText } from "../dashboard-helpers";
+import { dateText, dateTextMobileCompact, daysUntil, dayKey, displayText, friendlyDetailText, logEntryTypeLabel, orderLifecycleLabel, resolveOrderLabel, orderNoteText, isOrderActive } from "../dashboard-helpers";
 import { ManualOrderDialog, ManualOrderResultPanel, type ManualOrderFormState } from "../manual-order-dialog";
 import { getConfigValue } from "../dashboard-business";
 
@@ -431,7 +431,7 @@ export default function MobileAdminPage() {
         plan_mode: planMode || undefined,
         entitlement_type: planMode === "CUSTOM_DURATION" ? manualForm.entitlement_type : undefined,
         entitlement_key: planMode === "CUSTOM_DURATION" ? manualForm.entitlement_key : undefined,
-        amount: manualForm.amount.trim() || undefined,
+        amount: String(manualForm.amount || "").trim().replace(/,/g, "") || undefined,
         duration_days: manualForm.duration_days.trim() || undefined,
         expire_at: manualForm.expire_at.trim() || undefined,
         note: displayText(manualForm.note) || undefined,

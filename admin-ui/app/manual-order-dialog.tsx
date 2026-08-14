@@ -5,7 +5,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import type { HiddenGroup, ManualOrderResult } from "@/lib/api";
 import { MuiDialogShell } from "./dashboard-components";
-import { dateTimePreviewText, isLifetimeText, resolveOrderLabel } from "./dashboard-helpers";
+import { dateTimePreviewText, formatMoneyInputDisplay, isLifetimeText, parseMoneyInputValue, resolveOrderLabel } from "./dashboard-helpers";
 
 function stripHtml(value: string) {
   return String(value || "")
@@ -353,7 +353,7 @@ export function ManualOrderDialog({
 
           <Stack spacing={1.1}>
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 1 }}>
-              <TextField label="Số tiền" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ." />
+              <TextField label="Số tiền" value={formatMoneyInputDisplay(form.amount, form.payment_currency)} onChange={(event) => setForm((current) => ({ ...current, amount: parseMoneyInputValue(event.target.value, form.payment_currency) }))} placeholder="0" inputMode="numeric" size="small" helperText="VNĐ." />
               <TextField select label="Tiền tệ" value={form.payment_currency} onChange={(event) => {
                 const nextCurrency = event.target.value;
                 const selectedGroup = form.special_group_id ? activeSpecialGroups.find((item) => item.id === form.special_group_id) || null : null;

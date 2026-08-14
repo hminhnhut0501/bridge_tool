@@ -23,6 +23,30 @@ export function formatDisplayCurrency(value: number, currency: string, options?:
   return money(amount);
 }
 
+export function formatMoneyInputDisplay(value: string | number | null | undefined, currency: string) {
+  const text = displayText(value);
+  if (!text) return "";
+  const normalizedCurrency = normalizeRevenueCurrency(currency);
+  const numeric = Number(String(text).replace(/,/g, "").trim());
+  if (!Number.isFinite(numeric)) return text;
+  if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
+    return new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(numeric);
+  }
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(numeric));
+}
+
+export function parseMoneyInputValue(value: string, currency: string) {
+  const normalizedCurrency = normalizeRevenueCurrency(currency);
+  const cleaned = String(value || "").replace(/[^\d.,-]/g, "").replace(/,/g, ".");
+  if (!cleaned) return "";
+  if (normalizedCurrency === "USD" || normalizedCurrency === "USDT" || normalizedCurrency === "CRYPTO") {
+    const match = cleaned.match(/^-?\d*(?:\.\d{0,2})?/);
+    return match ? match[0] : "";
+  }
+  const match = cleaned.match(/^-?\d*/);
+  return match ? match[0] : "";
+}
+
 function parseLooseDateParts(value: string) {
   const text = value.trim();
   const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(text);
