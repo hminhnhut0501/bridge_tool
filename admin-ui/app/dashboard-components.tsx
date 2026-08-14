@@ -778,9 +778,9 @@ export function MuiDialogShell({ open, title, subtitle, onClose, children, actio
       fullScreen={fullScreenOnMobile && isMobile}
       slotProps={fullScreenOnMobile && isMobile ? { paper: { sx: { m: 0, height: "100dvh", maxHeight: "100dvh", borderRadius: 0 } } } : undefined}
     >
-      <DialogTitle sx={{ position: "relative", pr: 6 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.15 }}>{title}</Typography>
-        {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.9, maxWidth: 760, lineHeight: 1.5 }}>{subtitle}</Typography> : null}
+      <DialogTitle sx={{ position: "relative", pr: 6, px: { xs: 2, md: 3 }, py: { xs: 1.5, md: 2 } }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, fontSize: { xs: 18, md: 22 } }}>{title}</Typography>
+        {subtitle ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 760, lineHeight: 1.35, fontSize: { xs: 12.5, md: 14 } }}>{subtitle}</Typography> : null}
         <IconButton
           aria-label="Đóng"
           onClick={onClose}
@@ -802,13 +802,13 @@ export function MuiDialogShell({ open, title, subtitle, onClose, children, actio
           <XCircle size={18} />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ py: 3, bgcolor: "background.default" }}>
-        <Stack spacing={2.5}>
+      <DialogContent dividers sx={{ py: { xs: 1.75, md: 3 }, px: { xs: 1.5, md: 3 }, bgcolor: "background.default" }}>
+        <Stack spacing={{ xs: 1.5, md: 2.5 }}>
           {children}
         </Stack>
       </DialogContent>
       {actions ? (
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: "background.paper" }}>
+        <DialogActions sx={{ px: { xs: 1.5, md: 3 }, py: { xs: 1.25, md: 2 }, bgcolor: "background.paper", position: fullScreenOnMobile && isMobile ? "sticky" : "static", bottom: 0, zIndex: 2, boxShadow: fullScreenOnMobile && isMobile ? "0 -8px 24px rgba(15, 23, 42, 0.08)" : "none", "& > *": { flex: 1 } }}>
           {actions}
         </DialogActions>
       ) : null}

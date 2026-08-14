@@ -496,10 +496,10 @@ export default function MobileAdminPage() {
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc", pb: 10 }}>
       <Box sx={{ position: "sticky", top: 0, zIndex: 20, backdropFilter: "blur(16px)", bgcolor: "rgba(248,250,252,0.9)", borderBottom: "1px solid rgba(148,163,184,0.16)" }}>
-        <Box sx={{ px: 2, py: 1.5, display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center" }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.1, display: "flex", justifyContent: "space-between", gap: 1, alignItems: "center" }}>
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.1 }}>Mobile Control</Typography>
-            <Typography variant="caption" color="text.secondary">Đơn hàng, tra cứu khách, active code, join link.</Typography>
+            <Typography sx={{ fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 1.05, fontSize: 18 }}>Mobile Control</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25 }}>Đơn, khách, active code, join link.</Typography>
           </Box>
           <Stack direction="row" spacing={1}>
             <IconButton size="small" onClick={() => void refreshAll()} disabled={refreshing}>
@@ -508,7 +508,7 @@ export default function MobileAdminPage() {
             <IconButton size="small" onClick={() => router.push("/") }><ArrowLeft size={18} /></IconButton>
           </Stack>
         </Box>
-        <Box sx={{ px: 1.5, pb: 1.25 }}>
+        <Box sx={{ px: { xs: 1.25, sm: 1.5 }, pb: 1 }}>
           <Tabs value={mobileTab} onChange={(_, value) => setMobileTab(value)} variant="scrollable" scrollButtons="auto" sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 } }}>
             <Tab value="manual" label="Tạo đơn" />
             <Tab value="lookup" label="Tra cứu" />
@@ -518,7 +518,7 @@ export default function MobileAdminPage() {
         </Box>
       </Box>
 
-        <Box sx={{ px: 1.5, pt: 1.5, display: "grid", gap: 1.5 }}>
+        <Box sx={{ px: { xs: 1.25, sm: 1.5 }, pt: 1.25, display: "grid", gap: 1.25 }}>
         {refreshing ? <Chip label="Đang tải dữ liệu..." size="small" variant="outlined" /> : null}
         <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" } }}>
           <Card><CardContent sx={{ p: 1.25, minHeight: 90, display: "grid", alignContent: "start", gap: 0.25 }}><Typography variant="caption" color="text.secondary">Đơn</Typography><Typography sx={{ fontWeight: 900, fontSize: 24, lineHeight: 1 }}>{orders.length}</Typography><Typography variant="caption" color="text.secondary">Tổng dữ liệu đang tải</Typography></CardContent></Card>
@@ -530,8 +530,8 @@ export default function MobileAdminPage() {
         {copyNote ? <Alert severity={copyNote.includes("thất bại") ? "error" : "success"} variant="outlined">{copyNote}</Alert> : null}
 
         {mobileTab === "lookup" ? (
-          <AppSection title="Tra cứu khách hàng" subtitle="Nhập Telegram ID, tên, hoặc từ khóa gói." accent="violet">
-            <Stack spacing={1.25}>
+          <AppSection title="Tra cứu" subtitle="Telegram ID, tên, hoặc từ khóa gói." accent="violet">
+            <Stack spacing={1}>
               <TextField size="small" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Ví dụ: 7508222302, @username, tên khách" fullWidth />
               {customerLoading ? <Chip icon={<Loader2 size={14} className="spin" />} label="Đang tra cứu" /> : null}
               {customerResults.map((item) => (
@@ -571,25 +571,25 @@ export default function MobileAdminPage() {
 
         {mobileTab === "manual" ? (
           <AppSection
-            title="Tạo đơn thủ công"
-            subtitle="Mở drawer tạo đơn theo đúng luồng PC, rồi lấy active code/join link ngay trong kết quả."
+            title="Tạo đơn"
+            subtitle="Mở drawer, tạo order, rồi lấy active code / join link."
             accent="blue"
-            action={<Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Tạo đơn</Button>}
+            action={<Button variant="contained" onClick={() => openManualDrawerFromCustomer(selectedCustomer)} startIcon={<ClipboardList size={16} />}>Mở drawer</Button>}
           >
-            <Stack spacing={1.25}>
-              <Alert severity="info" variant="outlined">Bấm nút Tạo đơn để mở drawer giống PC, form sẽ giữ cùng nhịp thao tác nhưng tối ưu cho màn nhỏ.</Alert>
+            <Stack spacing={1}>
+              <Alert severity="info" variant="outlined">Mở drawer để tạo đơn theo cùng luồng với PC, nhưng tối ưu cho màn nhỏ.</Alert>
             </Stack>
           </AppSection>
         ) : null}
 
         {mobileTab === "orders" ? (
         <AppSection
-          title="Danh sách đơn hàng"
-          subtitle="Giữ cùng data source với PC, nhưng hiển thị responsive để bám thao tác trên điện thoại."
+          title="Đơn hàng"
+          subtitle="Hiển thị responsive, giữ đúng data source với PC."
           action={<AppToolbar><Button size="small" variant="outlined" onClick={() => void refreshAll()} startIcon={<RefreshCw size={14} />}>Tải lại</Button></AppToolbar>}
           accent="blue"
         >
-          <Stack spacing={1.25}>
+          <Stack spacing={1}>
             <Tabs value={orderTab} onChange={(_, value) => setOrderTab(value)} variant="fullWidth" sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 } }}>
               <Tab value="paid" label={`PAID (${sortedOrders.filter((item) => item.status === "PAID").length})`} />
               <Tab value="other" label={`Khác (${sortedOrders.filter((item) => item.status !== "PAID").length})`} />
@@ -629,11 +629,11 @@ export default function MobileAdminPage() {
 
         {mobileTab === "logs" ? (
         <AppSection
-          title="Nhật ký gần đây"
-          subtitle="Bộ lọc và cách hiển thị bám theo tab Nhật ký của PC."
+          title="Nhật ký"
+          subtitle="Bộ lọc và hiển thị bám theo tab Nhật ký của PC."
           accent="violet"
         >
-          <Stack spacing={1.25}>
+          <Stack spacing={1}>
             <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" } }}>
               <TextField select size="small" value={logDirection} onChange={(event) => setLogDirection(event.target.value as "all" | "user" | "bot")}>
                 <MenuItem value="all">Tất cả hướng</MenuItem>
@@ -685,7 +685,7 @@ export default function MobileAdminPage() {
         ) : null}
 
         {manualResult ? (
-          <AppSection title="Kết quả tạo đơn" subtitle="Đồng bộ kiểu PC để dễ đối soát và copy nhanh." accent="emerald">
+          <AppSection title="Kết quả tạo đơn" subtitle="Đồng bộ với PC để đối soát và copy nhanh." accent="emerald">
             <ManualOrderResultPanel
               result={manualResult}
               onGenerateActiveCode={submitActiveCode}

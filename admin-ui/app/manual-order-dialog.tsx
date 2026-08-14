@@ -169,6 +169,8 @@ export function ManualOrderResultPanel({
   const orderLabel = resolveOrderLabel(result);
   const activeButtonLabel = "Gen lại tin active code";
   const joinCardButtonLabel = "Gen lại tin tham gia nhóm";
+  const activeCopyLabel = "Copy tin";
+  const joinCopyLabel = "Copy link";
   return (
     <Stack spacing={compact ? 1 : 1.75}>
       <Alert severity="info" variant="outlined" sx={{ alignItems: "center", borderRadius: 3 }}>
@@ -198,7 +200,7 @@ export function ManualOrderResultPanel({
           onAction={onGenerateActiveCode}
           saving={saving}
           onCopy={() => onCopy(result.manual_order_text || "", "tin nhắn active code")}
-          copyLabel="Copy nhanh"
+          copyLabel={activeCopyLabel}
           accent="info"
           compact={compact}
         />
@@ -212,7 +214,7 @@ export function ManualOrderResultPanel({
           onAction={onGenerateJoinLink}
           saving={saving}
           onCopy={() => onCopy(result.manual_order_join_text || "", "link tham gia nhóm")}
-          copyLabel="Copy nhanh"
+          copyLabel={joinCopyLabel}
           accent="primary"
           compact={compact}
         />
@@ -396,6 +398,7 @@ export function ManualOrderDialog({
               onGenerateJoinLink={onGenerateJoinLink}
               onCopy={onCopy}
               saving={saving}
+              compact
             />
           </Box>
         ) : null}
