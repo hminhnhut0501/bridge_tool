@@ -4144,7 +4144,7 @@ async def admin_activity_log(
 
     def fetch_support(offset: int):
         if offset >= MAX_FETCH: return []
-        rows = supabase_store.list_support_events(limit=min(chunk_size, MAX_FETCH - offset), updated_after=updated_after_value)
+        rows = supabase_store.list_support_events(limit=min(chunk_size, MAX_FETCH - offset), updated_after=updated_after_value or None)
         if not updated_after_value:
             return rows
         return [row for row in rows if _backend_text(row.get("created_at")) > updated_after_value]
