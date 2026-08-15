@@ -46,6 +46,11 @@ def config_enabled(key, default="ON"):
     return scheduler.config_enabled(key, default)
 
 
+def new_kick_worker_enabled() -> bool:
+    """When the new worker owns kicks, the legacy expiration path must not duplicate them."""
+    return str(__import__("os").getenv("RENEWAL_KICK_WORKER_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 async def send_html_message(chat_id, text, reply_markup=None):
     try:
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
@@ -85,30 +90,33 @@ async def process_due_expired_rows(
                 plan_name,
             )
             continue
-        await scheduler.process_vip_kicks_for_expired_order(
-            user_id,
-            order_id,
-            plan_name,
-            expire_str,
-            users_data,
-            now,
-            run_kick_cache=run_kick_cache,
-            run_presence_cache=run_presence_cache,
-            user_cache=user_membership_cache,
-            plan_group_cache=plan_group_cache,
-        )
-        await scheduler.process_support_grace_for_expired_order(
-            user_id,
-            order_id,
-            plan_name,
-            expire_str,
-            users_data,
-            now,
-            run_kick_cache=run_kick_cache,
-            run_presence_cache=run_presence_cache,
-            user_cache=user_membership_cache,
-            plan_group_cache=plan_group_cache,
-        )
+        if not new_kick_worker_enabled():
+            await scheduler.process_vip_kicks_for_expired_order(
+                user_id,
+                order_id,
+                plan_name,
+                expire_str,
+                users_data,
+                now,
+                run_kick_cache=run_kick_cache,
+                run_presence_cache=run_presence_cache,
+                user_cache=user_membership_cache,
+                plan_group_cache=plan_group_cache,
+            )
+            await scheduler.process_support_grace_for_expired_order(
+                user_id,
+                order_id,
+                plan_name,
+                expire_str,
+                users_data,
+                now,
+                run_kick_cache=run_kick_cache,
+                run_presence_cache=run_presence_cache,
+                user_cache=user_membership_cache,
+                plan_group_cache=plan_group_cache,
+            )
+        else:
+            logging.info("⏭ Bỏ qua legacy renewal kick cho order %s; new entitlement worker đang sở hữu luồng kick.", order_id)
         if not scheduler.should_send_expired_notice(row, today_str):
             continue
         expire_date = scheduler.parse_expire_datetime(expire_str)
