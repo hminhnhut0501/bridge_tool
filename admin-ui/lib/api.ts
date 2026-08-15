@@ -1241,6 +1241,11 @@ export async function getRenewalKickV2(secret: string, updatedAfter?: string) {
       rows: Array<Record<string, unknown>>;
       summary: Record<string, number>;
     };
+    view_model?: {
+      rows: Array<Record<string, unknown>>;
+      summary: Record<string, number>;
+      schema_version?: number;
+    };
   }>(`/admin-api/renewal-kick-v2${params.toString() ? `?${params.toString()}` : ""}`, secret);
 }
 

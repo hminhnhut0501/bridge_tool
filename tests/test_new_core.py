@@ -63,6 +63,9 @@ class NewCoreTests(unittest.TestCase):
         self.assertEqual(classify_kick_state(group_task={"group_state": "processing"}), "processing")
         self.assertEqual(classify_kick_state(group_task={"group_state": "review_required"}), "review_required")
         self.assertEqual(classify_kick_state(support_event_state="pending"), "none")
+        self.assertEqual(classify_kick_state(renewal_task={"task_state": "queued"}), "processing")
+        self.assertEqual(classify_kick_state(group_task={"group_state": "kicked"}), "done")
+        self.assertEqual(classify_kick_state(renewal_task={"task_state": "blocked_active_order"}), "blocked")
 
     def test_should_queue_kick_uses_expiry_only(self):
         now = datetime(2026, 8, 14, 12, 0, 0)

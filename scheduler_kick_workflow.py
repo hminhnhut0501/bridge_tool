@@ -3,25 +3,27 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from supabase_store import supabase_store
-
-
 def _scheduler():
     import scheduler as _scheduler_module
 
     return _scheduler_module
 
 
+def _supabase_store():
+    return _scheduler().supabase_store
+
+
 async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, expire_str, now, *, plan_group_cache=None):
     scheduler = _scheduler()
     current_group_ids = scheduler.cached_plan_group_ids(plan_name, plan_group_cache)
-    if not supabase_store.enabled:
+    store = _supabase_store()
+    if not store.enabled:
         return []
     logging.info("⏭ Bỏ qua legacy renewal_kick_tasks cho order=%s; chỉ ghi v2.", order_id)
     task_rows = []
     try:
         no_group_map = not current_group_ids
-        parent_rows = supabase_store.upsert_renewal_kick_task_v2({
+        parent_rows = store.upsert_renewal_kick_task_v2({
             "order_id": order_id,
             "telegram_user_id": user_id,
             "plan_name": plan_name,
@@ -46,7 +48,7 @@ async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, ex
         if parent_task_id:
             if current_group_ids:
                 for gid in current_group_ids:
-                    group_rows = supabase_store.upsert_renewal_kick_group_task_v2({
+                    group_rows = store.upsert_renewal_kick_group_task_v2({
                         "task_id": parent_task_id,
                         "order_id": order_id,
                         "telegram_user_id": user_id,
@@ -67,7 +69,7 @@ async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, ex
                         },
                     }) or []
                     if group_rows:
-                        supabase_store.upsert_renewal_kick_legacy_map_v2({
+                        store.upsert_renewal_kick_legacy_map_v2({
                             "legacy_key": scheduler.renewal_kick_group_key(order_id, user_id, gid),
                             "task_id": parent_task_id,
                             "group_task_id": group_rows[0]["id"],
@@ -76,7 +78,7 @@ async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, ex
                             "metadata": {"plan_name": plan_name, "group_id": gid},
                         })
             else:
-                supabase_store.upsert_renewal_kick_legacy_map_v2({
+                store.upsert_renewal_kick_legacy_map_v2({
                     "legacy_key": scheduler.renewal_kick_group_key(order_id, user_id, "__NO_GROUP_MAP__"),
                     "task_id": parent_task_id,
                     "group_task_id": None,
@@ -91,10 +93,11 @@ async def enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, ex
 
 async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None, limit=300):
     scheduler = _scheduler()
-    if not supabase_store.enabled:
+    store = _supabase_store()
+    if not store.enabled:
         return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0, "review": 0}
     try:
-        tasks = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=limit)
+        tasks = store.list_due_renewal_kick_group_tasks_v2(limit=limit)
     except Exception as exc:
         if "renewal_kick_group_tasks_v2" in str(exc).lower():
             return {"queued": 0, "processing": 0, "done": 0, "blocked": 0, "error": 0, "review": 0}
@@ -110,7 +113,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
         stale_confirm = age_minutes is not None and age_minutes >= scheduler.RENEWAL_KICK_V2_STALE_CONFIRM_MINUTES
         if state in {"waiting_confirm", "processing"} and stale_confirm:
             try:
-                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "review_required",
                     "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                     "last_error": "stale_confirm_timeout",
@@ -139,7 +142,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
             active_group_ids = scheduler.user_active_group_ids(user_id, order_id, [], now, plan_group_cache=plan_group_cache)
         if group_id in active_group_ids:
             try:
-                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "blocked_active_order",
                     "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                     "last_reason": "active_order_retained",
@@ -154,7 +157,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
             try:
                 member = await scheduler.member_is_present(group_id, user_id)
                 if member is False:
-                    supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                    store.update_renewal_kick_group_task_v2(task["id"], {
                         "group_state": "kicked",
                         "completed_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                         "resolved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -165,7 +168,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                 elif member is True:
                     retry_count = int(task.get("attempt_count") or 0)
                     next_state = "retry_scheduled" if retry_count < scheduler.KICK_MAX_ATTEMPTS else "review_required"
-                    supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                    store.update_renewal_kick_group_task_v2(task["id"], {
                         "group_state": next_state,
                         "confirm_count": int(task.get("confirm_count") or 0) + 1,
                         "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S") if next_state == "retry_scheduled" else None,
@@ -177,7 +180,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                 else:
                     confirm_count = int(task.get("confirm_count") or 0) + 1
                     next_state = "retry_scheduled" if confirm_count < scheduler.KICK_CONFIRM_MAX_ATTEMPTS else "review_required"
-                    supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                    store.update_renewal_kick_group_task_v2(task["id"], {
                         "group_state": next_state,
                         "confirm_count": confirm_count,
                         "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S") if next_state == "retry_scheduled" else None,
@@ -191,7 +194,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
             except Exception as exc:
                 confirm_count = int(task.get("confirm_count") or 0) + 1
                 next_state = "retry_scheduled" if confirm_count < scheduler.KICK_CONFIRM_MAX_ATTEMPTS else "review_required"
-                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": next_state,
                     "confirm_count": confirm_count,
                     "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S") if next_state == "retry_scheduled" else None,
@@ -204,7 +207,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
             continue
 
         try:
-            supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+            store.update_renewal_kick_group_task_v2(task["id"], {
                 "group_state": "processing",
                 "locked_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "locked_by": "scheduler_v2",
@@ -212,7 +215,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                 "last_transition_at": now.strftime("%Y-%m-%d %H:%M:%S"),
                 "metadata": {**(task.get("metadata") or {}), "reason": "kick_attempt"},
             })
-            supabase_store.insert_renewal_kick_attempt_v2({
+            store.insert_renewal_kick_attempt_v2({
                 "task_id": task.get("task_id"),
                 "group_task_id": task.get("id"),
                 "order_id": order_id,
@@ -249,7 +252,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
         try:
             if ok:
                 try:
-                    supabase_store.insert_renewal_kick_attempt_v2({
+                    store.insert_renewal_kick_attempt_v2({
                         "task_id": task.get("task_id"),
                         "group_task_id": task.get("id"),
                         "order_id": order_id,
@@ -265,7 +268,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                     })
                 except Exception:
                     pass
-                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "waiting_confirm",
                     "confirm_count": int(task.get("confirm_count") or 0),
                     "next_retry_at": (now + timedelta(seconds=scheduler.KICK_CONFIRMATION_DELAY_SECONDS)).strftime("%Y-%m-%d %H:%M:%S"),
@@ -275,7 +278,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                 summary["processing"] += 1
             else:
                 try:
-                    supabase_store.insert_renewal_kick_attempt_v2({
+                    store.insert_renewal_kick_attempt_v2({
                         "task_id": task.get("task_id"),
                         "group_task_id": task.get("id"),
                         "order_id": order_id,
@@ -292,7 +295,7 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
                     })
                 except Exception:
                     pass
-                supabase_store.update_renewal_kick_group_task_v2(task["id"], {
+                store.update_renewal_kick_group_task_v2(task["id"], {
                     "group_state": "retry_scheduled",
                     "attempt_count": int(task.get("attempt_count") or 0) + 1,
                     "next_retry_at": (now + timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
@@ -308,11 +311,12 @@ async def process_due_renewal_kick_group_tasks_v2(now, *, run_kick_cache=None, r
 
 async def process_due_renewal_kick_finalizer_v2(now, *, limit=300):
     scheduler = _scheduler()
-    if not supabase_store.enabled:
+    store = _supabase_store()
+    if not store.enabled:
         return {"finalized": 0, "review": 0, "done": 0, "blocked": 0, "partial_done": 0, "error": 0}
     try:
-        tasks = supabase_store.list_renewal_kick_tasks_v2(limit=limit)
-        group_rows = supabase_store.list_due_renewal_kick_group_tasks_v2(limit=1000)
+        tasks = store.list_renewal_kick_tasks_v2(limit=limit)
+        group_rows = store.list_due_renewal_kick_group_tasks_v2(limit=1000)
     except Exception as exc:
         if "renewal_kick_tasks_v2" in str(exc).lower():
             return {"finalized": 0, "review": 0, "done": 0, "blocked": 0, "partial_done": 0, "error": 0}
@@ -332,7 +336,7 @@ async def process_due_renewal_kick_finalizer_v2(now, *, limit=300):
             if not related_groups:
                 continue
             next_state, payload = scheduler.finalize_renewal_kick_task_v2_from_groups(task, related_groups, now)
-            supabase_store.update_renewal_kick_task_v2(task_id, payload)
+            store.update_renewal_kick_task_v2(task_id, payload)
             summary["finalized"] += 1
             if next_state == "done":
                 summary["done"] += 1

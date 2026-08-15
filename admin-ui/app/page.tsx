@@ -73,6 +73,13 @@ import { Fragment, type MouseEvent, type ReactNode, useCallback, useEffect, useM
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { ManualOrderDialog } from "./manual-order-dialog";
+import { RenewalDetailDrawer } from "./renewal-detail-drawer";
+import { RenewalsSection, type RenewalCutoverRow } from "./renewals-section";
+
+// Phase 12: the new state-ledger UI is now the only active renewal surface.
+// The old JSX remains in the file temporarily for controlled rollback review,
+// but is unreachable and must not be used as a state source.
+const RENEWAL_UI_V2_ENABLED = true;
 import {
   channelPostStatusClass,
   channelPostStatusLabel,
@@ -3580,6 +3587,7 @@ export default function Home() {
   const [renewalKickStatusByOrder, setRenewalKickStatusByOrder] = useState<Record<string, { state: "pending" | "error"; message: string; updatedAt: number }>>({});
   const [renewalKickV2Snapshot, setRenewalKickV2Snapshot] = useState<{ tasks: RenewalKickV2TaskRow[]; groupTasks: RenewalKickV2GroupTaskRow[]; attempts: RenewalKickV2AttemptRow[] }>({ tasks: [], groupTasks: [], attempts: [] });
   const [renewalAdminView, setRenewalAdminView] = useState<RenewalAdminView>({ rows: [], summary: { total: 0, needs_action: 0, done: 0, review: 0, blocked: 0, processing: 0 } });
+  const [renewalCoreViewModel, setRenewalCoreViewModel] = useState<{ rows: RenewalCutoverRow[]; summary: { total: number; processing: number; done: number; blocked: number; review_required: number } }>({ rows: [], summary: { total: 0, processing: 0, done: 0, blocked: 0, review_required: 0 } });
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
@@ -4393,6 +4401,18 @@ export default function Home() {
               review: Number(viewSummary.review || 0),
               blocked: Number(viewSummary.blocked || 0),
               processing: Number(viewSummary.processing || 0),
+            },
+          });
+          const coreRows = Array.isArray(data.view_model?.rows) ? data.view_model.rows as RenewalCutoverRow[] : [];
+          const coreSummary = data.view_model?.summary || {};
+          setRenewalCoreViewModel({
+            rows: coreRows,
+            summary: {
+              total: Number(coreSummary.total || 0),
+              processing: Number(coreSummary.processing || 0),
+              done: Number(coreSummary.done || 0),
+              blocked: Number(coreSummary.blocked || 0),
+              review_required: Number(coreSummary.review_required || 0),
             },
           });
         })
@@ -9864,7 +9884,25 @@ export default function Home() {
           />
         ) : null}
 
-        {tab === "renewals" ? (
+        {tab === "renewals" && RENEWAL_UI_V2_ENABLED ? (
+          <RenewalsSection
+            rows={renewalCoreViewModel.rows}
+            summary={renewalCoreViewModel.summary}
+            onRefresh={() => refreshKickAudit(false)}
+            onKick={(row) => {
+              const item = row as RenewalCutoverRow & { groups?: Array<{ group_id?: string }> };
+              const groups = (item.groups || []).map((group) => String(group.group_id || "")).filter(Boolean);
+              void kickNowRenewalKickV2Handler(String(item.telegram_user_id || item.telegramId || ""), String(item.order_id || item.orderId || ""), String(item.plan_name || item.planName || ""), String(item.customer_name || item.customerName || ""), groups);
+            }}
+            onReview={(row) => {
+              const item = row as RenewalCutoverRow;
+              void reviewRenewalTaskHandler(String(item.order_id || item.orderId || ""), String(item.telegram_user_id || item.telegramId || ""), "requeue", String(item.blocked_reason || item.latest_error || "ui_review"));
+            }}
+            detail={null}
+          />
+        ) : null}
+
+        {tab === "renewals" && !RENEWAL_UI_V2_ENABLED ? (
           <div className="stack">
             <div className="grid">
               {[
@@ -10121,147 +10159,32 @@ export default function Home() {
           </Box>
         </MuiDialogShell>
 
-        <Drawer
-          anchor="right"
+        <RenewalDetailDrawer
           open={renewalDetailDrawerOpen}
           onClose={() => setRenewalDetailDrawerOpen(false)}
-          sx={{
-            "& .MuiDrawer-paper": {
-              width: { xs: "100%", sm: 440 },
-              maxWidth: "100vw",
-              borderTopLeftRadius: 20,
-              borderBottomLeftRadius: 20,
-            },
-          }}
-        >
-          <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-            <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.2 }}>Chi tiết renewal</Typography>
-                <Typography variant="body2" color="text.secondary">Tóm tắt task, tiến độ và timeline retry.</Typography>
-              </Box>
-              <IconButton onClick={() => setRenewalDetailDrawerOpen(false)} size="small">
-                <XCircle size={18} />
-              </IconButton>
-            </Box>
-            <Box sx={{ p: 2, overflow: "auto" }}>
-              <Stack spacing={1.25}>
-                {selectedRenewalDetail ? (
-                  <>
-                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(59,130,246,0.04)", border: "1px solid rgba(59,130,246,0.14)" }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>1. Tổng quan</Typography>
-                      <Box sx={{ mt: 0.75, display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.15 }}>{selectedRenewalDetail.customerName || "-"}</Typography>
-                          <Typography variant="body2" color="text.secondary">Telegram: <strong>{selectedRenewalDetail.telegramId || "-"}</strong></Typography>
-                          <Typography variant="body2" color="text.secondary">{selectedRenewalDetail.planName ? resolveOrderLabel({ plan_name: selectedRenewalDetail.planName }).displayLabel : "-"} · Đơn {selectedRenewalDetail.orderId || "-"}</Typography>
-                          <Typography variant="body2" color="text.secondary">{selectedRenewalDetail.expireAt ? `Hạn ${dateText(selectedRenewalDetail.expireAt)}` : "-"}</Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, alignItems: "flex-end" }}>
-                          <Chip size="small" label={renewalTaskStateLabel(selectedRenewalDetail.taskState || "")} color={renewalTaskStateTone(selectedRenewalDetail.taskState || "")} variant="filled" />
-                          <Chip size="small" label={renewalStatusLabel(selectedRenewalDetail.renewalStatus || "")} color={renewalStatusTone(selectedRenewalDetail.renewalStatus || "")} variant="outlined" />
-                        </Box>
-                      </Box>
-                    </Box>
-
-                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(16,185,129,0.04)", border: "1px solid rgba(16,185,129,0.14)" }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>2. Trạng thái</Typography>
-                      <Box sx={{ mt: 0.75, display: "grid", gap: 0.85 }}>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">Tiến độ</Typography>
-                          <Box sx={{ mt: 0.5, height: 8, width: "100%", borderRadius: 999, overflow: "hidden", bgcolor: "rgba(148,163,184,0.18)", display: "flex" }}>
-                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? ((selectedRenewalDetail.renewalProgress.done + selectedRenewalDetail.renewalProgress.retained) / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "success.main" }} />
-                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.kicking / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "info.main" }} />
-                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.pending / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "warning.main" }} />
-                            <Box sx={{ width: `${selectedRenewalDetail.renewalProgress && selectedRenewalDetail.renewalProgress.total ? (selectedRenewalDetail.renewalProgress.error / selectedRenewalDetail.renewalProgress.total) * 100 : 0}%`, bgcolor: "error.main" }} />
-                          </Box>
-                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
-                            {selectedRenewalDetail.renewalProgress?.done || 0}/{selectedRenewalDetail.renewalProgress?.total || 0} xong · {selectedRenewalDetail.renewalProgress?.kicking || 0} đang chờ worker · {selectedRenewalDetail.renewalProgress?.pending || 0} chờ xử lý · {selectedRenewalDetail.renewalProgress?.error || 0} lỗi
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: "grid", gap: 0.5 }}>
-                          <Typography variant="caption" color="text.secondary">Task state</Typography>
-                          <Chip size="small" label={renewalTaskStateLabel(selectedRenewalDetail.taskState || "")} color={renewalTaskStateTone(selectedRenewalDetail.taskState || "")} variant="outlined" sx={{ height: 24, width: "fit-content", fontWeight: 800 }} />
-                          <Typography variant="caption" color="text.secondary">{renewalTaskStateHint(selectedRenewalDetail.taskState || "")}</Typography>
-                        </Box>
-                        <Box sx={{ display: "grid", gap: 0.25 }}>
-                          <Typography variant="caption" color="text.secondary">Lý do / last_error</Typography>
-                          <Typography sx={{ whiteSpace: "pre-wrap", lineHeight: 1.4, fontSize: 13, fontWeight: 700 }}>
-                            {selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "Không có reason"}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">{selectedRenewalDetail.renewalNote || "Không có ghi chú"}</Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-
-                    <Box sx={{ p: 1.25, borderRadius: 2.5, bgcolor: "rgba(245,158,11,0.04)", border: "1px solid rgba(245,158,11,0.16)" }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>3. Timeline & hành động</Typography>
-                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {[
-                          { key: "all", label: "Tất cả" },
-                          { key: "review", label: "Cần review" },
-                          { key: "chokick", label: "Đã xếp hàng" },
-                          { key: "kicked", label: "Đã xong" },
-                          { key: "error", label: "Lỗi / thiếu map" },
-                        ].map((item) => (
-                          <Chip key={item.key} size="small" label={item.label} clickable color={renewalFocusFilter === item.key ? "primary" : "default"} variant={renewalFocusFilter === item.key ? "filled" : "outlined"} onClick={() => { setRenewalFocusFilter(item.key as RenewalFocusFilter); setRenewalPage(1); }} sx={{ height: 24, fontWeight: 800 }} />
-                        ))}
-                      </Box>
-                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {[
-                          { key: "ALL", label: "Tất cả group_state" },
-                          ...Array.from(new Set((selectedRenewalAttempts.map((attempt) => renewalKickV2GroupStateByGroupTaskId.get(String(attempt.group_task_id || "")) || "").filter(Boolean)))).sort().map((state) => ({
-                            key: state,
-                            label: renewalGroupStateLabel(state),
-                          })),
-                        ].map((item) => (
-                          <Chip key={item.key} size="small" label={item.label} clickable color={renewalTimelineGroupStateFilter === item.key ? "primary" : "default"} variant={renewalTimelineGroupStateFilter === item.key ? "filled" : "outlined"} onClick={() => setRenewalTimelineGroupStateFilter(item.key)} sx={{ height: 24, fontWeight: 800 }} />
-                        ))}
-                      </Box>
-                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {[
-                          { key: "ALL", label: "Tất cả task_state" },
-                          ...Array.from(new Set(selectedRenewalAttempts.map((attempt) => String(attempt.attempt_state || "").trim().toUpperCase()).filter(Boolean))).sort().map((state) => ({
-                            key: state,
-                            label: state.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()),
-                          })),
-                        ].map((item) => (
-                          <Chip key={item.key} size="small" label={item.label} clickable color={renewalTimelineTaskStateFilter === item.key ? "primary" : "default"} variant={renewalTimelineTaskStateFilter === item.key ? "filled" : "outlined"} onClick={() => setRenewalTimelineTaskStateFilter(item.key)} sx={{ height: 24, fontWeight: 800 }} />
-                        ))}
-                      </Box>
-                      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                        <Button variant="contained" size="small" startIcon={<RefreshCw size={14} />} onClick={() => refreshKickAudit(true)}>Live refresh</Button>
-                        {selectedRenewalDetail.orderId ? (
-                          <Button variant="outlined" size="small" startIcon={<Zap size={14} />} disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`} onClick={() => void requeueRenewalKickV2Handler(selectedRenewalDetail.telegramId, selectedRenewalDetail.orderId || "", selectedRenewalDetail.planName || "", selectedRenewalDetail.customerName || "", (selectedRenewalDetail.renewalGroupDetails || []).filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status)).map((group) => group.groupId))}>
-                            Xếp hàng
-                          </Button>
-                        ) : null}
-                        {selectedRenewalDetail.renewalStatus === "Cần review" ? (
-                          <>
-                            <Button variant="outlined" size="small" startIcon={<Zap size={14} />} disabled={saving === `kick-now-renewal-kick-v2-${selectedRenewalDetail.orderId}`} onClick={() => void kickNowRenewalKickV2Handler(selectedRenewalDetail.telegramId, selectedRenewalDetail.orderId || "", selectedRenewalDetail.planName || "", selectedRenewalDetail.customerName || "", (selectedRenewalDetail.renewalGroupDetails || []).filter((group) => !["Đã kick xong", "Bị giữ lại", "Bị giữ bởi đơn active khác"].includes(group.status)).map((group) => group.groupId))}>
-                              Kick ngay
-                            </Button>
-                            <Button variant="outlined" size="small" color="error" startIcon={<XCircle size={14} />} disabled={saving === `review-renewal-${selectedRenewalDetail.orderId}-close`} onClick={() => void reviewRenewalTaskHandler(selectedRenewalDetail.orderId || "", selectedRenewalDetail.telegramId, "close", String(selectedRenewalDetail.renewalReason || selectedRenewalDetail.renewalLastError || "review_closed"))}>
-                              Đóng review
-                            </Button>
-                          </>
-                        ) : null}
-                        <Button variant="text" size="small" startIcon={<Search size={14} />} onClick={() => void openCustomerFromLookup(selectedRenewalDetail.telegramId)}>Mở khách</Button>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
-                        {selectedRenewalDetail.renewalLatestKickAt ? `Cập nhật gần nhất: ${dateText(selectedRenewalDetail.renewalLatestKickAt)}` : "Chưa có update gần nhất"}
-                      </Typography>
-                    </Box>
-                  </>
-                ) : (
-                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: "rgba(59,130,246,0.04)", border: "1px dashed", borderColor: "divider" }}>
-                    <Typography variant="body2" color="text.secondary">Chưa chọn dòng nào. Bấm “Chi tiết” ở cột thao tác để mở drawer trạng thái này.</Typography>
-                  </Box>
-                )}
-              </Stack>
-            </Box>
-          </Box>
-        </Drawer>
+          selectedRenewalDetail={selectedRenewalDetail}
+          renewalTaskStateLabel={renewalTaskStateLabel}
+          renewalTaskStateTone={renewalTaskStateTone}
+          renewalTaskStateHint={renewalTaskStateHint}
+          renewalStatusLabel={renewalStatusLabel}
+          renewalStatusTone={renewalStatusTone}
+          dateText={dateText}
+          renewalGroupStateLabel={renewalGroupStateLabel}
+          renewalFocusFilter={renewalFocusFilter}
+          setRenewalFocusFilter={setRenewalFocusFilter}
+          setRenewalPage={setRenewalPage}
+          renewalTimelineGroupStateFilter={renewalTimelineGroupStateFilter}
+          setRenewalTimelineGroupStateFilter={setRenewalTimelineGroupStateFilter}
+          renewalTimelineTaskStateFilter={renewalTimelineTaskStateFilter}
+          setRenewalTimelineTaskStateFilter={setRenewalTimelineTaskStateFilter}
+          selectedRenewalAttempts={selectedRenewalAttempts}
+          renewalKickV2GroupStateByGroupTaskId={renewalKickV2GroupStateByGroupTaskId}
+          refreshKickAudit={refreshKickAudit}
+          requeueRenewalKickV2Handler={requeueRenewalKickV2Handler}
+          kickNowRenewalKickV2Handler={kickNowRenewalKickV2Handler}
+          reviewRenewalTaskHandler={reviewRenewalTaskHandler}
+          openCustomerFromLookup={openCustomerFromLookup}
+        />
 
         {tab === "supportGroup" ? (
           <div className="stack">

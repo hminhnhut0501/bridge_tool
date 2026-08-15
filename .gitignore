@@ -8,3 +8,4 @@ venv/
 admin-ui/node_modules/
 admin-ui/.next/
 admin-ui/.env.local
+admin-ui/tsconfig.tsbuildinfo

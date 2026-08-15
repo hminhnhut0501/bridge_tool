@@ -6,6 +6,7 @@ os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
 import config_utils
 import web_backend
+import scheduler
 
 
 class FakeDb:
@@ -38,9 +39,11 @@ class GroupMembershipAuditTests(unittest.IsolatedAsyncioTestCase):
         self.original_db = web_backend.db
         self.original_config_db = config_utils.db
         self.original_store = web_backend.supabase_store
+        self.original_scheduler_db = scheduler.db
         self.original_now_local = web_backend.now_local
         self.fake_db = FakeDb()
         web_backend.db = self.fake_db
+        scheduler.db = self.fake_db
         config_utils.db = self.fake_db
         web_backend.now_local = lambda: datetime(2026, 8, 14, 10, 0, 0)
 
@@ -48,6 +51,7 @@ class GroupMembershipAuditTests(unittest.IsolatedAsyncioTestCase):
         web_backend.db = self.original_db
         config_utils.db = self.original_config_db
         web_backend.supabase_store = self.original_store
+        scheduler.db = self.original_scheduler_db
         web_backend.now_local = self.original_now_local
 
     async def test_group_membership_audit_flags_expired_no_order_and_active_rows(self):

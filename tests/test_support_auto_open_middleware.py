@@ -4,6 +4,8 @@ import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+_ORIGINAL_MODULES = dict(sys.modules)
+
 
 def _install_stubs():
     aiogram_mod = types.ModuleType("aiogram")
@@ -62,9 +64,23 @@ def _install_stubs():
     sys.modules["support_utils"] = support_utils_mod
 
 
-_install_stubs()
+helpers = None
 
-import helpers  # noqa: E402
+
+def setUpModule():
+    global helpers
+    _install_stubs()
+    import helpers as imported_helpers
+
+    helpers = imported_helpers
+
+
+def tearDownModule():
+    for name in list(sys.modules):
+        if name not in _ORIGINAL_MODULES:
+            sys.modules.pop(name, None)
+    for name, module in _ORIGINAL_MODULES.items():
+        sys.modules[name] = module
 
 
 def test_middleware_auto_opens_support_case_when_bot_is_down():

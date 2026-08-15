@@ -37,7 +37,15 @@ def _install_aiogram_stub():
     sys.modules["aiogram.exceptions"] = exceptions_mod
 
     types_mod = types.ModuleType("aiogram.types")
-    for name in ["InlineKeyboardButton", "ChatPermissions", "CallbackQuery", "Message", "ChatMemberUpdated", "BotCommand"]:
+
+    class InlineKeyboardButton:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.text = kwargs.get("text")
+            self.callback_data = kwargs.get("callback_data")
+
+    types_mod.InlineKeyboardButton = InlineKeyboardButton
+    for name in ["ChatPermissions", "CallbackQuery", "Message", "ChatMemberUpdated", "BotCommand"]:
         setattr(types_mod, name, type(name, (), {}))
     sys.modules["aiogram.types"] = types_mod
 

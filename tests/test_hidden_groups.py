@@ -5,6 +5,8 @@ os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 
 import config_utils
 import hidden_group_utils
+import i18n
+import sale_utils
 import modules.mod_coupon as mod_coupon
 import modules.mod_payment as mod_payment
 
@@ -94,12 +96,18 @@ class HiddenGroupTests(unittest.TestCase):
         self.fake_store = FakeHiddenStore()
         self.original_config_db = config_utils.db
         self.original_hidden_store = hidden_group_utils.supabase_store
+        self.original_i18n_db = i18n.db
+        self.original_sale_db = sale_utils.db
         config_utils.db = self.fake_db
+        i18n.db = self.fake_db
+        sale_utils.db = self.fake_db
         hidden_group_utils.supabase_store = self.fake_store
 
     def tearDown(self):
         config_utils.db = self.original_config_db
         hidden_group_utils.supabase_store = self.original_hidden_store
+        i18n.db = self.original_i18n_db
+        sale_utils.db = self.original_sale_db
 
     def test_validate_hidden_code_requires_svip_lifetime(self):
         hidden_code, reason = hidden_group_utils.validate_hidden_code_for_user("HIDEVIP", "42")
@@ -108,7 +116,7 @@ class HiddenGroupTests(unittest.TestCase):
 
         denied_code, denied_reason = hidden_group_utils.validate_hidden_code_for_user("HIDEVIP", "99")
         self.assertIsNone(denied_code)
-        self.assertIn("All Access trọn đời", denied_reason)
+        self.assertIn("Combo trọn đời", denied_reason)
 
     def test_validate_hidden_code_respects_max_uses(self):
         hidden_code, reason = hidden_group_utils.validate_hidden_code_for_user("USEDUP", "42")
@@ -145,11 +153,11 @@ class HiddenGroupTests(unittest.TestCase):
             hidden_group_utils._display_language = lambda user_id=None, language=None: "en"
             self.assertEqual(
                 hidden_group_utils.display_plan_name("SVIP+ Trọn Đời (Full 4 Nhóm)", user_id="42"),
-                "All Access Lifetime",
+                "Combo Lifetime",
             )
             self.assertEqual(
                 hidden_group_utils.display_plan_name("SVIP+ 30 Ngày (Full 4 Nhóm)", user_id="42"),
-                "All Access 30 Days",
+                "Combo 30 Days",
             )
             self.assertEqual(
                 hidden_group_utils.display_plan_name("VIP Trọn Đời - Hang Cú Prime", user_id="42"),

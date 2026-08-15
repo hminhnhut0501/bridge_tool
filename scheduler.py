@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 import re
 import unicodedata
+import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from database import db
@@ -55,12 +57,14 @@ from kick_state_service import (
 )
 import scheduler_kick_workflow as kick_workflow
 import scheduler_cleanup_workflow as cleanup_workflow
+import scheduler_expiration_workflow as expiration_workflow
 import scheduler_membership_utils as membership_utils
 import scheduler_state_utils as state_utils
 from supabase_store import supabase_store
 from support_utils import is_lifetime_plan, is_support_group, mute_member, record_support_event, revoke_support_invite_link, support_group_enabled, support_group_grace_days, support_group_id, support_group_mute_enabled, unmute_member
 from bot_links import is_legacy_bot
 from license_utils import license_renewal_enabled, load_license_plan_mapping
+from new_core.observability import structured_cycle_log
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -161,7 +165,12 @@ def now_local():
     return datetime.now(timezone).replace(tzinfo=None)
 
 def config_enabled(key, default="ON"):
-    return str(db.get_config(key, default) or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
+    # Deployment flags must be controllable without a database write. Keep
+    # normal bot configuration database-backed, but let renewal cutover flags
+    # be overridden by the process environment for safe canary rollout.
+    env_value = os.getenv(key) if key.startswith("RENEWAL_NEW_CORE_") else None
+    value = env_value if env_value not in (None, "") else db.get_config(key, default)
+    return str(value or default).strip().upper() in {"ON", "TRUE", "YES", "1", "CÓ", "BẬT", "BAT"}
 
 def parse_int_config(key, default=0, minimum=0):
     try:
@@ -441,15 +450,16 @@ def renewal_kick_v2_task_age_minutes(task, now):
     return state_utils.renewal_kick_v2_task_age_minutes(task, now)
 
 def summarize_renewal_kick_groups_v2(group_tasks):
-    kicked = [item for item in group_tasks if group_task_state_value(item) == "kicked"]
+    done = [item for item in group_tasks if group_task_state_value(item) == "done"]
     retained = [item for item in group_tasks if group_task_state_value(item) == "retained"]
-    blocked = [item for item in group_tasks if group_task_state_value(item) == "blocked_active_order"]
+    blocked = [item for item in group_tasks if group_task_state_value(item) == "blocked"]
     review = [item for item in group_tasks if group_task_state_value(item) == "review_required"]
     pending = [item for item in group_tasks if group_task_state_value(item) in {"pending", "selected", "processing", "waiting_confirm", "retry_scheduled"}]
     failed = [item for item in group_tasks if group_task_state_value(item) == "failed_terminal"]
     return {
         "total": len(group_tasks),
-        "kicked": len(kicked),
+        "done": len(done),
+        "kicked": len(done),
         "retained": len(retained),
         "blocked": len(blocked),
         "review": len(review),
@@ -463,23 +473,23 @@ def finalize_renewal_kick_task_v2_from_groups(task, group_tasks, now):
     if summary["review"] > 0:
         next_state = "review_required"
         terminal_reason = "group_review_required"
-    elif summary["failed"] > 0 and summary["kicked"] == 0 and active == 0:
+    elif summary["failed"] > 0 and summary["done"] == 0 and active == 0:
         next_state = "failed_terminal"
         terminal_reason = "group_failed_terminal"
-    elif summary["blocked"] > 0 and summary["kicked"] == 0 and active == 0:
+    elif summary["blocked"] > 0 and summary["done"] == 0 and active == 0:
         next_state = "blocked"
         terminal_reason = "blocked_active_order"
     elif active > 0:
-        next_state = "partial_done" if summary["kicked"] > 0 else "running"
+        next_state = "partial_done" if summary["done"] > 0 else "running"
         terminal_reason = ""
-    elif summary["kicked"] > 0 and summary["pending"] == 0:
+    elif summary["done"] > 0 and summary["pending"] == 0:
         if summary["retained"] > 0 or summary["blocked"] > 0:
             next_state = "partial_done"
             terminal_reason = "partial_completion"
         else:
             next_state = "done"
             terminal_reason = "all_groups_kicked"
-    elif summary["retained"] > 0 and summary["kicked"] == 0 and summary["blocked"] == 0:
+    elif summary["retained"] > 0 and summary["done"] == 0 and summary["blocked"] == 0:
         next_state = "done"
         terminal_reason = "retained_only"
     else:
@@ -837,25 +847,14 @@ async def process_vip_kicks_for_expired_order(
                 logging.info("🔊 User %s đã gia hạn, mở mute lại ở group %s.", user_id, gid)
             except Exception as exc:
                 logging.error("❌ Lỗi mở mute User %s ở group %s: %s", user_id, gid, exc)
-    if supabase_store.enabled:
-        await kick_workflow.enqueue_expired_renewal_kick_tasks_v2(user_id, order_id, plan_name, expire_str, now, plan_group_cache=plan_group_cache)
-    else:
-        # Fallback legacy path cho môi trường chưa có bảng task mới.
-        kick_errors = []
-        for gid in expired_group_ids:
-            ok = await ensure_member_kicked(
-                gid,
-                user_id,
-                order_id,
-                plan_name,
-                "vip_expired",
-                raw_data={"expired_notice_at": now.strftime("%Y-%m-%d %H:%M:%S"), "expire_at": expire_str},
-                run_kick_cache=run_kick_cache,
-                run_presence_cache=run_presence_cache,
-            )
-            if not ok:
-                kick_errors.append(gid)
-        return expired_group_ids, kick_errors
+    await kick_workflow.enqueue_expired_renewal_kick_tasks_v2(
+        user_id,
+        order_id,
+        plan_name,
+        expire_str,
+        now,
+        plan_group_cache=plan_group_cache,
+    )
     return expired_group_ids, []
 
 async def process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=None, run_presence_cache=None, user_cache=None, plan_group_cache=None):
@@ -910,366 +909,69 @@ async def process_support_grace_for_expired_order(user_id, order_id, plan_name, 
 
 async def check_expirations_professional():
     try:
-        if is_legacy_bot():
-            logging.info("⏭ Scheduler bỏ qua vì BOT_VERSION=legacy, bot cũ chỉ còn chuyển hướng.")
-            return
-        logging.info("⏳ [SCHEDULER] Đang kiểm tra hạn dùng tới hạn/quá hạn...")
-        use_supabase = supabase_store.enabled
-        if not use_supabase and not db.users_sheet:
-            db.connect()
-
-        days_notice = config_int("REMINDER_DAYS", 3, minimum=0)
-        now = now_local()
-        today_str = now.strftime("%Y-%m-%d")
-        await cleanup_used_activation_links(now)
-
-        if use_supabase:
-            order_limit = config_int("SCHEDULER_ORDER_LIMIT", 5000, minimum=100)
-            due_before = now + timedelta(days=days_notice)
-            try:
-                due_orders = supabase_store.list_scheduler_due_rows(due_before, limit=order_limit)
-            except Exception as exc:
-                logging.warning("⚠️ Không dùng được query due_rows, fallback quét rộng: %s", exc)
-                due_orders = supabase_store.list_scheduler_orders(limit=order_limit)
-            users_data = [supabase_store.order_to_sheet_row(order) for order in due_orders]
-        else:
-            users_data = db.users_sheet.get_all_values()[1:]
-
-        logging.info(
-            "⏰ Scheduler timezone Asia/Ho_Chi_Minh: %s, nhắc trước %s ngày, xử lý %s đơn/dòng.",
-            now.strftime("%Y-%m-%d %H:%M:%S"),
-            days_notice,
-            len(users_data),
-        )
-        summary = {"expired": 0, "expired_notice": 0, "reminded": 0, "skipped_not_due": 0, "invalid": 0}
-        run_kick_cache = set()
-        run_presence_cache = {}
-        plan_group_cache = {}
-        users_index = build_users_index(users_data)
-        expired_rows, reminder_rows, expiring_user_ids = split_scheduler_rows(users_data, now, days_notice)
-        user_membership_cache = {}
-        if use_supabase and expiring_user_ids:
-            user_rows_by_id = {}
-            for user_id in expiring_user_ids:
-                try:
-                    user_rows = supabase_store.list_paid_orders_for_user(user_id, limit=order_limit)
-                except Exception as exc:
-                    logging.warning("⚠️ Không lấy được paid orders cho user %s để giữ quyền kick: %s", user_id, exc)
-                    user_rows = []
-                combined = list(users_index.get(user_id, []))
-                seen_order_ids = {row_value(row, 0) for row in combined}
-                for order in user_rows:
-                    order_row = supabase_store.order_to_sheet_row(order)
-                    if row_value(order_row, 0) not in seen_order_ids:
-                        combined.append(order_row)
-                user_rows_by_id[user_id] = combined
-            user_membership_cache = build_user_membership_cache_from_rows(user_rows_by_id, now, plan_group_cache=plan_group_cache)
-        elif users_index:
-            user_membership_cache = build_user_membership_cache(users_index, now, user_ids=expiring_user_ids, plan_group_cache=plan_group_cache)
-
-        # Pass 1: xử lý EXPIRED trước để kick/mute đúng ngay.
-        for offset, row in expired_rows:
-            row_number = offset + 2
-            order_id = row_value(row, 0)
-            offer_ref = order_id if use_supabase else row_number
-            user_id = str(row[1]).strip()
-            plan_name = str(row[3]).strip()
-            expire_str = str(row[7]).strip()
-            if not expire_str:
-                continue
-            if not is_lifetime_plan(plan_name) and not cached_plan_group_ids(plan_name, plan_group_cache):
-                logging.error(
-                    "⏭ Bỏ qua xử lý đơn EXPIRED %s vì plan_name='%s' không map được group VIP; không mute/kick support để tránh xử lý nhầm.",
-                    offer_ref,
-                    plan_name,
-                )
-                continue
-            await process_vip_kicks_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
-            await process_support_grace_for_expired_order(user_id, order_id, plan_name, expire_str, users_data, now, run_kick_cache=run_kick_cache, run_presence_cache=run_presence_cache, user_cache=user_membership_cache, plan_group_cache=plan_group_cache)
-
-            if should_send_expired_notice(row, today_str):
-                expire_date = parse_expire_datetime(expire_str)
-                if not expire_date:
-                    continue
-                days_grace = support_group_grace_days()
-                plan_label = display_plan_name(plan_name, user_id)
-                msg_expired = (
-                    db.get_config("MSG_EXPIRED", "⚠️ Gói <b>{plan}</b> của bạn đã hết hạn vào <b>{date}</b>.\n\nNếu muốn tiếp tục dùng bot, vui lòng gia hạn ngay nhé:")
-                    .replace("\\n", "\n")
-                    .replace("{plan}", plan_label)
-                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
-                    .replace("{grace_days}", str(days_grace))
-                )
-                kb = InlineKeyboardBuilder()
-                if "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Combo"), callback_data="nav:svip_page"))
-                else:
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
-                try:
-                    await send_html_message(user_id, msg_expired, kb.as_markup())
-                    record_support_event(
-                        "expired_notice_sent",
-                        user_id,
-                        order_id=order_id,
-                        plan_name=plan_label,
-                        raw_data={"expire_at": expire_str, "grace_days": days_grace, "plan_name_raw": plan_name},
-                    )
-                    summary["expired_notice"] += 1
-                    if use_supabase:
-                        supabase_store.mark_expired_notice(order_id, now.strftime("%Y-%m-%d %H:%M:%S"))
-                    else:
-                        db.users_sheet.update_cell(row_number, 12, now.strftime("%Y-%m-%d %H:%M:%S"))
-                    logging.info("📮 Đã gửi tin báo hết hạn cho User %s, đơn/dòng %s, plan=%s.", user_id, offer_ref, plan_label)
-                except Exception as e:
-                    logging.error(f"❌ Lỗi gửi tin báo hết hạn cho {user_id}: {e}")
-
-        kick_queue_v2_summary = await kick_workflow.process_due_renewal_kick_group_tasks_v2(
-            now,
-            run_kick_cache=run_kick_cache,
-            run_presence_cache=run_presence_cache,
-            user_cache=user_membership_cache,
-            plan_group_cache=plan_group_cache,
-        )
-        kick_finalizer_v2_summary = await kick_workflow.process_due_renewal_kick_finalizer_v2(now)
-
-        # Pass 2: xử lý PAID reminder.
-        for offset, row in reminder_rows:
-            row_number = offset + 2
-            order_id = row_value(row, 0)
-            offer_ref = order_id if use_supabase else row_number
-            user_id = str(row[1]).strip()
-            plan_name = str(row[3]).strip()
-            expire_str = str(row[7]).strip()
-            expire_date = parse_expire_datetime(expire_str)
-            if not expire_date:
-                summary["invalid"] += 1
-                logging.warning(f"⚠️ Bỏ qua đơn/dòng {offer_ref}: không đọc được ngày hết hạn '{expire_str}' cho user {user_id}.")
-                continue
-            if is_lifetime_plan(plan_name):
-                continue
-            days_remaining = (expire_date.date() - now.date()).days
-            notif_key = f"{user_id}_{offer_ref}_{today_str}"
-            if config_enabled("REMINDER_ENABLED", "ON") and 0 <= days_remaining <= days_notice and notif_key not in notified_users and not should_skip_reminder(row, today_str):
-                plan_label = display_plan_name(plan_name, user_id)
-                msg_reminder = (
-                    db.get_config("MSG_REMINDER", "⏰ Gói <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa!\n\n👇 Nhấn nút bên dưới để gia hạn ngay nhé:")
-                    .replace("\\n", "\n")
-                    .replace("{plan}", plan_label)
-                    .replace("{days}", str(days_remaining))
-                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
-                )
-                renew_currency = "USD" if get_user_language(user_id) == "en" else "VND"
-                early_renew_offer = build_early_renew_offer(row, offer_ref, now, currency=renew_currency)
-                msg_reminder += build_early_renew_block(early_renew_offer)
-                kb = InlineKeyboardBuilder()
-                if early_renew_offer:
-                    callback_data = f"renew_order_{order_id}" if use_supabase else f"renew_{row_number}"
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_EARLY_RENEW", f"🔥 Gia hạn sớm -{early_renew_offer['discount_percent']}%"), callback_data=callback_data))
-                elif "FULL" in plan_name.upper() or "SVIP" in plan_name.upper():
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_FULL", "🌟 Gia hạn / Lên Combo"), callback_data="nav:svip_page"))
-                else:
-                    kb.row(InlineKeyboardButton(text=db.get_config("BTN_RENEW_GROUP", "🔄 Gia hạn / Mở rộng gói"), callback_data="nav:main_menu"))
-                try:
-                    await send_html_message(user_id, msg_reminder, kb.as_markup())
-                    record_support_event("renewal_reminder_sent", user_id, order_id=order_id, plan_name=display_plan_name(plan_name, user_id), raw_data={"days_remaining": days_remaining, "expire_at": expire_str, "plan_name_raw": plan_name})
-                    notified_users.add(notif_key)
-                    summary["reminded"] += 1
-                    if use_supabase:
-                        supabase_store.mark_reminder_sent(order_id, today_str)
-                    else:
-                        db.users_sheet.update_cell(row_number, 11, today_str)
-                    logging.info(f"📩 Đã nhắc gia hạn ({days_remaining} ngày) cho User {user_id}, đơn/dòng {offer_ref}, plan={plan_label}.")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi gửi tin nhắc cho {user_id}: {e}")
-            else:
-                summary["skipped_not_due"] += 1
-
-        if use_supabase and license_renewal_enabled():
-            try:
-                license_rows = supabase_store.list_license_records(limit=config_int("SCHEDULER_LICENSE_LIMIT", 1000, minimum=100))
-            except Exception as exc:
-                logging.warning("⚠️ Không đọc được licenses để nhắc gia hạn: %s", exc)
-                license_rows = []
-            for row in license_rows:
-                license_key = str(row.get("license_key") or "").strip().upper()
-                telegram_user_id = str(row.get("telegram_user_id") or "").strip()
-                plan_code = str(row.get("plan_code") or "").strip().upper()
-                plan = license_plan_config(plan_code)
-                if not license_key or not telegram_user_id or not plan:
-                    continue
-                if row.get("is_lifetime") or plan.duration_days is None or not plan.allow_renew:
-                    continue
-                raw_data = row.get("raw_data") if isinstance(row.get("raw_data"), dict) else {}
-                if str(row.get("status") or "").strip().lower() == "revoked":
-                    if raw_data.get("revoked_notice_sent_at"):
-                        continue
-                    revoke_text = db.get_config(
-                        "MSG_LICENSE_REVOKED",
-                        "⛔ License <b>{plan}</b> của bạn đã bị thu hồi. Vui lòng liên hệ hỗ trợ nếu cần kiểm tra lại.",
-                    ).replace("\\n", "\n").replace("{plan}", display_plan_name(plan_code, telegram_user_id))
-                    try:
-                        await send_html_message(telegram_user_id, revoke_text)
-                        record_support_event(
-                            "license_revoked_notice_sent",
-                            telegram_user_id,
-                            order_id=str(row.get("order_id") or ""),
-                            plan_name=display_plan_name(plan_code, telegram_user_id),
-                            raw_data={
-                                "license_key": license_key,
-                                "plan_code": plan_code,
-                                "source": row.get("source") or "web",
-                            },
-                        )
-                        try:
-                            supabase_store.update_license_record(
-                                license_key,
-                                {
-                                    "raw_data": {
-                                        **raw_data,
-                                        "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
-                                    }
-                                },
-                            )
-                        except Exception as exc:
-                            logging.warning("⚠️ Không stamp revoked notice cho license %s: %s", license_key, exc)
-                        try:
-                            supabase_store.update_license_record(
-                                license_key,
-                                {
-                                    "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
-                                    "raw_data": {
-                                        **raw_data,
-                                        "revoked_notice_sent_at": now.isoformat(timespec="seconds"),
-                                    },
-                                },
-                            )
-                        except Exception as exc:
-                            logging.warning("⚠️ Không cập nhật revoked_notice_sent_at cho license %s: %s", license_key, exc)
-                        try:
-                            supabase_store.record_license_audit(
-                                {
-                                    "license_key": license_key,
-                                    "telegram_user_id": telegram_user_id,
-                                    "event_type": "license_revoked_notice_sent",
-                                    "plan_code": plan_code,
-                                    "result": "revoked",
-                                    "raw_data": {"source": row.get("source") or "web"},
-                                    "created_at": now.isoformat(timespec="seconds"),
-                                }
-                            )
-                        except Exception:
-                            pass
-                    except Exception as exc:
-                        logging.error("❌ Lỗi gửi revoke notice cho %s: %s", telegram_user_id, exc)
-                    continue
-                expire_date = parse_license_expire_datetime(row.get("expires_at"))
-                if not expire_date:
-                    continue
-                days_remaining = (expire_date.date() - now.date()).days
-                notif_key = f"license_{license_key}_{today_str}"
-                if days_remaining < 0:
-                    if str(row.get("status") or "").strip().lower() != "expired":
-                        try:
-                            supabase_store.update_license_record(license_key, {
-                                "status": "expired",
-                                "raw_data": {
-                                    **(row.get("raw_data") or {}),
-                                    "scheduler_expired_at": now.isoformat(timespec="seconds"),
-                                },
-                            })
-                        except Exception as exc:
-                            logging.warning("⚠️ Không cập nhật trạng thái expired cho license %s: %s", license_key, exc)
-                    try:
-                        record_support_event(
-                            "license_expired",
-                            telegram_user_id,
-                            order_id=str(row.get("order_id") or ""),
-                            plan_name=display_plan_name(plan_code, telegram_user_id),
-                            raw_data={
-                                "license_key": license_key,
-                                "plan_code": plan_code,
-                                "expires_at": row.get("expires_at") or "",
-                                "source": row.get("source") or "web",
-                            },
-                        )
-                    except Exception:
-                        pass
-                    continue
-                if not (0 <= days_remaining <= days_notice):
-                    continue
-                if notif_key in notified_users:
-                    continue
-                message_text = (
-                    db.get_config(
-                        "MSG_LICENSE_REMINDER",
-                        "⏰ License <b>{plan}</b> của bạn sẽ hết hạn sau <b>{days} ngày</b> nữa.\n\nVui lòng gia hạn để giữ quyền truy cập không gián đoạn.",
-                    )
-                    .replace("\\n", "\n")
-                    .replace("{plan}", display_plan_name(plan_code, telegram_user_id))
-                    .replace("{days}", str(days_remaining))
-                    .replace("{date}", expire_date.strftime("%d/%m/%Y %H:%M:%S"))
-                )
-                kb = InlineKeyboardBuilder()
-                kb.row(InlineKeyboardButton(text=db.get_config("BTN_LICENSE_RENEW", "🔄 Gia hạn license"), callback_data=f"nav:license_renew:{license_key}"))
-                try:
-                    await send_html_message(telegram_user_id, message_text, kb.as_markup())
-                    notified_users.add(notif_key)
-                    record_support_event(
-                        "license_renewal_reminder_sent",
-                        telegram_user_id,
-                        order_id=str(row.get("order_id") or ""),
-                        plan_name=display_plan_name(plan_code, telegram_user_id),
-                        raw_data={
-                            "license_key": license_key,
-                            "plan_code": plan_code,
-                            "days_remaining": days_remaining,
-                            "expires_at": row.get("expires_at") or "",
-                            "source": row.get("source") or "web",
-                        },
-                    )
-                    try:
-                        supabase_store.record_license_audit(
-                            {
-                                "license_key": license_key,
-                                "telegram_user_id": telegram_user_id,
-                                "event_type": "license_renew_reminder_sent",
-                                "plan_code": plan_code,
-                                "result": "reminded",
-                                "raw_data": {"days_remaining": days_remaining, "expires_at": row.get("expires_at") or ""},
-                                "created_at": now.isoformat(timespec="seconds"),
-                            }
-                        )
-                    except Exception:
-                        pass
-                    try:
-                        supabase_store.update_license_record(
-                            license_key,
-                            {
-                                "renew_reminder_sent_at": now.isoformat(timespec="seconds"),
-                                "raw_data": {
-                                    **raw_data,
-                                    "renew_reminder_sent_at": now.isoformat(timespec="seconds"),
-                                },
-                            },
-                        )
-                    except Exception as exc:
-                        logging.warning("⚠️ Không cập nhật renew_reminder_sent_at cho license %s: %s", license_key, exc)
-                except Exception as exc:
-                    logging.error("❌ Lỗi gửi nhắc license cho %s: %s", telegram_user_id, exc)
-
-        logging.info(
-            "✅ Scheduler xong: hết hạn=%s, báo hết hạn=%s, nhắc gia hạn=%s, chưa tới hạn=%s, lỗi ngày=%s, queue_v2=%s, finalizer_v2=%s.",
-            summary["expired"],
-            summary["expired_notice"],
-            summary["reminded"],
-            summary["skipped_not_due"],
-            summary["invalid"],
-            kick_queue_v2_summary,
-            kick_finalizer_v2_summary,
-        )
-
+        from scheduler_new_core_runtime import full_cutover_gate
+        cutover_config = {
+            key: str(db.get_config(key, "") or "")
+            for key in (
+                "RENEWAL_NEW_CORE_FULL_CUTOVER",
+                "RENEWAL_NEW_CORE_DRY_RUN",
+                "RENEWAL_NEW_CORE_LIMITED_MUTATION",
+                "RENEWAL_NEW_CORE_CUTOVER_ACK",
+            )
+        }
+        full_cutover, gate_reason = full_cutover_gate(cutover_config)
+        if str(cutover_config.get("RENEWAL_NEW_CORE_FULL_CUTOVER") or "").strip().upper() in {"ON", "TRUE", "1", "YES"} and not full_cutover:
+            logging.error("⛔ Full worker cutover bị chặn: %s", gate_reason)
+            return None
+        if full_cutover:
+            result = await run_new_core_cycle()
+            logging.info("✅ Full new-core worker cycle: %s", result)
+            return result
+        if config_enabled("RENEWAL_NEW_CORE_CANARY", "OFF"):
+            result = await run_new_core_cycle()
+            logging.info(
+                "renewal_cycle_completed %s",
+                structured_cycle_log(result, correlation_id=str(uuid.uuid4()), occurred_at=now_local()),
+            )
+            return result
+        await expiration_workflow.run_expiration_cycle()
     except Exception as e:
         logging.error(f"❌ Lỗi hệ thống quét định kỳ: {e}")
+
+
+async def run_new_core_cycle():
+    """Canary entrypoint; disabled by default until group planning is wired."""
+    from scheduler_new_core_runtime import CallableClock, run_cycle, run_limited_mutation_cycle, run_read_only_cycle
+
+    cohort_user_ids = {item.strip() for item in str(db.get_config("RENEWAL_NEW_CORE_COHORT_USER_IDS", "") or "").split(",") if item.strip()}
+    cohort_order_ids = {item.strip() for item in str(db.get_config("RENEWAL_NEW_CORE_COHORT_ORDER_IDS", "") or "").split(",") if item.strip()}
+    if config_enabled("RENEWAL_NEW_CORE_LIMITED_MUTATION", "OFF"):
+        return await run_limited_mutation_cycle(
+            store=supabase_store,
+            bot=bot,
+            clock=CallableClock(now_local),
+            active_order_check=lambda user_id, order_id, group_id: group_id in user_active_group_ids(user_id, order_id, [], now_local()),
+            cohort_user_ids=cohort_user_ids,
+            cohort_order_ids=cohort_order_ids,
+        )
+
+    if config_enabled("RENEWAL_NEW_CORE_DRY_RUN", "ON"):
+        return await run_read_only_cycle(
+            store=supabase_store,
+            bot=bot,
+            clock=CallableClock(now_local),
+            active_order_check=lambda user_id, order_id, group_id: group_id in user_active_group_ids(user_id, order_id, [], now_local()),
+            plan_group_resolver=lambda plan_name: list(cached_plan_group_ids(plan_name)),
+        )
+
+    return await run_cycle(
+        store=supabase_store,
+        bot=bot,
+        clock=CallableClock(now_local),
+        parse_datetime=parse_expire_datetime,
+        active_order_check=lambda user_id, order_id, group_id: group_id in user_active_group_ids(user_id, order_id, [], now_local()),
+        plan_group_resolver=lambda plan_name: list(cached_plan_group_ids(plan_name)),
+    )
 
 
 async def order_expired_reconcile_worker():

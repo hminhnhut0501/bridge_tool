@@ -4,6 +4,8 @@ import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from new_core.contract import normalize_contract_kick_state_alias
+
 
 RENEWAL_KICK_REASON_CODES = {
     "no_group_map",
@@ -48,7 +50,8 @@ RENEWAL_KICK_STATE_ALIASES = {
 
 def normalize_renewal_kick_state(value):
     raw = str(value or "").strip().lower()
-    return RENEWAL_KICK_STATE_ALIASES.get(raw, raw)
+    mapped = RENEWAL_KICK_STATE_ALIASES.get(raw, raw)
+    return normalize_contract_kick_state_alias(mapped)
 
 
 def normalize_renewal_kick_reason(value):
@@ -127,4 +130,3 @@ def renewal_kick_v2_task_age_minutes(task, now):
         if parsed:
             return max(0, int((now - parsed).total_seconds() // 60))
     return None
-

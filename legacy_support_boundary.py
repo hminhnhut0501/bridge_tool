@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from support_event_read_model import build_support_events_read_model
+import os
 
 
 LEGACY_SUPPORT_EVENT_TYPES = {
@@ -31,6 +32,18 @@ LEGACY_SUPPORT_EVENT_TYPES = {
     "admin_reply_sent",
 }
 
+LEGACY_RENEWAL_EVENT_TYPES = {
+    "expired_notice_sent",
+    "renewal_reminder_sent",
+    "member_kicked",
+    "member_kick_failed",
+    "member_kick_closed",
+    "member_unmuted",
+    "member_muted",
+    "vip_kicked",
+    "vip_unmuted",
+}
+
 
 def is_legacy_support_event_type(event_type: str) -> bool:
     return str(event_type or "").strip() in LEGACY_SUPPORT_EVENT_TYPES
@@ -42,6 +55,11 @@ def record_support_event_legacy(supabase_store, event_type, telegram_user_id=Non
 
     if not is_legacy_support_event_type(event_type):
         print(f"⚠️ Bỏ qua support event legacy chưa nằm trong contract: {event_type}")
+        return
+
+    sunset_enabled = str(os.getenv("RENEWAL_LEGACY_SUNSET", "OFF") or "OFF").strip().upper() in {"ON", "TRUE", "1", "YES"}
+    if sunset_enabled and str(event_type or "").strip() in LEGACY_RENEWAL_EVENT_TYPES:
+        print(f"⏭ Bỏ qua legacy renewal event sau sunset: {event_type}")
         return
 
     if telegram_user_id and (not kwargs.get("full_name") or not kwargs.get("username")):

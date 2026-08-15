@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .contract import KICK_STATE_CONTRACT, ORDER_STATE_CONTRACT, assert_contract_membership
+from .contract import (
+    KICK_STATE_CONTRACT,
+    ORDER_STATE_CONTRACT,
+    assert_contract_membership,
+)
 from .expiry import is_order_active, is_order_expired
 
 ORDER_STATES = {
@@ -29,6 +33,38 @@ KICK_STATES = {
     "review_required",
     "failed_terminal",
     "unknown",
+}
+
+KICK_STATE_TASK_ALIASES = {
+    "queued": "processing",
+    "running": "processing",
+    "pending_confirm": "processing",
+    "retry_pending": "processing",
+    "waiting_confirm": "processing",
+    "retry_scheduled": "processing",
+    "processing": "processing",
+    "done": "done",
+    "kicked": "done",
+    "retained": "done",
+    "blocked": "blocked",
+    "blocked_active_order": "blocked",
+    "review_required": "review_required",
+    "failed_terminal": "failed_terminal",
+    "error": "failed_terminal",
+}
+
+KICK_STATE_GROUP_ALIASES = {
+    "pending": "processing",
+    "selected": "processing",
+    "processing": "processing",
+    "waiting_confirm": "processing",
+    "retry_scheduled": "processing",
+    "unmapped": "processing",
+    "kicked": "done",
+    "retained": "done",
+    "blocked_active_order": "blocked",
+    "review_required": "review_required",
+    "failed_terminal": "failed_terminal",
 }
 
 
@@ -58,26 +94,12 @@ def normalize_order_state(order: dict[str, Any] | None, now, *, parser) -> Norma
 def normalize_kick_state(*, renewal_task=None, group_task=None, support_event_state="none") -> str:
     if renewal_task:
         state = str(renewal_task.get("task_state") or "").strip().lower()
-        if state in {"done"}:
-            return assert_contract_membership("done", KICK_STATE_CONTRACT, default="none")
-        if state in {"processing", "queued", "waiting_confirm", "retry_scheduled", "pending_confirm", "retry_pending", "running"}:
-            return assert_contract_membership("processing", KICK_STATE_CONTRACT, default="none")
-        if state in {"review_required"}:
-            return assert_contract_membership("review_required", KICK_STATE_CONTRACT, default="none")
-        if state in {"blocked", "blocked_active_order"}:
-            return assert_contract_membership("blocked", KICK_STATE_CONTRACT, default="none")
-        if state in {"failed_terminal", "error"}:
-            return assert_contract_membership("failed_terminal", KICK_STATE_CONTRACT, default="none")
+        mapped = KICK_STATE_TASK_ALIASES.get(state)
+        if mapped:
+            return assert_contract_membership(mapped, KICK_STATE_CONTRACT, default="none")
     if group_task:
         state = str(group_task.get("group_state") or "").strip().lower()
-        if state in {"kicked", "retained"}:
-            return assert_contract_membership("done", KICK_STATE_CONTRACT, default="none")
-        if state in {"processing", "pending", "selected", "waiting_confirm", "retry_scheduled", "unmapped"}:
-            return assert_contract_membership("processing", KICK_STATE_CONTRACT, default="none")
-        if state in {"review_required"}:
-            return assert_contract_membership("review_required", KICK_STATE_CONTRACT, default="none")
-        if state in {"blocked_active_order"}:
-            return assert_contract_membership("blocked", KICK_STATE_CONTRACT, default="none")
-        if state in {"failed_terminal"}:
-            return assert_contract_membership("failed_terminal", KICK_STATE_CONTRACT, default="none")
+        mapped = KICK_STATE_GROUP_ALIASES.get(state)
+        if mapped:
+            return assert_contract_membership(mapped, KICK_STATE_CONTRACT, default="none")
     return "none"

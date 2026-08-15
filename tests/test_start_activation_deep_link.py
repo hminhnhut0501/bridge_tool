@@ -4,6 +4,8 @@ import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+_ORIGINAL_MODULES = dict(sys.modules)
+
 
 def _install_stubs():
     class FakeRouter:
@@ -139,9 +141,23 @@ def _install_stubs():
     sys.modules["i18n"] = i18n_mod
 
 
-_install_stubs()
+mod_general = None
 
-from modules import mod_general  # noqa: E402
+
+def setUpModule():
+    global mod_general
+    _install_stubs()
+    from modules import mod_general as imported_mod_general
+
+    mod_general = imported_mod_general
+
+
+def tearDownModule():
+    for name in list(sys.modules):
+        if name not in _ORIGINAL_MODULES:
+            sys.modules.pop(name, None)
+    for name, module in _ORIGINAL_MODULES.items():
+        sys.modules[name] = module
 
 
 def test_start_activation_payload_bypasses_maintenance_gate():

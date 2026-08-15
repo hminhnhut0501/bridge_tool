@@ -1,6 +1,13 @@
 import unittest
 
-from new_core.contract import KICK_STATE_CONTRACT, ORDER_STATE_CONTRACT, assert_contract_membership, normalize_contract_kick_state, normalize_contract_order_state
+from new_core.contract import (
+    KICK_STATE_CONTRACT,
+    ORDER_STATE_CONTRACT,
+    assert_contract_membership,
+    normalize_contract_kick_state,
+    normalize_contract_kick_state_alias,
+    normalize_contract_order_state,
+)
 
 
 class NewCoreContractTests(unittest.TestCase):
@@ -13,6 +20,9 @@ class NewCoreContractTests(unittest.TestCase):
         self.assertEqual(normalize_contract_order_state("weird"), "unknown")
         self.assertEqual(normalize_contract_kick_state("done"), "done")
         self.assertEqual(normalize_contract_kick_state("legacy_state"), "none")
+        self.assertEqual(normalize_contract_kick_state_alias("queued"), "processing")
+        self.assertEqual(normalize_contract_kick_state_alias("waiting_confirm"), "processing")
+        self.assertEqual(normalize_contract_kick_state_alias("kicked"), "done")
         self.assertEqual(assert_contract_membership("processing", KICK_STATE_CONTRACT, default="none"), "processing")
 
 

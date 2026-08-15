@@ -4,6 +4,8 @@ import types
 import unittest
 from datetime import datetime, timedelta
 
+_ORIGINAL_MODULES = dict(sys.modules)
+
 
 def _install_stub_modules():
     class FakeDb:
@@ -104,7 +106,14 @@ def _install_stub_modules():
     sys.modules["aiogram"] = aiogram_mod
 
     aiogram_types_mod = types.ModuleType("aiogram.types")
-    aiogram_types_mod.InlineKeyboardButton = object
+
+    class InlineKeyboardButton:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.text = kwargs.get("text")
+            self.callback_data = kwargs.get("callback_data")
+
+    aiogram_types_mod.InlineKeyboardButton = InlineKeyboardButton
     aiogram_types_mod.ChatPermissions = object
     aiogram_types_mod.CallbackQuery = object
     aiogram_types_mod.Message = object
@@ -189,9 +198,26 @@ def _install_stub_modules():
 
 
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
-_FAKE_DB, _FAKE_STORE, _FAKE_BOT = _install_stub_modules()
+_FAKE_DB = None
+_FAKE_STORE = None
+_FAKE_BOT = None
+scheduler = None
 
-import scheduler  # noqa: E402
+
+def setUpModule():
+    global _FAKE_DB, _FAKE_STORE, _FAKE_BOT, scheduler
+    _FAKE_DB, _FAKE_STORE, _FAKE_BOT = _install_stub_modules()
+    import scheduler as imported_scheduler
+
+    scheduler = imported_scheduler
+
+
+def tearDownModule():
+    for name in list(sys.modules):
+        if name not in _ORIGINAL_MODULES:
+            sys.modules.pop(name, None)
+    for name, module in _ORIGINAL_MODULES.items():
+        sys.modules[name] = module
 
 
 class SchedulerHarnessTests(unittest.IsolatedAsyncioTestCase):
@@ -202,6 +228,7 @@ class SchedulerHarnessTests(unittest.IsolatedAsyncioTestCase):
         scheduler.resolve_plan_groups = sys.modules["hidden_group_utils"].resolve_plan_groups
         scheduler.is_lifetime_order = sys.modules["hidden_group_utils"].is_lifetime_order
         scheduler.record_support_event = sys.modules["support_utils"].record_support_event
+        scheduler.is_support_group = lambda chat_id: str(chat_id) == "-100999"
         scheduler.recent_kicks.clear()
         _FAKE_STORE.events.clear()
         _FAKE_BOT.kicked.clear()

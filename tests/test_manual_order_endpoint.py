@@ -113,9 +113,10 @@ class ManualOrderEndpointTests(unittest.IsolatedAsyncioTestCase):
         removed_label_key = "admin_" + "label"
         self.assertNotIn(removed_label_key, result["data"])
         self.assertNotIn(removed_label_key, self.store.created_orders[0]["metadata"])
-        self.assertEqual(self.store.events[0][2]["plan_name"], "VIP 30 Ngày - Prime")
-        self.assertEqual(self.store.events[0][2]["raw_data"]["plan_name"], "VIP 30 Ngày - Prime")
-        self.assertEqual(self.store.events[0][1], "42")
+        # Fast mode intentionally skips legacy support-event writes; the order
+        # metadata is the authoritative contract for this endpoint.
+        self.assertEqual(self.store.created_orders[0]["plan_name"], "VIP 30 Ngày - Prime")
+        self.assertEqual(self.store.created_orders[0]["telegram_user_id"], "42")
 
     async def test_custom_duration_defaults_to_one_day_for_all_access(self):
         result = await web_backend.build_manual_order_result({
