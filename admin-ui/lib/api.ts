@@ -1256,6 +1256,21 @@ export async function reviewRenewalKickV2(secret: string, payload: RenewalKickV2
   });
 }
 
+export async function getRenewalsV2(secret: string, tab: "expiring-soon" | "expired") {
+  return request<{ data: import("../app/renewals/renewal-contract").RenewalViewModel }>(`/admin-api/renewals-v2?tab=${encodeURIComponent(tab)}`, secret);
+}
+
+export async function sendRenewalReminder(secret: string, payload: { order_id: string; telegram_user_id: string; idempotency_key: string; confirm: true }) {
+  return request<{ data: unknown }>("/admin-api/renewals-v2/send-reminder", secret, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function retryRenewalKick(secret: string, payload: { order_id: string; telegram_user_id: string; idempotency_key: string; confirm: true; reason?: string }) {
+  return request<{ data: unknown }>("/admin-api/renewals-v2/retry-kick", secret, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function getRenewalWorkerConfig(secret: string) { return request<{ data: Record<string, unknown> }>("/admin-api/renewal-worker-config", secret); }
+export async function updateRenewalWorkerConfig(secret: string, payload: Record<string, unknown>) { return request<{ data: Record<string, unknown> }>("/admin-api/renewal-worker-config", secret, { method: "PATCH", body: JSON.stringify(payload) }); }
+
 export async function getVipGroupAudit(secret: string, live = false, updatedAfter?: string) {
   const params = new URLSearchParams({ live: live ? "true" : "false" });
   if (updatedAfter) params.set("updated_after", updatedAfter);

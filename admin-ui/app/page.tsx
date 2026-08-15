@@ -75,6 +75,8 @@ import * as XLSX from "xlsx";
 import { ManualOrderDialog } from "./manual-order-dialog";
 import { RenewalDetailDrawer } from "./renewal-detail-drawer";
 import { RenewalsSection, type RenewalCutoverRow } from "./renewals-section";
+import { RenewalsPageV2 } from "./renewals/renewals-page-v2";
+import { EMPTY_RENEWAL_VIEW, type RenewalRow, type RenewalTab, type RenewalViewModel } from "./renewals/renewal-contract";
 
 // Phase 12: the new state-ledger UI is now the only active renewal surface.
 // The old JSX remains in the file temporarily for controlled rollback review,
@@ -223,6 +225,11 @@ import {
   getHiddenRedemptions,
   getKickAudit,
   getRenewalKickV2,
+  getRenewalsV2,
+  sendRenewalReminder,
+  retryRenewalKick,
+  getRenewalWorkerConfig,
+  updateRenewalWorkerConfig,
   reviewRenewalKickV2,
   getVipGroupAudit,
   getVipMemberAudit,
@@ -3588,6 +3595,10 @@ export default function Home() {
   const [renewalKickV2Snapshot, setRenewalKickV2Snapshot] = useState<{ tasks: RenewalKickV2TaskRow[]; groupTasks: RenewalKickV2GroupTaskRow[]; attempts: RenewalKickV2AttemptRow[] }>({ tasks: [], groupTasks: [], attempts: [] });
   const [renewalAdminView, setRenewalAdminView] = useState<RenewalAdminView>({ rows: [], summary: { total: 0, needs_action: 0, done: 0, review: 0, blocked: 0, processing: 0 } });
   const [renewalCoreViewModel, setRenewalCoreViewModel] = useState<{ rows: RenewalCutoverRow[]; summary: { total: number; processing: number; done: number; blocked: number; review_required: number } }>({ rows: [], summary: { total: 0, processing: 0, done: 0, blocked: 0, review_required: 0 } });
+  const [renewalNewTab, setRenewalNewTab] = useState<RenewalTab>("expiring-soon");
+  const [renewalNewView, setRenewalNewView] = useState<RenewalViewModel>({ ...EMPTY_RENEWAL_VIEW });
+  const [renewalNewRefreshToken, setRenewalNewRefreshToken] = useState(0);
+  const [renewalWorkerConfig, setRenewalWorkerConfig] = useState<Record<string, unknown>>({});
   const [renewalSelectedOrderKey, setRenewalSelectedOrderKey] = useState("");
   const [renewalDetailDrawerOpen, setRenewalDetailDrawerOpen] = useState(false);
   const [renewalTimelineGroupStateFilter, setRenewalTimelineGroupStateFilter] = useState("ALL");
@@ -3716,6 +3727,41 @@ export default function Home() {
   const notificationOrdersEnabled = configIsOn(config, "ADMIN_NOTIFICATION_ORDERS_ENABLED", "ON");
   const notificationPrivateMessagesEnabled = configIsOn(config, "ADMIN_NOTIFICATION_PRIVATE_MESSAGES_ENABLED", "ON");
   const notificationPollSeconds = Math.max(10, Number(getConfigValue(config, "ADMIN_NOTIFICATION_POLL_SECONDS", "20")) || 20);
+
+  useEffect(() => {
+    if (tab !== "renewals" || !savedSecret) return;
+    let cancelled = false;
+    setRenewalNewView((current) => ({ ...current, tab: renewalNewTab, loading: true, error: null }));
+    void getRenewalsV2(savedSecret, renewalNewTab).then((response) => {
+      if (!cancelled) setRenewalNewView({ ...response.data, tab: renewalNewTab, loading: false, error: null, source: "API" });
+    }).catch((error) => {
+      if (!cancelled) setRenewalNewView((current) => ({ ...current, tab: renewalNewTab, loading: false, error: error instanceof Error ? error.message : "Không tải được dữ liệu gia hạn." }));
+    });
+    return () => { cancelled = true; };
+  }, [savedSecret, renewalNewRefreshToken, renewalNewTab, tab]);
+
+  useEffect(() => {
+    if (tab !== "renewals" || !savedSecret) return;
+    void getRenewalWorkerConfig(savedSecret).then((response) => setRenewalWorkerConfig(response.data)).catch(() => setRenewalWorkerConfig({}));
+  }, [savedSecret, renewalNewRefreshToken, tab]);
+
+  const saveRenewalWorkerConfig = async (payload: Record<string, unknown>) => {
+    if (!savedSecret || !window.confirm(payload.emergency_stop ? "Tạm dừng khẩn cấp worker?" : "Xác nhận thay đổi cấu hình worker?") ) return;
+    const response = await updateRenewalWorkerConfig(savedSecret, payload);
+    setRenewalWorkerConfig(response.data);
+  };
+
+  const renewalMutationKey = (action: string, row: RenewalRow) => `${action}:${row.entitlement.orderId}:${row.customer.telegramUserId}`;
+  const sendRenewalReminderHandler = async (row: RenewalRow) => {
+    if (!savedSecret || !window.confirm("Xếp reminder này vào hàng gửi?")) return;
+    await sendRenewalReminder(savedSecret, { order_id: row.entitlement.orderId, telegram_user_id: row.customer.telegramUserId, idempotency_key: renewalMutationKey("reminder", row), confirm: true });
+    setRenewalNewRefreshToken((current) => current + 1);
+  };
+  const retryRenewalKickHandler = async (row: RenewalRow) => {
+    if (!savedSecret || !window.confirm("Xếp lại kick với gate an toàn?")) return;
+    await retryRenewalKick(savedSecret, { order_id: row.entitlement.orderId, telegram_user_id: row.customer.telegramUserId, idempotency_key: renewalMutationKey("kick", row), confirm: true, reason: "admin_retry_kick" });
+    setRenewalNewRefreshToken((current) => current + 1);
+  };
 
   useEffect(() => {
     const isLocalDevHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -9885,20 +9931,14 @@ export default function Home() {
         ) : null}
 
         {tab === "renewals" && RENEWAL_UI_V2_ENABLED ? (
-          <RenewalsSection
-            rows={renewalCoreViewModel.rows}
-            summary={renewalCoreViewModel.summary}
-            onRefresh={() => refreshKickAudit(false)}
-            onKick={(row) => {
-              const item = row as RenewalCutoverRow & { groups?: Array<{ group_id?: string }> };
-              const groups = (item.groups || []).map((group) => String(group.group_id || "")).filter(Boolean);
-              void kickNowRenewalKickV2Handler(String(item.telegram_user_id || item.telegramId || ""), String(item.order_id || item.orderId || ""), String(item.plan_name || item.planName || ""), String(item.customer_name || item.customerName || ""), groups);
-            }}
-            onReview={(row) => {
-              const item = row as RenewalCutoverRow;
-              void reviewRenewalTaskHandler(String(item.order_id || item.orderId || ""), String(item.telegram_user_id || item.telegramId || ""), "requeue", String(item.blocked_reason || item.latest_error || "ui_review"));
-            }}
-            detail={null}
+          <RenewalsPageV2
+            view={renewalNewView}
+            onRefresh={() => setRenewalNewRefreshToken((current) => current + 1)}
+            onTabChange={setRenewalNewTab}
+            onSendReminder={(row) => void sendRenewalReminderHandler(row)}
+            onRetryKick={(row) => void retryRenewalKickHandler(row)}
+            workerConfig={renewalWorkerConfig}
+            onWorkerConfigSave={(payload) => void saveRenewalWorkerConfig(payload)}
           />
         ) : null}
 

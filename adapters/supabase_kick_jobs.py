@@ -38,7 +38,7 @@ class SupabaseKickJobAdapter:
             headers["Prefer"] = prefer
         request = urllib.request.Request(
             f"{self.base_url}{path}",
-            data=json.dumps(body).encode("utf-8"),
+            data=json.dumps(body, default=lambda value: value.isoformat() if hasattr(value, "isoformat") else str(value)).encode("utf-8"),
             headers=headers,
             method=method,
         )
