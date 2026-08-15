@@ -126,8 +126,11 @@ from order_expiry_service import order_is_active as service_order_is_active, day
 from kick_audit_service import order_display_name
 from new_core.state import normalize_kick_state, normalize_order_state
 from renewal_admin_view_service import build_renewal_admin_view
+from renewal_admin_read_model_v2 import build_renewal_read_model
 from new_core.renewal_view_model import build_renewal_view_model
 from renewal_admin_review_service import review_renewal_task_v2
+from renewal_mutation_service import retry_kick, send_reminder
+from renewal_worker_config_service import get_config as get_renewal_worker_config, update_config as update_renewal_worker_config
 from bot_links import normalize_bot_link_template
 try:
     from bot_instance import bot, dp, set_commands
@@ -2106,6 +2109,12 @@ async def start_background_workers():
     except Exception:
         auto_payment_schedule_worker = None
 
+    try:
+        from renewal_kick_periodic_worker import enabled as renewal_kick_enabled, renewal_kick_worker
+    except Exception:
+        renewal_kick_enabled = lambda: False
+        renewal_kick_worker = None
+
     if maintenance_worker:
         create_background_task(maintenance_worker(), name="maintenance_worker", context="web_backend")
     if scheduler_worker:
@@ -2126,6 +2135,9 @@ async def start_background_workers():
         create_background_task(bot_runtime_worker(), name="bot_runtime_worker", context="web_backend")
     if auto_payment_schedule_worker:
         create_background_task(auto_payment_schedule_worker(), name="auto_payment_schedule_worker", context="web_backend")
+    if renewal_kick_worker and renewal_kick_enabled():
+        create_background_task(renewal_kick_worker(bot), name="renewal_kick_worker", context="web_backend")
+        print("🚪 New entitlement kick worker scheduled conservatively.")
     create_background_task(webhook_watch_worker(), name="webhook_watch_worker", context="web_backend")
 
 
@@ -3837,6 +3849,39 @@ async def admin_renewal_kick_v2(updated_after: str | None = None):
     return {"data": tasks, "group_tasks": group_tasks, "attempts": attempts, "view": view, "view_model": view_model}
 
 
+@app.get("/admin-api/renewals-v2", dependencies=[Depends(require_admin)])
+async def admin_renewals_v2(tab: str = "expiring-soon"):
+    if tab not in {"expiring-soon", "expired"}:
+        raise HTTPException(status_code=400, detail="Tab renewal không hợp lệ.")
+    try:
+        entitlements = supabase_store._request("GET", "customer_entitlements_v2", params={"select": "*", "limit": "5000"})
+        jobs = supabase_store._request("GET", "entitlement_kick_jobs", params={"select": "*", "limit": "5000"})
+        orders = supabase_store._request("GET", "orders", params={"select": "order_id,full_name,plan_name,expired_notice_at,last_reminder_date", "limit": "5000"})
+        membership_snapshots = supabase_store._request("GET", "renewal_membership_snapshots", params={"select": "*", "limit": "10000"})
+        reminder_events = supabase_store._request("GET", "renewal_reminder_events", params={"select": "*", "order": "updated_at.desc", "limit": "10000"})
+        return {"data": build_renewal_read_model(entitlements, jobs, orders, membership_snapshots, reminder_events, tab=tab)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không đọc được renewal read-model mới: {exc}")
+
+
+@app.get("/admin-api/renewal-worker-config", dependencies=[Depends(require_admin)])
+async def admin_renewal_worker_config():
+    try:
+        return {"data": get_renewal_worker_config()}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không đọc được cấu hình worker: {exc}")
+
+
+@app.patch("/admin-api/renewal-worker-config", dependencies=[Depends(require_admin)])
+async def admin_update_renewal_worker_config(request: Request):
+    try:
+        return {"data": update_renewal_worker_config(await request.json(), actor="admin")}
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không cập nhật được cấu hình worker: {exc}")
+
+
 @app.post("/admin-api/renewal-kick-v2/review", dependencies=[Depends(require_admin)])
 async def admin_renewal_kick_v2_review(request: Request):
     body = await request.json()
@@ -3847,6 +3892,28 @@ async def admin_renewal_kick_v2_review(request: Request):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Không xử lý được review v2: {exc}")
+
+
+@app.post("/admin-api/renewals-v2/send-reminder", dependencies=[Depends(require_admin)])
+async def admin_renewals_v2_send_reminder(request: Request):
+    body = await request.json()
+    try:
+        return {"data": await send_reminder(body, actor="admin")}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không queue được reminder: {exc}")
+
+
+@app.post("/admin-api/renewals-v2/retry-kick", dependencies=[Depends(require_admin)])
+async def admin_renewals_v2_retry_kick(request: Request):
+    body = await request.json()
+    try:
+        return {"data": await retry_kick(body, actor="admin")}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không queue được retry kick: {exc}")
 
 
 @app.get("/admin-api/vip-group-audit", dependencies=[Depends(require_admin)])
