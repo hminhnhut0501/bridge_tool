@@ -1,0 +1,16 @@
+.venv/
+.tools/
+.env
+data/
+__pycache__/
+*.session*
+*.conf
+*.egg-info/
+frontend/node_modules/
+frontend/dist/
+test-results/
+.env.*
+!.env.example
+private/
+.ruff_cache/
+frontend/playwright-report/

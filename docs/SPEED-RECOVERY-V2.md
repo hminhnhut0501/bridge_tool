@@ -1,0 +1,11 @@
+# Successful-media driven speed recovery
+
+A pacing interval up to 4 seconds for each 512 KiB iterator advance imposed an app-side ceiling near 128 KiB/s. Replace the ten-minute/10-percent recovery with successful-data windows: at least 45 seconds since the window began and 4 MiB returned by media advances permits a 25-percent interval reduction, down to the existing 250ms floor. Every FloodWait incident resets the window; metadata and tiny responses cannot raise speed. Existing lane count does not increase. Deadlines remain authoritative. Roughly ten qualifying windows bring a 4-second interval back to the floor; network/Drive and new FloodWait can extend this.
+
+Track cumulative pacing wait, Telegram-operation duration and successful media bytes since process start. These are wrapper measurements, may overlap with concurrent lanes, and are not exact RPC counts. API /telegram/rate-status includes metrics plus the Premium flag and timestamp obtained from the authorized get_me result. Premium remains unknown until authorization succeeds; never infer it from a user claim. Handle FloodPremiumWaitError explicitly and preserve the error class in diagnostics.
+
+Transfer speed uses a recent approximately 20-second sample window instead of a whole-job average. /jobs adds downstream_write_seconds for the most recent pipe write/backpressure duration; this is not Drive upload throughput. Existing pipeline semantics, bandwidth settings and random rests remain unchanged.
+
+First-chunk failures are persisted per job: three waits without a first chunk defer 30 minutes; a second such attempt defers two hours; the third becomes FAILED with telegram_media_no_progress_review_required for manual inspection. Receiving the first chunk resets that counter. This is an application review state, not a claim Telegram banned a file. Other jobs still respect the account cooldown and source pauses.
+
+UI Settings shows verified Premium status, active chunk interval and lane count. No credentials, phone, media content or file references are exposed. Production deployment preserves configured transfer concurrency and cooldowns, and does not reset the slow interval by hand; successful traffic drives recovery.

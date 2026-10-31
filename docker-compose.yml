@@ -1,0 +1,48 @@
+services:
+  vault:
+    build: .
+    image: telegram-vault:local
+    restart: unless-stopped
+    env_file: ${VAULT_ENV_FILE:-.env.production}
+    environment:
+      DATA_DIR: /data
+      DATABASE_PATH: /data/db/vault.sqlite3
+      TELEGRAM_SESSION_PATH: /data/session/account
+      RCLONE_CONFIG: /config/rclone/rclone.conf
+      FRONTEND_DIR: /app/frontend/dist
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - vault-data:/data
+      - ./private/rclone:/config/rclone
+    stop_grace_period: 30s
+    mem_limit: 768m
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  caddy:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      VAULT_DOMAIN: ${VAULT_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - vault
+volumes:
+  vault-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,2674 @@
+SPEC v1.0 — Telegram Encrypted Backup Gateway
+
+1. Mục tiêu
+
+Xây dựng một service chạy 24/7 trên Ubuntu VPS có nhiệm vụ:
+
+Tự động phát hiện và backup video từ các Telegram Group/Supergroup/Forum Topics mà tài khoản được phép truy cập → mã hóa bằng rclone crypt → lưu trên Google Drive.
+
+Yêu cầu chính:
+
+* Hỗ trợ Telegram group thường.
+* Hỗ trợ Telegram supergroup.
+* Hỗ trợ forum group có Topics.
+* Backup lịch sử cũ.
+* Theo dõi video mới.
+* Chỉ backup video/media được cấu hình.
+* Không download trùng.
+* Có checkpoint.
+* VPS restart không mất trạng thái.
+* Có retry.
+* Tôn trọng Telegram FloodWait/rate limits.
+* Không tìm cách bypass Telegram anti-abuse.
+* Mã hóa file và filename bằng rclone crypt.
+* Streaming trực tiếp khi có thể.
+* Không yêu cầu VPS có disk tương ứng với tổng dữ liệu.
+* Có Web UI quản lý.
+* Có REST API.
+* Có thể tích hợp vào Encrypted Web Drive sau này.
+
+⸻
+
+2. Tên project
+
+Working name:
+
+Telegram Vault
+
+Repository:
+
+telegram-vault/
+
+Service:
+
+telegram-vault
+
+CLI:
+
+telegram-vault
+
+⸻
+
+3. Kiến trúc tổng thể
+
+                 TELEGRAM
+                    │
+                    │ Telegram API
+                    ▼
+        ┌────────────────────────────┐
+        │        Ubuntu VPS          │
+        │                            │
+        │ Telegram Client            │
+        │       │                    │
+        │       ▼                    │
+        │ Scanner / Listener         │
+        │       │                    │
+        │       ▼                    │
+        │ Job Queue                  │
+        │       │                    │
+        │       ▼                    │
+        │ Download Worker            │
+        │       │                    │
+        │       ▼                    │
+        │ Bounded Buffer / Cache     │
+        │       │                    │
+        │       ▼                    │
+        │ rclone crypt               │
+        │       │                    │
+        │       ▼                    │
+        │ Upload / Verify            │
+        │                            │
+        │ SQLite                     │
+        │ Web UI + REST API          │
+        └────────────┬───────────────┘
+                     │
+                     ▼
+                Google Drive
+                     │
+                     ▼
+             Encrypted Storage
+
+⸻
+
+4. Nguyên tắc thiết kế
+
+Ưu tiên theo thứ tự:
+
+1. Không mất dữ liệu.
+2. Không backup trùng.
+3. Không gây hành vi abusive với Telegram.
+4. Encryption correctness.
+5. Integrity.
+6. Restart/recovery.
+7. Disk usage thấp.
+8. RAM bounded.
+9. Tốc độ.
+10. UI.
+
+Không hy sinh safety để đạt throughput cao hơn.
+
+⸻
+
+5. Telegram access
+
+Sử dụng Telegram Client API thông qua một thư viện được duy trì tốt.
+
+Codex phải đánh giá:
+
+TDLib
+Telethon
+Pyrogram hoặc lựa chọn tương đương đang được duy trì
+
+và ghi quyết định vào:
+
+docs/TELEGRAM-ARCHITECTURE.md
+
+Ưu tiên:
+
+* hỗ trợ file lớn tốt;
+* streaming/chunk download;
+* forum topics;
+* FloodWait rõ ràng;
+* reconnect;
+* session persistence;
+* dễ giới hạn concurrency;
+* library đang được maintain.
+
+Không sử dụng unofficial scraping website.
+
+⸻
+
+6. Account model
+
+MVP:
+
+1 Telegram account
+
+Không xây account rotation.
+
+Không tự động chuyển nhiều account để né rate limit.
+
+Không proxy/IP rotation nhằm bypass Telegram restriction.
+
+Nếu Telegram trả FloodWait:
+
+obey FloodWait
+
+⸻
+
+7. Authentication Telegram
+
+First setup:
+
+Phone
+ ↓
+OTP
+ ↓
+2FA password nếu có
+ ↓
+Session
+
+Session được persist trên VPS.
+
+Không yêu cầu login lại sau restart.
+
+Telegram credentials/session:
+
+* không expose frontend;
+* không log;
+* permissions filesystem chặt;
+* không commit Git.
+
+⸻
+
+8. Source management
+
+UI:
+
+Telegram Sources
++ Add Source
+┌──────────────────────────────────┐
+│ Group A                    Active│
+│ All Topics                       │
+│ 12,481 videos                    │
+│ Last sync: 2 min ago             │
+└──────────────────────────────────┘
+
+Cho phép:
+
+* add group;
+* enable/disable;
+* remove khỏi backup config;
+* pause;
+* resume;
+* rescan.
+
+Removing source KHÔNG được mặc định delete backup.
+
+⸻
+
+9. Group discovery
+
+UI có:
+
+Add Telegram Source
+
+Search/list các group account hiện tại có quyền truy cập.
+
+Hiển thị:
+
+* group name;
+* group type;
+* forum/topics yes/no.
+
+Không cần user nhập raw Telegram ID nếu API có thể discover.
+
+⸻
+
+10. Topic support
+
+Nếu Telegram Forum:
+
+Group
+├── General
+├── Topic A
+├── Topic B
+└── Topic C
+
+Cho phép:
+
+Backup all topics
+
+hoặc:
+
+Selected topics
+
+Ví dụ:
+
+☑ General
+☑ Idol A
+☐ Discussion
+☑ Idol B
+
+⸻
+
+11. Group không có Topic
+
+Structure:
+
+Telegram/
+└── Group Name/
+    └── YYYY/
+        └── MM/
+
+⸻
+
+12. Group có Topic
+
+Logical structure:
+
+Telegram/
+└── Group Name/
+    ├── General/
+    ├── Topic A/
+    ├── Topic B/
+    └── Topic C/
+
+Có thể optional chia tiếp:
+
+YYYY/MM/
+
+để tránh directory quá lớn.
+
+⸻
+
+13. Path strategy
+
+Recommended:
+
+Telegram/
+<Group>/
+<Topic>/
+YYYY/
+MM/
+<filename>
+
+Ví dụ:
+
+Telegram/
+Hang Cu VIP/
+Idol A/
+2026/
+10/
+123456_video-name.mp4
+
+Prefix message_id giúp collision resistance.
+
+⸻
+
+14. Path stability
+
+Không sử dụng Group Name/Topic Name làm identity trong DB.
+
+Identity phải dùng:
+
+chat_id
+topic_id
+message_id
+
+Name chỉ dùng display/path.
+
+Nếu group đổi tên:
+
+DB vẫn nhận diện đúng group.
+
+⸻
+
+15. File naming
+
+Nếu Telegram cung cấp filename:
+
+<message_id>_<original_filename>
+
+Nếu không:
+
+<message_id>_<timestamp>.<ext>
+
+Sanitize:
+
+* /
+* \
+* control characters
+* invalid filesystem characters
+* pathological Unicode
+
+Nhưng phải giữ Unicode bình thường.
+
+⸻
+
+16. Duplicate prevention
+
+P0.
+
+Không dùng filename làm dedupe key.
+
+Primary logical identity:
+
+chat_id
+message_id
+media_index
+
+Nếu message chỉ có một media:
+
+chat_id + message_id
+
+Telegram media/file IDs có thể lưu thêm để reconciliation.
+
+⸻
+
+17. SQLite database
+
+MVP dùng:
+
+SQLite
+
+Enable:
+
+WAL
+
+Tables conceptual:
+
+accounts
+sources
+topics
+messages
+media
+backup_jobs
+transfers
+checkpoints
+settings
+events
+
+⸻
+
+18. Media record
+
+Conceptual:
+
+id
+chat_id
+topic_id
+message_id
+telegram_file_id
+telegram_unique_reference
+original_filename
+mime_type
+size
+telegram_date
+remote_path
+status
+attempt_count
+last_error
+plaintext_sha256
+created_at
+started_at
+completed_at
+
+⸻
+
+19. Backup state machine
+
+Không dùng boolean:
+
+downloaded=true
+
+Dùng state machine:
+
+DISCOVERED
+    ↓
+QUEUED
+    ↓
+TRANSFERRING
+    ↓
+VERIFYING
+    ↓
+COMPLETED
+
+Failures:
+
+TRANSFERRING
+    ↓
+RETRY_WAIT
+    ↓
+QUEUED
+
+Permanent/manual:
+
+FAILED
+SKIPPED
+CANCELLED
+
+⸻
+
+20. Crash recovery
+
+Khi service startup:
+
+Records:
+
+TRANSFERRING
+VERIFYING
+
+không được mặc định coi là completed.
+
+Reconcile với remote.
+
+Nếu không xác minh được:
+
+RETRY_WAIT
+
+hoặc cleanup incomplete target rồi retry an toàn.
+
+⸻
+
+21. Initial historical scan
+
+Khi thêm group:
+
+Initial Scan
+
+Scan message history.
+
+Không download ngay mọi thứ trong scan loop.
+
+Pipeline:
+
+Scanner
+ ↓
+metadata
+ ↓
+SQLite
+ ↓
+Job Queue
+ ↓
+Workers
+
+Scanner và downloader tách riêng.
+
+⸻
+
+22. Scanner
+
+Scanner:
+
+* duyệt history;
+* xác định topic;
+* detect media;
+* apply filter;
+* insert DB;
+* enqueue eligible media.
+
+Không download media.
+
+Như vậy scan 100k message không giữ 100k objects trong RAM.
+
+⸻
+
+23. Pagination
+
+Telegram history phải đọc theo page/batch.
+
+Ví dụ configurable:
+
+SCAN_BATCH_SIZE=100
+
+Không fetch toàn bộ history vào RAM.
+
+⸻
+
+24. Checkpoint
+
+Mỗi source lưu checkpoint.
+
+Ví dụ:
+
+last_seen_message_id
+last_scan_at
+
+Sau initial scan:
+
+1 → 200000
+
+incremental scan:
+
+200001+
+
+Không scan lại toàn bộ mỗi lần service restart.
+
+⸻
+
+25. Live monitoring
+
+Sau initial sync:
+
+Telegram listener theo dõi message mới nếu library hỗ trợ ổn định.
+
+New message
+   ↓
+Has eligible video?
+   ├─ no → ignore
+   └─ yes
+        ↓
+      SQLite
+        ↓
+      Queue
+
+⸻
+
+26. Reconciliation scan
+
+Không phụ thuộc 100% vào live listener.
+
+Định kỳ chạy:
+
+recent reconciliation
+
+Ví dụ:
+
+last N messages
+
+hoặc time window.
+
+Mục đích bắt:
+
+* missed events;
+* reconnect gap;
+* delayed processing.
+
+Không rescan toàn bộ group.
+
+⸻
+
+27. Media filters
+
+MVP:
+
+video only
+
+Detect:
+
+* native Telegram video;
+* video document;
+* MIME video/*;
+* configurable extensions.
+
+Ví dụ:
+
+mp4
+mkv
+mov
+webm
+avi
+m4v
+ts
+
+Không chỉ dựa vào extension.
+
+⸻
+
+28. Optional filters
+
+Config per source:
+
+Minimum size
+Maximum size
+Date after
+Date before
+Topics
+Video only
+
+Ví dụ:
+
+MIN_VIDEO_SIZE=5MB
+
+⸻
+
+29. Transfer architecture
+
+Có hai modes.
+
+MODE A — STREAMING
+
+Default.
+
+Telegram
+   ↓
+download chunks
+   ↓
+bounded buffer
+   ↓
+rclone crypt
+   ↓
+Google Drive
+
+Không full-file disk.
+
+MODE B — CACHE
+
+Optional.
+
+Telegram
+   ↓
+temporary file
+   ↓
+rclone
+   ↓
+Google Drive
+   ↓
+verify
+   ↓
+delete temp
+
+⸻
+
+30. Streaming mode target
+
+Mục tiêu:
+
+file = 50 GB
+VPS disk usage:
+≈ metadata/logs
+
+RAM:
+
+bounded
+
+Ví dụ:
+
+16–64 MB per active transfer
+
+Không tăng theo file size.
+
+⸻
+
+31. Streaming implementation research
+
+Codex phải làm POC trước.
+
+Nghiên cứu:
+
+Telegram chunk reader
+       ↓
+pipe/stdin
+       ↓
+rclone rcat crypt:path
+
+Ưu tiên:
+
+rclone rcat
+
+nếu đáp ứng correctness/performance.
+
+Không giả định rcat hoàn hảo trước khi benchmark.
+
+⸻
+
+32. Backpressure
+
+P0.
+
+Nếu:
+
+Telegram download = 100 MB/s
+Google upload = 20 MB/s
+
+RAM không được tăng vô hạn.
+
+Pipeline phải backpressure Telegram reader.
+
+Desired:
+
+Telegram
+   ↓
+64 MB bounded buffer
+   ↓
+Google Drive
+buffer full
+→ pause/block upstream reads
+
+⸻
+
+33. Streaming integrity hash
+
+Trong lúc stream plaintext:
+
+Telegram
+    │
+    ├── SHA-256
+    │
+    ▼
+rclone
+
+Tính:
+
+plaintext_sha256
+
+mà không cần đọc file lần hai.
+
+Store SQLite.
+
+⸻
+
+34. Streaming failure
+
+Ví dụ file 20 GB fail ở 19 GB.
+
+Không mark completed.
+
+State:
+
+TRANSFERRING
+ ↓
+RETRY_WAIT
+
+Partial/incomplete remote object phải được xác định và xử lý an toàn.
+
+Không để incomplete object masquerade thành completed backup.
+
+⸻
+
+35. Resume
+
+Không claim true byte-level resume trong Streaming Mode nếu Telegram + rclone + Google Drive pipeline không đảm bảo.
+
+MVP cho phép:
+
+retry from beginning
+
+nếu streaming failure.
+
+UI phải nói đúng sự thật.
+
+⸻
+
+36. Cache Mode
+
+Cache mode dùng cho:
+
+* network unstable;
+* file cực lớn;
+* cần retry upload không tải lại Telegram;
+* user có SSD đủ.
+
+Directory:
+
+/var/lib/telegram-vault/cache
+
+⸻
+
+37. Cache limit
+
+Config:
+
+CACHE_MAX_BYTES=10GB
+
+Nếu file:
+
+20GB
+
+mà cache limit:
+
+10GB
+
+không bắt đầu full-cache mode.
+
+Có thể fallback:
+
+Streaming
+
+nếu policy cho phép.
+
+⸻
+
+38. Cache cleanup
+
+Chỉ delete cache khi:
+
+upload verified
+
+Không delete file trước verify.
+
+Startup cleanup stale files nhưng phải đối chiếu DB trước.
+
+Không blind rm -rf.
+
+⸻
+
+39. Adaptive mode
+
+Phase 2:
+
+small files → cache
+large files → streaming
+
+Ví dụ:
+
+< 1 GB  → cache
+>= 1 GB → stream
+
+Configurable.
+
+⸻
+
+40. rclone storage
+
+Destination:
+
+crypt:
+
+Không:
+
+gdrive:
+
+Application không được bypass encryption.
+
+⸻
+
+41. rclone crypt
+
+Expected:
+
+[crypt]
+type = crypt
+remote = gdrive:/TelegramVault
+filename_encryption = standard
+directory_name_encryption = true
+password = ...
+password2 = ...
+
+Không tự implement encryption.
+
+⸻
+
+42. Google Drive view
+
+Google:
+
+TelegramVault/
+├── h39fj2...
+├── 3jf90d...
+└── fj20dj...
+
+Application:
+
+Telegram/
+└── Hang Cu VIP/
+    ├── Topic A/
+    └── Topic B/
+
+⸻
+
+43. rclone config security
+
+rclone.conf:
+
+chmod 600
+
+Không expose qua API/UI.
+
+Không log contents.
+
+Không bake vào Docker image.
+
+⸻
+
+44. Telegram FloodWait
+
+P0.
+
+Nếu Telegram trả:
+
+FloodWait(X)
+
+worker phải:
+
+1. đọc X;
+2. record event;
+3. pause affected operation/account;
+4. chờ tối thiểu thời gian Telegram yêu cầu;
+5. resume từ scheduler;
+6. giảm request pressure nếu FloodWait xảy ra thường xuyên.
+
+Không retry loop.
+
+⸻
+
+45. Rate controller
+
+Implement centralized:
+
+TelegramRateController
+
+Không để mỗi worker tự spam API độc lập.
+
+Controller quản lý:
+
+concurrency
+request pacing
+FloodWait
+retry
+backoff
+
+⸻
+
+46. Adaptive concurrency
+
+Default:
+
+DOWNLOAD_CONCURRENCY=1
+
+Có thể benchmark:
+
+1 → 2
+
+Không mặc định 10.
+
+Algorithm Phase 2:
+
+stable
+ ↓
+carefully increase
+FloodWait/error ↑
+ ↓
+decrease
+
+Cap configurable:
+
+MAX_TELEGRAM_CONCURRENCY=2
+
+MVP ưu tiên safety hơn adaptive cleverness.
+
+⸻
+
+47. Không làm để né Telegram
+
+Tool không được implement:
+
+* account rotation để bypass limits;
+* proxy rotation để bypass restrictions;
+* fake device farms;
+* FloodWait bypass;
+* aggressive scraping;
+* repeated login attempts.
+
+Mục tiêu là backup nội dung account có quyền truy cập.
+
+⸻
+
+48. Retry policy
+
+Transient:
+
+timeout
+connection reset
+temporary Telegram errors
+Google 429
+Google 5xx
+
+Retry exponential backoff:
+
+5s
+15s
+45s
+2m
+5m
+...
+
+Có jitter.
+
+Không retry vô hạn ở tốc độ cao.
+
+⸻
+
+49. Permanent failures
+
+Ví dụ:
+
+message deleted
+media unavailable
+permission revoked
+invalid remote
+
+Sau threshold:
+
+FAILED
+
+UI cho:
+
+Retry manually
+
+⸻
+
+50. Google Drive rate limiting
+
+Nếu rclone/Google trả:
+
+403
+429
+rateLimitExceeded
+
+không tăng concurrency.
+
+Pause/retry theo backoff.
+
+⸻
+
+51. Worker pools
+
+Tách logical pools:
+
+Scanner Workers
+Telegram Transfer Workers
+Verification Workers
+Maintenance Workers
+
+Nhưng MVP không cần microservices.
+
+Có thể tất cả nằm trong một process.
+
+⸻
+
+52. VPS resource target
+
+Target:
+
+2 vCPU
+2 GB RAM
+10–20 GB SSD
+
+Có thể chạy thấp hơn nhưng không phải target chính.
+
+⸻
+
+53. RAM target
+
+Idle:
+
+< 250 MB
+
+Preferred:
+
+< 150 MB
+
+Active streaming:
+
+base RAM
++
+buffer × active workers
+
+Không phụ thuộc kích thước video.
+
+⸻
+
+54. Disk target
+
+Streaming mode:
+
+< 500 MB operational disk
+
+không tính:
+
+* logs;
+* DB;
+* optional cache.
+
+Không tạo plaintext full-file.
+
+⸻
+
+55. Bandwidth
+
+Dashboard hiển thị riêng:
+
+Telegram → VPS
+VPS → Google
+
+và:
+
+Current
+Average
+Total
+
+⸻
+
+56. Bandwidth limiting
+
+Config:
+
+MAX_DOWNLOAD_BANDWIDTH
+MAX_UPLOAD_BANDWIDTH
+
+Có thể:
+
+0 = unlimited
+
+Nhưng default Telegram side nên conservative.
+
+⸻
+
+57. Scheduling
+
+Cho phép:
+
+24/7
+
+hoặc schedule:
+
+00:00–07:00
+
+hoặc:
+
+Only historical backup during off-peak
+Live new videos always
+
+Phase 2 nếu MVP quá lớn.
+
+⸻
+
+58. Priority
+
+Queue priorities:
+
+LIVE
+HISTORICAL
+RETRY
+MAINTENANCE
+
+Recommended:
+
+LIVE > RETRY > HISTORICAL
+
+Video mới không phải chờ initial backlog 20,000 video.
+
+⸻
+
+59. Fair scheduling
+
+Nếu backup nhiều groups:
+
+Không để Group A 100k video khiến Group B không bao giờ được chạy.
+
+Round-robin/fair queue.
+
+⸻
+
+60. Web UI architecture
+
+Frontend:
+
+React + TypeScript
+
+Có thể:
+
+Next.js
+
+hoặc Vite nếu backend riêng nhẹ hơn.
+
+UI ưu tiên:
+
+fast
+clean
+dark mode
+responsive
+
+⸻
+
+61. Dashboard
+
+┌─────────────────────────────────────────────────────┐
+│ Telegram Vault                         ● Connected │
+├──────────────┬──────────────────────────────────────┤
+│ Dashboard    │ Overview                             │
+│ Sources      │                                      │
+│ Topics       │ Videos       Backed Up      Failed   │
+│ Transfers    │ 18,420       17,992          12     │
+│ Failed       │                                      │
+│ Storage      │ Active                               │
+│ Settings     │ video.mp4                            │
+│              │ ████████████░░ 78%                  │
+│              │                                      │
+│              │ Telegram ↓ 38 MB/s                  │
+│              │ Google   ↑ 37 MB/s                  │
+└──────────────┴──────────────────────────────────────┘
+
+⸻
+
+62. Dashboard metrics
+
+Hiển thị:
+
+Telegram status
+rclone status
+Google Drive status
+Sources
+Topics
+Videos discovered
+Completed
+Queued
+Failed
+Downloaded bytes
+Uploaded bytes
+Current throughput
+Queue length
+Active transfer
+VPS RAM
+VPS disk
+Uptime
+
+⸻
+
+63. Sources page
+
+Sources
+Hang Cu VIP
+● Active
+Topics: 12
+Videos: 12,892
+Completed: 12,501
+Queued: 379
+Failed: 12
+Last scan: 2 minutes ago
+[Pause] [Scan] [Topics] [Settings]
+
+⸻
+
+64. Topic page
+
+Hang Cu VIP
+☑ General       892 videos
+☑ Idol A       3821 videos
+☐ Chat          102 videos
+☑ Idol B       1821 videos
+[Save]
+
+Changing topic selection không tự delete backup cũ.
+
+⸻
+
+65. Transfer page
+
+ACTIVE
+video_A.mp4
+Telegram
+███████████░░░ 72%
+Google Drive
+██████████░░░░ 68%
+8.2 GB / 11.4 GB
+38 MB/s
+[Cancel]
+
+Không fake hai progress bars nếu pipeline không thể xác định chính xác từng stage.
+
+⸻
+
+66. Historical progress
+
+Initial Backup
+Messages scanned:
+184,292
+Videos discovered:
+12,892
+Completed:
+8,281
+Remaining:
+4,611
+
+⸻
+
+67. Failed page
+
+video.mp4
+Group: A
+Topic: B
+Reason:
+Telegram connection interrupted
+Attempts: 3
+Last attempt: 10 min ago
+[Retry]
+[Skip]
+
+⸻
+
+68. Storage page
+
+Destination
+crypt:
+Google Drive
+Connected ✓
+Encryption
+Content        ✓
+Filename       ✓
+Directories    ✓
+Used:
+...
+Free:
+...
+
+Không hiển thị crypt password.
+
+⸻
+
+69. Settings
+
+Sections:
+
+Telegram
+Backup
+Transfers
+Storage
+Resource Limits
+Security
+Advanced
+
+⸻
+
+70. API
+
+Suggested:
+
+GET  /api/status
+GET  /api/sources
+POST /api/sources
+GET  /api/sources/:id
+PATCH /api/sources/:id
+DELETE /api/sources/:id
+POST /api/sources/:id/scan
+POST /api/sources/:id/pause
+POST /api/sources/:id/resume
+GET /api/sources/:id/topics
+GET /api/jobs
+GET /api/transfers
+POST /api/jobs/:id/retry
+POST /api/jobs/:id/cancel
+POST /api/jobs/:id/skip
+GET /api/storage/status
+GET /api/system/status
+
+Codex được cải tiến API.
+
+⸻
+
+71. Web authentication
+
+Single-user MVP.
+
+Implement:
+
+* password login;
+* Argon2id/bcrypt;
+* session cookie;
+* HttpOnly;
+* Secure;
+* SameSite;
+* CSRF protection nếu cần;
+* login rate limiting.
+
+⸻
+
+72. Reverse proxy
+
+Production:
+
+Internet
+   ↓
+HTTPS
+   ↓
+Caddy
+   ↓
+Telegram Vault
+
+Không expose development server.
+
+⸻
+
+73. rclone RC
+
+Nếu sử dụng RC:
+
+127.0.0.1 only
+
+Không public:
+
+:5572
+
+Không expose RC password.
+
+⸻
+
+74. Logs
+
+Structured logging.
+
+Events:
+
+scan_started
+media_discovered
+transfer_started
+transfer_completed
+transfer_failed
+flood_wait
+google_rate_limit
+source_paused
+
+Không log:
+
+Telegram session
+OTP
+2FA password
+OAuth token
+crypt password
+cookies
+
+⸻
+
+75. Log rotation
+
+Không để:
+
+app.log
+
+tăng vô hạn.
+
+Sử dụng journald hoặc rotating logs.
+
+Config:
+
+LOG_MAX_SIZE
+LOG_RETENTION_DAYS
+
+⸻
+
+76. Event history
+
+SQLite lưu lightweight operational history.
+
+UI:
+
+09:32 Backup completed video A
+09:31 FloodWait 18s
+09:29 New video discovered
+
+Retention configurable.
+
+⸻
+
+77. Monitoring
+
+Health endpoint:
+
+/api/health
+
+Check:
+
+app
+SQLite
+Telegram session
+rclone
+crypt remote
+Google connectivity
+
+Health check không gây Telegram request burst.
+
+⸻
+
+78. Notifications
+
+Phase 2:
+
+Telegram Saved Messages hoặc webhook notification khi:
+
+source inaccessible
+storage full
+auth expired
+many failures
+Google Drive inaccessible
+
+Không gửi notification cho từng video thành công.
+
+⸻
+
+79. Docker
+
+Deliver:
+
+Dockerfile
+docker-compose.yml
+.env.example
+
+Persistent volumes:
+
+/data/db
+/data/session
+/data/cache
+/config/rclone
+
+⸻
+
+80. Docker resource constraints
+
+Document optional:
+
+memory limit
+CPU limit
+
+Không đặt limit quá thấp khiến OOM trong transfer.
+
+⸻
+
+81. systemd
+
+Provide optional native Ubuntu deployment.
+
+Service:
+
+telegram-vault.service
+
+Properties:
+
+Restart=on-failure
+RestartSec=...
+
+Không restart-loop nhanh nếu Telegram auth lỗi.
+
+⸻
+
+82. Configuration
+
+.env.example conceptual:
+
+APP_PORT=
+APP_URL=
+AUTH_USERNAME=
+AUTH_PASSWORD_HASH=
+SESSION_SECRET=
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+TELEGRAM_SESSION_PATH=
+RCLONE_BINARY=
+RCLONE_CONFIG=
+RCLONE_REMOTE=crypt:
+DATABASE_PATH=
+TRANSFER_MODE=stream
+DOWNLOAD_CONCURRENCY=1
+MAX_TELEGRAM_CONCURRENCY=2
+STREAM_BUFFER_BYTES=33554432
+CACHE_DIR=
+CACHE_MAX_BYTES=
+MAX_RETRIES=
+RECONCILIATION_INTERVAL=
+LOG_LEVEL=
+
+Không commit .env.
+
+⸻
+
+83. Secrets permissions
+
+Directories chứa:
+
+Telegram session
+rclone.conf
+.env
+
+phải restricted.
+
+Docker volumes cũng phải được document về permission.
+
+⸻
+
+84. Database backup
+
+SQLite rất nhỏ nhưng quan trọng.
+
+Auto backup:
+
+daily
+
+Giữ:
+
+7–30 snapshots
+
+Có thể lưu DB backup encrypted lên:
+
+crypt:/TelegramVaultMetadata/
+
+nhưng phải tránh recursive backup logic.
+
+⸻
+
+85. Session backup
+
+Telegram session có security implications.
+
+Không tự upload session lên cloud mặc định.
+
+Document recovery.
+
+⸻
+
+86. Integrity verification
+
+Minimum completion condition:
+
+Telegram stream completed
++
+rclone returned success
++
+destination stat exists
++
+logical size validation where valid
+
+Hash:
+
+plaintext SHA-256
+
+lưu local DB.
+
+Không giả định hash của encrypted Google object bằng plaintext SHA-256.
+
+⸻
+
+87. Remote reconciliation
+
+Có maintenance command:
+
+telegram-vault reconcile
+
+So sánh:
+
+DB completed records
+↕
+crypt remote
+
+Detect:
+
+missing remote
+orphan DB record
+unexpected remote object
+
+Không auto-delete unexpected objects.
+
+⸻
+
+88. Telegram deleted messages
+
+Nếu source message bị xóa sau backup:
+
+DEFAULT:
+
+KEEP BACKUP
+
+Không propagate delete.
+
+Đây là backup system, không phải mirror.
+
+Optional mirror behavior chỉ Phase 3 và phải opt-in.
+
+⸻
+
+89. Edited messages
+
+Nếu caption thay đổi:
+
+Không cần re-download video.
+
+Nếu Telegram media thay đổi:
+
+detect nếu API cung cấp identity đủ tin cậy.
+
+Create/update backup record phù hợp.
+
+Không overwrite bản tốt một cách mù quáng.
+
+⸻
+
+90. Filename collision
+
+Nếu hai files cùng filename:
+
+message ID prefix bảo vệ:
+
+12345_video.mp4
+12389_video.mp4
+
+Không overwrite.
+
+⸻
+
+91. Existing destination
+
+Trước transfer nếu remote path tồn tại:
+
+Không mặc định overwrite.
+
+Check DB + stat.
+
+Nếu uncertain:
+
+VERIFY
+
+Nếu conflict:
+
+generate safe alternative hoặc mark conflict.
+
+⸻
+
+92. Atomic completion semantics
+
+Một file chỉ xuất hiện là:
+
+COMPLETED
+
+sau khi transfer + verification pass.
+
+Có thể dùng temporary logical destination:
+
+.incomplete/
+
+nếu rclone/backend semantics cho phép hiệu quả.
+
+Codex phải nghiên cứu trade-off.
+
+⸻
+
+93. Cancellation
+
+User bấm:
+
+Cancel
+
+phải:
+
+* stop transfer;
+* stop rclone child process;
+* close Telegram stream;
+* cleanup safely;
+* update DB.
+
+Không để zombie processes.
+
+⸻
+
+94. Graceful shutdown
+
+SIGTERM:
+
+1. stop accepting jobs;
+2. checkpoint scanner;
+3. signal workers;
+4. finish/cancel theo timeout;
+5. persist state;
+6. close DB.
+
+Docker stop/reboot không corrupt DB.
+
+⸻
+
+95. Update strategy
+
+Provide:
+
+docker compose pull
+docker compose up -d
+
+DB migration phải automatic nhưng backup DB trước migration.
+
+⸻
+
+96. Tests
+
+Unit:
+
+dedupe
+path sanitizer
+topic mapping
+state machine
+queue
+retry
+FloodWait handling
+cache limits
+
+Integration:
+
+Telegram mock
+rclone local crypt
+SQLite
+streaming pipeline
+
+⸻
+
+97. Local crypt integration test
+
+Không dùng Google Drive trong CI.
+
+Setup:
+
+local:
+   ↓
+crypt:
+
+Upload known test data.
+
+Verify:
+
+plaintext input
+→ encrypted backend
+→ decrypt
+→ SHA-256 same
+
+⸻
+
+98. Streaming stress test
+
+Generate:
+
+10 GB
+
+synthetic stream.
+
+Transfer through actual pipeline.
+
+Measure:
+
+peak RAM
+peak disk
+throughput
+
+PASS:
+
+RAM does not scale with file size
+disk does not scale with file size
+
+⸻
+
+99. Telegram rate-limit simulation
+
+Mock:
+
+FloodWait 60
+
+Expected:
+
+worker pauses >= required duration
+no request storm
+job remains recoverable
+
+Test repeated FloodWait.
+
+⸻
+
+100. Crash test
+
+Kill service at:
+
+10%
+50%
+90%
+VERIFYING
+
+Restart.
+
+Expected:
+
+no false COMPLETED
+no DB corruption
+job recoverable
+
+⸻
+
+101. Network failure test
+
+Simulate:
+
+Telegram disconnect
+Google disconnect
+rclone failure
+
+No data loss/state corruption.
+
+⸻
+
+102. Large history test
+
+Simulate:
+
+500,000 messages
+50,000 media
+
+Scanner RAM must remain bounded.
+
+UI must paginate.
+
+⸻
+
+103. UI pagination
+
+Không send 50,000 rows một request.
+
+API:
+
+limit
+cursor
+
+Preferred cursor pagination.
+
+⸻
+
+104. Security tests
+
+Test:
+
+unauthenticated API
+CSRF
+path traversal
+command injection
+malicious filename
+XSS filename
+huge filename
+Unicode edge cases
+
+⸻
+
+105. Performance target
+
+Initial goal trên VPS 2 vCPU / 2 GB:
+
+Idle RAM < 250 MB
+
+Active:
+
+< 500 MB
+
+với 1 streaming worker nếu implementation/library cho phép.
+
+Disk streaming:
+
+< 500 MB
+
+operational footprint excluding DB/log/cache.
+
+⸻
+
+106. Không tối ưu mù quáng
+
+Codex phải benchmark:
+
+1 worker
+vs
+2 workers
+
+Đo:
+
+Telegram throughput
+Google throughput
+CPU
+RAM
+FloodWait frequency
+failure rate
+
+Chọn cấu hình nhanh nhất nhưng ổn định.
+
+Không mặc định nhiều worker = nhanh hơn.
+
+⸻
+
+107. Initial backup strategy
+
+Nếu group có hàng chục nghìn video:
+
+Không:
+
+scan tất cả
+→ spawn tất cả jobs vào RAM
+
+Dùng persistent DB queue.
+
+Có thể scanner đi trước downloader.
+
+Queue tồn tại trong SQLite.
+
+⸻
+
+108. Live-vs-history priority
+
+Ví dụ:
+
+Historical backlog:
+15,000 videos
+New video arrives:
+
+không để video mới đứng #15001.
+
+Queue:
+
+Priority 100 → Live
+Priority 50  → Retry
+Priority 10  → Historical
+
+⸻
+
+109. Statistics
+
+Store aggregate stats hoặc query efficient indexes.
+
+Dashboard:
+
+Today:
+Videos: 82
+Data: 128 GB
+Total:
+Videos: 18,291
+Data: 24.8 TB
+Failed:
+12
+
+Không SUM hàng triệu rows liên tục nếu DB lớn.
+
+⸻
+
+110. Indexes
+
+SQLite indexes tối thiểu trên:
+
+(chat_id, message_id)
+status
+priority
+topic_id
+completed_at
+
+Profile query trước khi thêm index dư thừa.
+
+⸻
+
+111. Database maintenance
+
+Implement:
+
+checkpoint WAL
+VACUUM optional
+ANALYZE
+
+Không VACUUM trong lúc transfer nặng.
+
+⸻
+
+112. Storage abstraction
+
+Tạo:
+
+StorageProvider
+
+Không gọi rclone rải rác khắp code.
+
+Concept:
+
+putStream()
+stat()
+list()
+move()
+delete()
+exists()
+
+Implementation:
+
+RcloneCryptStorage
+
+⸻
+
+113. Telegram abstraction
+
+Tạo:
+
+TelegramProvider
+
+Concept:
+
+listSources()
+listTopics()
+scanMessages()
+subscribeNewMessages()
+getMediaMetadata()
+openMediaStream()
+
+Business logic không phụ thuộc trực tiếp Telethon/TDLib ở mọi nơi.
+
+⸻
+
+114. Queue abstraction
+
+JobQueue
+
+MVP SQLite-backed.
+
+Không cần Redis.
+
+Methods:
+
+enqueue
+claim
+complete
+fail
+retry
+cancel
+
+Job claiming phải transaction-safe.
+
+⸻
+
+115. Repository
+
+Recommended:
+
+telegram-vault/
+├── backend/
+│   ├── telegram/
+│   ├── storage/
+│   ├── queue/
+│   ├── workers/
+│   ├── database/
+│   ├── api/
+│   └── auth/
+│
+├── frontend/
+│
+├── tests/
+├── scripts/
+├── docs/
+│
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── README.md
+└── SECURITY.md
+
+Không bắt buộc monorepo framework phức tạp.
+
+⸻
+
+116. Documentation
+
+Deliver:
+
+README.md
+docs/
+├── ARCHITECTURE.md
+├── TELEGRAM.md
+├── RCLONE.md
+├── ENCRYPTION.md
+├── DEPLOYMENT.md
+├── SECURITY.md
+├── BACKUP-RECOVERY.md
+├── TROUBLESHOOTING.md
+└── PERFORMANCE.md
+
+⸻
+
+117. CLI
+
+Useful admin commands:
+
+telegram-vault status
+telegram-vault scan
+telegram-vault retry-failed
+telegram-vault reconcile
+telegram-vault doctor
+
+doctor:
+
+Telegram       ✓
+SQLite         ✓
+rclone         ✓
+crypt          ✓
+Google Drive   ✓
+Disk           ✓
+
+⸻
+
+118. Doctor must be safe
+
+Không perform destructive operation.
+
+Có thể tạo một tiny temporary test object only nếu user explicitly chooses deep test.
+
+Default doctor read-only.
+
+⸻
+
+119. Development safety
+
+Không test destructive operations trên production group/remote trước.
+
+Create:
+
+crypt:/TelegramVault_TEST/
+
+Development chỉ dùng TEST root.
+
+⸻
+
+120. Phase 0 — Technical POC
+
+TRƯỚC KHI LÀM WEB UI:
+
+Codex phải chứng minh:
+
+Telegram video
+      ↓
+chunk stream
+      ↓
+bounded memory
+      ↓
+rclone rcat
+      ↓
+crypt
+      ↓
+test storage
+
+Không full-file disk.
+
+Measure:
+
+file size
+duration
+average speed
+peak RAM
+peak disk
+SHA-256
+
+Nếu POC fail:
+
+STOP.
+
+Không xây UI để che kiến trúc transfer chưa giải quyết.
+
+⸻
+
+121. Phase 1 — Core engine
+
+Implement:
+
+* Telegram login/session
+* source discovery
+* topics
+* history scanner
+* SQLite
+* dedupe
+* persistent queue
+* streaming transfer
+* rclone crypt
+* verification
+* retry
+* FloodWait
+* incremental scan
+* live monitoring
+* graceful restart
+
+CLI đủ để operate.
+
+Chưa cần đẹp.
+
+⸻
+
+122. Phase 2 — Web UI
+
+Sau Core PASS:
+
+* Login
+* Dashboard
+* Sources
+* Topics
+* Transfers
+* Failed
+* Storage
+* Settings
+* dark mode
+* responsive UI
+
+⸻
+
+123. Phase 3 — Reliability
+
+Implement:
+
+* Cache Mode
+* better reconciliation
+* notifications
+* DB backup
+* resource guards
+* better metrics
+* scheduling
+* adaptive concurrency nếu benchmark chứng minh hữu ích
+
+⸻
+
+124. Phase 4 — Encrypted Web Drive integration
+
+Expose compatible API/module để Encrypted Web Drive có thể hiển thị:
+
+My Drive
+Recent
+Starred
+Telegram Backup
+
+Không duplicate storage.
+
+Cả hai dùng cùng:
+
+crypt:
+
+nhưng khác root:
+
+crypt:/MyDrive/
+crypt:/Telegram/
+
+⸻
+
+125. Telegram Vault trong Web Drive
+
+Future UI:
+
+Encrypted Drive
+│
+├── My Drive
+│
+├── Recent
+│
+├── Starred
+│
+└── Telegram Backup
+     │
+     ├── Dashboard
+     │
+     ├── Hang Cu VIP
+     │    ├── General
+     │    ├── Topic A
+     │    └── Topic B
+     │
+     ├── Transfers
+     └── Failed
+
+Không implement integration trước khi Telegram Vault standalone ổn định.
+
+⸻
+
+126. Definition of Done
+
+MVP chỉ DONE khi:
+
+* Telegram authentication persist qua restart.
+* Discover group thành công.
+* Discover topics thành công.
+* Scan historical messages.
+* Detect video chính xác.
+* Dedupe hoạt động.
+* Video được backup qua crypt:.
+* Plaintext filename không xuất hiện trên underlying Google storage.
+* Plaintext video không lưu full-file trên VPS trong Streaming Mode.
+* RAM bounded.
+* Disk bounded.
+* FloodWait được tôn trọng.
+* Không request storm.
+* Failed transfer retry được.
+* Restart không tạo duplicate.
+* Restart không false-complete.
+* New video được phát hiện.
+* Historical backlog tiếp tục sau restart.
+* SHA-256 plaintext được tính trong stream.
+* Google/rclone errors được xử lý.
+* UI hiển thị đúng trạng thái thật.
+* Secrets không xuất hiện trong browser/log.
+* Docker deployment hoạt động.
+* VPS reboot → service tự chạy.
+
+⸻
+
+127. Acceptance test quan trọng nhất
+
+Test thực tế:
+
+Video Telegram: >= 5–10 GB
+
+VPS:
+
+Free disk < video size
+
+Transfer:
+
+Telegram
+   ↓
+VPS
+   ↓
+rclone crypt
+   ↓
+Google Drive
+
+Expected:
+
+COMPLETED
+
+Trong suốt quá trình:
+
+RAM bounded
+Disk bounded
+No plaintext full-file
+
+Sau đó:
+
+rclone copy crypt:<file> test-output
+
+SHA-256:
+
+original Telegram stream hash
+==
+decrypted backup hash
+
+PASS.
+
+⸻
+
+128. Codex bắt buộc trả lời trước khi kết thúc
+
+Codex phải ghi vào final implementation report:
+
+1. Telegram library nào được chọn? Vì sao?
+2. Video bytes đi qua những thành phần nào?
+3. Có thời điểm nào toàn bộ plaintext file nằm trên VPS không?
+4. Peak RAM cho một worker là bao nhiêu?
+5. Peak disk cho Streaming Mode là bao nhiêu?
+6. File 100 GB có thể backup khi VPS còn 5 GB không?
+7. Nếu transfer fail ở 99% chuyện gì xảy ra?
+8. Nếu VPS reboot ở 99% chuyện gì xảy ra?
+9. Nếu Telegram trả FloodWait 300 giây chuyện gì xảy ra?
+10. Nếu Google Drive trả 429 chuyện gì xảy ra?
+11. Làm sao chống duplicate?
+12. Topic identity được xác định bằng gì?
+13. Nếu Topic đổi tên chuyện gì xảy ra?
+14. Nếu Telegram message bị xóa sau backup chuyện gì xảy ra?
+15. Nếu browser đóng thì transfer có tiếp tục không?
+16. rclone credentials nằm ở đâu?
+17. Telegram session nằm ở đâu?
+18. Plaintext SHA-256 được tính ở đâu?
+19. Làm sao verify remote backup?
+20. Làm sao restore toàn hệ thống sang VPS mới?
+
+Nếu không trả lời được bằng implementation thực tế thì feature liên quan chưa DONE.
+
+⸻
+
+129. Quy tắc dành riêng cho Codex
+
+Không bắt đầu bằng frontend.
+
+Không dành thời gian làm dashboard đẹp trước khi streaming hoạt động.
+
+Không tự ý tăng concurrency để benchmark Telegram.
+
+Không tìm cách bypass Telegram rate limits.
+
+Không test destructive operation trên production.
+
+Không lưu plaintext video lâu dài nếu đang ở Streaming Mode.
+
+Không dùng /tmp để âm thầm spool toàn bộ stream.
+
+Không load toàn bộ Telegram history vào RAM.
+
+Không dùng filename làm unique identity.
+
+Không đánh dấu COMPLETED trước verification.
+
+Không expose rclone RC ra Internet.
+
+Không expose Telegram credentials ra browser.
+
+Không sử dụng Google Drive trực tiếp thay vì crypt:.
+
+Không thêm Redis/PostgreSQL/Kubernetes nếu chưa chứng minh SQLite/single-process không đủ.
+
+Giữ project đơn giản, nhẹ, có thể audit.
+
+⸻
+
+130. Thứ tự Codex phải thực hiện ngay
+
+STEP 1
+
+Audit VPS:
+
+OS
+CPU
+RAM
+disk
+network
+Docker
+Python/Node
+rclone version
+rclone remotes
+
+Không print secrets.
+
+STEP 2
+
+Test:
+
+rclone lsd crypt:
+
+read-only.
+
+STEP 3
+
+Login Telegram và persist session.
+
+STEP 4
+
+Chọn một TEST GROUP nhỏ mà account có quyền truy cập.
+
+STEP 5
+
+Discover:
+
+group
+topics
+messages
+video metadata
+
+Không download hàng loạt.
+
+STEP 6
+
+Làm Streaming POC:
+
+ONE VIDEO
+Telegram
+→ bounded stream
+→ rclone rcat
+→ crypt:
+
+STEP 7
+
+Đo:
+
+throughput
+CPU
+RAM
+disk
+
+STEP 8
+
+Download/decrypt file backup và verify SHA-256.
+
+STEP 9
+
+Test intentional interruption:
+
+kill process at ~50%
+
+Verify recovery.
+
+STEP 10
+
+Test simulated FloodWait/rate limit behavior.
+
+STEP 11
+
+Chỉ khi tất cả PASS mới xây:
+
+DB
+Queue
+Scanner
+Workers
+Listener
+
+STEP 12
+
+Core engine stable mới xây Web UI.
+
+⸻
+
+FINAL PRODUCT GOAL
+
+Kết quả cuối cùng phải cho trải nghiệm:
+
+Add Telegram Group
+        ↓
+Select Topics
+        ↓
+Enable Backup
+        ↓
+        DONE
+
+Từ đó hệ thống tự:
+
+Telegram
+    ↓
+discover video
+    ↓
+deduplicate
+    ↓
+queue
+    ↓
+rate control
+    ↓
+stream
+    ↓
+SHA-256
+    ↓
+rclone crypt
+    ↓
+Google Drive
+    ↓
+verify
+    ↓
+COMPLETED
+
+24/7, tự phục hồi sau restart, VPS sử dụng ít RAM/disk và không cần người dùng can thiệp thường xuyên.

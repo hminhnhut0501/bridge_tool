@@ -1,0 +1,11 @@
+# Bounded transport v3 — measured production rollout
+
+Production probe on two previously completed files used 8 MiB prefixes, one then two lanes, without writing plaintext to disk. Premium was true. Results: Telegram-only one lane 4.110 / 3.725 MiB/s; two lanes 8.282 / 7.433 MiB/s. Each file's sample hash matched across lane counts. Drive crypt 16 MiB upload including startup/metadata took 10.343s (1.547 MiB/s); full 8 MiB pipeline took 9.739s (0.821 MiB/s), with source and decrypted readback hashes matching. Small samples include subprocess/metadata overhead and are not sustained-throughput guarantees or a Desktop benchmark. No FloodWait was returned in the probe. Temporary remote samples were deleted. Service was stopped during the exclusive Telegram session probe and restarted with a trap.
+
+The previous 250ms minimum spacing imposed a 2 MiB/s theoretical cap independent of measured network. Opt-in telegram_transport_v3 uses a 20ms floor and a shared maximum of two concurrent media iterator advances across the entire account. Two lanes per file are enabled based on both probes; configured file concurrency is preserved. This bounds in-flight requests at the wrapper level; Telethon can perform additional internal RPCs for migration/references. Ordered lanes, bounded streaming, exact-byte checks and pipe backpressure remain.
+
+A FloodWait reduces lanes and raises spacing to at least 100ms, doubling as needed up to four seconds. Existing shared deadlines are honored and no account cooldown is cleared. Successful-media window recovery remains; slow downstream writes suppress recovery for 45 seconds. No unconditional automatic lane escalation occurs.
+
+Rollback: set telegram_transport_v3=false in settings while stopped, retain/choose a conservative interval and lane count, restart installed package. Keep all Telegram deadlines and queue data. The flag defaults false for existing installations until a measured rollout; API rate-status reports transport_mode and global max_inflight_media.
+
+Tests verify cross-job in-flight maximum, capacity release on cancellation, FloodWait backoff/deadline handling and suppression of speed increases under Drive backpressure, alongside full queue, hash, ordering and recovery regressions.
